@@ -75,7 +75,7 @@ func TestStakeholderVacanciesRouteAdmitsOwnerAndStakeholderOnly(t *testing.T) {
 		if lister.company != routeTestCompanyID || lister.actor != routeTestActorID || lister.req.Limit != 20 {
 			t.Fatalf("%s: the store got %+v", role, lister)
 		}
-		if got, want := rec.Body.String(), `{"items":[],"next_cursor":null}`+"\n"; got != want {
+		if got, want := rec.Body.String(), `{"items":[],"next_cursor":null,"counts_by_status":null}`+"\n"; got != want {
 			t.Fatalf("%s: %s", role, got)
 		}
 	}

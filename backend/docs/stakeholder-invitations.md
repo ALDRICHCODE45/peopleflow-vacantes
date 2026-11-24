@@ -9,8 +9,8 @@ Roles and the gate: [company-members.md](company-members.md).
 
 | Route | Guard | Success |
 | --- | --- | --- |
-| `POST /v2/me/company/stakeholder-invitations` | Owner; live company | 201 `{id, url_token, expires_at, created_at}` |
-| `GET /v2/me/company/stakeholder-invitations` | Owner; live company | 200 `{items: [{id, created_at, created_by, expires_at}]}` |
+| `POST /v2/me/company/stakeholder-invitations` optional body `{"note"}` | Owner; live company | 201 `{id, url_token, expires_at, created_at, note}` |
+| `GET /v2/me/company/stakeholder-invitations` | Owner; live company | 200 `{items: [{id, created_at, created_by, expires_at, note}]}` |
 | `DELETE /v2/me/company/stakeholder-invitations/{id}` | Owner; live company | 204 |
 | `POST /v2/me/stakeholder-invitations/accept` body `{"token"}` | Any signed-in user | 200 `{company_id, member_id, role: "stakeholder"}` |
 
@@ -23,6 +23,16 @@ microseconds; `created_by` is the creator's user id.
 - **Expiry and limit.** 7 days. At most 20 pending (not revoked, not used, not
   expired) per company: the 21st create returns 422 `invitation_limit_reached`.
   The create locks the company row, so two creates cannot both pass the limit.
+- **Note** (audit gap D11). Optional label, column `stakeholder_invitations.note`
+  (migration `00065`, nullable, `CHECK (char_length(note) BETWEEN 1 AND 80)`; its
+  Down refuses while any note exists). `valueobjects.ParseInvitationNote` trims,
+  applies NFC and accepts 1..80 code points without control characters; absent,
+  `null`, empty or blank is `null`. No body and `{}` still create without a note.
+  Invalid note (too long, control character, non-string): 400
+  `validation_error` with `fields: [{field: "note", code: "invalid"}]`, nothing
+  written. A body that is not one JSON object: 400 `invalid_request`; over 1 MiB:
+  413 `payload_too_large`. Returned by the create and the list (`null` when
+  none); never in audit metadata.
 - **List.** Pending invitations only, newest first, never a token.
 - **Revoke.** 204 for a pending invitation (audited) and also, writing nothing,
   for an already used, expired, revoked, unknown or other-company invitation.
@@ -47,7 +57,7 @@ A soft-deleted company's invitation is `invitation_invalid` too.
 
 ## Audit
 
-`StakeholderInvitationCreated {invitation_id, expires_at}` and
+`StakeholderInvitationCreated {invitation_id, expires_at}` (never the note) and
 `StakeholderInvitationRevoked {invitation_id}` (actor: owner);
 `StakeholderInvitationAccepted {invitation_id, member_user_id}` plus
 `CompanyMemberAdded {member_user_id, role: "stakeholder"}` (actor: the new
@@ -75,4 +85,9 @@ make test PKG='./internal/shared/httpjson/ ./internal/features/audit_events/doma
 `cmd/api/stakeholder_invitations_integration_test.go` covers create and list,
 the pending limit, idempotent revoke, owner-only access, accept and replay,
 every rejection (with invitations, members and audit unchanged) and the
-concurrent accept.
+concurrent accept. `cmd/api/stakeholder_invitation_note_integration_test.go`
+covers the note (stored, returned by create and list, absent from audit,
+every invalid form rejected without writes);
+`db/migrations/migration_00065_integration_test.go` the column, its CHECK and
+the guarded Down; unit tests `invitationNote_test.go` and
+`stakeholderInvitationService_test.go`.

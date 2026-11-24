@@ -757,14 +757,21 @@ Every vacancy of the session company (schema-2 job drafts, the scope of the job-
       "documents_count": 1
     }
   ],
-  "next_cursor": "eyJ2ZXJzaW9uIjoxLC4uLn0"
+  "next_cursor": "eyJ2ZXJzaW9uIjoxLC4uLn0",
+  "counts_by_status": { "all": 9, "draft": 1, "active": 4, "paused": 1, "closed": 3 }
 }
 ```
 
+- **`counts_by_status`** (audit gap D20): always present in the envelope. On the **first page** (no `cursor`) it is an
+  object with exactly five keys, **exact** counts (no cap) over the same scope as the list (every schema-2 vacancy of the
+  company, never-published drafts included), read in the same statement as the page. The buckets are the tabs and are
+  derived from `publication` alone: `draft` = `publication` `null` (never published), `active` = `published`, `paused` =
+  `paused`, `closed` = `closed` (whatever `process`, active or finished); `all` = the whole scope = the sum of the four.
+  On every page **with a `cursor`** it is **`null`** (the key stays). A company with nothing gets all zeros.
 - **Row**: exactly nine keys, all always present. `publication`, `process`, `kind` and `visibility` have **the values of the lifecycle and of the `GET V/document-overview` header** (`publication` `published | paused | closed`, `process` `active | finished`, `kind` `original | replacement`, `visibility` `public | private`; `publication`, `process` and `visibility` are `null` for a draft that never published). `close_reason` is the lifecycle's name of the close reason (`GET V/lifecycle` `close_reason`, e.g. `filled`, `cancelled`), `null` unless the vacancy is closed (a reopened vacancy has none). `title` is nullable.
 - **`coverage`** is the job-drafts list row's: `null` exactly when the draft has never been published, otherwise `{ "covered", "required" }` with the board's live definition (participations in the current Placement stage against the process' hiring headcount; `required` is `null` without a headcount). It is computed with the same function and aggregate as the list (`listCoverage`), and a test compares every row with the owner's `GET /v2/me/company/job-drafts` row.
 - **`documents_count`** is the vacancy's documents **plus those of its participations** (discarded participations included), each document once however many versions it has; **links are not documents** and never count (a replacement that only links shows 0). It is computed in the same statement as the page, for the page's vacancies only.
-- **Pagination mirrors the job-drafts list**: query `limit` (default 20, 1..50, plain digits) and `cursor`; each at most once, an unparseable query string, a repeated or malformed parameter is 400 `invalid_request`; order `updated_at` descending, then `id` descending; the envelope is `{ "items", "next_cursor" }` with `next_cursor` `null` on the last page and `items` `[]` (never `null`) when there is nothing. The cursor is **the job-drafts list's opaque cursor** (same format, bound to the session company and user, so another user's or company's cursor is 400 `invalid_request`; a cursor issued for a `root_process_id` filter is 400 `invalid_cursor`). A vacancy created or saved between two pages sorts before the cursor, so the walk neither repeats nor loses a row; restart it to see the new one.
+- **Pagination mirrors the job-drafts list**: query `limit` (default 20, 1..50, plain digits) and `cursor`; each at most once, an unparseable query string, a repeated or malformed parameter is 400 `invalid_request`; order `updated_at` descending, then `id` descending; the envelope is `{ "items", "next_cursor", "counts_by_status" }` with `next_cursor` `null` on the last page and `items` `[]` (never `null`) when there is nothing. The cursor is **the job-drafts list's opaque cursor** (same format, bound to the session company and user, so another user's or company's cursor is 400 `invalid_request`; a cursor issued for a `root_process_id` filter is 400 `invalid_cursor`). A vacancy created or saved between two pages sorts before the cursor, so the walk neither repeats nor loses a row; restart it to see the new one.
 
 ### Route summary
 

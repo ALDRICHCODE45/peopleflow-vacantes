@@ -19,6 +19,10 @@ var _ stakeholdervacancies.Lister = (*Store)(nil)
 // session company, `visibleV2Drafts`) read as the owner, whose rule is «every draft of the company»; the order, the keyset and the
 // cursor are the list's, and the coverage is the list's `listCoverage` over the same aggregate, so a row can never disagree with
 // the job-drafts list row. The documents count is computed in the same statement, from the page's ids only.
+//
+// counts_by_status (audit gap D20) is read on the first page only, in the same statement (one snapshot with the rows): exact
+// counts over the same scope bucketed by the publication the rows carry (no process row → draft, published → active,
+// paused → paused, closed → closed whatever the process). A cursor page selects NULLs instead and the page carries none.
 
 // stakeholderMayRead is who may read the list: the company owner and the stakeholder (the metrics viewers). A recruiter keeps to
 // the job-drafts list, whose rule is owner-or-active-tramo; the route gate refuses them first and the store agrees with it.
@@ -81,6 +85,21 @@ func (s *Store) ListStakeholderVacancies(ctx context.Context, companyID, actorID
 		args = append(args, req.After.LastUpdatedAt, req.After.LastID)
 		query += fmt.Sprintf(` AND (d.updated_at, d.id) < ($%d::timestamptz, $%d::uuid)`, len(args)-1, len(args))
 	}
+	// The counts CTE re-reads the whole scope without the keyset; it exists on the first page only.
+	countsCTE, countsCols, countsJoin := "", "NULL::bigint, NULL::bigint, NULL::bigint, NULL::bigint, NULL::bigint", ""
+	if req.After == nil {
+		countsCTE = `, status_counts AS (
+  SELECT count(*) AS total,
+   count(*) FILTER (WHERE p.status IS NULL) AS draft,
+   count(*) FILTER (WHERE p.status = 'published') AS active,
+   count(*) FILTER (WHERE p.status = 'paused') AS paused,
+   count(*) FILTER (WHERE p.status = 'closed') AS closed
+  FROM job_drafts d
+  LEFT JOIN vacancy_processes p ON p.id = d.id AND p.company_id = d.company_id
+  WHERE ` + visibleV2Drafts + `
+ )`
+		countsCols, countsJoin = "sc.total, sc.draft, sc.active, sc.paused, sc.closed", " CROSS JOIN status_counts sc"
+	}
 	query += fmt.Sprintf(` ORDER BY d.updated_at DESC, d.id DESC LIMIT %d),
  stage_counts AS (
   SELECT pp.process_id, pp.stage_id, count(*) AS total
@@ -92,11 +111,11 @@ func (s *Store) ListStakeholderVacancies(ctx context.Context, companyID, actorID
  ), document_counts AS (
   SELECT draft_id, count(*) AS total FROM placement_documents
   WHERE company_id = $1 AND draft_id IN (SELECT id FROM page) GROUP BY draft_id
- )
- SELECT page.*, cc.summary, COALESCE(dc.total, 0) FROM page
+ )%s
+ SELECT page.*, cc.summary, COALESCE(dc.total, 0), %s FROM page
  LEFT JOIN candidate_counts cc ON cc.process_id = page.id
- LEFT JOIN document_counts dc ON dc.draft_id = page.id
- ORDER BY page.updated_at DESC, page.id DESC`, req.Limit+1)
+ LEFT JOIN document_counts dc ON dc.draft_id = page.id%s
+ ORDER BY page.updated_at DESC, page.id DESC`, req.Limit+1, countsCTE, countsCols, countsJoin)
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		return stakeholdervacancies.Page{}, fmt.Errorf("list stakeholder vacancies: %w", err)
@@ -111,13 +130,22 @@ func (s *Store) ListStakeholderVacancies(ctx context.Context, companyID, actorID
 	}
 	items := make([]stakeholdervacancies.Row, 0, req.Limit+1)
 	projections := make([]projection, 0, req.Limit+1)
+	// Every row repeats the same counts; an empty first page means an empty scope, hence all zero.
+	var counts *stakeholdervacancies.StatusCounts
+	if req.After == nil {
+		counts = &stakeholdervacancies.StatusCounts{}
+	}
 	for rows.Next() {
 		var row stakeholdervacancies.Row
 		var p projection
+		var total, draft, active, paused, closed *int64
 		if err := rows.Scan(&row.ID, &p.document, &p.updatedAt, &row.Publication, &row.Process, &p.pipeline, &p.pipelineVersion, &row.CloseReason,
-			&p.sequence, &p.hasProjection, &p.headcount, &p.counts, &row.DocumentsCount); err != nil {
+			&p.sequence, &p.hasProjection, &p.headcount, &p.counts, &row.DocumentsCount, &total, &draft, &active, &paused, &closed); err != nil {
 			rows.Close()
 			return stakeholdervacancies.Page{}, fmt.Errorf("scan stakeholder vacancy: %w", err)
+		}
+		if counts != nil && total != nil && draft != nil && active != nil && paused != nil && closed != nil {
+			*counts = stakeholdervacancies.StatusCounts{All: *total, Draft: *draft, Active: *active, Paused: *paused, Closed: *closed}
 		}
 		items = append(items, row)
 		projections = append(projections, p)
@@ -127,7 +155,7 @@ func (s *Store) ListStakeholderVacancies(ctx context.Context, companyID, actorID
 		return stakeholdervacancies.Page{}, fmt.Errorf("iterate stakeholder vacancies: %w", err)
 	}
 
-	page := stakeholdervacancies.Page{Items: items}
+	page := stakeholdervacancies.Page{Items: items, CountsByStatus: counts}
 	if len(items) > req.Limit {
 		page.Items = items[:req.Limit]
 		page.NextCursor, err = draftlist.EncodeCursor(draftlist.Cursor{

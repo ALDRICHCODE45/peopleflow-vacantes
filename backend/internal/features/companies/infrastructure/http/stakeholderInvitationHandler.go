@@ -1,11 +1,15 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -22,18 +26,21 @@ func NewStakeholderInvitationHandler(service *usecases.StakeholderInvitationServ
 	return &StakeholderInvitationHandler{service: service}
 }
 
+// Note is always present: the normalized label or null (audit gap D11).
 type invitationCreatedResponse struct {
-	ID        string `json:"id"`
-	URLToken  string `json:"url_token"`
-	ExpiresAt string `json:"expires_at"`
-	CreatedAt string `json:"created_at"`
+	ID        string  `json:"id"`
+	URLToken  string  `json:"url_token"`
+	ExpiresAt string  `json:"expires_at"`
+	CreatedAt string  `json:"created_at"`
+	Note      *string `json:"note"`
 }
 
 type invitationItemResponse struct {
-	ID        string `json:"id"`
-	CreatedAt string `json:"created_at"`
-	CreatedBy string `json:"created_by"`
-	ExpiresAt string `json:"expires_at"`
+	ID        string  `json:"id"`
+	CreatedAt string  `json:"created_at"`
+	CreatedBy string  `json:"created_by"`
+	ExpiresAt string  `json:"expires_at"`
+	Note      *string `json:"note"`
 }
 
 type invitationListResponse struct {
@@ -57,18 +64,75 @@ func (h *StakeholderInvitationHandler) writeError(w http.ResponseWriter, r *http
 }
 
 // Create is POST /v2/me/company/stakeholder-invitations → 201; the url token
-// is in this response only.
+// is in this response only. The body is optional: no body, `{}` and
+// `{"note":null}` create an invitation without a note.
 func (h *StakeholderInvitationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
 		return
 	}
-	issued, err := h.service.Create(r.Context(), cc.CompanyID, cc.UserID)
+	note, def, invalidNote := decodeInvitationNote(w, r)
+	if def != nil {
+		httpjson.WriteCatalogError(w, *def)
+		return
+	}
+	if invalidNote {
+		writeInvalidNote(w)
+		return
+	}
+	issued, err := h.service.Create(r.Context(), cc.CompanyID, cc.UserID, note)
+	if errors.Is(err, valueobjects.ErrInvalidInvitationNote) {
+		writeInvalidNote(w)
+		return
+	}
 	if err != nil {
 		h.writeError(w, r, err, "create stakeholder invitation failed")
 		return
 	}
-	httpjson.WriteJSON(w, http.StatusCreated, invitationCreatedResponse{ID: issued.ID.String(), URLToken: issued.URLToken, ExpiresAt: invitationTime(issued.ExpiresAt), CreatedAt: invitationTime(issued.CreatedAt)})
+	httpjson.WriteJSON(w, http.StatusCreated, invitationCreatedResponse{ID: issued.ID.String(), URLToken: issued.URLToken, ExpiresAt: invitationTime(issued.ExpiresAt), CreatedAt: invitationTime(issued.CreatedAt), Note: issued.Note})
+}
+
+func writeInvalidNote(w http.ResponseWriter) {
+	httpjson.WriteValidationError(w, []httpjson.ValidationField{{Field: "note", Code: "invalid"}})
+}
+
+// decodeInvitationNote reads the optional create body under the same
+// maxJSONBodyBytes cap (payload_too_large past it). An empty body is no note;
+// otherwise it must be exactly one JSON object (invalid_request), with
+// httpjson.DecodeJSON's single-value rule applied to the buffered bytes. A
+// present non-string, non-null `note` is reported through invalidNote;
+// unknown keys are ignored.
+func decodeInvitationNote(w http.ResponseWriter, r *http.Request) (*string, *httpjson.Definition, bool) {
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxJSONBodyBytes))
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		code := httpjson.CodeInvalidRequest
+		if errors.As(err, &tooLarge) {
+			code = httpjson.CodePayloadTooLarge
+		}
+		def := httpjson.Resolve(code)
+		return nil, &def, false
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil, nil, false
+	}
+	var req struct {
+		Note json.RawMessage `json:"note"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	var extra any
+	if dec.Decode(&req) != nil || dec.Decode(&extra) != io.EOF {
+		def := httpjson.Resolve(httpjson.CodeInvalidRequest)
+		return nil, &def, false
+	}
+	if len(req.Note) == 0 || string(req.Note) == "null" {
+		return nil, nil, false
+	}
+	var note string
+	if err := json.Unmarshal(req.Note, &note); err != nil {
+		return nil, nil, true
+	}
+	return &note, nil, false
 }
 
 // List is GET /v2/me/company/stakeholder-invitations: pending only, no token.
@@ -84,7 +148,7 @@ func (h *StakeholderInvitationHandler) List(w http.ResponseWriter, r *http.Reque
 	}
 	out := invitationListResponse{Items: make([]invitationItemResponse, 0, len(items))}
 	for _, inv := range items {
-		out.Items = append(out.Items, invitationItemResponse{ID: inv.ID.String(), CreatedAt: invitationTime(inv.CreatedAt), CreatedBy: inv.CreatedBy.String(), ExpiresAt: invitationTime(inv.ExpiresAt)})
+		out.Items = append(out.Items, invitationItemResponse{ID: inv.ID.String(), CreatedAt: invitationTime(inv.CreatedAt), CreatedBy: inv.CreatedBy.String(), ExpiresAt: invitationTime(inv.ExpiresAt), Note: inv.Note})
 	}
 	httpjson.WriteJSON(w, http.StatusOK, out)
 }

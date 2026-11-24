@@ -112,6 +112,7 @@ type Querier interface {
 	// tsvector to interface{} and a generated column rejects explicit
 	// writes (D3).
 	CreateJob(ctx context.Context, arg CreateJobParams) (CreateJobRow, error)
+	// note is NULL or already trimmed and NFC (1..80 code points, migration 00065).
 	CreateStakeholderInvitation(ctx context.Context, arg CreateStakeholderInvitationParams) error
 	// Idempotent upsert keyed on the partial unique index `users_cognito_sub_unique`.
 	// The `WHERE deleted_at IS NULL` predicate is required: a bare `ON CONFLICT (cognito_sub)`
@@ -243,6 +244,13 @@ type Querier interface {
 	// columns, so the adapter can render `user: null` instead of dropping the
 	// row. Ordered by created_at for stable rendering; backed by
 	// `company_members_company_id_idx` B-tree.
+	// active_vacancies is the member's workload, the same for every viewer: the
+	// schema-2 vacancies of the company where the member holds an open team
+	// assignment (vacancy_assignments.ended_at IS NULL) and whose process is
+	// active (vacancy_processes.process_status = 'active'; a never-published draft
+	// has no process and does not count). It is computed in this one statement
+	// (the correlated count reads `vacancy_assignments_active_by_user`), never
+	// per member from the caller.
 	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]ListByCompanyIDRow, error)
 	ListCandidateEducations(ctx context.Context, userID uuid.UUID) ([]ListCandidateEducationsRow, error)
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)

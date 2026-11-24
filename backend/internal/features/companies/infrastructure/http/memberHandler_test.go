@@ -564,6 +564,47 @@ func TestListMembers_EmptyListIsEmptyJSONArray(t *testing.T) {
 	}
 }
 
+// TestListMembers_WorkloadWire pins the member wire: seven keys, workload
+// always present as {"active_vacancies": n} (0 included, user null included),
+// straight from the repository's per-member count (audit gap D5).
+func TestListMembers_WorkloadWire(t *testing.T) {
+	companyID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	memberID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	userID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	goneID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	rows := []entities.MemberListRow{
+		{ID: memberID, CompanyID: companyID, Role: "recruiter", CreatedAt: "2026-11-01T10:00:00Z", UpdatedAt: "2026-11-02T10:00:00Z",
+			User: &entities.MemberUser{ID: userID, FullName: "Ana", Email: "ana@x.com"}, ActiveVacancies: 3},
+		{ID: goneID, CompanyID: companyID, Role: "stakeholder", CreatedAt: "2026-11-01T10:00:00Z", UpdatedAt: "2026-11-01T10:00:00Z"},
+	}
+	mRepo := &stubMemberRepositoryForHandler{listOut: rows}
+	svc := newMemberHandlerService(mRepo, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.RecruiterRole})
+
+	rec := doReq(t, router, http.MethodGet, "/me/company/members", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	want := `{"members":[` +
+		`{"id":"22222222-2222-2222-2222-222222222222","company_id":"11111111-1111-1111-1111-111111111111","role":"recruiter","created_at":"2026-11-01T10:00:00Z","updated_at":"2026-11-02T10:00:00Z","user":{"id":"33333333-3333-3333-3333-333333333333","full_name":"Ana","email":"ana@x.com"},"workload":{"active_vacancies":3}},` +
+		`{"id":"44444444-4444-4444-4444-444444444444","company_id":"11111111-1111-1111-1111-111111111111","role":"stakeholder","created_at":"2026-11-01T10:00:00Z","updated_at":"2026-11-01T10:00:00Z","user":null,"workload":{"active_vacancies":0}}` +
+		`]}`
+	if got := strings.TrimSpace(rec.Body.String()); got != want {
+		t.Fatalf("body =\n%s\nwant\n%s", got, want)
+	}
+	var keys struct {
+		Members []map[string]json.RawMessage `json:"members"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &keys); err != nil {
+		t.Fatal(err)
+	}
+	for i, m := range keys.Members {
+		if len(m) != 7 {
+			t.Fatalf("member %d has %d keys", i, len(m))
+		}
+	}
+}
+
 // --- POST /me/company/members (task 3.5) ----------------------------------
 
 // TestAddMember_OwnerReturns201 covers the spec scenario "owner adds a

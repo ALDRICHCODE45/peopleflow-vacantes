@@ -75,7 +75,7 @@ func (s documentSeed) link(draft uuid.UUID, participation, source, sourceVersion
 func TestMigration00064UpReachesVersion64(t *testing.T) {
 	db, _, cleanup := isolatedMigrationDB(t)
 	defer cleanup()
-	gooseUpAll(t, db)
+	gooseDownTo(t, db, 64) // 00065 sits on top
 	if version, err := goose.GetDBVersion(db); err != nil || version != 64 {
 		t.Fatalf("version=%d: %v", version, err)
 	}
@@ -288,7 +288,7 @@ func TestMigration00064DownRefusesDocumentData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			db, pool, cleanup := isolatedMigrationDB(t)
 			defer cleanup()
-			gooseUpAll(t, db)
+			gooseDownTo(t, db, 64) // 00065 sits on top; Down below targets 00064 itself
 			tc.seed(newDocumentSeed(t, pool))
 			err := gooseDownOnce(t, db)
 			if err == nil || !strings.Contains(err.Error(), "cannot remove placement documents: documents, versions or links exist") {
@@ -309,7 +309,7 @@ func TestMigration00064DownRefusesDocumentData(t *testing.T) {
 func TestMigration00064DownAndUpWithoutDocumentData(t *testing.T) {
 	db, pool, cleanup := isolatedMigrationDB(t)
 	defer cleanup()
-	gooseUpAll(t, db)
+	gooseDownTo(t, db, 64) // 00065 sits on top; Down below targets 00064 itself
 	s := newDocumentSeed(t, pool)
 	s.participation(s.process(), nil)
 	if err := gooseDownOnce(t, db); err != nil {
@@ -327,7 +327,7 @@ func TestMigration00064DownAndUpWithoutDocumentData(t *testing.T) {
 	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM process_participations`).Scan(&participations); err != nil || participations != 1 {
 		t.Fatalf("participations=%d %v", participations, err)
 	}
-	gooseUpAll(t, db)
+	gooseUpTo(t, db, 64)
 	if !tableExists(t, pool, "placement_documents") || !tableExists(t, pool, "placement_document_versions") || !tableExists(t, pool, "placement_document_links") {
 		t.Fatal("Up did not restore the schema")
 	}

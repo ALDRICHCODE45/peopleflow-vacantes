@@ -23,6 +23,8 @@ import (
 // job-drafts list's coverage and the number of documents. Real RequireAuth, real RequireMetricsViewer, the real draftstore, isolated
 // PostgreSQL. The job-drafts list is mounted on the same router so every row is compared with the row the owner's list shows.
 
+var svCountKeys = []string{"active", "all", "closed", "draft", "paused"}
+
 var stakeholderRowKeys = []string{"close_reason", "coverage", "documents_count", "id", "kind", "process", "publication", "title", "visibility"}
 
 type svFlow struct {
@@ -71,8 +73,16 @@ func (f *svFlow) page(token, query string) map[string]any {
 		f.t.Fatalf("GET stakeholder/vacancies?%s: %d %s", query, got.status, got.body)
 	}
 	body := draftFlowObject(f.t, got.body)
-	if !reflect.DeepEqual(docsSorted(body), []string{"items", "next_cursor"}) {
+	if !reflect.DeepEqual(docsSorted(body), []string{"counts_by_status", "items", "next_cursor"}) {
 		f.t.Fatalf("envelope keys: %v", docsSorted(body))
+	}
+	// counts_by_status is an object on the first page and null on every cursor page.
+	if counts, ok := body["counts_by_status"].(map[string]any); strings.Contains(query, "cursor=") {
+		if body["counts_by_status"] != nil {
+			f.t.Fatalf("cursor page counts_by_status = %v, want null", body["counts_by_status"])
+		}
+	} else if !ok || !reflect.DeepEqual(docsSorted(counts), svCountKeys) {
+		f.t.Fatalf("first page counts_by_status = %v", body["counts_by_status"])
 	}
 	return body
 }
@@ -489,7 +499,65 @@ func TestStakeholderVacancies_EmptyCompany(t *testing.T) {
 	stakeholder := f.member("stakeholder")
 	got := f.get(stakeholder.token, "")
 	draftFlowAssertNoStore(t, got)
-	if got.status != 200 || string(got.body) != `{"items":[],"next_cursor":null}`+"\n" {
+	if got.status != 200 || string(got.body) != `{"items":[],"next_cursor":null,"counts_by_status":{"all":0,"draft":0,"active":0,"paused":0,"closed":0}}`+"\n" {
 		t.Fatalf("%d %s", got.status, got.body)
+	}
+}
+
+// counts_by_status (audit gap D20): exact counts over the list's whole scope on the first page, bucketed by `publication`
+// exactly as the tabs bucket the rows (null → draft, published → active, paused → paused, closed → closed, whatever the
+// process); null on cursor pages. Owner and stakeholder read the same numbers; another company's vacancies never count.
+func TestStakeholderVacancies_CountsByStatusOnTheFirstPage(t *testing.T) {
+	f := newSVFlow(t)
+	stakeholder := f.member("stakeholder")
+	f.draft()
+	f.draft()
+	f.published()
+	f.published()
+	paused := f.published()
+	if got := f.transition(paused, "pause", `{}`); got.status != 200 {
+		t.Fatalf("pause: %d %s", got.status, got.body)
+	}
+	closedActive := f.published()
+	f.closeIt(closedActive, "continue")
+	finished := f.published()
+	f.closeIt(finished, "finish")
+	other := newSVFlow(t)
+	other.draft()
+	other.published()
+
+	want := map[string]any{"all": float64(7), "draft": float64(2), "active": float64(2), "paused": float64(1), "closed": float64(2)}
+	for _, token := range []string{f.owner.token, stakeholder.token} {
+		for _, limit := range []string{"1", "3", "50"} {
+			first := f.page(token, "limit="+limit)
+			if !reflect.DeepEqual(first["counts_by_status"], want) {
+				t.Fatalf("limit %s: counts %v, want %v", limit, first["counts_by_status"], want)
+			}
+		}
+		// Every row lands in exactly one bucket, and the buckets agree with the rows.
+		rows := f.all(token, "2")
+		got := map[string]float64{"all": float64(len(rows))}
+		for _, row := range rows {
+			switch row["publication"] {
+			case nil:
+				got["draft"]++
+			case "published":
+				got["active"]++
+			case "paused":
+				got["paused"]++
+			case "closed":
+				got["closed"]++
+			}
+		}
+		editJSONEqual(t, got, want)
+	}
+	// Writes move the counts on the next first page: pausing an active vacancy.
+	active := f.published()
+	if got := f.transition(active, "pause", `{}`); got.status != 200 {
+		t.Fatalf("pause: %d %s", got.status, got.body)
+	}
+	want["all"], want["paused"] = float64(8), float64(2)
+	if got := f.page(stakeholder.token, "")["counts_by_status"]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("after pause %v, want %v", got, want)
 	}
 }

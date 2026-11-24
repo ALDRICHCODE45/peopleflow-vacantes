@@ -81,7 +81,10 @@ func TestStakeholderInvitations_CreateAndList(t *testing.T) {
 	if r.status != 201 || r.header.Get("Cache-Control") != "no-store" {
 		t.Fatalf("create %d %v %s", r.status, r.header, r.body)
 	}
-	body := orgCandidateKeys(t, draftFlowObject(t, r.body), "id", "url_token", "expires_at", "created_at")
+	body := orgCandidateKeys(t, draftFlowObject(t, r.body), "id", "url_token", "expires_at", "created_at", "note")
+	if body["note"] != nil {
+		t.Fatalf("note without a body: %v", body["note"])
+	}
 	id := draftFlowUUID(t, body["id"].(string))
 	raw, err := base64.RawURLEncoding.DecodeString(body["url_token"].(string))
 	if err != nil || len(raw) != 32 {
@@ -133,12 +136,12 @@ func TestStakeholderInvitations_CreateAndList(t *testing.T) {
 		t.Fatalf("items %s", list.body)
 	}
 	for i, want := range []uuid.UUID{last, id} {
-		item := orgCandidateKeys(t, items[i], "id", "created_at", "created_by", "expires_at")
+		item := orgCandidateKeys(t, items[i], "id", "created_at", "created_by", "expires_at", "note")
 		if item["id"] != want.String() || item["created_by"] != ownerID.String() {
 			t.Fatalf("item %d = %v", i, item)
 		}
 	}
-	editJSONEqual(t, items[1], map[string]any{"id": id.String(), "created_at": body["created_at"], "created_by": ownerID.String(), "expires_at": body["expires_at"]})
+	editJSONEqual(t, items[1], map[string]any{"id": id.String(), "created_at": body["created_at"], "created_by": ownerID.String(), "expires_at": body["expires_at"], "note": nil})
 	_ = usedID
 }
 

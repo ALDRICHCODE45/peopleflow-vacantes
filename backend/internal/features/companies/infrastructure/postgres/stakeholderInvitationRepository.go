@@ -67,9 +67,10 @@ func (r *StakeholderInvitationRepository) Create(ctx context.Context, inv entiti
 		if pending >= int64(limit) {
 			return entities.ErrInvitationLimitReached
 		}
-		if err := q.CreateStakeholderInvitation(ctx, db.CreateStakeholderInvitationParams{ID: inv.ID, CompanyID: inv.CompanyID, TokenSha256: tokenHash, CreatedBy: inv.CreatedBy, CreatedAt: timestamptz(inv.CreatedAt), ExpiresAt: timestamptz(inv.ExpiresAt)}); err != nil {
+		if err := q.CreateStakeholderInvitation(ctx, db.CreateStakeholderInvitationParams{ID: inv.ID, CompanyID: inv.CompanyID, TokenSha256: tokenHash, CreatedBy: inv.CreatedBy, CreatedAt: timestamptz(inv.CreatedAt), ExpiresAt: timestamptz(inv.ExpiresAt), Note: optionalText(inv.Note)}); err != nil {
 			return err
 		}
+		// The note stays out of the metadata: the audit catalog allows ids and enums only.
 		return r.appendEvent(ctx, tx, inv.CreatedBy, inv.CompanyID, auditentities.EventStakeholderInvitationCreated, auditentities.EntityStakeholderInvitation, inv.ID,
 			map[string]string{"invitation_id": inv.ID.String(), "expires_at": inv.ExpiresAt.UTC().Format(time.RFC3339Nano)})
 	})
@@ -82,7 +83,12 @@ func (r *StakeholderInvitationRepository) ListPending(ctx context.Context, compa
 	}
 	out := make([]entities.StakeholderInvitation, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, entities.StakeholderInvitation{ID: row.ID, CompanyID: companyID, CreatedBy: row.CreatedBy, CreatedAt: pgTimestamptzToTime(row.CreatedAt), ExpiresAt: pgTimestamptzToTime(row.ExpiresAt)})
+		inv := entities.StakeholderInvitation{ID: row.ID, CompanyID: companyID, CreatedBy: row.CreatedBy, CreatedAt: pgTimestamptzToTime(row.CreatedAt), ExpiresAt: pgTimestamptzToTime(row.ExpiresAt)}
+		if row.Note.Valid {
+			note := row.Note.String
+			inv.Note = &note
+		}
+		out = append(out, inv)
 	}
 	return out, nil
 }
@@ -164,6 +170,13 @@ func (r *StakeholderInvitationRepository) Accept(ctx context.Context, userID uui
 		return nil
 	})
 	return out, err
+}
+
+func optionalText(s *string) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: *s, Valid: true}
 }
 
 func timestamptz(t time.Time) pgtype.Timestamptz {

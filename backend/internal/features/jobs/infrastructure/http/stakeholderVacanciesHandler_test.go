@@ -71,7 +71,8 @@ func TestStakeholderVacancies_ExactWire(t *testing.T) {
 			},
 			{ID: reqUserID, Kind: "original", DocumentsCount: 1},
 		},
-		NextCursor: "next-token",
+		NextCursor:     "next-token",
+		CountsByStatus: &stakeholdervacancies.StatusCounts{All: 9, Draft: 1, Active: 4, Paused: 1, Closed: 3},
 	}}
 	rec := doDraft(t, stakeholderVacanciesRouter(store, true), http.MethodGet, stakeholderVacanciesPath, nil, nil)
 	assertNoStore(t, rec)
@@ -85,7 +86,7 @@ func TestStakeholderVacancies_ExactWire(t *testing.T) {
 		`{"id":"55555555-5555-5555-5555-555555555555","title":"Backend Go","publication":"closed","process":"finished","kind":"replacement","visibility":"private","close_reason":"filled","coverage":{"covered":2,"required":3},"documents_count":7},` +
 		`{"id":"44444444-4444-4444-4444-444444444444","title":null,"publication":"published","process":"active","kind":"original","visibility":"public","close_reason":null,"coverage":{"covered":0,"required":null},"documents_count":0},` +
 		`{"id":"33333333-3333-3333-3333-333333333333","title":null,"publication":null,"process":null,"kind":"original","visibility":null,"close_reason":null,"coverage":null,"documents_count":1}` +
-		`],"next_cursor":"next-token"}` + "\n"
+		`],"next_cursor":"next-token","counts_by_status":{"all":9,"draft":1,"active":4,"paused":1,"closed":3}}` + "\n"
 	if rec.Body.String() != want {
 		t.Fatalf("body =\n%s\nwant\n%s", rec.Body.String(), want)
 	}
@@ -101,6 +102,13 @@ func TestStakeholderVacancies_ExactWire(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &keys); err != nil {
 		t.Fatal(err)
 	}
+	var envelope, counts map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil || len(envelope) != 3 {
+		t.Fatalf("envelope has %d keys: %v", len(envelope), err)
+	}
+	if err := json.Unmarshal(envelope["counts_by_status"], &counts); err != nil || len(counts) != 5 {
+		t.Fatalf("counts_by_status has %d keys: %v", len(counts), err)
+	}
 	for i, item := range keys.Items {
 		if len(item) != 9 {
 			t.Fatalf("row %d has %d keys: %v", i, len(item), item)
@@ -109,12 +117,12 @@ func TestStakeholderVacancies_ExactWire(t *testing.T) {
 }
 
 func TestStakeholderVacancies_EmptyPageIsAnEmptyArray(t *testing.T) {
-	store := &fakeStakeholderLister{}
+	store := &fakeStakeholderLister{page: stakeholdervacancies.Page{CountsByStatus: &stakeholdervacancies.StatusCounts{}}}
 	rec := doDraft(t, stakeholderVacanciesRouter(store, true), http.MethodGet, stakeholderVacanciesPath+"?limit=50&unknown=x", nil, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d; body=%s", rec.Code, rec.Body.String())
 	}
-	if got, want := rec.Body.String(), `{"items":[],"next_cursor":null}`+"\n"; got != want {
+	if got, want := rec.Body.String(), `{"items":[],"next_cursor":null,"counts_by_status":{"all":0,"draft":0,"active":0,"paused":0,"closed":0}}`+"\n"; got != want {
 		t.Fatalf("body = %s, want %s", got, want)
 	}
 	if store.req.Limit != draftlist.MaxLimit {
@@ -139,6 +147,10 @@ func TestStakeholderVacancies_ForwardsValidCursor(t *testing.T) {
 	}
 	if store.req.Limit != 2 || store.req.After == nil || !reflect.DeepEqual(*store.req.After, cursor) {
 		t.Fatalf("request = %+v, want limit 2 and the cursor", store.req)
+	}
+	// A cursor page carries no counts: the key is present and null.
+	if got, want := rec.Body.String(), `{"items":[],"next_cursor":null,"counts_by_status":null}`+"\n"; got != want {
+		t.Fatalf("body = %s, want %s", got, want)
 	}
 }
 

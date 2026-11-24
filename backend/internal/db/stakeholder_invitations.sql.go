@@ -34,8 +34,8 @@ func (q *Queries) CountPendingStakeholderInvitations(ctx context.Context, arg Co
 }
 
 const createStakeholderInvitation = `-- name: CreateStakeholderInvitation :exec
-INSERT INTO stakeholder_invitations (id, company_id, token_sha256, created_by, created_at, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO stakeholder_invitations (id, company_id, token_sha256, created_by, created_at, expires_at, note)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type CreateStakeholderInvitationParams struct {
@@ -45,8 +45,10 @@ type CreateStakeholderInvitationParams struct {
 	CreatedBy   uuid.UUID          `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	Note        pgtype.Text        `json:"note"`
 }
 
+// note is NULL or already trimmed and NFC (1..80 code points, migration 00065).
 func (q *Queries) CreateStakeholderInvitation(ctx context.Context, arg CreateStakeholderInvitationParams) error {
 	_, err := q.db.Exec(ctx, createStakeholderInvitation,
 		arg.ID,
@@ -55,6 +57,7 @@ func (q *Queries) CreateStakeholderInvitation(ctx context.Context, arg CreateSta
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.ExpiresAt,
+		arg.Note,
 	)
 	return err
 }
@@ -94,7 +97,7 @@ func (q *Queries) GetStakeholderInvitationByTokenForUpdate(ctx context.Context, 
 }
 
 const listPendingStakeholderInvitations = `-- name: ListPendingStakeholderInvitations :many
-SELECT id, created_at, created_by, expires_at FROM stakeholder_invitations
+SELECT id, created_at, created_by, expires_at, note FROM stakeholder_invitations
 WHERE company_id = $1 AND revoked_at IS NULL AND used_at IS NULL AND expires_at > $2
 ORDER BY created_at DESC, id DESC
 `
@@ -109,6 +112,7 @@ type ListPendingStakeholderInvitationsRow struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	CreatedBy uuid.UUID          `json:"created_by"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	Note      pgtype.Text        `json:"note"`
 }
 
 func (q *Queries) ListPendingStakeholderInvitations(ctx context.Context, arg ListPendingStakeholderInvitationsParams) ([]ListPendingStakeholderInvitationsRow, error) {
@@ -125,6 +129,7 @@ func (q *Queries) ListPendingStakeholderInvitations(ctx context.Context, arg Lis
 			&i.CreatedAt,
 			&i.CreatedBy,
 			&i.ExpiresAt,
+			&i.Note,
 		); err != nil {
 			return nil, err
 		}

@@ -657,6 +657,7 @@ type StakeholderInvitation struct {
 	UsedAt      pgtype.Timestamptz `json:"used_at"`
 	UsedBy      pgtype.UUID        `json:"used_by"`
 	MemberID    pgtype.UUID        `json:"member_id"`
+	Note        pgtype.Text        `json:"note"`
 }
 
 type User struct {

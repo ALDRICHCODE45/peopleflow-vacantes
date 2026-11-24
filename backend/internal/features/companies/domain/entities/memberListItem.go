@@ -21,6 +21,11 @@ type MemberListRow struct {
 
 	// User is nil when the LEFT JOIN found no live users row.
 	User *MemberUser
+
+	// ActiveVacancies is the member's workload (audit gap D5): the company's
+	// vacancies where the member holds an open team assignment and whose
+	// process is active. The same number for every viewer.
+	ActiveVacancies int64
 }
 
 // MemberUser is the public identity of a member's user. It intentionally

@@ -300,6 +300,21 @@ requires a UUID `Idempotency-Key` with frozen-response replay. Every team write 
 (`requireRecruiter`) and returns `members[].{id, role, user: {id, full_name, email}}`. The UI subtracts the active
 members from `GET V/team` (match on `user.id`).
 
+**Member workload** (audit gap D5): every member of `GET /me/company/members` also carries
+`"workload": { "active_vacancies": <int> }`, always present (0 included, also when `user` is `null`). It counts the
+company's vacancies (schema-2 job drafts) where that member holds an **open tramo** (`vacancy_assignments.ended_at IS
+NULL`, any function) and whose **process is active** (`vacancy_processes.process_status = 'active'`: published, paused,
+or closed while the process continues; a finished process and a never-published draft do not count). The number is the
+same for every viewer (owner or recruiter, whatever their own teams) and reveals only a count, never titles. It is
+computed in the members list statement itself (one correlated count per row on `vacancy_assignments_active_by_user`),
+not by one query per member. A stakeholder never holds a tramo, so theirs is 0. Member wire, seven keys:
+
+```json
+{ "id": "…", "company_id": "…", "role": "recruiter", "created_at": "…", "updated_at": "…",
+  "user": { "id": "…", "full_name": "Ana López", "email": "ana@example.com" },
+  "workload": { "active_vacancies": 3 } }
+```
+
 ### `GET V/team`
 
 ```json
