@@ -2,10 +2,18 @@
 -- Explicit public allowlists. Legacy dimensions are deliberately NULL: an
 -- employment_type is not a schedule or contract type. Rank is float8 on both
 -- sides of the keyset comparison so cursor round-trips lose no precision.
-WITH catalog AS (
+WITH catalog AS NOT MATERIALIZED (
+ -- NOT MATERIALIZED: ranked feeds both the page and the bounded total, and
+ -- must stay inlined so the total never builds or buffers card bodies.
  SELECT j.id, 'legacy'::text AS source, j.published_at, j.location AS location_label,
         j.work_mode, NULL::text AS work_schedule, NULL::text AS contract_type,
         NULL::text AS professional_area, j.search_vector,
+        CASE WHEN j.seniority='mid' THEN 'semi_senior' ELSE j.seniority END AS seniority,
+        -- Sort tiers (public-jobs-sort-total S3): legacy salaries are public
+        -- but have no pay period or basis, so they follow every projection unit.
+        CASE WHEN j.salary_min IS NULL AND j.salary_max IS NULL THEN 1000 ELSE 100 END AS salary_group,
+        COALESCE(j.salary_max,j.salary_min)::numeric AS salary_high,
+        COALESCE(j.salary_min,j.salary_max)::numeric AS salary_low,
         jsonb_build_object(
           'id',j.id,'source','legacy','title',j.title,
           'company',jsonb_build_object('id',c.id,'name',c.name,'logo_url',c.logo_url),
@@ -39,7 +47,19 @@ WITH catalog AS (
    AND COALESCE(cardinality(sqlc.arg('languages')::text[]),0)=0
  UNION ALL
  SELECT p.id, 'vacancy'::text AS source, p.published_at, COALESCE(gm.name || ', ' || gs.name, gs.name, gc.name_es) AS location_label,
-        p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,
+        p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,p.seniority,
+        -- Projection compensation is NULL whenever the salary is hidden or
+        -- incomplete, so a hidden amount never reaches the sort key. Amounts
+        -- compare only within identical units (SAL-6): MXN·monthly·gross is
+        -- tier 0, every other unit combination its own fixed tier 1-20.
+        CASE WHEN p.compensation IS NULL THEN 1000
+             WHEN p.compensation->>'currency'='MXN' AND p.compensation->>'pay_period'='monthly' AND p.compensation->>'basis'='gross' THEN 0
+             ELSE COALESCE(1 + (array_position(ARRAY['MXN','USD']::text[],p.compensation->>'currency')-1)*10
+                             + (array_position(ARRAY['hourly','weekly','semimonthly','monthly','yearly']::text[],p.compensation->>'pay_period')-1)*2
+                             + (array_position(ARRAY['gross','net']::text[],p.compensation->>'basis')-1),99) END AS salary_group,
+        -- The same figures as the salary filters: hi=max|amount, lo=min|amount.
+        COALESCE(p.compensation->>'max',p.compensation->>'amount')::numeric AS salary_high,
+        COALESCE(p.compensation->>'min',p.compensation->>'amount')::numeric AS salary_low,
         jsonb_build_object(
           'id',p.id,'source','vacancy','title',p.title,
           'company',jsonb_build_object('id',c.id,'name',c.name,'logo_url',c.logo_url),
@@ -114,7 +134,7 @@ WITH catalog AS (
          COALESCE(p.compensation->>'max',p.compensation->>'amount')::numeric >= NULLIF(sqlc.arg('salary_min')::text,'')::numeric)
     AND (NULLIF(sqlc.arg('salary_max')::text,'')::numeric IS NULL OR
          COALESCE(p.compensation->>'min',p.compensation->>'amount')::numeric <= NULLIF(sqlc.arg('salary_max')::text,'')::numeric)))
-), ranked AS (
+), ranked AS NOT MATERIALIZED (
  SELECT catalog.*, ts_rank(search_vector,websearch_to_tsquery('spanish',sqlc.arg('q')::text))::float8 AS search_rank
  FROM catalog
  WHERE (sqlc.arg('q')::text='' OR search_vector @@ websearch_to_tsquery('spanish',sqlc.arg('q')::text))
@@ -122,14 +142,37 @@ WITH catalog AS (
    AND (sqlc.arg('work_schedule')::text='' OR work_schedule=sqlc.arg('work_schedule')::text)
    AND (sqlc.arg('contract_type')::text='' OR contract_type=sqlc.arg('contract_type')::text)
    AND (sqlc.arg('professional_area')::text='' OR professional_area=sqlc.arg('professional_area')::text)
-   -- The UNION body already maps legacy mid to semi_senior.
-   AND (COALESCE(cardinality(sqlc.arg('seniorities')::text[]),0)=0 OR body->>'seniority'=ANY(sqlc.arg('seniorities')::text[]))
+   -- Same value as body->>'seniority' (legacy mid already maps to
+   -- semi_senior), read from a column so the total never builds bodies.
+   AND (COALESCE(cardinality(sqlc.arg('seniorities')::text[]),0)=0 OR seniority=ANY(sqlc.arg('seniorities')::text[]))
    AND (sqlc.narg('detail_id')::uuid IS NULL OR id=sqlc.narg('detail_id')::uuid)
+), keyed AS (
+ -- One all-descending keyset for every sort. recent: both sort keys are 0,
+ -- leaving exactly the historical order. Salary sorts: tier ascending (hidden
+ -- and absent salaries last, keyed 0), then the amount (desc: hi; asc: -lo),
+ -- then the recent order as tie-break.
+ SELECT body,search_rank,published_at,source,id,
+        CASE WHEN sqlc.arg('sort_order')::text IN ('salary_desc','salary_asc') THEN salary_group ELSE 0 END AS sort_group,
+        CASE sqlc.arg('sort_order')::text WHEN 'salary_desc' THEN COALESCE(salary_high,0)
+                                          WHEN 'salary_asc' THEN -COALESCE(salary_low,0)
+                                          ELSE 0 END::numeric AS sort_salary
+ FROM ranked
+), page AS (
+ SELECT body,search_rank,published_at,source,id,sort_group,sort_salary FROM keyed
+ WHERE (sqlc.narg('cursor_ts')::timestamptz IS NULL OR
+        (-sort_group,sort_salary,search_rank,published_at,source COLLATE "C",id) <
+        (-sqlc.arg('cursor_group')::int,COALESCE(NULLIF(sqlc.arg('cursor_salary')::text,''),'0')::numeric,sqlc.arg('cursor_rank')::float8,
+         sqlc.narg('cursor_ts')::timestamptz,sqlc.arg('cursor_source')::text COLLATE "C",sqlc.arg('cursor_id')::uuid))
+ ORDER BY sort_group ASC,sort_salary DESC,search_rank DESC,published_at DESC,source COLLATE "C" DESC,id DESC
+ LIMIT sqlc.arg('page_limit')::int
+), total AS (
+ -- public-jobs-sort-total S4: the page's filters without sort or cursor,
+ -- bounded at count_limit (cap+1) so counting stops early; 0 skips it.
+ SELECT count(*)::int AS total_count FROM (SELECT 1 FROM ranked LIMIT sqlc.arg('count_limit')::int) bounded
 )
-SELECT body,search_rank FROM ranked
-WHERE (sqlc.narg('cursor_ts')::timestamptz IS NULL OR
-       (search_rank,published_at,source COLLATE "C",id) <
-       (sqlc.arg('cursor_rank')::float8,sqlc.narg('cursor_ts')::timestamptz,
-        sqlc.arg('cursor_source')::text COLLATE "C",sqlc.arg('cursor_id')::uuid))
-ORDER BY search_rank DESC,published_at DESC,source COLLATE "C" DESC,id DESC
-LIMIT sqlc.arg('page_limit')::int;
+SELECT page.body,COALESCE(page.search_rank,0)::float8 AS search_rank,COALESCE(page.sort_group,0)::int AS sort_group,
+       COALESCE(page.sort_salary::text,'')::text AS sort_salary,total.total_count
+FROM total LEFT JOIN page ON true
+ -- The LEFT JOIN keeps one row (NULL body) when the page is empty, so the
+ -- total survives an empty page or a cursor past the end.
+ORDER BY page.sort_group ASC,page.sort_salary DESC,page.search_rank DESC,page.published_at DESC,page.source COLLATE "C" DESC,page.id DESC;

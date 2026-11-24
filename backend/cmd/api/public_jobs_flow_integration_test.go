@@ -135,7 +135,8 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 			request += "&cursor=" + url.QueryEscape(cursor)
 		}
 		body := publicFlowGet(t, h, request, 200)
-		if len(body) != 2 {
+		// public-jobs-sort-total S4 adds the always-present total.
+		if _, ok := body["total"].(map[string]any); len(body) != 3 || !ok {
 			t.Fatal("list envelope")
 		}
 		items := body["items"].([]any)

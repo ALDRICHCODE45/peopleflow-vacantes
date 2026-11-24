@@ -18,17 +18,31 @@ type Store struct{ queries *db.Queries }
 
 func NewStore(queries *db.Queries) *Store { return &Store{queries: queries} }
 
-var _ catalog.Reader = (*Store)(nil)
+var (
+	_ catalog.Reader      = (*Store)(nil)
+	_ catalog.TotalReader = (*Store)(nil)
+)
 
 func (s *Store) Search(ctx context.Context, q catalog.Query) ([]catalog.Row, error) {
+	rows, _, err := s.SearchTotal(ctx, q, 0)
+	return rows, err
+}
+
+// SearchTotal reads the page and the filtered total in one query; the total
+// ignores sort and cursor and stops at countLimit (0 skips counting).
+func (s *Store) SearchTotal(ctx context.Context, q catalog.Query, countLimit int) ([]catalog.Row, int, error) {
 	if err := catalog.ValidateFilters(ctx, s, q); err != nil {
-		return nil, fmt.Errorf("validate public filters: %w", err)
+		return nil, 0, fmt.Errorf("validate public filters: %w", err)
 	}
-	p := db.SearchPublicJobsParams{Languages: q.Languages, Seniorities: q.Seniorities, YearsOfExperience: q.YearsOfExperience, EducationLevel: q.EducationLevel, Q: q.Q, States: q.States, Municipalities: q.Municipalities, WorkModes: q.WorkModes, ApplicantCountry: q.ApplicantCountry, WorkSchedule: q.WorkSchedule, ContractType: q.ContractType, ProfessionalArea: q.ProfessionalArea, PageLimit: int32(q.Limit)}
+	sort := q.Sort
+	if sort == "" {
+		sort = catalog.SortRecent
+	}
+	p := db.SearchPublicJobsParams{SortOrder: sort, CountLimit: int32(countLimit), Languages: q.Languages, Seniorities: q.Seniorities, YearsOfExperience: q.YearsOfExperience, EducationLevel: q.EducationLevel, Q: q.Q, States: q.States, Municipalities: q.Municipalities, WorkModes: q.WorkModes, ApplicantCountry: q.ApplicantCountry, WorkSchedule: q.WorkSchedule, ContractType: q.ContractType, ProfessionalArea: q.ProfessionalArea, PageLimit: int32(q.Limit)}
 	if q.CompanyID != "" {
 		id, err := uuid.Parse(q.CompanyID)
 		if err != nil {
-			return nil, catalog.ErrInvalidFilter
+			return nil, 0, catalog.ErrInvalidFilter
 		}
 		p.CompanyID = pgtype.UUID{Bytes: id, Valid: true}
 	}
@@ -40,6 +54,8 @@ func (s *Store) Search(ctx context.Context, q catalog.Query) ([]catalog.Row, err
 		p.CursorTs = pgtype.Timestamptz{Time: q.After.PublishedAt, Valid: true}
 		p.CursorSource = q.After.Source
 		p.CursorID = q.After.ID
+		p.CursorGroup = int32(q.After.SalaryGroup)
+		p.CursorSalary = q.After.Salary
 	}
 	return s.search(ctx, p)
 }
@@ -74,7 +90,7 @@ func (s *Store) Get(ctx context.Context, id uuid.UUID) (catalog.Detail, error) {
 	if err := s.unavailable(ctx, id); err != nil {
 		return catalog.Detail{}, err
 	}
-	rows, err := s.search(ctx, db.SearchPublicJobsParams{DetailID: pgtype.UUID{Bytes: id, Valid: true}, PageLimit: 1})
+	rows, _, err := s.search(ctx, db.SearchPublicJobsParams{DetailID: pgtype.UUID{Bytes: id, Valid: true}, SortOrder: catalog.SortRecent, PageLimit: 1})
 	if err != nil {
 		return catalog.Detail{}, err
 	}
@@ -83,19 +99,25 @@ func (s *Store) Get(ctx context.Context, id uuid.UUID) (catalog.Detail, error) {
 	}
 	return rows[0].Detail, nil
 }
-func (s *Store) search(ctx context.Context, p db.SearchPublicJobsParams) ([]catalog.Row, error) {
+func (s *Store) search(ctx context.Context, p db.SearchPublicJobsParams) ([]catalog.Row, int, error) {
 	rows, err := s.queries.SearchPublicJobs(ctx, p)
 	if err != nil {
-		return nil, fmt.Errorf("read public catalog: %w", err)
+		return nil, 0, fmt.Errorf("read public catalog: %w", err)
 	}
 	out := make([]catalog.Row, 0, len(rows))
+	total := 0
 	for _, row := range rows {
+		total = int(row.TotalCount)
+		// An empty page is one total-only row with a NULL body.
+		if row.Body == nil {
+			continue
+		}
 		var detail catalog.Detail
 		if err := json.Unmarshal(row.Body, &detail); err != nil {
-			return nil, fmt.Errorf("decode public catalog row: %w", err)
+			return nil, 0, fmt.Errorf("decode public catalog row: %w", err)
 		}
 		detail.PublishedAt = detail.PublishedAt.UTC()
-		out = append(out, catalog.Row{Detail: detail, Rank: row.SearchRank})
+		out = append(out, catalog.Row{Detail: detail, Rank: row.SearchRank, SalaryGroup: int(row.SortGroup), Salary: row.SortSalary})
 	}
-	return out, nil
+	return out, total, nil
 }

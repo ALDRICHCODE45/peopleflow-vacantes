@@ -9,6 +9,7 @@ import (
 	"errors"
 	"math"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -75,13 +76,45 @@ type Detail struct {
 type Page struct {
 	Items      []Item  `json:"items"`
 	NextCursor *string `json:"next_cursor"`
+	Total      Total   `json:"total"`
 }
+
+// Total counts the filtered listing independently of sort and cursor. Count
+// stops at the cap: Capped reports that more rows exist (S4).
+type Total struct {
+	Count  int  `json:"count"`
+	Capped bool `json:"capped"`
+}
+
+// Position is the keyset anchor. SalaryGroup and Salary are the salary-sort
+// key (tier and signed amount, canonical numeric text) and are omitted under
+// recent, so recent cursors keep their historical bytes.
 type Position struct {
 	Rank        float64   `json:"rank"`
 	PublishedAt time.Time `json:"published_at"`
 	Source      string    `json:"source"`
 	ID          uuid.UUID `json:"id"`
+	SalaryGroup int       `json:"salary_group,omitempty"`
+	Salary      string    `json:"salary,omitempty"`
 }
+
+// Listing sorts (public-jobs-sort-total S2). Recent is the historical order.
+const (
+	SortRecent     = "recent"
+	SortSalaryDesc = "salary_desc"
+	SortSalaryAsc  = "salary_asc"
+)
+
+// SalaryGroupHidden is the last salary-sort tier: hidden or absent salaries,
+// keyed only by the recent order. Lower tiers: 0 is MXN·monthly·gross, 1-20
+// other projection units, 99 an unexpected unit and 100 legacy salaries.
+const SalaryGroupHidden = 1000
+
+// DefaultTotalCap bounds the listing total (S4).
+const DefaultTotalCap = 1000
+
+var sortKeyPattern = regexp.MustCompile(`^-?(0|[1-9][0-9]{0,14})(\.[0-9]{1,2})?$`)
+
 type Query struct {
 	CompanyID                                                         string
 	Q, WorkSchedule, ContractType, ProfessionalArea, ApplicantCountry string
@@ -89,8 +122,10 @@ type Query struct {
 	Languages, Seniorities                                            []string
 	YearsOfExperience, EducationLevel                                 string
 	Salary                                                            *SalaryFilter
-	Limit                                                             int
-	After                                                             *Position
+	// Sort is SortRecent, SortSalaryDesc or SortSalaryAsc; empty means recent.
+	Sort  string
+	Limit int
+	After *Position
 }
 
 // SalaryFilter is an active public salary filter (SAL-5..SAL-8). Min and Max
@@ -99,17 +134,32 @@ type Query struct {
 type SalaryFilter struct {
 	Min, Max, Currency, Period, Basis string
 }
+
+// Row carries the sort key the reader ordered by; SalaryGroup and Salary are
+// zero/empty under recent.
 type Row struct {
-	Detail Detail
-	Rank   float64
+	Detail      Detail
+	Rank        float64
+	SalaryGroup int
+	Salary      string
 }
 type Reader interface {
 	Search(context.Context, Query) ([]Row, error)
 	Get(context.Context, uuid.UUID) (Detail, error)
 }
-type Catalog struct{ reader Reader }
 
-func NewCatalog(reader Reader) *Catalog { return &Catalog{reader: reader} }
+// TotalReader returns the page and the filtered total, ignoring sort and
+// cursor and bounded at countLimit, in one read. Readers without it are
+// counted through a bounded, cursorless Search.
+type TotalReader interface {
+	SearchTotal(ctx context.Context, q Query, countLimit int) ([]Row, int, error)
+}
+type Catalog struct {
+	reader   Reader
+	totalCap int
+}
+
+func NewCatalog(reader Reader) *Catalog { return &Catalog{reader: reader, totalCap: DefaultTotalCap} }
 
 func (c *Catalog) List(ctx context.Context, q Query) (Page, error) {
 	limit := q.Limit
@@ -117,14 +167,21 @@ func (c *Catalog) List(ctx context.Context, q Query) (Page, error) {
 		return Page{}, ErrInvalidRequest
 	}
 	q.Limit = limit + 1
-	rows, err := c.reader.Search(ctx, q)
+	rows, count, err := c.search(ctx, q)
 	if err != nil {
 		return Page{}, err
 	}
-	page := Page{Items: make([]Item, 0, limit)}
+	page := Page{Items: make([]Item, 0, limit), Total: Total{Count: count}}
+	if count > c.totalCap {
+		page.Total = Total{Count: c.totalCap, Capped: true}
+	}
 	if len(rows) > limit {
 		anchor := rows[limit-1]
-		token, err := encodeCursor(q, Position{Rank: anchor.Rank, PublishedAt: anchor.Detail.PublishedAt, Source: anchor.Detail.Source, ID: anchor.Detail.ID})
+		position := Position{Rank: anchor.Rank, PublishedAt: anchor.Detail.PublishedAt, Source: anchor.Detail.Source, ID: anchor.Detail.ID}
+		if salarySort(q.Sort) {
+			position.SalaryGroup, position.Salary = anchor.SalaryGroup, anchor.Salary
+		}
+		token, err := encodeCursor(q, position)
 		if err != nil {
 			return Page{}, err
 		}
@@ -137,6 +194,23 @@ func (c *Catalog) List(ctx context.Context, q Query) (Page, error) {
 	}
 	return page, nil
 }
+
+func (c *Catalog) search(ctx context.Context, q Query) ([]Row, int, error) {
+	countLimit := c.totalCap + 1
+	if reader, ok := c.reader.(TotalReader); ok {
+		return reader.SearchTotal(ctx, q, countLimit)
+	}
+	counted := q
+	counted.After, counted.Sort, counted.Limit = nil, SortRecent, countLimit
+	all, err := c.reader.Search(ctx, counted)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := c.reader.Search(ctx, q)
+	return rows, len(all), err
+}
+
+func salarySort(sort string) bool { return sort == SortSalaryDesc || sort == SortSalaryAsc }
 
 // Get keeps the detail's shared card metadata identical to List.
 func (c *Catalog) Get(ctx context.Context, id uuid.UUID) (Detail, error) {
@@ -164,7 +238,7 @@ func ParseQuery(raw string) (Query, error) {
 		}
 		return Query{}, ErrInvalidRequest
 	}
-	q := Query{Limit: 20}
+	q := Query{Limit: 20, Sort: SortRecent}
 	salary := map[string]string{}
 	for key, vs := range values {
 		if key == "company_id" {
@@ -225,6 +299,11 @@ func ParseQuery(raw string) (Query, error) {
 				return Query{}, ErrInvalidRequest
 			}
 			q.Limit = n
+		case "sort":
+			if v != SortRecent && !salarySort(v) {
+				return Query{}, ErrInvalidRequest
+			}
+			q.Sort = v
 		case "cursor": // Decoded after all filters are known.
 		default:
 			return Query{}, ErrInvalidRequest
@@ -436,6 +515,11 @@ func filterHash(q Query) string {
 	if q.CompanyID != "" {
 		filters = append(filters, []string{"company_id", q.CompanyID})
 	}
+	// Recent (or empty) keeps every historical binding; a salary sort binds
+	// its cursor to that sort.
+	if salarySort(q.Sort) {
+		filters = append(filters, []string{"sort", q.Sort})
+	}
 	raw, _ := json.Marshal(filters)
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
@@ -470,6 +554,13 @@ func decodeCursor(q Query, raw string) (Position, error) {
 		return Position{}, ErrInvalidRequest
 	}
 	if p.Source != "legacy" && p.Source != "vacancy" {
+		return Position{}, ErrInvalidRequest
+	}
+	if salarySort(q.Sort) {
+		if p.SalaryGroup < 0 || p.SalaryGroup > SalaryGroupHidden || !sortKeyPattern.MatchString(p.Salary) {
+			return Position{}, ErrInvalidRequest
+		}
+	} else if p.SalaryGroup != 0 || p.Salary != "" {
 		return Position{}, ErrInvalidRequest
 	}
 	return p, nil
