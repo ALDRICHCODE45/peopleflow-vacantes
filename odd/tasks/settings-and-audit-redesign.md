@@ -33,3 +33,11 @@ truncated select values). Design first with options on the canvas, then implemen
   panel with Persona/Acción/Vacante/Desde/Hasta; the Persona select cuts «Carlos Eduardo Ramírez Tamez (ex mie…»;
   «Filtros», «Columnas», reset and «Exportar CSV» spread across the header). Also asked whether WhatsApp/LinkedIn show no
   preview because the link is localhost (answered: yes).
+- **L2** (2026-11-24) T1 y T2: direcciones de diseño, ninguna elegida todavía, cada una a 1440×900 y 390×844 en claro y
+  oscuro, interactivas, con revisión visual y automática en Chromium (render, axe-core, desbordes, objetivos táctiles,
+  flujos con clic). `design/settings-redesign/` (S1 S3): `01-ajustes-en-una-columna-con-navegacion-lateral`,
+  `02-resumen-compacto-y-secciones`, `03-lista-de-ajustes-tipo-ios`. `design/audit-log-redesign/` (S2 S3):
+  `01-barra-de-filtros-en-linea-con-chips`, `02-panel-lateral-de-filtros-y-tabla`,
+  `03-linea-de-tiempo-agrupada-por-dia`. Cada carpeta trae `design.json` y `self-check.md` (UX y sistema); las
+  desviaciones de `design/system.md` por decidir están en el segundo (tabla con texto que se parte, popover más ancho,
+  mono para IP e identificadores, exportación siempre habilitada con panel de rango).

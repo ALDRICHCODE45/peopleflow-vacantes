@@ -1,0 +1,28 @@
+{
+  "title": "Auditoría · tres direcciones (filtros sin truncar, encabezado y tabla)",
+  "brief": "T2 · S2 S3. Tres direcciones para /empresa/auditoria a 1440×900 y 390×844 (claro y oscuro): encabezado con título, descripción, «Solo el dueño» y exportación con su requisito de fechas a la vista; filtros que nunca recortan sus valores (persona con «Ex miembro», acción agrupada por categoría con búsqueda sobre 75 acciones, vacante con título completo, rango de fechas Hoy · 7 días · 30 días · Personalizado), chips con «Quitar», conteo de resultados, detalle del evento en hoja, estados vacío, cargando, sin resultados y error, y la versión móvil. Interactivos y con 190 eventos generados de Grupo Altavista (personas como «Carlos Eduardo Ramírez Tamez (ex miembro)», vacantes largas, sin título y eliminada). Solo tokens y reglas de design/system.md; las desviaciones (celdas que se parten, popover más ancho, mono para IP e identificadores) están en self-check.md. Ninguna dirección está elegida todavía.",
+  "feature": "odd/tasks/settings-and-audit-redesign.md",
+  "artboards": [
+    {
+      "file": "01-barra-de-filtros-en-linea-con-chips.html",
+      "title": "01 · Barra de filtros en línea con chips · S2 S3",
+      "tradeoff": "La más cercana a lo que existe: conserva la tabla completa con sus columnas (incluida IP y navegador) y reúne los filtros en una barra; cada selector abre un panel ancho con búsqueda y los valores completos viven en chips con «Quitar». A cambio, con varios filtros los chips empujan la tabla hacia abajo (sobre todo en móvil), las celdas se parten hasta en 3 líneas y las filas quedan altas.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "02-panel-lateral-de-filtros-y-tabla.html",
+      "title": "02 · Panel lateral de filtros + tabla · S2 S3",
+      "tradeoff": "La que mejor soporta filtrar mucho: el panel fijo deja ver todos los criterios con su valor completo y listas con búsqueda dentro, y la tabla gana legibilidad al fundir «Sobre» y «Vacante» en una celda. A cambio, el panel le quita ~320 px a la tabla, la IP y el navegador solo están en el detalle y en móvil los filtros pasan a una hoja inferior aparte.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "03-linea-de-tiempo-agrupada-por-dia.html",
+      "title": "03 · Línea de tiempo agrupada por día con filtros en la cabecera · S2 S3",
+      "tradeoff": "La que mejor se lee: la actividad como historia por día, con frases completas y sin celdas que truncar, y etiquetas de filtro que se vuelven chips con su valor entero. A cambio, comparar eventos columna a columna es más difícil, no hay páginas ni orden (carga progresiva) y el rango de 7 días por defecto oculta lo anterior hasta ampliarlo.",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "title": "Configuración de empresa · tres direcciones (sin las dos tarjetas de arriba)",
+  "brief": "T1 · S1 S3. Tres direcciones para /empresa/configuracion a 1440×900 y 390×844 (claro y oscuro): los datos de la empresa y «Base de talento visible para» dejan de ser tarjetas grandes y viven dentro de la propia navegación o de las secciones. Cada artboard es interactivo y trae los mismos estados (dueño en reposo, «Editar ubicación», Base de talento sin guardar, selección vacía, conflicto al guardar, guardado, salir sin guardar, reclutador y cargando), la lista de reclutadores con «Seleccionar todo» y contador, la barra «Cambios sin guardar», el guardia de salida y las filas «Próximamente». Español de México, datos ilustrativos de Grupo Altavista, solo tokens y reglas de design/system.md («Choice and file controls» para las listas de elección). Ninguna dirección está elegida todavía.",
+  "feature": "odd/tasks/settings-and-audit-redesign.md",
+  "artboards": [
+    {
+      "file": "01-ajustes-en-una-columna-con-navegacion-lateral.html",
+      "title": "01 · Ajustes en una columna con navegación lateral · S1 S3",
+      "tradeoff": "La más parecida a un panel de ajustes conocido y la que mejor ordena el guardado: una sección a la vez, con su barra «Cambios sin guardar» y su guardia de salida, y la lista de reclutadores cabe completa sin hoja ni diálogo. A cambio, ya no se ve todo de un vistazo (los datos de la empresa dejan de estar en la primera pantalla), cambiar de sección con cambios pendientes pide confirmación y en móvil la navegación pasa a un botón «Sección» que abre una hoja.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "02-resumen-compacto-y-secciones.html",
+      "title": "02 · Resumen compacto + secciones · S1 S3",
+      "tradeoff": "La que más rápido responde «¿cuál es mi empresa?»: la identidad queda siempre a la vista en una franja delgada y cada ajuste es una fila con su acción; lo editable (Base de talento, ubicación) se abre en hoja o diálogo y la página casi no cambia de altura. A cambio, la franja sigue siendo un bloque fijo arriba (menos radical que quitar todo), el guardado ocurre dentro de la hoja y «Próximamente» ocupa una tarjeta propia al final.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "03-lista-de-ajustes-tipo-ios.html",
+      "title": "03 · Lista de ajustes tipo iOS / macOS · S1 S3",
+      "tradeoff": "La más ligera y la más consistente entre 1440 y 390: una lista agrupada con el valor actual a la derecha, donde solo lo que se abre lleva chevrón; funciona bien con pocos ajustes. A cambio, en escritorio deja márgenes amplios, los datos de la empresa son filas sueltas sin jerarquía de identidad, todo lo editable obliga a abrir una hoja y se siente más app móvil que el resto del panel.",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}
