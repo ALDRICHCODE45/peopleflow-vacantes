@@ -73,15 +73,24 @@ function Detail({ event }: { event: AuditEvent }) {
   </>;
 }
 
-/** Every field of one event, with the full text the table clamps. Keeps the last event while the sheet slides out. */
-export function AuditEventSheet({ event, onClose }: { event: AuditEvent | null; onClose: () => void }) {
+/**
+ * Every field of one event, with the full text the table clamps. Keeps the last event while the sheet slides out.
+ * On a phone it is a bottom sheet (flush with the bottom edge, rounded on top) instead of a full-screen side panel.
+ */
+export function AuditEventSheet({ event, onClose, phone = false }: { event: AuditEvent | null; onClose: () => void; phone?: boolean }) {
   const last = useRef(event);
   if (event) last.current = event;
   const shown = last.current;
   return <Sheet open={event !== null} onOpenChange={open => { if (!open) onClose(); }}>
-    <SheetContent side="right" showCloseButton={false} className="gap-0 bg-card max-sm:[--sheet-inset:0px] max-sm:data-[side=right]:rounded-none max-sm:data-[side=right]:border-0 data-[side=right]:w-full">
-      {shown && <Detail key={shown.id} event={shown} />}
-      <SheetClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-4 right-4 size-10 bg-secondary" aria-label="Cerrar" />}><X aria-hidden="true" /></SheetClose>
-    </SheetContent>
+    {phone
+      ? <SheetContent side="bottom" presentation="edge" showCloseButton={false} className="gap-0 bg-card data-[side=bottom]:max-h-[92dvh] data-[side=bottom]:rounded-t-3xl">
+        <div aria-hidden="true" className="mx-auto mt-2 h-1 w-12 shrink-0 rounded-full bg-border" />
+        {shown && <Detail key={shown.id} event={shown} />}
+        <SheetClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-4 right-4 size-10 bg-secondary" aria-label="Cerrar" />}><X aria-hidden="true" /></SheetClose>
+      </SheetContent>
+      : <SheetContent side="right" showCloseButton={false} className="gap-0 bg-card max-sm:[--sheet-inset:0px] max-sm:data-[side=right]:rounded-none max-sm:data-[side=right]:border-0 data-[side=right]:w-full">
+        {shown && <Detail key={shown.id} event={shown} />}
+        <SheetClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-4 right-4 size-10 bg-secondary" aria-label="Cerrar" />}><X aria-hidden="true" /></SheetClose>
+      </SheetContent>}
   </Sheet>;
 }

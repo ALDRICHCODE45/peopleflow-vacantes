@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Briefcase, Search, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,30 @@ function SearchBox({ label, placeholder, value, onChange }: { label: string; pla
 }
 const NoMatches = ({ query }: { query: string }) => <p className="px-4 py-5 text-center text-sm text-muted-foreground">{`Sin coincidencias para «${query.trim()}».`}</p>;
 
-/** Single choice (person, vacancy): the whole row is the target and picking commits and closes. */
-function SingleList({ legend, options, value, onPick }: { legend: string; options: ChoiceOption[]; value: string; onPick: (value: string | undefined) => void }) {
-  return <div className={SCROLL}><ChoiceList legend={legend} hideLegend value={value} options={options} onValueChange={next => onPick(next === ANY ? undefined : next)} /></div>;
+/**
+ * Single choice (person, vacancy): a click commits and closes, but the arrow keys only move the selection (a radio group selects as it
+ * moves, so committing there would close the panel on the first key). Enter on a row or «Aplicar» commits what is selected.
+ */
+function SingleChoicePanel({ search, legend, options, selectedId, onPick, note, empty }: {
+  search: ReactNode; legend: string; options: ChoiceOption[]; selectedId?: string; onPick: (value: string | undefined) => void; note: string; empty: ReactNode;
+}) {
+  const [draft, setDraft] = useState(selectedId ?? ANY);
+  // What the person last used decides what a change of the radio group means: pointer = pick, keyboard = move.
+  const input = useRef<"pointer" | "key">("pointer");
+  const apply = (value: string) => onPick(value === ANY ? undefined : value);
+  return <div className="flex flex-col gap-3">
+    {search}
+    {options.length
+      ? <div className={SCROLL} onKeyDownCapture={() => { input.current = "key"; }} onPointerDownCapture={() => { input.current = "pointer"; }}
+        onKeyDown={event => { if (event.key === "Enter" && (event.target as HTMLElement).closest("[role=radio]")) { event.preventDefault(); apply(draft); } }}>
+        <ChoiceList legend={legend} hideLegend value={draft} options={options} onValueChange={next => { setDraft(next); if (input.current === "pointer") apply(next); }} />
+      </div>
+      : empty}
+    <div className="flex items-center justify-between gap-3">
+      <p className="min-w-0 text-xs text-muted-foreground">{note}</p>
+      <Button type="button" className="min-h-10 shrink-0" onClick={() => apply(draft)}>Aplicar</Button>
+    </div>
+  </div>;
 }
 
 export function PersonPanel({ actors, selectedId, onPick }: { actors: AuditActor[]; selectedId?: string; onPick: (id: string | undefined) => void }) {
@@ -39,11 +60,8 @@ export function PersonPanel({ actors, selectedId, onPick }: { actors: AuditActor
     ...shown.map(actor => ({ value: actor.user_id, title: actorName(actor), description: actor.email && actor.email !== actorName(actor) ? actor.email : undefined,
       meta: actor.is_current_member ? undefined : <Badge variant="neutral">Ex miembro</Badge> })),
   ];
-  return <div className="flex flex-col gap-3">
-    <SearchBox label="Buscar persona" placeholder="Buscar por nombre o correo" value={query} onChange={setQuery} />
-    {options.length ? <SingleList legend="Personas" options={options} value={selectedId ?? ANY} onPick={onPick} /> : <NoMatches query={query} />}
-    <p className="text-xs text-muted-foreground">{`${shown.length} de ${actors.length} personas · incluye a quienes ya no son miembros`}</p>
-  </div>;
+  return <SingleChoicePanel search={<SearchBox label="Buscar persona" placeholder="Buscar por nombre o correo" value={query} onChange={setQuery} />} legend="Personas"
+    options={options} selectedId={selectedId} onPick={onPick} empty={<NoMatches query={query} />} note={`${shown.length} de ${actors.length} personas · incluye a quienes ya no son miembros`} />;
 }
 
 export function VacancyPanel({ vacancies, selectedId, onPick }: { vacancies: AuditVacancy[]; selectedId?: string; onPick: (id: string | undefined) => void }) {
@@ -60,11 +78,8 @@ export function VacancyPanel({ vacancies, selectedId, onPick }: { vacancies: Aud
         description: missing ? `Identificador #${vacancyTag(vacancy.vacancy_id)}` : undefined };
     }),
   ];
-  return <div className="flex flex-col gap-3">
-    <SearchBox label="Buscar vacante" placeholder="Buscar por título de vacante" value={query} onChange={setQuery} />
-    {options.length ? <SingleList legend="Vacantes" options={options} value={selectedId ?? ANY} onPick={onPick} /> : <NoMatches query={query} />}
-    <p className="text-xs text-muted-foreground">{`${shown.length} de ${vacancies.length} vacantes · el título se muestra completo`}</p>
-  </div>;
+  return <SingleChoicePanel search={<SearchBox label="Buscar vacante" placeholder="Buscar por título de vacante" value={query} onChange={setQuery} />} legend="Vacantes"
+    options={options} selectedId={selectedId} onPick={onPick} empty={<NoMatches query={query} />} note={`${shown.length} de ${vacancies.length} vacantes · el título se muestra completo`} />;
 }
 
 /** Many actions, grouped by category: each group is a `ChoiceList` whose «Seleccionar todo» row chooses the category. */
@@ -102,16 +117,23 @@ export function DateInputs({ idPrefix, from, to, onChange }: { idPrefix: string;
   </div>;
 }
 
-export function CustomRangePanel({ range, onApply, onClear, onDone }: { range: DayRange; onApply: (patch: DayRange) => void; onClear: () => void; onDone: () => void }) {
+/** Desde / Hasta with the order check: shared by the desktop popover and the phone drawer. */
+export function RangeFields({ idPrefix, range, onApply }: { idPrefix: string; range: DayRange; onApply: (patch: DayRange) => void }) {
   const [draft, setDraft] = useState({ from: range.from ?? "", to: range.to ?? "" });
   const inverted = !!draft.from && !!draft.to && draft.from > draft.to;
   return <div className="flex flex-col gap-3">
-    <h3 className="text-base font-medium">Rango personalizado</h3>
-    <DateInputs idPrefix="audit-range" from={draft.from} to={draft.to} onChange={next => {
+    <DateInputs idPrefix={idPrefix} from={draft.from} to={draft.to} onChange={next => {
       setDraft(next);
       if (!(next.from && next.to && next.from > next.to)) onApply({ from: next.from || undefined, to: next.to || undefined });
     }} />
     {inverted ? <p role="alert" className="text-xs text-status-danger">{RANGE_MESSAGE}</p> : <p className="text-xs text-muted-foreground">Las fechas se cuentan en hora de la Ciudad de México.</p>}
+  </div>;
+}
+
+export function CustomRangePanel({ range, onApply, onClear, onDone }: { range: DayRange; onApply: (patch: DayRange) => void; onClear: () => void; onDone: () => void }) {
+  return <div className="flex flex-col gap-3">
+    <h3 className="text-base font-medium">Rango personalizado</h3>
+    <RangeFields idPrefix="audit-range" range={range} onApply={onApply} />
     <div className="flex flex-wrap justify-end gap-2">
       <Button type="button" variant="outline" className="min-h-10" onClick={onClear}>Quitar rango</Button>
       <Button type="button" className="min-h-10" onClick={onDone}>Listo</Button>

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/components/ui/popover", async () => (await import("./test-popover")).popoverModule());
 import { AuditFiltersBar } from "./audit-filters";
 import type { AuditOptions } from "./model";
-import { auditActors, auditTypes, auditVacancies, deletedVacancyId, luisId, vacancyId } from "./test-fixtures";
+import { anaId, auditActors, auditTypes, auditVacancies, deletedVacancyId, luisId, vacancyId } from "./test-fixtures";
 import { normalizeFilters, type AuditFilters } from "./url-state";
 
 const carlosId = "10000000-0000-4000-8000-000000000009";
@@ -86,6 +86,69 @@ describe("person panel", () => {
     expect(screen.getByRole("group", { name: "Filtros activos" })).toHaveTextContent("Persona seleccionada");
     const panel = await open(user, /^Persona(?!lizado)/);
     expect(within(panel).getByRole("radio", { name: "Persona seleccionada" })).toBeChecked();
+  });
+});
+
+describe("single-choice panels: arrow keys move, Enter / click / «Aplicar» commit", () => {
+  const radio = (panel: HTMLElement, name: string) => within(panel).getByRole("radio", { name });
+
+  it("moves the person selection with the arrow keys without patching or closing, and Enter applies it and closes", async () => {
+    const user = setup();
+    const panel = await open(user, /^Persona(?!lizado)/);
+    radio(panel, "Todas las personas").focus();
+    await user.keyboard("{ArrowDown}");
+    expect(radio(panel, "Ana López")).toBeChecked();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await user.keyboard("{ArrowDown}");
+    expect(radio(panel, "Luis Soto")).toBeChecked();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /^Persona(?!lizado)/ })).not.toHaveTextContent("1");
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith({ actor_id: luisId });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: /^Persona(?!lizado)/ })).toHaveTextContent("1");
+  });
+
+  it("applies the person chosen with the arrow keys from the explicit «Aplicar» button", async () => {
+    const user = setup();
+    const panel = await open(user, /^Persona(?!lizado)/);
+    radio(panel, "Todas las personas").focus();
+    await user.keyboard("{ArrowDown}");
+    expect(onChange).not.toHaveBeenCalled();
+    await user.click(within(panel).getByRole("button", { name: "Aplicar" }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith({ actor_id: anaId });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("moves the vacancy selection with the arrow keys without closing and applies it with Enter or «Aplicar»", async () => {
+    const user = setup();
+    let panel = await open(user, /^Vacante/);
+    radio(panel, "Todas las vacantes").focus();
+    await user.keyboard("{ArrowDown}");
+    expect(radio(panel, "Ejecutivo de ventas")).toBeChecked();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({ vacancy_id: vacancyId });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    panel = await open(user, /^Vacante/);
+    radio(panel, "Ejecutivo de ventas").focus();
+    await user.keyboard("{ArrowDown}");
+    expect(onChange).toHaveBeenCalledTimes(1);
+    await user.click(within(panel).getByRole("button", { name: "Aplicar" }));
+    expect(onChange).toHaveBeenLastCalledWith({ vacancy_id: deletedVacancyId });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("still commits and closes at once on a click", async () => {
+    const user = setup();
+    const panel = await open(user, /^Vacante/);
+    await user.click(radio(panel, "Ejecutivo de ventas"));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({ vacancy_id: vacancyId });
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 

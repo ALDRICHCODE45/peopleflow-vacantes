@@ -3,6 +3,7 @@ import { useState } from "react";
 import { CircleAlert, Download, Info } from "lucide-react";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Popover, PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -34,7 +35,10 @@ function initialRange(filters: AuditFilters, today: string): { key: RangeKey; fr
   return { key: rangeKeyOf(filters, today) ?? "custom", from: filters.from ?? "", to: filters.to ?? "" };
 }
 
-function ExportPanel({ filters, options, onClose }: { filters: AuditFilters; options: AuditOptions | null; onClose: () => void }) {
+function ExportPanel({ filters, options, onClose, phone }: { filters: AuditFilters; options: AuditOptions | null; onClose: () => void; phone: boolean }) {
+  const Title = phone ? DrawerTitle : PopoverTitle;
+  const Description = phone ? DrawerDescription : PopoverDescription;
+  const action = phone ? "min-h-11 flex-1" : "min-h-10";
   const today = mxToday();
   const [range, setRange] = useState(() => initialRange(filters, today));
   const [pending, setPending] = useState(false);
@@ -61,8 +65,8 @@ function ExportPanel({ filters, options, onClose }: { filters: AuditFilters; opt
   };
 
   return <div className="flex flex-col gap-4">
-    <div className="flex flex-col gap-1"><PopoverTitle>Exportar a CSV</PopoverTitle>
-      <PopoverDescription>Descarga los eventos con los filtros activos. La exportación queda registrada en la auditoría.</PopoverDescription></div>
+    <div className="flex flex-col gap-1"><Title>Exportar a CSV</Title>
+      <Description>Descarga los eventos con los filtros activos. La exportación queda registrada en la auditoría.</Description></div>
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium">Rango de fechas <span className="font-normal text-muted-foreground">· obligatorio, máximo 366 días</span></span>
       <ToggleGroup aria-label="Rango de la exportación" variant="segmented" className="h-11! w-full" value={[range.key]} onValueChange={(values: string[]) => choose(values[0] as RangeKey | undefined)}>
@@ -81,9 +85,9 @@ function ExportPanel({ filters, options, onClose }: { filters: AuditFilters; opt
         : <p className="text-sm text-muted-foreground">Ningún otro filtro: se exportan todas las personas, acciones y vacantes del rango.</p>}
     </div>
     <div className="flex flex-wrap justify-end gap-2">
-      {done ? <Button type="button" className="min-h-10" onClick={onClose}>Listo</Button> : <>
-        <Button type="button" variant="outline" className="min-h-10" onClick={onClose}>Cancelar</Button>
-        <Button type="button" className="min-h-10" disabled={pending || issue !== undefined} aria-busy={pending} onClick={() => void run()}>
+      {done ? <Button type="button" className={action} onClick={onClose}>Listo</Button> : <>
+        <Button type="button" variant="outline" className={action} onClick={onClose}>Cancelar</Button>
+        <Button type="button" className={action} disabled={pending || issue !== undefined} aria-busy={pending} onClick={() => void run()}>
           {pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Download data-icon="inline-start" aria-hidden="true" />}
           {pending ? "Descargando…" : "Descargar CSV"}
         </Button></>}
@@ -95,16 +99,23 @@ function ExportPanel({ filters, options, onClose }: { filters: AuditFilters; opt
  * Owner-only export, always available: the button opens a panel that requires a valid range (both days, ≤ 366) before it downloads.
  * Nothing is downloaded unless the route answers 200. The hint under the button keeps its line, so the toolbar never shifts.
  */
-export function ExportAuditButton({ filters, options }: { filters: AuditFilters; options: AuditOptions | null }) {
+export function ExportAuditButton({ filters, options, phone = false }: { filters: AuditFilters; options: AuditOptions | null; phone?: boolean }) {
   const [open, setOpen] = useState(false);
   const range = filters.from || filters.to ? describeRange(filters, mxToday()) : null;
+  const trigger = <Button type="button" variant="outline" className={phone ? "min-h-11 max-sm:w-full" : "min-h-10 max-sm:w-full"} aria-haspopup="dialog"><Download data-icon="inline-start" aria-hidden="true" />Exportar CSV</Button>;
   return <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end max-sm:w-full">
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button type="button" variant="outline" className="min-h-10 max-sm:w-full" aria-haspopup="dialog"><Download data-icon="inline-start" aria-hidden="true" />Exportar CSV</Button>} />
-      <PopoverContent align="end" aria-label="Exportar a CSV" className="w-[min(420px,calc(100vw-2rem))] p-4">
-        <ExportPanel filters={filters} options={options} onClose={() => setOpen(false)} />
-      </PopoverContent>
-    </Popover>
+    {phone
+      // On a phone the panel is a bottom drawer (artboard `audit-log-redesign/01`, 390 px); its content scrolls so the buttons stay reachable.
+      ? <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerTrigger render={trigger} />
+        <DrawerContent><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"><ExportPanel filters={filters} options={options} onClose={() => setOpen(false)} phone /></div></DrawerContent>
+      </Drawer>
+      : <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger render={trigger} />
+        <PopoverContent align="end" aria-label="Exportar a CSV" className="w-[min(420px,calc(100vw-2rem))] p-4">
+          <ExportPanel filters={filters} options={options} onClose={() => setOpen(false)} phone={false} />
+        </PopoverContent>
+      </Popover>}
     <div data-pf-audit-export-slot="" className="flex min-h-4 max-w-md items-start sm:justify-end">
       <p className="flex items-start gap-1 text-xs leading-4 text-muted-foreground sm:text-right"><Info aria-hidden="true" className="mt-0.5 size-3 shrink-0" />{range ? `Exportación: ${range}` : "Requiere un rango de fechas · máx. 366 días"}</p>
     </div>

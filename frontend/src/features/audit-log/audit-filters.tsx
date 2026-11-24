@@ -1,13 +1,15 @@
 "use client";
 import { useState, type ComponentProps, type ReactNode } from "react";
-import { Briefcase, ChevronDown, ScrollText, User, X, type LucideIcon } from "lucide-react";
+import { Briefcase, ChevronDown, ScrollText, User, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { mxToday, PRESETS, presetRange, rangeKeyOf, type RangeKey } from "./date-range";
-import { activeChips, type Chip } from "./filter-model";
+import { activeChips } from "./filter-model";
+import { ActiveChips, OptionsNotice } from "./filter-chips";
 import { ActionPanel, CustomRangePanel, PersonPanel, VacancyPanel } from "./filter-panels";
+import { PhoneFilters } from "./audit-filters-phone";
 import type { AuditOptions } from "./model";
 import type { AuditFilters } from "./url-state";
 
@@ -22,27 +24,28 @@ function SelectorButton({ icon: Icon, label, count, active, ...props }: { icon: 
   </Button>;
 }
 
-function FilterChip({ chip, onRemove }: { chip: Chip; onRemove: () => void }) {
-  return <span data-slot="audit-chip" className="inline-flex max-w-full items-start rounded-xl bg-card pl-3 text-sm leading-5 shadow-[inset_0_0_0_1px_var(--border)]">
-    <span className="min-w-0 py-2.5 pr-1 [overflow-wrap:anywhere]"><span className="text-muted-foreground">{`${chip.name}:`}</span>{" "}<b className="font-medium [overflow-wrap:anywhere]">{chip.value}</b></span>
-    <Button type="button" variant="ghost" size="icon" title="Quitar" aria-label={`Quitar filtro ${chip.name}: ${chip.value}`} className="size-10 shrink-0 rounded-xl text-muted-foreground" onClick={onRemove}><X aria-hidden="true" /></Button>
-  </span>;
-}
-
-/**
- * One filter bar (artboard `audit-log-redesign/01`): Persona / Acción / Vacante open wide searchable panels, the date range is one
- * segmented control with presets (Mexico City days), and every active value is a removable chip with its full text.
- */
-export function AuditFiltersBar({ filters, options, optionsFailed, onRetryOptions, onChange, onClear, actions }: {
+export type AuditFiltersBarProps = {
   filters: AuditFilters;
   options: AuditOptions | null;
   optionsFailed: boolean;
   onRetryOptions: () => void;
   onChange: (patch: AuditFilters) => void;
   onClear: () => void;
-  /** Table view controls (columns, reset) sit at the end of the toolbar. */
+  /** Table view controls (columns, reset) sit at the end of the toolbar. Desktop only. */
   actions?: ReactNode;
-}) {
+  /** Below `sm`: «Filtros (n)» opens the same panels in a bottom drawer. */
+  phone?: boolean;
+  /** How many events the current filters match, for the drawer's closing button. */
+  total?: number;
+};
+
+/** Desktop: the selector bar. Phone: «Filtros (n)» plus the date presets, with the same chips. */
+export function AuditFiltersBar({ phone, total, actions, ...props }: AuditFiltersBarProps) {
+  return phone ? <PhoneFilters {...props} total={total} /> : <DesktopFilters {...props} actions={actions} />;
+}
+
+/** Desktop bar (artboard `audit-log-redesign/01`): Persona / Acción / Vacante open wide searchable panels, the date range is one segmented control with presets (Mexico City days), and every active value is a removable chip with its full text. */
+function DesktopFilters({ filters, options, optionsFailed, onRetryOptions, onChange, onClear, actions }: Omit<AuditFiltersBarProps, "phone" | "total">) {
   const [open, setOpen] = useState<PanelKey | null>(null);
   const today = mxToday();
   const selectedTypes = filters.event_type ?? [];
@@ -85,10 +88,7 @@ export function AuditFiltersBar({ filters, options, optionsFailed, onRetryOption
       </Popover>
       {actions && <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
-    {optionsFailed && <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">No pudimos cargar las opciones de persona y vacante.<Button type="button" variant="link" className="min-h-10" onClick={onRetryOptions}>Reintentar opciones</Button></p>}
-    {chips.length > 0 && <div role="group" aria-label="Filtros activos" className="flex min-w-0 flex-wrap items-center gap-2">
-      {chips.map(chip => <FilterChip key={chip.key} chip={chip} onRemove={() => onChange(chip.remove)} />)}
-      <Button type="button" variant="ghost" className="min-h-10" onClick={onClear}>Limpiar filtros</Button>
-    </div>}
+    <OptionsNotice failed={optionsFailed} onRetry={onRetryOptions} />
+    <ActiveChips chips={chips} onChange={onChange} onClear={onClear} />
   </section>;
 }

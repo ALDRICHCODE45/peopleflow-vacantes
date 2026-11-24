@@ -12,12 +12,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AuditEventList, AuditEventListSkeleton } from "./audit-cards";
 import { AuditEventSheet } from "./audit-detail";
 import { AuditFiltersBar } from "./audit-filters";
 import { AuditRestricted } from "./audit-restricted";
 import { AuditTable, AuditTableSkeleton } from "./audit-table";
 import { ExportAuditButton } from "./export-button";
 import { listFailureMessage, type AuditEvent, type AuditFailure } from "./model";
+import { usePhone } from "./use-phone";
 import { PAGE_SIZES, useAuditEvents, useAuditOptions } from "./use-audit-events";
 
 const SESSION_NOTE = "«Cerró sesión» significa que la persona hizo clic en cerrar sesión. Las sesiones que terminan por expiración o al cerrar la pestaña no se registran.";
@@ -58,16 +60,16 @@ function FailureCard({ failure, onRetry, onClear }: { failure: AuditFailure; onR
 }
 
 /** Same controls and copy as the dashboard table, without «última página»: a cursor only knows the next page. */
-function AuditPagination({ audit }: { audit: ReturnType<typeof useAuditEvents> }) {
+function AuditPagination({ audit, phone }: { audit: ReturnType<typeof useAuditEvents>; phone: boolean }) {
   const { page, pageCount, pageSize, paging, loaded } = audit;
   return <nav aria-label="Paginación" className="flex w-full items-center gap-6 sm:w-fit sm:gap-8">
-    <div className="flex items-center gap-2">
+    {!phone && <div className="flex items-center gap-2">
       <Label htmlFor="audit-rows-per-page" className="text-sm font-medium">Filas por página</Label>
       <Select value={`${pageSize}`} disabled={paging} onValueChange={(value: string | null) => { if (value !== null) audit.changePageSize(Number(value)); }} items={PAGE_SIZES.map(size => ({ label: `${size}`, value: `${size}` }))}>
         <SelectTrigger size="sm" className="w-20" id="audit-rows-per-page"><SelectValue placeholder={pageSize} /></SelectTrigger>
         <SelectContent side="top"><SelectGroup>{PAGE_SIZES.map(size => <SelectItem key={size} value={`${size}`}>{size}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
-    </div>
+    </div>}
     <div className="flex w-fit items-center justify-center text-sm font-medium">{`Página ${page} de ${pageCount}`}</div>
     <div className="ml-auto flex items-center gap-2 sm:ml-0">
       <Button type="button" variant="outline" className="size-8" size="icon" onClick={audit.first} disabled={paging || page === 1}><span className="sr-only">Ir a la primera página</span><ChevronsLeft aria-hidden="true" /></Button>
@@ -80,6 +82,7 @@ function AuditPagination({ audit }: { audit: ReturnType<typeof useAuditEvents> }
 /** Owner-only audit screen (contract §8): filters in the URL, newest first, cursor pagination and export. */
 export function AuditWorkspace() {
   const audit = useAuditEvents();
+  const phone = usePhone();
   const options = useAuditOptions();
   const { filters, loaded, failure, pageFailure, paging, notice, page, pageSize } = audit;
   const [tableToolbar, setTableToolbar] = useState<HTMLDivElement | null>(null);
@@ -91,20 +94,21 @@ export function AuditWorkspace() {
   const firstRow = (page - 1) * pageSize + 1;
 
   const content = failure ? <div className="px-(--card-spacing)"><FailureCard failure={failure} onRetry={audit.retry} onClear={clear} /></div>
-    : !loaded ? <AuditTableSkeleton />
+    : !loaded ? (phone ? <AuditEventListSkeleton /> : <AuditTableSkeleton />)
     : loaded.items.length === 0 ? <div className="px-(--card-spacing)">{filtered
       ? <SectionEmpty icon={SearchX} tone="empty" title="Sin resultados" description="No hay actividad registrada con estos filtros. Prueba con otro rango de fechas o limpia los filtros." primaryAction={{ label: "Limpiar filtros", onClick: clear }} />
       : <SectionEmpty icon={ScrollText} tone="empty" title="Todavía no hay actividad registrada" description="Aquí aparecerá quién hizo qué en tu empresa: sesiones, consultas de candidatos, descargas de CV y cambios del equipo." />}</div>
+    : phone ? (paging ? <AuditEventListSkeleton /> : <AuditEventList items={loaded.items} onOpen={setSelected} />)
     : <AuditTable items={loaded.items} loading={paging} onOpen={setSelected} toolbar={controls => tableToolbar ? createPortal(controls, tableToolbar) : null} />;
 
   const ready = options.status === "ready" ? options.options : null;
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
-    <AuditHeading export={<ExportAuditButton filters={filters} options={ready} />} />
+    <AuditHeading export={<ExportAuditButton filters={filters} options={ready} phone={phone} />} />
     <Card role="region" aria-label="Registro de actividad" aria-busy={initial || paging} className="min-w-0">
       <CardHeader className="gap-3">
         <CardTitle className="sr-only"><h3>Eventos registrados</h3></CardTitle>
         <AuditFiltersBar filters={filters} options={ready} optionsFailed={options.status === "error"} onRetryOptions={options.retry} onChange={patch => audit.update({ ...filters, ...patch })} onClear={clear}
-          actions={<div ref={setTableToolbar} />} />
+          phone={phone} total={loaded?.total} actions={phone ? undefined : <div ref={setTableToolbar} />} />
         <CardDescription className="-mb-2 flex min-h-10 flex-wrap items-center justify-between gap-2 text-xs">
           <span role="status" aria-live="polite" aria-label={initial ? "Cargando auditoría" : undefined}>{initial ? <Skeleton aria-hidden="true" className="h-4 w-52" /> : loaded ? <><strong className="font-medium text-foreground">{number.format(loaded.total)}</strong> {noun} {filtered ? "con estos filtros" : "registrados en tu empresa"} <span aria-hidden="true">·</span> Más recientes primero</> : null}</span>
           <RecordedHelp />
@@ -119,9 +123,9 @@ export function AuditWorkspace() {
       </CardContent>
       {loaded && loaded.items.length > 0 && <CardFooter className="flex flex-wrap justify-between gap-3 border-t">
         <span className="text-xs text-muted-foreground" role="status">{`Mostrando ${firstRow}–${firstRow + loaded.items.length - 1} de ${loaded.total} ${noun}`}</span>
-        <AuditPagination audit={audit} />
+        <AuditPagination audit={audit} phone={phone} />
       </CardFooter>}
     </Card>
-    <AuditEventSheet event={selected} onClose={() => setSelected(null)} />
+    <AuditEventSheet event={selected} onClose={() => setSelected(null)} phone={phone} />
   </DashboardPageContent>;
 }
