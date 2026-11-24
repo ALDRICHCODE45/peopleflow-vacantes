@@ -110,3 +110,11 @@ merges to `main` allowed (no push).
   nested/interactive Items; never-saved checklist defaults shown as saved), plus invalid_id copy, dead settings toggle
   path, orphan help id. Remaining advisories go to the report (audit entity regex, intake FileField coupling, lifecycle
   message equality, psychometrics label source, documents read unmocked in other sheet tests).
+- **L10** Browser check of `e013f5ff` (prod :3000, owner/recruiter/stakeholder): A, B (except one), D pass. Failures:
+  (1) shared `item.tsx` — presentational ItemSeparator keeps aria-orientation (axe aria-allowed-attr critical ×8) and Items
+  inside native <li> get role=listitem (aria-required-parent ×10 on Configuración) → sent to the running fix worker;
+  (2) sheet «Documentos (n)» link: `?candidato=` ignored on client navigation (works on reload);
+  (3) sort control shows without `total` (condition `total?.count !== 0`), and «Mayor salario» shows «No se pudieron
+  aplicar los filtros» until the backend sort merges. Also: close dialog from the list row menu lacks coverage («Cubierta»
+  enabled); step tabs don't announce ✓/error; board tooltip spans aria-prohibited-attr ×3 and contrast ×7; vacancy list
+  secondary badges 4.32:1 (light). Data: one stakeholder invitation «Auditoría Verif» (revoked).
