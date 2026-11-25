@@ -67,6 +67,11 @@ describe("ImageField", () => {
     const input = screen.getByLabelText("Archivo de Imagen de portada");
     expect(input).toHaveClass("sr-only");
     for (const sizing of ["w-full", "h-8", "min-w-0", "px-2.5"]) expect(input).not.toHaveClass(sizing);
+    // Field's `[&>.sr-only]:w-auto` re-widens a direct sr-only child, and an absolute
+    // input otherwise positions against the scroll area root and escapes the panel.
+    const holder = input.parentElement!;
+    expect(holder).not.toHaveAttribute("data-slot", "field");
+    expect(holder).toHaveClass("relative", "overflow-hidden");
   });
   it("renders an accessible empty slot, guidance and draft error", () => {
     mount({ description: "Tu equipo", error: "Falta la portada" });

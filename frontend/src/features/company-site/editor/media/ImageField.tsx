@@ -158,9 +158,13 @@ function ImageFieldSlot({ kind, label, description, value, onChange, previewUrl,
     <Field data-disabled={blocked || undefined} data-invalid={!!message || undefined} aria-labelledby={`${id}-label`}>
       <FieldLabel id={`${id}-label`} htmlFor={id}>{label}</FieldLabel>
       {description && <FieldDescription>{description}</FieldDescription>}
-      <input ref={inputRef} id={id} type="file" accept={mediaTypesFor(kind).join(",")} className="sr-only" tabIndex={-1}
-        aria-label={`Archivo de ${label}`} aria-invalid={!!message} aria-describedby={`${id}-help${message ? ` ${id}-error` : ""}`}
-        disabled={blocked} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void choose(file); }} />
+      {/* Own positioned box: Field re-widens a direct sr-only child, and an absolute input
+          would otherwise position against the scroll area root and overflow the panel. */}
+      <span className="relative block h-0 overflow-hidden">
+        <input ref={inputRef} id={id} type="file" accept={mediaTypesFor(kind).join(",")} className="sr-only" tabIndex={-1}
+          aria-label={`Archivo de ${label}`} aria-invalid={!!message} aria-describedby={`${id}-help${message ? ` ${id}-error` : ""}`}
+          disabled={blocked} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void choose(file); }} />
+      </span>
       {value ? (
         <>
           {thumbnail ? (
