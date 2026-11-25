@@ -22,9 +22,9 @@ illegible. Design options first, then implementation.
 
 | ID | Specs | Task | Commit |
 | --- | --- | --- | --- |
-| T1 | S1 | Design directions (`design/recruiter-table-redesign/`) | |
-| T2 | S1–S4 | Implementation of `01-pagina-propia-de-tabla.html` | |
-| T3 | S1 | Browser check, full suite, merge to main | |
+| T1 | S1 | Design directions (`design/recruiter-table-redesign/`) | `e380c12b` |
+| T2 | S1–S4 | Implementation of `01-pagina-propia-de-tabla.html` | `1c1c4c81`, `5d1235de`, `f97716a4` |
+| T3 | S1 | Browser check, full suite, merge to main | this log commit + merge |
 
 ## Log
 
@@ -50,3 +50,12 @@ illegible. Design options first, then implementation.
   phone toolbar 164 px and «Personalizado» overflows its chip; the definitions sheet lets Tab escape behind it
   (`modal="trap-focus"`) and says «v1» while the page says «v2». Second fix round launched (no region scrollbar,
   min-width ≤ 1050 px).
+- **L5** (2026-11-25) User: «si hermano, adelante por favor.» → T3. Browser re-check of `f97716a4` (Chromium with classic
+  15 px scrollbars, Firefox headed with classic 12 px scrollbars): at 1440 with the sidebar open and collapsed, light and
+  dark, the table fits its card (slack 0, no horizontal scroller, «Conversión» clear of the chevron), every header ≤ 2 lines
+  with no word spilling; at 1100 the table scrolls horizontally inside its region. Phone toolbar 150 px, «Otro rango» and
+  «Definiciones» fit their chips on one line. Definitions sheet: page and sheet both say «v2», no scroll jump, modal (default)
+  focus trap holds at human Tab speed (0 escapes with ≥ 50 ms between presses in both browsers); with presses < 33 ms apart
+  focus briefly lands on Base UI's outside focus guard (the guard redirects after ~40 ms) — library behaviour shared by every
+  dialog, left as a follow-up. Sort, column picker, detail return (S4) regressions pass; axe 0 violations in all 30 states.
+  Full suite 648 files / 11901 passed (2 skipped), tsc 0, lint 0 errors (12 warnings). Merged to local main; the user pushes.
