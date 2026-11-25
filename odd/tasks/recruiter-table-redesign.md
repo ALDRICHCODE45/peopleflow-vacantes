@@ -42,3 +42,11 @@ illegible. Design options first, then implementation.
 - **L3** (2026-11-24) User: «1. si, la 01, esta bien. 2. lo que sea mas completo. 3. lo que recomiendes que sea la mejor
   experiencia.» → S2–S4. Canvas handoff of `01-pagina-propia-de-tabla.html` (02 and 03 are alternatives). Table cells may
   wrap (extends the audit-table exception in design/system.md to this table).
+- **L4** Implementation `1c1c4c81` (full suite 648 files / 11887 passed, tsc 0, lint 0 errors) and fix round `5d1235de`.
+  Browser re-check: conversion cells, subtitle «Actualizado …», stakeholder «Solo lectura», detail bar semantics (axe
+  nested-interactive gone) and board delay badge contrast pass; definitions sheet doesn't jump. Still failing: with
+  classic scrollbars (the user's Firefox on Linux) the scroll area is 1062 px vs a 1074 px table (−12 px, «Conversión»
+  under the sticky chevron); «Días en tramos» and «Mediana a la meta» take 3 lines and single-word headers spill 2–5 px;
+  phone toolbar 164 px and «Personalizado» overflows its chip; the definitions sheet lets Tab escape behind it
+  (`modal="trap-focus"`) and says «v1» while the page says «v2». Second fix round launched (no region scrollbar,
+  min-width ≤ 1050 px).
