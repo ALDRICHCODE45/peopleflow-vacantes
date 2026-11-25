@@ -53,8 +53,8 @@ Branch `feat/careers-site-sections-v2-backend` (worktree `../peopleflow-vacantes
 
 ## Tasks
 
-- T1 S1-S3 — slice A (writer) — done, uncommitted (L3)
-- T2 — suite, merge, notify frontend — pending
+- T1 S1-S3 — slice A (writer) — done 0d2f8ccb
+- T2 — suite, merge, notify frontend — done
 
 ## Log
 
@@ -113,3 +113,7 @@ Branch `feat/careers-site-sections-v2-backend` (worktree `../peopleflow-vacantes
      document that does not contain them (old strict frontend readers reject unknown keys). Absent new keys stay absent
      in responses; the frontend applies the defaults. New keys appear only once a client saved them. Validation and
      publish logic treat absent keys as their defaults.
+- **L5** 2026-11-25, parent: committed 0d2f8ccb. Full backend suite on the branch (throwaway postgres:16, v66): unit
+  exit 0; integration 122 packages ok, only the legacy pre-existing `identity/infrastructure/postgres` and
+  `jobs/infrastructure/postgres` FAIL (same on main); archguard only docker/minio. Merged into local main (backend
+  first is safe: stored documents read byte-identical, L4 §9); 00066 applied to the dev DB.
