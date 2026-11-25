@@ -4,6 +4,24 @@ Only site images use this selection. Candidate CV storage and `CV_STORAGE_ROOT`
 semantics are unchanged. The frontend always uses the API-relative capability URL
 `/v2/company-sites/media/{id}`, never an S3 URL or a presigned URL.
 
+## Kinds and image rules
+
+| kind | formats | px per side | used by (contract §2.1, §2.3) |
+| --- | --- | --- | --- |
+| `cover` | JPEG, PNG, WebP | 200–6,000 | `hero.cover`, `style.image` |
+| `gallery` | JPEG, PNG, WebP | 200–6,000 | gallery items, `hero.images`, `areas.overrides[].photo` |
+| `portrait` | JPEG, PNG, WebP | 200–6,000 | testimonial and team photos |
+| `story` | JPEG, PNG, WebP | 200–6,000 | `story.image` |
+| `logo` | PNG, WebP (alpha kept) | 64–6,000 | `logos.items[].image` (sections v2) |
+
+Every kind is detected by magic bytes, limited to 5,242,880 bytes and stripped of
+EXIF/XMP/text chunks without re-encoding (`application.PrepareMediaKind`). The
+database mirrors the rules: migration 00066 (`company_site_logo_media`) widened
+`company_site_media_kind_check`, made the width/height CHECKs 64 px for `logo` and
+200 px otherwise, and added `company_site_media_logo_format_check` (PNG/WebP only).
+Its Down refuses while any `logo` row exists. A saved document references media by
+company **and** kind, so a logo can never be used as a cover and vice versa.
+
 ## Configuration
 
 | Variable | Default | Meaning / example |

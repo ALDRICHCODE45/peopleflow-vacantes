@@ -92,13 +92,11 @@ func (h *Handler) UploadMedia(w http.ResponseWriter, r *http.Request) {
 		mediaError(w, httpjson.CodeInvalidRequest)
 		return
 	}
-	switch kind {
-	case "cover", "gallery", "portrait", "story":
-	default:
+	if !app.IsMediaKind(kind) {
 		validation(w, []app.Field{{Field: "kind", Code: "invalid"}})
 		return
 	}
-	cleaned, typ, width, height, code := app.PrepareMedia(data)
+	cleaned, typ, width, height, code := app.PrepareMediaKind(kind, data)
 	if code != "" {
 		mediaError(w, httpjson.Code(code))
 		return

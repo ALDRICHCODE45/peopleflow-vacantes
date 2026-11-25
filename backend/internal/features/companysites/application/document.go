@@ -44,19 +44,24 @@ type blockRule struct {
 }
 
 var rules = map[string]blockRule{
-	"hero":         {variants: []string{"photo", "split", "centered"}, strings: map[string]int{"title": 80, "subtitle": 200}, special: []string{"cover"}},
+	"hero":         {variants: []string{"photo", "split", "centered", "background_loop", "photo_jobs", "collage"}, strings: map[string]int{"title": 80, "subtitle": 200}, special: []string{"cover", "images", "primary_label", "secondary_visible", "secondary_label", "secondary_target"}},
 	"story":        {variants: []string{"text", "text_image"}, strings: map[string]int{"title": 80}, special: []string{"body", "image"}},
-	"values":       {variants: []string{"grid", "list"}, strings: map[string]int{"mission": 300}, itemStrings: map[string]int{"title": 60, "description": 240}, itemSpecial: []string{"icon", "emoji"}, maximum: 8, minimum: 1, required: []string{"title"}},
-	"benefits":     {variants: []string{"grid", "compact"}, itemStrings: map[string]int{"title": 60, "description": 160}, itemSpecial: []string{"icon", "emoji"}, maximum: 24, minimum: 1, required: []string{"title"}},
-	"stats":        {variants: []string{"row", "cards"}, itemStrings: map[string]int{"value": 12, "label": 60}, maximum: 6, minimum: 1, required: []string{"value", "label"}},
+	"values":       {variants: []string{"grid", "list", "bento", "big_icons"}, strings: map[string]int{"mission": 300}, itemStrings: map[string]int{"title": 60, "description": 240}, itemSpecial: []string{"icon", "emoji"}, maximum: 8, minimum: 1, required: []string{"title"}},
+	"benefits":     {variants: []string{"grid", "compact", "bento", "big_icons"}, itemStrings: map[string]int{"title": 60, "description": 160}, itemSpecial: []string{"icon", "emoji"}, maximum: 24, minimum: 1, required: []string{"title"}},
+	"stats":        {variants: []string{"row", "cards", "brand_band"}, itemStrings: map[string]int{"value": 12, "label": 60}, maximum: 6, minimum: 1, required: []string{"value", "label"}},
 	"process":      {variants: []string{"steps", "timeline"}, itemStrings: map[string]int{"title": 60, "description": 200, "duration": 30}, maximum: 8, minimum: 2, required: []string{"title"}},
-	"gallery":      {variants: []string{"grid", "mosaic", "carousel"}, itemStrings: map[string]int{"alt": 160, "caption": 120}, itemSpecial: []string{"image"}, maximum: 12, minimum: 2, required: []string{"image", "alt"}},
-	"testimonials": {variants: []string{"cards", "quote"}, itemStrings: map[string]int{"quote": 400, "name": 80, "role": 80}, itemSpecial: []string{"photo", "consent"}, maximum: 6, minimum: 1, required: []string{"quote", "name", "consent"}},
+	"gallery":      {variants: []string{"grid", "mosaic", "carousel", "photo_strip"}, itemStrings: map[string]int{"alt": 160, "caption": 120}, itemSpecial: []string{"image"}, maximum: 12, minimum: 2, required: []string{"image", "alt"}},
+	"testimonials": {variants: []string{"cards", "quote", "carousel"}, itemStrings: map[string]int{"quote": 400, "name": 80, "role": 80}, itemSpecial: []string{"photo", "consent", "video_url"}, maximum: 6, minimum: 1, required: []string{"quote", "name", "consent"}},
 	"video":        {variants: []string{"wide", "split"}, strings: map[string]int{"title": 80, "description": 200}, special: []string{"video"}},
 	"offices":      {variants: []string{"list", "cards"}, itemStrings: map[string]int{"name": 80, "address": 200, "map_url": 500}, itemSpecial: []string{"location"}, maximum: 20, minimum: 1, required: []string{"name", "location"}},
 	"jobs":         {variants: []string{"list", "cards", "by_area"}, strings: map[string]int{"title": 80, "intro": 200}},
 	"faq":          {variants: []string{"accordion", "two_columns"}, itemStrings: map[string]int{"question": 160, "answer": 1000}, maximum: 20, minimum: 1, required: []string{"question", "answer"}},
 	"closing":      {variants: []string{"banner", "simple"}, strings: map[string]int{"title": 80, "text": 240}},
+	// Sections v2 (contract §2.3).
+	"team":       {variants: []string{"grid", "portraits"}, strings: map[string]int{"title": 80, "intro": 200}, itemStrings: map[string]int{"name": 80, "role": 80}, itemSpecial: []string{"photo", "consent"}, maximum: 12, minimum: 1, required: []string{"name", "consent"}},
+	"logos":      {variants: []string{"strip", "grid"}, strings: map[string]int{"title": 80}, itemStrings: map[string]int{"name": 80, "caption": 80}, itemSpecial: []string{"image"}, maximum: 12, minimum: 1, required: []string{"name", "image"}},
+	"areas":      {variants: []string{"icon_cards", "photo_cards"}, strings: map[string]int{"title": 80, "intro": 200}, special: []string{"overrides"}},
+	"talent_cta": {variants: []string{"banner", "split"}, strings: map[string]int{"title": 80, "text": 240, "button_label": 24}},
 }
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 var colorPattern = regexp.MustCompile(`^#[a-fA-F0-9]{6}$`)
@@ -178,8 +183,13 @@ func (v *validator) media(m map[string]any, k, p, kind string) {
 		m[k] = nil
 		return
 	}
-	q := path(p, k)
-	ref := v.object(m[k], q, []string{"media_id"})
+	v.mediaRef(m[k], path(p, k), kind)
+}
+
+// mediaRef validates one non-null media ref at q and records it for the
+// ownership check (company and kind) performed by the store on save.
+func (v *validator) mediaRef(x any, q, kind string) {
+	ref := v.object(x, q, []string{"media_id"})
 	v.text(ref, "media_id", q, 36)
 	s := text(ref, "media_id")
 	id, err := uuid.Parse(s)
@@ -200,12 +210,21 @@ func (v *validator) content(m map[string]any, p, kind string, limits map[string]
 			v.media(m, k, p, "cover")
 		case "image":
 			mediaKind := "story"
-			if kind == "gallery" {
+			switch kind {
+			case "gallery":
 				mediaKind = "gallery"
+			case "logos":
+				mediaKind = "logo"
 			}
 			v.media(m, k, p, mediaKind)
 		case "photo":
 			v.media(m, k, p, "portrait")
+		case "images", "primary_label", "secondary_visible", "secondary_label", "secondary_target":
+			v.heroField(m, k, p)
+		case "video_url":
+			v.videoURL(m, k, p)
+		case "overrides":
+			v.areaOverrides(m, p)
 		case "icon":
 			v.enum(m, k, p, icons, true)
 		case "emoji":
@@ -282,7 +301,8 @@ func (validatorPort *Validator) ValidateDocument(value any) (*Document, []Field)
 }
 
 // ValidateStoredDocument normalizes legacy drafts and snapshots. Only the rule
-// requiring an icon or emoji is relaxed; all other grammar remains enforced.
+// requiring an icon or emoji is relaxed, and a hero secondary_target that names
+// no remaining block reads as null; all other grammar remains enforced.
 func (validatorPort *Validator) ValidateStoredDocument(value any) (*Document, []Field) {
 	return validatorPort.validateDocument(value, true)
 }
@@ -328,9 +348,11 @@ func (validatorPort *Validator) validateDocument(value any, stored bool) (*Docum
 	}
 	counts := map[string]int{}
 	ids := map[string]bool{}
+	var heroContent map[string]any
+	heroPath, heroID := "", ""
 	for i, x := range blocks {
 		p := fmt.Sprintf("blocks[%d]", i)
-		b := v.object(x, p, []string{"id", "type", "variant", "hidden", "content"})
+		b := v.object(x, p, []string{"id", "type", "variant", "hidden", "content", "style"})
 		v.text(b, "id", p, 36)
 		id, err := uuid.Parse(text(b, "id"))
 		if err != nil || len(text(b, "id")) != 36 {
@@ -351,6 +373,7 @@ func (validatorPort *Validator) validateDocument(value any, stored bool) (*Docum
 		}
 		counts[kind]++
 		v.enum(b, "variant", p, rule.variants, false)
+		v.style(b, p)
 		hidden, ok := b["hidden"].(bool)
 		if !ok {
 			v.fail(p+".hidden", "invalid")
@@ -364,6 +387,9 @@ func (validatorPort *Validator) validateDocument(value any, stored bool) (*Docum
 		}
 		c := v.object(b["content"], p+".content", allowed)
 		v.content(c, p+".content", kind, rule.strings, rule.special)
+		if kind == "hero" && heroContent == nil {
+			heroContent, heroPath, heroID = c, p+".content", text(b, "id")
+		}
 		if rule.maximum > 0 {
 			items, ok := c["items"].([]any)
 			if c["items"] == nil {
@@ -381,6 +407,9 @@ func (validatorPort *Validator) validateDocument(value any, stored bool) (*Docum
 				v.content(a, q, kind, rule.itemStrings, rule.itemSpecial)
 			}
 		}
+	}
+	if heroContent != nil {
+		v.secondaryTarget(heroContent, heroPath, heroID, ids)
 	}
 	for _, kind := range []string{"hero", "jobs"} {
 		if counts[kind] == 0 {
@@ -420,7 +449,8 @@ func PublishIssues(doc *Document, companyLogo, companyName bool) []Issue {
 		add("slug_missing", "slug")
 	}
 	contentBlock := false
-	for i, x := range m["blocks"].([]any) {
+	blocks := m["blocks"].([]any)
+	for i, x := range blocks {
 		b := x.(map[string]any)
 		if b["hidden"] == true {
 			continue
@@ -432,9 +462,12 @@ func PublishIssues(doc *Document, companyLogo, companyName bool) []Issue {
 			if text(c, "title") == "" {
 				add("hero_title_missing", p)
 			}
+			heroIssues(b, blocks, p, add)
+			styleIssues(b, p, add)
 			continue
 		}
 		if kind == "jobs" {
+			styleIssues(b, p, add)
 			continue
 		}
 		contentBlock = true
@@ -445,7 +478,8 @@ func PublishIssues(doc *Document, companyLogo, companyName bool) []Issue {
 			complete = strings.TrimSpace(doc.StoryPlain[p+".content"]) != ""
 		case "video":
 			complete = c["video"] != nil
-		case "closing":
+		case "closing", "areas", "talent_cta":
+			// Areas are derived from published vacancies; overrides never block.
 			complete = text(c, "title") != ""
 		default:
 			items, _ := c["items"].([]any)
@@ -470,6 +504,7 @@ func PublishIssues(doc *Document, companyLogo, companyName bool) []Issue {
 		if !complete {
 			add("block_incomplete", p)
 		}
+		styleIssues(b, p, add)
 	}
 	if !contentBlock {
 		add("no_content_block", "")
