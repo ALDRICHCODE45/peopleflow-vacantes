@@ -73,3 +73,13 @@ Three slices, ordered by risk; each one is independently shippable.
 6. Every new key is optional on read with the proposed defaults; stored documents stay valid.
 Backend branch `feat/careers-site-sections-v2-backend` (worktree ../peopleflow-vacantes-careersv2). Exact amendment and
 error codes will come when committed; the frontend doesn't merge or emit new keys until slice A is in main.
+
+## Backend confirmation of the frontend assumptions (2026-11-25)
+
+All nine assumptions accepted (style defaults; collage `images` ≤3, ≥2 to publish; nullable hero labels with public
+fallbacks; `video_url` string ≤500; `overrides[{key, icon|photo}]` ≤16; limits; publish rules). Details: a non-null
+overlay only with background "image"; `secondary_target` = the hero itself → validation_error; a hidden target blocks
+publish only when `secondary_visible`; missing style image is a publish issue (`style_image_missing`,
+`blocks[i].style.image`), not a 400; codes `hero_video_missing`, `secondary_target_hidden`, `hero_collage_images_missing`;
+team/logos reuse existing consent/title codes. GET never adds new keys to stored documents (old documents stay
+byte-identical), so the backend merges first and the frontend switches when ready — no lockstep merge.
