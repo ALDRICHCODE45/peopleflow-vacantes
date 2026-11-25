@@ -1,4 +1,4 @@
-import type { BlockType, SiteBlock, SiteDraft } from "./model";
+import { DEFAULT_SECTION_STYLE, HERO_BUTTON_DEFAULTS, type BlockType, type BlockTypeV2, type SectionStyle, type SiteBlock, type SiteBlockV2, type SiteDraft } from "./model";
 
 export const BLOCK_LIBRARY = {
   hero: { label: "Portada", description: "Da la bienvenida con un título y una imagen de tu empresa." },
@@ -53,4 +53,49 @@ export function defaultSiteDraft(): SiteDraft {
     seo: { title: null, description: null },
     blocks: [defaultBlock("hero"), defaultBlock("jobs")],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Sections v2, slice A. Not offered by today's editor (it reads BLOCK_LIBRARY /
+// defaultBlock); the v2 editor switches to these behind SECTIONS_V2_ENABLED.
+// ---------------------------------------------------------------------------
+
+export const BLOCK_LIBRARY_V2 = {
+  ...BLOCK_LIBRARY,
+  team: { label: "Equipo / Líderes", description: "Presenta a las personas que lideran tu equipo." },
+  logos: { label: "Logos / Reconocimientos", description: "Muestra premios, certificaciones y aliados." },
+  areas: { label: "Áreas de trabajo", description: "Ayuda a encontrar vacantes por área." },
+  // Its CV form needs slice C; until then the editor must not offer it.
+  talent_cta: { label: "Llamado a talento", description: "Invita a dejar su CV aunque no haya una vacante para su perfil." },
+} as const satisfies Record<BlockTypeV2, { label: string; description: string }>;
+
+/** Labels for the variants slice A adds. TODO(editor writer): merge into VARIANT_LABELS in editor/variant-picker.tsx
+ * (existing keys such as carousel, grid, split and banner already have labels there). */
+export const NEW_VARIANT_LABELS = {
+  background_loop: "Fondo en movimiento", photo_jobs: "Foto con vacantes recientes", collage: "Collage de fotos",
+  bento: "Bento", big_icons: "Íconos grandes", brand_band: "Banda de marca", photo_strip: "Tira de fotos",
+  portraits: "Retratos", strip: "Franja", icon_cards: "Tarjetas con ícono", photo_cards: "Tarjetas con foto",
+} as const;
+
+/** «Estilo de sección» choices (S3), curated values only. */
+export const SECTION_STYLE_LABELS = {
+  background: { default: "Normal", tint: "Tinte suave", brand: "Color de marca", image: "Imagen" },
+  spacing: { compact: "Compacto", airy: "Amplio" },
+  align: { center: "Centrado", start: "Izquierda" },
+  overlay: { soft: "Suave", medium: "Media", strong: "Fuerte" },
+} as const satisfies { [K in Exclude<keyof SectionStyle, "image">]: Record<NonNullable<SectionStyle[K]>, string> };
+
+/** v2 templates: incomplete but saveable, each call owns its arrays, style and UUID. */
+export function defaultBlockV2(type: BlockTypeV2): SiteBlockV2 {
+  const style: SectionStyle = { ...DEFAULT_SECTION_STYLE };
+  const common = { id: crypto.randomUUID(), hidden: false, style };
+  switch (type) {
+    case "hero": return { ...common, type, variant: "photo", content: { title: null, subtitle: null, cover: null, images: [], ...HERO_BUTTON_DEFAULTS } };
+    case "team": return { ...common, type, variant: "grid", content: { title: null, intro: null, items: [] } };
+    case "logos": return { ...common, type, variant: "strip", content: { title: null, items: [] } };
+    case "areas": return { ...common, type, variant: "icon_cards", content: { title: null, intro: null, overrides: [] } };
+    case "talent_cta": return { ...common, type, variant: "banner", content: { title: null, text: null, button_label: "Dejar mi CV" } };
+    case "testimonials": return { ...common, type, variant: "cards", content: { items: [] } };
+    default: return { ...defaultBlock(type), ...common } as SiteBlockV2;
+  }
 }

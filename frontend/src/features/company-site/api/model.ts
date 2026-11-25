@@ -3,7 +3,7 @@ import { siteDraftReadSchema } from "../model";
 
 const version = z.number().int().positive().safe();
 const timestamp = z.string().datetime({ offset: true });
-export const mediaSchema = z.object({ id: z.string().uuid(), kind: z.enum(["cover", "gallery", "portrait", "story"]), url: z.string().min(1), width: z.number().int().positive(), height: z.number().int().positive() });
+export const mediaSchema = z.object({ id: z.string().uuid(), kind: z.enum(["cover", "gallery", "portrait", "story", "logo"]), url: z.string().min(1), width: z.number().int().positive(), height: z.number().int().positive() });
 export const siteStateSchema = z.object({
   draft: siteDraftReadSchema, draft_version: version,
   published: z.object({ version, slug: z.string().min(1), published_at: timestamp }).nullable(),

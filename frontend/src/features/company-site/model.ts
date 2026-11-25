@@ -3,8 +3,10 @@ import { z } from "zod";
 import { locationWriteSchema } from "../geo/model";
 import { draftRichDescriptionSchema } from "../jobs/drafts/rich/description";
 import { deriveDraftDescriptionPlain } from "../jobs/drafts/rich/plain";
+import { PROFESSIONAL_AREAS } from "../jobs/drafts/scalars";
+import { SECTIONS_V2_ENABLED } from "./sections-v2";
 import { validateSlug } from "./slug";
-import { videoSchema } from "./video";
+import { parseVideoUrl, videoSchema } from "./video";
 
 export const ICONS = [
   "heart", "users", "rocket", "target", "lightbulb", "shield", "leaf", "globe", "graduation-cap",
@@ -74,7 +76,8 @@ export const benefitsBlockSchema = z.object({ ...common, type: z.literal("benefi
 export const statsBlockSchema = z.object({ ...common, type: z.literal("stats"), variant: z.enum(["row", "cards"]), content: z.object({ items: z.array(z.object({ value: text(12), label: text(60) }).strict()).max(6) }).strict() }).strict();
 export const processBlockSchema = z.object({ ...common, type: z.literal("process"), variant: z.enum(["steps", "timeline"]), content: z.object({ items: z.array(z.object({ title: text(60), description: text(200), duration: text(30) }).strict()).max(8) }).strict() }).strict();
 export const galleryBlockSchema = z.object({ ...common, type: z.literal("gallery"), variant: z.enum(["grid", "mosaic", "carousel"]), content: z.object({ items: z.array(z.object({ image: mediaRefSchema, alt: text(160), caption: text(120) }).strict()).max(12) }).strict() }).strict();
-export const testimonialsBlockSchema = z.object({ ...common, type: z.literal("testimonials"), variant: z.enum(["cards", "quote"]), content: z.object({ items: z.array(z.object({ quote: text(400), name: text(80), role: text(80), photo: mediaRefSchema, consent: z.boolean() }).strict()).max(6) }).strict() }).strict();
+const testimonialItem = z.object({ quote: text(400), name: text(80), role: text(80), photo: mediaRefSchema, consent: z.boolean() }).strict();
+export const testimonialsBlockSchema = z.object({ ...common, type: z.literal("testimonials"), variant: z.enum(["cards", "quote"]), content: z.object({ items: z.array(testimonialItem).max(6) }).strict() }).strict();
 export const videoBlockSchema = z.object({ ...common, type: z.literal("video"), variant: z.enum(["wide", "split"]), content: z.object({ video: videoSchema.nullable(), title: text(80), description: text(200) }).strict() }).strict();
 // The API stores and returns unset location parts as explicit nulls; the editor keeps the
 // code-only write shape, so drop them before the shared (optional, non-null) geo schema.
@@ -99,7 +102,8 @@ const siteDraftObject = z.object({
   seo: z.object({ title: text(60), description: text(160) }).strict(),
   blocks: z.array(blockSchema).min(2).max(30),
 }).strict();
-const draftInvariants = (draft: z.infer<typeof siteDraftObject>, ctx: z.RefinementCtx) => {
+type BlockEnvelope = { id: string; type: string; hidden: boolean };
+const draftInvariants = (draft: { blocks: BlockEnvelope[] }, ctx: z.RefinementCtx) => {
   const ids = new Set<string>();
   draft.blocks.forEach((block, index) => {
     if (ids.has(block.id)) ctx.addIssue({ code: "custom", path: ["blocks", index, "id"], message: "Duplicate block id" });
@@ -124,7 +128,7 @@ export type PublishIssue = {
 };
 const present = (value: string | null | undefined) => Boolean(value?.trim());
 
-function complete(block: SiteBlock): boolean {
+function complete(block: SiteBlock | SiteBlockV2): boolean {
   switch (block.type) {
     case "hero": return present(block.content.title);
     case "jobs": return true;
@@ -138,18 +142,202 @@ function complete(block: SiteBlock): boolean {
     case "offices": return block.content.items.length >= 1 && block.content.items.every(item => present(item.name) && present(item.location?.country));
     case "faq": return block.content.items.length >= 1 && block.content.items.every(item => present(item.question) && present(item.answer));
     case "closing": return present(block.content.title);
+    case "team": return block.content.items.length >= 1 && block.content.items.every(item => present(item.name) && item.consent === true);
+    case "logos": return block.content.items.length >= 1 && block.content.items.every(item => present(item.name) && item.image !== null);
+    case "areas": case "talent_cta": return present(block.content.title);
   }
 }
 
-/** Publish checks supplement save validation; callers pass a parsed draft. */
-export function publishIssues(draft: SiteDraft, company: { name: string | null; logo_url: string | null }): PublishIssue[] {
+function baseIssues(draft: { slug: string | null; blocks: (SiteBlock | SiteBlockV2)[] }): PublishIssue[] {
   const issues: PublishIssue[] = [];
   if (!present(draft.slug)) issues.push({ code: "slug_missing", field: "slug" });
   draft.blocks.forEach((block, index) => {
     if (!block.hidden && !complete(block)) issues.push({ code: block.type === "hero" ? "hero_title_missing" : "block_incomplete", field: `blocks[${index}]` });
   });
   if (!draft.blocks.some(block => !block.hidden && block.type !== "hero" && block.type !== "jobs")) issues.push({ code: "no_content_block", field: null });
+  return issues;
+}
+function companyIssues(company: { name: string | null; logo_url: string | null }): PublishIssue[] {
+  const issues: PublishIssue[] = [];
   if (!present(company.logo_url)) issues.push({ code: "company_logo_missing", field: null });
   if (!present(company.name)) issues.push({ code: "company_name_missing", field: null });
   return issues;
+}
+/** Publish checks supplement save validation; callers pass a parsed draft. */
+export function publishIssues(draft: SiteDraft, company: { name: string | null; logo_url: string | null }): PublishIssue[] {
+  return [...baseIssues(draft), ...companyIssues(company)];
+}
+
+// ---------------------------------------------------------------------------
+// Sections v2, slice A (odd/tasks/careers-site-sections-v2-contract.md).
+// Additive: the legacy schemas above stay byte-identical so today's editor and
+// presentation are untouched; `siteDraftPayloadSchema` is the only write path
+// that may emit these keys, and only when SECTIONS_V2_ENABLED.
+// ---------------------------------------------------------------------------
+
+export const SECTION_BACKGROUNDS = ["default", "tint", "brand", "image"] as const;
+export const SECTION_SPACINGS = ["compact", "airy"] as const;
+export const SECTION_ALIGNS = ["center", "start"] as const;
+export const SECTION_OVERLAYS = ["soft", "medium", "strong"] as const;
+export type SectionStyle = {
+  background: (typeof SECTION_BACKGROUNDS)[number]; spacing: (typeof SECTION_SPACINGS)[number];
+  align: (typeof SECTION_ALIGNS)[number]; overlay: (typeof SECTION_OVERLAYS)[number] | null; image: z.infer<typeof mediaRefSchema>;
+};
+/** Contract defaults for a missing `style` (or missing style keys). */
+export const DEFAULT_SECTION_STYLE: Readonly<SectionStyle> = Object.freeze({ background: "default", spacing: "airy", align: "start", overlay: null, image: null });
+const wireIssue = (ctx: z.RefinementCtx, path: (string | number)[], code: "required" | "not_allowed" | "invalid" | "duplicate") =>
+  ctx.addIssue({ code: "custom", path, message: code, params: { wireCode: code } });
+/** Curated per-block style (S3): overlay and image only with an image background, which then needs its image. */
+export const sectionStyleSchema = z.object({
+  background: z.enum(SECTION_BACKGROUNDS).default(DEFAULT_SECTION_STYLE.background),
+  spacing: z.enum(SECTION_SPACINGS).default(DEFAULT_SECTION_STYLE.spacing),
+  align: z.enum(SECTION_ALIGNS).default(DEFAULT_SECTION_STYLE.align),
+  overlay: z.enum(SECTION_OVERLAYS).nullable().default(null),
+  image: mediaRefSchema.default(null),
+}).strict().superRefine((style, ctx) => {
+  if (style.background === "image") {
+    if (style.image === null) wireIssue(ctx, ["image"], "required");
+    return;
+  }
+  if (style.overlay !== null) wireIssue(ctx, ["overlay"], "not_allowed");
+  if (style.image !== null) wireIssue(ctx, ["image"], "not_allowed");
+}).default(() => ({ ...DEFAULT_SECTION_STYLE }));
+const styled = { style: sectionStyleSchema };
+
+/** Contract defaults for hero button keys missing on read (null target = first block after the hero). */
+export const HERO_BUTTON_DEFAULTS = Object.freeze({ primary_label: "Ver vacantes", secondary_visible: true, secondary_label: "Conoce la empresa", secondary_target: null });
+export const HERO_COLLAGE_MAX = 3;
+/** Publishing a collage needs at least this many images (contract only caps it at 3). */
+export const HERO_COLLAGE_MIN_TO_PUBLISH = 2;
+const heroContentV2 = heroBlockSchema.shape.content.extend({
+  images: z.array(z.object({ media_id: z.string().uuid() }).strict()).max(HERO_COLLAGE_MAX).default(() => []),
+  primary_label: text(24).default(HERO_BUTTON_DEFAULTS.primary_label),
+  secondary_visible: z.boolean().default(HERO_BUTTON_DEFAULTS.secondary_visible),
+  secondary_label: text(24).default(HERO_BUTTON_DEFAULTS.secondary_label),
+  secondary_target: z.string().uuid().nullable().default(HERO_BUTTON_DEFAULTS.secondary_target),
+});
+export const heroBlockSchemaV2 = heroBlockSchema.extend({ variant: z.enum(["photo", "split", "centered", "background_loop", "photo_jobs", "collage"]), content: heroContentV2, ...styled });
+const decoratedVariants = ["bento", "big_icons"] as const;
+export const valuesBlockSchemaV2 = valuesBlockSchema.extend({ variant: z.enum(["grid", "list", ...decoratedVariants]), ...styled });
+export const benefitsBlockSchemaV2 = benefitsBlockSchema.extend({ variant: z.enum(["grid", "compact", ...decoratedVariants]), ...styled });
+export const statsBlockSchemaV2 = statsBlockSchema.extend({ variant: z.enum(["row", "cards", "brand_band"]), ...styled });
+export const galleryBlockSchemaV2 = galleryBlockSchema.extend({ variant: z.enum(["grid", "mosaic", "carousel", "photo_strip"]), ...styled });
+/** Stored as the URL the company pasted; accepted only when the existing YouTube/Vimeo parser recognizes it. */
+const testimonialVideoUrl = text(500).refine(value => value === null || parseVideoUrl(value) !== null, { message: "invalid", params: { wireCode: "invalid" } });
+export const testimonialsBlockSchemaV2 = testimonialsBlockSchema.extend({
+  variant: z.enum(["cards", "quote", "carousel"]),
+  content: testimonialsBlockSchema.shape.content.extend({ items: z.array(testimonialItem.extend({ video_url: testimonialVideoUrl.default(null) })).max(6) }),
+  ...styled,
+});
+export const teamBlockSchema = z.object({ ...common, type: z.literal("team"), variant: z.enum(["grid", "portraits"]), content: z.object({
+  title: text(80), intro: text(200),
+  items: z.array(z.object({ name: text(80), role: text(80), photo: mediaRefSchema, consent: z.boolean() }).strict()).max(12),
+}).strict(), ...styled }).strict();
+export const logosBlockSchema = z.object({ ...common, type: z.literal("logos"), variant: z.enum(["strip", "grid"]), content: z.object({
+  title: text(80),
+  items: z.array(z.object({ name: text(80), image: mediaRefSchema, caption: text(80) }).strict()).max(12),
+}).strict(), ...styled }).strict();
+export const areaOverrideSchema = z.object({ key: z.enum(PROFESSIONAL_AREAS), icon: iconSchema.nullable(), photo: mediaRefSchema }).strict().superRefine((override, ctx) => {
+  if (override.icon === null && override.photo === null) wireIssue(ctx, ["icon"], "required");
+  if (override.icon !== null && override.photo !== null) wireIssue(ctx, ["photo"], "not_allowed");
+});
+export const areasBlockSchema = z.object({ ...common, type: z.literal("areas"), variant: z.enum(["icon_cards", "photo_cards"]), content: z.object({
+  title: text(80), intro: text(200),
+  overrides: z.array(areaOverrideSchema).max(PROFESSIONAL_AREAS.length).superRefine((overrides, ctx) => {
+    const seen = new Set<string>();
+    overrides.forEach((override, index) => {
+      if (seen.has(override.key)) wireIssue(ctx, [index, "key"], "duplicate");
+      seen.add(override.key);
+    });
+  }),
+}).strict(), ...styled }).strict();
+export const talentCtaBlockSchema = z.object({ ...common, type: z.literal("talent_cta"), variant: z.enum(["banner", "split"]), content: z.object({
+  title: text(80), text: text(240), button_label: text(24),
+}).strict(), ...styled }).strict();
+
+const [storyV2, processV2, videoV2, officesV2, jobsV2, faqV2, closingV2] = [
+  storyBlockSchema.extend(styled), processBlockSchema.extend(styled), videoBlockSchema.extend(styled), officesBlockSchema.extend(styled),
+  jobsBlockSchema.extend(styled), faqBlockSchema.extend(styled), closingBlockSchema.extend(styled),
+] as const;
+export const NEW_BLOCK_TYPES = ["team", "logos", "areas", "talent_cta"] as const;
+export const blockSchemaV2 = z.discriminatedUnion("type", [heroBlockSchemaV2, storyV2, valuesBlockSchemaV2, benefitsBlockSchemaV2, statsBlockSchemaV2, processV2, galleryBlockSchemaV2, testimonialsBlockSchemaV2, videoV2, officesV2, jobsV2, faqV2, closingV2, teamBlockSchema, logosBlockSchema, areasBlockSchema, talentCtaBlockSchema]);
+export type SiteBlockV2 = z.infer<typeof blockSchemaV2>;
+export type BlockTypeV2 = SiteBlockV2["type"];
+
+const heroTargetInvariant = (draft: { blocks: SiteBlockV2[] }, ctx: z.RefinementCtx) => {
+  const ids = new Set(draft.blocks.map(block => block.id));
+  draft.blocks.forEach((block, index) => {
+    if (block.type === "hero" && block.content.secondary_target !== null && !ids.has(block.content.secondary_target)) {
+      wireIssue(ctx, ["blocks", index, "content", "secondary_target"], "invalid");
+    }
+  });
+};
+const draftInvariantsV2 = (draft: { blocks: SiteBlockV2[] }, ctx: z.RefinementCtx) => { draftInvariants(draft, ctx); heroTargetInvariant(draft, ctx); };
+/** Full slice A write document (always emits `style` and the hero button keys). */
+export const siteDraftSchemaV2 = siteDraftObject.extend({ blocks: z.array(blockSchemaV2).min(2).max(30) }).superRefine(draftInvariantsV2);
+export type SiteDraftV2 = z.infer<typeof siteDraftSchemaV2>;
+const storedValuesV2 = valuesBlockSchemaV2.extend({ content: storedValues.shape.content });
+const storedBenefitsV2 = benefitsBlockSchemaV2.extend({ content: storedBenefits.shape.content });
+const storedBlockV2 = z.discriminatedUnion("type", [heroBlockSchemaV2, storyV2, storedValuesV2, storedBenefitsV2, statsBlockSchemaV2, processV2, galleryBlockSchemaV2, testimonialsBlockSchemaV2, videoV2, officesV2, jobsV2, faqV2, closingV2, teamBlockSchema, logosBlockSchema, areasBlockSchema, talentCtaBlockSchema]);
+/** Read: accepts documents without any slice A key and normalizes them to the contract defaults. */
+export const siteDraftReadSchemaV2 = siteDraftObject.extend({ blocks: z.array(storedBlockV2).min(2).max(30) }).superRefine(draftInvariantsV2);
+
+const LEGACY_VARIANTS = new Map<string, readonly string[]>(blockSchema.options.map(option => [option.shape.type.value, option.shape.variant.options]));
+const sameValue = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+/** Drops slice A keys that still hold their defaults; anything else cannot be expressed in v1 and is rejected, never silently lost. */
+function toLegacyDraft(draft: SiteDraftV2, ctx: z.RefinementCtx): SiteDraft {
+  let valid = true;
+  const reject = (path: (string | number)[]) => { valid = false; wireIssue(ctx, path, "not_allowed"); };
+  const blocks = draft.blocks.map((block, index) => {
+    const variants = LEGACY_VARIANTS.get(block.type);
+    if (!variants) { reject(["blocks", index, "type"]); return block; }
+    if (!variants.includes(block.variant)) reject(["blocks", index, "variant"]);
+    const { style, ...envelope } = block;
+    if (!sameValue(style, DEFAULT_SECTION_STYLE)) reject(["blocks", index, "style"]);
+    if (envelope.type === "hero") {
+      const { images, primary_label, secondary_visible, secondary_label, secondary_target, ...content } = envelope.content;
+      if (images.length > 0) reject(["blocks", index, "content", "images"]);
+      const buttons = { primary_label, secondary_visible, secondary_label, secondary_target };
+      for (const key of Object.keys(buttons) as (keyof typeof buttons)[]) if (buttons[key] !== HERO_BUTTON_DEFAULTS[key]) reject(["blocks", index, "content", key]);
+      return { ...envelope, content };
+    }
+    if (envelope.type === "testimonials") {
+      return { ...envelope, content: { ...envelope.content, items: envelope.content.items.map(({ video_url, ...item }, itemIndex) => {
+        if (video_url !== null) reject(["blocks", index, "content", "items", itemIndex, "video_url"]);
+        return item;
+      }) } };
+    }
+    return envelope;
+  });
+  return valid ? { ...draft, blocks: blocks as SiteDraft["blocks"] } : z.NEVER;
+}
+export type SiteDraftPayload = SiteDraft | SiteDraftV2;
+/** The draft PUT body for a v2 (or legacy) editor draft; flag off ⇒ exactly today's v1 document. */
+export function createSiteDraftPayloadSchema(enabled: boolean): z.ZodType<SiteDraftPayload, z.ZodTypeDef, unknown> {
+  return enabled ? siteDraftSchemaV2 : siteDraftSchemaV2.transform(toLegacyDraft);
+}
+export const siteDraftPayloadSchema = createSiteDraftPayloadSchema(SECTIONS_V2_ENABLED);
+
+export type PublishIssueV2 = PublishIssue | {
+  /** Provisional codes, pending the backend amendment. */
+  code: "hero_video_missing" | "secondary_target_hidden";
+  field: string;
+};
+/** publishIssues plus the slice A rules; callers pass a parsed v2 draft. */
+export function publishIssuesV2(draft: SiteDraftV2, company: { name: string | null; logo_url: string | null }): PublishIssueV2[] {
+  const issues: PublishIssueV2[] = baseIssues(draft);
+  const visible = new Map(draft.blocks.map(block => [block.id, !block.hidden]));
+  draft.blocks.forEach((block, index) => {
+    if (block.hidden) return;
+    const field = `blocks[${index}]`;
+    // Dead while the save rule holds; kept so publication never trusts a stale document.
+    if (block.style.background === "image" && block.style.image === null) issues.push({ code: "block_incomplete", field });
+    if (block.type !== "hero") return;
+    // Background video arrives with slice B; until then this layout cannot go live.
+    if (block.variant === "background_loop") issues.push({ code: "hero_video_missing", field });
+    if (block.variant === "collage" && block.content.images.length < HERO_COLLAGE_MIN_TO_PUBLISH) issues.push({ code: "block_incomplete", field });
+    const target = block.content.secondary_target;
+    if (block.content.secondary_visible && target !== null && visible.get(target) === false) issues.push({ code: "secondary_target_hidden", field: `${field}.content.secondary_target` });
+  });
+  return [...issues, ...companyIssues(company)];
 }
