@@ -241,6 +241,7 @@ editor's floating save bar. Below 400 px or with reduced motion the animated can
 | Pipeline candidate card (`.pf-candidate-card`) | `var(--radius-xl)` = 14 px | `globals.css` |
 | Badge | `rounded-md` = 8 px | `components/ui/badge.tsx` |
 | Chip (reason, section, salary) | `rounded-full` | `saved/queue.tsx`, `candidate-dashboard-overview.tsx` |
+| Removable filter chip (may wrap over several lines) | `rounded-xl` = 14 px, 40 px high at least | `features/audit-log/audit-filters.tsx` `FilterChip` |
 | Dialog, AlertDialog | `rounded-[min(var(--radius-4xl),24px)]` = 24 px | `dialog.tsx`, `alert-dialog.tsx` |
 | Popover | `rounded-3xl` = 22 px | `popover.tsx` |
 | Dropdown / select content, sheet (floating) | `rounded-2xl` = 18 px | `dropdown-menu.tsx`, `select.tsx`, `sheet.tsx` |
@@ -308,7 +309,8 @@ The 14 px card corner in older artboards (`calc(var(--radius)*1.4)`) is the pipe
   200 ms. `edge` presentation is full-bleed (mobile navigation). **Drawer** (`drawer.tsx`) is the swipe-to-dismiss bottom
   sheet (scrim `bg-black/30`, header `p-4`, footer `p-4 pt-0`).
 - **Popover** (`popover.tsx`): 288 px, `p-4 gap-4`, 22 px radius, title 16/500, description muted. **Tooltip**: `bg-foreground
-  text-background`, 12 px, `rounded-xl`, `px-3 py-1.5`, max 320 px.
+  text-background`, 12 px, `rounded-xl`, `px-3 py-1.5`, max 320 px. **Exception:** the audit log's filter panels are 360–460 px wide
+  (see «Audit log: documented exceptions»).
 - **Dropdown menu** (`dropdown-menu.tsx`): `rounded-2xl p-1`, items `rounded-xl`, 14 px, focus `bg-accent`, destructive
   items in `--destructive`, separators `bg-border/50`, labels 12 muted.
 - **Share menu** (`frontend/src/features/jobs/components/share-menu.tsx`, `share-links.ts`): one `DropdownMenu` behind a «Compartir …» button (detail card: ghost, `min-h-11`, full width, copy outcome in a visible `role="status"` line below; headers: icon-only 40 px with the label as its accessible name, outcome as toast + `sr-only` status). Items `min-h-10`: **Copiar enlace**, **WhatsApp** (`https://wa.me/?text=<título — empresa — url>`), **Correo** (`mailto:?subject=&body=`), **LinkedIn** (`/sharing/share-offsite/?url=`), and **Más opciones…** only where `navigator.share` exists. External links open in a new tab with `rel="noopener noreferrer"`. The shared URL is absolute, hash-free and ends in `origen=compartido`. Use the same menu on the public vacancy detail, the careers-site header (live page only, never the editor preview) and the employer's published public vacancy; never for a private or unpublished one.
@@ -316,7 +318,8 @@ The 14 px card corner in older artboards (`calc(var(--radius)*1.4)`) is the pipe
   active one on `--background` with `shadow-sm` (dark `foreground/10`); counts in a trigger are `rounded-full` badges that
   turn `primary/10` when active; `line` variant: transparent list, 2 px `--foreground` underline.
 - **Table** (`table.tsx`): `text-sm`; header cells `h-10 px-2` 500, rows `border-b` with `hover:bg-muted/50`, selected
-  `bg-muted`, cells `p-2`, no wrapping; wrapper scrolls horizontally.
+  `bg-muted`, cells `p-2`, no wrapping; wrapper scrolls horizontally. **Exception:** the audit table's cells wrap up to 3 lines
+  (see «Audit log: documented exceptions»).
 - **Progress** (`progress.tsx`): track `h-2 rounded-2xl bg-muted`, indicator `bg-primary` with `transition-all`;
   label 14/500, value 14 muted `tabular-nums` right-aligned.
 - **Switch** (`switch.tsx`): `h-10 w-14 rounded-full p-1`, `bg-primary` on, `bg-input` off. **Checkbox**: 16 px, 5 px
@@ -386,6 +389,46 @@ filter or search is actually active, never on a truly empty catalog.
 | Nothing selected | Master-detail with no selection | `SectionEmpty` in the detail panel: icon of the list subject, instruction «Selecciona … para verlo aquí», no button |
 | First use (candidate page) | A candidate page whose whole list is empty (no saved vacancies, no applications) | Tinted card (`saved/queue.tsx` `EmptySaved`): eyebrow, title, description, primary + outline actions and a fan of three mini cards; see «Espacio del candidato» → Empty states |
 | Compact (exception) | Board columns (dashed 96px placeholder, §13.12/14), field-level «Sin dato», combobox «Sin coincidencias.», form notices | Text allowed; these are the only plain-text empties |
+
+## Audit log: documented exceptions and «Filter bar with chips» (binding since 2026-11-24, S4)
+
+Chosen artboard: `design/audit-log-redesign/01-barra-de-filtros-en-linea-con-chips.html` (`odd/tasks/settings-and-audit-redesign.md` S2, S4;
+self-check `design/audit-log-redesign/self-check.md`). Implementation: `frontend/src/features/audit-log/**`.
+
+**Exceptions accepted for the owner's audit log (and nowhere else without a new review).**
+
+1. **Multi-line cells in the audit table.** The «Table» rule says no wrapping; here every text cell (`Quién`, `Acción`, `Sobre`,
+   `Vacante`, `IP y navegador`) wraps up to 3 lines (`line-clamp-3 whitespace-normal [overflow-wrap:anywhere]`) and carries the full text in `title`; the
+   complete text, with all metadata, is always in the event detail sheet. Rows grow with their content (the table's `h-[100px]` is a minimum).
+   `Cuándo` stays on two non-wrapping lines. The reason: a person's full name, a vacancy title or an action label must never be cut (S2).
+2. **Filter popovers 360–460 px wide** (the system's `Popover` is 288 px): Persona 420, Acción 460, Vacante 460, Rango personalizado 360, Exportar 420;
+   always `min(<width>, 100vw − 2rem)`. Their lists show full values that wrap; they scroll inside the popover (`max-h min(24rem, 50dvh)`).
+3. **Removable chips with several lines** (`rounded-xl` 14 px, not `rounded-full`): a chip holds the whole value, so it wraps; its «Quitar» button stays 40 × 40 px.
+4. **«Exportar CSV» is always enabled** and opens a panel that requires the range (previously: a disabled button plus a notice). Mono (`font-mono`) is used
+   for IPs, event codes, ids and metadata keys only.
+
+**Recipe: Filter bar with chips** (a table or list filtered by several, sometimes long, values).
+
+- **Toolbar** (one row, wraps below `sm`, `gap-2.5`): one outline button per multi-value filter (`min-h-10`: icon, name, a primary count pill when it holds values, a chevron;
+  `aria-haspopup="dialog"`), a 1 px vertical separator, the date range as a **segmented control** (`Hoy · 7 días · 30 días · Personalizado`, `h-11`;
+  «Personalizado» opens a 360 px popover with two date pickers, validated), and the table view controls at the end (`ml-auto`). No «Filtros» toggle, no form bar.
+- **Selectors show the name and a count, never the value.** The value lives in the panel and in its chip, so nothing is truncated.
+- **Panel** (`Popover`, `p-3 gap-3`): a search field first (`type="search"`, accent- and case-insensitive, «Sin coincidencias para «…»»), then the options as a `ChoiceList`.
+  Single choice (person, vacancy): the row commits and closes the panel; the first row is «Todas …». Many choices (actions): one `ChoiceList` per category, its legend
+  `Category n de m`, the «Seleccionar todo» row choosing the category, the panel stays open and a footer says «N acciones elegidas» with «Limpiar».
+  Quiet secondary text for what only qualifies the value: email as description, **«Ex miembro» as a neutral `Badge`** (inside a chip it is written «(ex miembro)»),
+  an identifier for an untitled or deleted vacancy («Identificador #xxxxxxxx»).
+- **Chips** under the toolbar (`role="group"` «Filtros activos», `gap-2`): `Name: value` (name muted, value 500, full text, wraps), a 40 px «Quitar» icon button
+  (`aria-label` «Quitar filtro Name: value», `title` «Quitar») and a ghost **«Limpiar filtros»** at the end, shown only while something is active.
+  A whole category chosen collapses into one chip («Sesiones (2 acciones)»); the range is one chip («Fecha: Últimos 7 días (…)»).
+- **Result line** under the chips: «**N** eventos registrados en tu empresa» (or «con estos filtros») · «Más recientes primero», `role="status"`, and a ghost ⓘ for what is and is not recorded.
+- **States:** loading = the real headers over skeleton rows and a skeleton count (the bar is already there); no results = `SectionEmpty` with the chips kept and «Limpiar filtros»;
+  first use = `SectionEmpty` without a button; error = `StateCard` with «Reintentar»; a failed catalog = one muted line with «Reintentar opciones» while the known actions still filter.
+- **Row detail:** clicking a row, or Enter on it, opens a right `Sheet` with the full action, the Mexico City date and time, who, about what, the whole vacancy title, IP and
+  browser, metadata and id, with «Copiar ID» and «Cerrar».
+- **Export panel** (`Popover`, `align="end"`): the same four range choices, two date pickers for «Personalizado», the validation message and the filters that apply, then
+  «Cancelar» / «Descargar CSV» (disabled while the range is invalid or the request runs). The button keeps a one-line hint under it («Requiere un rango de fechas · máx. 366 días»)
+  so the toolbar never shifts. The range is required, both days, at most 366 days inclusive (what `exportRangeError` and the export route enforce).
 
 ## On-demand help (`frontend/src/features/psychometrics/help/info-popover.tsx`)
 

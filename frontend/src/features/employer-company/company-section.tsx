@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { Building2, Factory, Fingerprint, MapPin, ShieldCheck, UsersRound } from "lucide-react";
+import { Building2, CircleAlert, Factory, Fingerprint, LogIn, MapPin, ShieldCheck, UsersRound } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { StateCard } from "@/components/feedback/state-card";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +23,7 @@ import type { CompanyFieldErrors } from "./validation";
 import { locationReadToValue, locationValueToWrite } from "@/features/geo/model";
 import { OptionalLocationField } from "@/features/geo/optional-location-field";
 import { CompanyLocationDialog } from "./company-location-dialog";
+import type { Company, CompanyEditor, Membership } from "./api/company-client";
 import { cn } from "@/lib/utils";
 
 const STATUS = {
@@ -62,7 +66,79 @@ function notifyCompanyFailure(failure: CompanyFailure, loading: boolean, at: str
   notifyActionResult({ key: "company", type: "error", title: TITLES[failure.kind], description, reference: { ...failure.reference, at } });
 }
 
-export function CompanySection() {
+const ROLE_LABEL = { owner: "Dueño", stakeholder: "Stakeholder", recruiter: "Reclutador" } as const;
+/** First letter of the first two words: «Grupo Altavista» → «GA». */
+const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join("").toLocaleUpperCase("es-MX");
+
+function Fact({ icon: Icon, label, className, children }: { icon: LucideIcon; label: string; className?: string; children: ReactNode }) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
+      <dt className="flex items-center gap-1 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-3" />{label}</dt>
+      <dd className="grid justify-items-start font-medium [overflow-wrap:anywhere]">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * The slim identity strip that replaces the old «Datos de tu empresa» card (artboard `settings-redesign/02`): initials, name and
+ * state, then RFC, role, industry and location. Only the owner gets «Editar ubicación», which opens the same dialog as before.
+ */
+function CompanyStrip({ company, role, industryLabel, onAdopt }: { company: Company; role: Membership["role"]; industryLabel: string; onAdopt: (company: CompanyEditor) => void }) {
+  const status = STATUS[company.status];
+  return (
+    <section aria-label="Tu empresa">
+      <Card className="grid grid-cols-2 items-start gap-x-6 gap-y-4 py-4 max-md:px-4 md:grid-cols-[auto_minmax(9rem,.9fr)_9.5rem_5.25rem_minmax(0,1.3fr)_minmax(0,1.3fr)] md:px-6">
+        <div className="col-span-2 flex min-w-0 items-center gap-3 md:contents">
+          <span aria-hidden="true" className="grid size-12 shrink-0 place-items-center rounded-xl bg-background text-[15px] font-semibold tracking-wide ring-1 ring-border md:self-center">{initials(company.name)}</span>
+          <div className="flex min-w-0 flex-col items-start gap-1 md:self-center">
+            <h2 className="font-heading text-lg leading-6 font-semibold [overflow-wrap:anywhere]">{company.name}</h2>
+            <Badge variant={status.variant} dot>{status.label}</Badge>
+          </div>
+        </div>
+        <dl className="contents">
+          <Fact icon={Fingerprint} label="RFC">{company.rfc}</Fact>
+          <Fact icon={UsersRound} label="Tu rol">{ROLE_LABEL[role]}</Fact>
+          <Fact icon={Factory} label="Industria" className="col-span-2 md:col-span-1">{industryLabel}</Fact>
+          <Fact icon={MapPin} label="Ubicación" className="col-span-2 md:col-span-1">
+            <span className={company.location ? undefined : "font-normal text-muted-foreground"}>{company.location?.label ?? "Sin ubicación"}</span>
+            {role === "owner" && <CompanyLocationDialog company={company} onAdopt={onAdopt} />}
+          </Fact>
+        </dl>
+      </Card>
+    </section>
+  );
+}
+
+/** The shape of the strip and one group of rows while the company is read. */
+function SettingsSkeleton() {
+  const row = (key: number) => (
+    <li key={key} className="flex items-center gap-3.5 px-4 py-3.5 md:px-5">
+      <Skeleton className="size-10 rounded-[14px]" />
+      <div className="flex flex-1 flex-col gap-2"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-3 w-3/5" /></div>
+      <Skeleton className="h-10 w-24 rounded-2xl" />
+    </li>
+  );
+  return (
+    <div aria-busy="true" className="flex flex-col gap-6">
+      <span role="status" className="sr-only">Cargando empresa</span>
+      <Card aria-hidden="true" className="grid grid-cols-2 items-center gap-x-6 gap-y-4 py-4 max-md:px-4 md:grid-cols-[auto_minmax(9rem,.9fr)_9.5rem_5.25rem_minmax(0,1.3fr)_minmax(0,1.3fr)] md:px-6">
+        <Skeleton className="size-12 rounded-xl" />
+        <div className="flex flex-col gap-1.5"><Skeleton className="h-5 w-36" /><Skeleton className="h-5 w-14" /></div>
+        {[0, 1, 2, 3].map(key => <div key={key} className="flex flex-col gap-1.5"><Skeleton className="h-3 w-12" /><Skeleton className="h-4 w-4/5" /></div>)}
+      </Card>
+      <div aria-hidden="true">
+        <Skeleton className="mb-2 ml-2 h-3 w-24" />
+        <Card className="gap-0 py-0"><ul className="flex w-full flex-col divide-y divide-border/60">{[0, 1, 2].map(row)}</ul></Card>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Owns the company read and the creation flow. With a company it renders the identity strip and then whatever `children` returns for
+ * that membership (the settings rows); without one the create form takes the whole place; a failed read is an error StateCard.
+ */
+export function CompanySection({ children }: { children?: (membership: { role: Membership["role"]; company: Company }) => ReactNode }) {
   const [state, setState] = useState<CompanyState | { kind: "loading" }>({ kind: "loading" });
   const [input, setInput] = useState({ name: "", rfc: "", industryId: "" });
   const [location, setLocation] = useState(() => locationReadToValue(null));
@@ -144,30 +220,37 @@ export function CompanySection() {
   const retry = <Button type="button" variant="outline" className="min-h-10" disabled={reloading} aria-busy={reloading} aria-describedby="company-action-status" onClick={reload}>{reloading && <Spinner data-icon="inline-start" aria-hidden="true" />}{reloading ? "Consultando…" : "Reintentar"}</Button>;
   const failedResult = result && result.kind !== "created" ? result : null;
 
+  const adopt = (company: CompanyEditor) => setState(current => current.kind === "exists" ? { ...current, company: { ...current.company, ...company } } : current);
+
+  if (state.kind === "loading") return <SettingsSkeleton />;
+  if ("reference" in state) {
+    const expired = state.kind === "unauthenticated";
+    return (
+      <StateCard icon={expired ? LogIn : CircleAlert} tone="error" title={expired ? "Tu sesión expiró" : "No pudimos cargar tu empresa"}
+        description={expired ? "Inicia sesión para consultar o crear tu empresa." : "Puedes volver a consultar sin crear otra empresa."}>
+        <ActionStatus id="company-action-status" tone="error" text="No se cargó · ver aviso" action={expired ? login : retry} />
+      </StateCard>
+    );
+  }
+  if (state.kind === "exists") {
+    return (
+      <div className="flex flex-col gap-6">
+        {result?.kind === "created" && <div className="sr-only"><ActionStatus id="company-action-status" tone="success" text="Empresa creada" /></div>}
+        <CompanyStrip company={state.company} role={state.role} industryLabel={state.industryLabel} onAdopt={adopt} />
+        {children?.({ role: state.role, company: state.company })}
+      </div>
+    );
+  }
+
   return (
     <section aria-labelledby="company-heading" id="empresa-identidad">
       <Card>
         <CardHeader className="border-b border-border/60">
-          <CardTitle><h2 id="company-heading" className="flex items-center gap-3 text-xl font-semibold"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Building2 className="size-5" /></span>{state.kind === "exists" ? "Datos de tu empresa" : "Tu empresa"}</h2></CardTitle>
-          <CardDescription>{state.kind === "exists" ? "Así está registrada tu empresa en PeopleFlow." : "Registra tu empresa para preparar tus procesos de reclutamiento."}</CardDescription>
-          {state.kind === "exists" && <CardAction><Badge variant={STATUS[state.company.status].variant} dot>{STATUS[state.company.status].label}</Badge></CardAction>}
+          <CardTitle><h2 id="company-heading" className="flex items-center gap-3 text-xl font-semibold"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Building2 className="size-5" /></span>Tu empresa</h2></CardTitle>
+          <CardDescription>Registra tu empresa para preparar tus procesos de reclutamiento.</CardDescription>
         </CardHeader>
         <CardContent>
-          {state.kind === "loading" && <div aria-busy="true"><span role="status" className="sr-only">Cargando empresa</span><FieldGroup aria-hidden="true">{[0, 1, 2].map(key => <Field key={key}><FieldLabel><Skeleton className="h-5 w-36" /></FieldLabel><Skeleton className="h-10 w-full" /></Field>)}<FieldGroup><FieldSet><FieldLegend><Skeleton className="h-5 w-36" /></FieldLegend><FieldDescription>Opcional.</FieldDescription><FieldGroup><Field><FieldLabel><Skeleton className="h-5 w-20" /></FieldLabel><Skeleton className="h-10 w-full" /></Field></FieldGroup></FieldSet><Skeleton className="h-10 w-40" /></FieldGroup></FieldGroup></div>}
-          {state.kind === "unauthenticated" && <ActionStatus id="company-action-status" tone="error" text="No se cargó · ver aviso" action={login} />}
-          {(state.kind === "server_error" || state.kind === "no_response" || state.kind === "unrecognized_response") && <ActionStatus id="company-action-status" tone="error" text="No se cargó · ver aviso" action={retry} />}
-          {state.kind === "exists" && <div className="flex flex-col gap-5">
-            {result?.kind === "created" && <ActionStatus id="company-action-status" tone="success" text="Empresa creada" />}
-            <p className="font-heading text-lg font-semibold">{state.company.name}</p>
-            <dl className="grid gap-5 sm:grid-cols-3">
-              <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><Fingerprint aria-hidden="true" className="size-3.5" />RFC</dt><dd>{state.company.rfc}</dd></div>
-              <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><Factory aria-hidden="true" className="size-3.5" />Industria</dt><dd>{state.industryLabel}</dd></div>
-              <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><MapPin aria-hidden="true" className="size-3.5" />Ubicación</dt><dd className={state.company.location ? undefined : "text-muted-foreground"}>{state.company.location?.label ?? "Sin ubicación"}</dd></div>
-              <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><UsersRound aria-hidden="true" className="size-3.5" />Tu rol</dt><dd>{state.role === "owner" ? "Dueño" : state.role === "stakeholder" ? "Stakeholder" : "Reclutador"}</dd></div>
-            </dl>
-            {state.role === "owner" && <CompanyLocationDialog company={state.company} onAdopt={company => setState(current => current.kind === "exists" ? { ...current, company: { ...current.company, ...company } } : current)} />}
-          </div>}
-          {state.kind === "none" && <form ref={form} id="company-create" onSubmit={submit} noValidate>
+          <form ref={form} id="company-create" onSubmit={submit} noValidate>
             <FieldGroup>
               <Field data-invalid={!!fields.name}>
                 <FieldLabel htmlFor="company-name"><Building2 aria-hidden="true" className="size-3.5" />Nombre de la empresa</FieldLabel>
@@ -189,17 +272,16 @@ export function CompanySection() {
               </Field>
               <OptionalLocationField depth="municipality" postalCode label="Ubicación" description="Opcional." value={location} onChange={setLocation} disabled={pending} errors={fields.location} />
             </FieldGroup>
-          </form>}
+          </form>
         </CardContent>
-        {state.kind === "loading" && <CardFooter aria-hidden="true"><div className="flex flex-col items-start gap-2"><Skeleton className="h-10 w-40" /><ActionStatusSlot /></div></CardFooter>}
-        {state.kind === "none" && <CardFooter>
-            <div className="flex flex-col items-start gap-2">
-              {!needsReload(result?.kind) && <Button type="submit" form="company-create" className="min-h-10" disabled={pending || reloading} aria-busy={pending} aria-describedby={failedResult ? "company-action-status" : undefined}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
-              <ActionStatusSlot>
-                {failedResult && <ActionStatus id="company-action-status" tone="error" text={["server_error", "no_response", "unrecognized_response"].includes(failedResult.kind) ? "Resultado sin confirmar · ver aviso" : "No se creó · ver aviso"} action={failedResult.kind === "unauthenticated" ? login : needsReload(failedResult.kind) ? retry : undefined} />}
-              </ActionStatusSlot>
-            </div>
-        </CardFooter>}
+        <CardFooter>
+          <div className="flex flex-col items-start gap-2">
+            {!needsReload(result?.kind) && <Button type="submit" form="company-create" className="min-h-10" disabled={pending || reloading} aria-busy={pending} aria-describedby={failedResult ? "company-action-status" : undefined}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
+            <ActionStatusSlot>
+              {failedResult && <ActionStatus id="company-action-status" tone="error" text={["server_error", "no_response", "unrecognized_response"].includes(failedResult.kind) ? "Resultado sin confirmar · ver aviso" : "No se creó · ver aviso"} action={failedResult.kind === "unauthenticated" ? login : needsReload(failedResult.kind) ? retry : undefined} />}
+            </ActionStatusSlot>
+          </div>
+        </CardFooter>
       </Card>
     </section>
   );

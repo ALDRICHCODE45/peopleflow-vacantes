@@ -2,10 +2,12 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { MapPin } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
 import { locationReadToValue, locationValueToWrite } from "@/features/geo/model";
@@ -25,6 +27,7 @@ export function CompanyLocationDialog({ company, onAdopt }: { company: Company; 
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const form = useRef<HTMLFormElement>(null);
+  const isMobile = useIsMobile();
 
   function changeLocation(next: typeof value) {
     setValue(next);
@@ -70,27 +73,51 @@ export function CompanyLocationDialog({ company, onAdopt }: { company: Company; 
     } catch { failure({ kind: "no_response", reference: {} }); }
     finally { busy.current = false; setPending(false); }
   }
+  const title = "Ubicación de la empresa";
+  const description = "Elige dónde se encuentra tu empresa. Puedes dejarla sin ubicación.";
+  const fields = <form ref={form} id="company-location-edit" onSubmit={submit} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" noValidate>
+    <OptionalLocationField depth="municipality" postalCode label="Ubicación" hideLegend value={value} onChange={changeLocation} disabled={pending || uncertain(result?.kind)} errors={result?.kind === "invalid" ? result.fields?.location : undefined} />
+    {result?.kind === "conflict" && <ActionStatus id="company-location-status" tone="error" text={conflictMessage} />}
+    {result?.kind === "unauthenticated" && <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}>Iniciar sesión</Link>}
+  </form>;
+  const save = uncertain(result?.kind)
+    ? <Button type="button" className="min-h-10" disabled={pending} onClick={reconcile}>Consultar ubicación</Button>
+    : <Button type="submit" form="company-location-edit" className="min-h-10" disabled={pending} aria-busy={pending} aria-describedby={result?.kind === "conflict" ? "company-location-status" : undefined}>{pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Guardando…" : "Guardar ubicación"}</Button>;
   return <>
+    {/* One Base UI dialog, two presentations (artboard settings-redesign/02): a bottom sheet on phones, a centred dialog from the tablet up. */}
     <Dialog open={open} onOpenChange={next => {
       if (busy.current) return;
       if (next) { setValue(locationReadToValue(company.location)); setUpdatedAt(company.updated_at); }
       setOpen(next);
     }}>
-      <DialogTrigger render={<Button type="button" variant="outline" className="min-h-10 w-fit" />}><MapPin data-icon="inline-start" aria-hidden="true" />Editar ubicación</DialogTrigger>
-      <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-md">
-        <DialogHeader><DialogTitle>Ubicación de la empresa</DialogTitle><DialogDescription>Elige dónde se encuentra tu empresa. Puedes dejarla sin ubicación.</DialogDescription></DialogHeader>
-        <form ref={form} id="company-location-edit" onSubmit={submit} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" noValidate>
-          <OptionalLocationField depth="municipality" postalCode label="Ubicación" hideLegend value={value} onChange={changeLocation} disabled={pending || uncertain(result?.kind)} errors={result?.kind === "invalid" ? result.fields?.location : undefined} />
-          {result?.kind === "conflict" && <ActionStatus id="company-location-status" tone="error" text={conflictMessage} />}
-          {result?.kind === "unauthenticated" && <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}>Iniciar sesión</Link>}
-        </form>
-        {/* §20: validation belongs to fields and toast, not a footer status line. */}
-        <DialogFooter>
-          <DialogClose render={<Button type="button" variant="outline" className="min-h-10" disabled={pending} />}>Cancelar</DialogClose>
-          {uncertain(result?.kind) ? <Button type="button" className="min-h-10" disabled={pending} onClick={reconcile}>Consultar ubicación</Button> : <Button type="submit" form="company-location-edit" className="min-h-10" disabled={pending} aria-busy={pending} aria-describedby={result?.kind === "conflict" ? "company-location-status" : undefined}>{pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Guardando…" : "Guardar ubicación"}</Button>}
-        </DialogFooter>
-      </DialogContent>
+      {/* The quiet link-style action of the identity strip (artboard settings-redesign/02): same dialog, no extra card. `pl-0` beats the inline-start icon padding so the link lines up with the facts above. */}
+      <DialogTrigger render={<Button type="button" variant="link" className="h-auto min-h-10 w-fit justify-start px-0 text-[13px] has-data-[icon=inline-start]:pl-0" />}><Pencil data-icon="inline-start" aria-hidden="true" className="size-3" />Editar ubicación</DialogTrigger>
+      {isMobile
+        ? <SheetContent side="bottom" showCloseButton={false} className="max-h-[min(44rem,calc(100dvh-1rem))] gap-0">
+          <SheetHeader className="border-b pr-16">
+            <SheetTitle>{title}</SheetTitle>
+            <SheetDescription>{description}</SheetDescription>
+            <SheetClose render={<Button type="button" variant="ghost" size="icon" aria-label="Cerrar" disabled={pending} className="absolute top-4 right-4 size-10 bg-secondary" />}><X aria-hidden="true" /></SheetClose>
+          </SheetHeader>
+          <div className="flex min-h-0 flex-1 flex-col px-4 py-4">{fields}</div>
+          {/* §20: validation belongs to fields and toast, not a footer status line. */}
+          <SheetFooter className="flex-row flex-wrap items-center justify-end border-t px-4 pb-4 [&>[data-slot=button]]:min-h-11 [&>[data-slot=button]]:flex-1">
+            <DialogClose render={<Button type="button" variant="outline" className="min-h-10" disabled={pending} />}>Cancelar</DialogClose>
+            {save}
+          </SheetFooter>
+        </SheetContent>
+        : <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-md">
+          {/* pr-12 keeps the description clear of the ✕ (size-10 at right-4). */}
+          <DialogHeader className="pr-12"><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
+          {fields}
+          {/* §20: validation belongs to fields and toast, not a footer status line. */}
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" className="min-h-10" disabled={pending} />}>Cancelar</DialogClose>
+            {save}
+          </DialogFooter>
+        </DialogContent>}
     </Dialog>
-    {result?.kind === "updated" && <ActionStatus id="company-location-saved" tone="success" text="Ubicación actualizada." />}
+    {/* The toast is the visible confirmation; the strip stays slim, so this line only serves assistive technology. */}
+    {result?.kind === "updated" && <div className="sr-only"><ActionStatus id="company-location-saved" tone="success" text="Ubicación actualizada." /></div>}
   </>;
 }

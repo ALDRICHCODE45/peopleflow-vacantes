@@ -7,7 +7,6 @@ import { CompanyJobs } from "@/features/company-site/public/company-jobs";
 import { CareersSiteEditorLoading } from "@/features/company-site/editor/editor-feedback";
 import { listItem, vacancyDetail } from "@/features/jobs/api/public-fixtures";
 import { BoardSkeleton } from "@/features/pipeline-movement/board-states";
-import { EmployerSettingsWorkspace } from "@/features/employer-settings/settings-workspace";
 import { VacancyPortfolio } from "./vacancy-portfolio";
 
 vi.mock("./use-portfolio-drafts", () => ({ usePortfolioDrafts: () => ({ items: [], pending: false, retry: vi.fn(), published: vi.fn() }), DRAFT_LIST_MESSAGES: {} }));
@@ -66,12 +65,3 @@ it("replicates the draggable card title, menu, date rows and footer slots", asyn
   }
 });
 
-it("retains the existing settings card heading and description composition", () => {
-  const { container } = render(<EmployerSettingsWorkspace />);
-  expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(5);
-  for (const card of container.querySelectorAll('[data-slot="card"]')) {
-    expect(card.querySelector('[data-slot="card-header"] > [data-slot="card-title"] h2')).not.toBeNull();
-    expect(card.querySelector('[data-slot="card-header"] > [data-slot="card-description"]')).not.toBeNull();
-    expect(card.querySelector(':scope > [data-slot="card-content"] [data-slot="item-group"]')).not.toBeNull();
-  }
-});

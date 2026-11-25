@@ -4,20 +4,9 @@ import { act, cleanup, render, screen, waitFor, within } from "@testing-library/
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./actions", () => ({ listAuditEventsAction: vi.fn(), loadAuditOptionsAction: vi.fn() }));
-// Same boundary as date-picker-field.test: the real Base UI popover close path refocus-loops under jsdom, so the
-// popover is a controlled harness while the shared DatePickerField and the real Calendar stay in play.
-vi.mock("@/components/ui/popover", async () => {
-  const Context = React.createContext<{ open: boolean; setOpen: (next: boolean) => void }>({ open: false, setOpen: () => {} });
-  return {
-    Popover: ({ open, onOpenChange, children }: { open?: boolean; onOpenChange?: (next: boolean) => void; children?: React.ReactNode }) =>
-      <Context.Provider value={{ open: Boolean(open), setOpen: next => onOpenChange?.(next) }}>{children}</Context.Provider>,
-    PopoverTrigger: ({ render }: { render: React.ReactElement<{ onClick?: () => void }> }) => {
-      const { setOpen } = React.useContext(Context);
-      return React.cloneElement(render, { onClick: () => setOpen(true) });
-    },
-    PopoverContent: ({ children }: { children?: React.ReactNode }) => React.useContext(Context).open ? <div role="dialog">{children}</div> : null,
-  };
-});
+// The real Base UI popover close path refocus-loops under jsdom (see test-popover.tsx); the panels, the shared DatePickerField and
+// the real Calendar stay in play.
+vi.mock("@/components/ui/popover", async () => (await import("./test-popover")).popoverModule());
 // Keep real Select selection behavior; jsdom has no popup positioning geometry (shared primitive/browser tests own it).
 vi.mock("@/components/ui/select", async importOriginal => {
   const actual = await importOriginal<typeof import("@/components/ui/select")>();
@@ -35,27 +24,10 @@ const okOptions = { ok: true as const, types: auditTypes, actors: auditActors, v
 const rowsOf = () => screen.getAllByRole("row").slice(1);
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 const at = (search = "") => window.history.replaceState(null, "", `/empresa/auditoria${search}`);
-const openFilters = async (user = userEvent.setup()) => { await user.click(screen.getByRole("button", { name: /^Filtros/ })); return user; };
-const pick = async (user: ReturnType<typeof userEvent.setup>, label: string, option: string) => {
-  const field = screen.getByRole("combobox", { name: label }).closest('[data-slot="field"]') as HTMLElement;
-  await user.click(within(field).getByRole("option", { name: option }));
-};
-// The test boundary renders each select's choices inline, so read them from the field that owns the select.
-const optionsOf = (label: string) => {
-  const field = screen.getByRole("combobox", { name: label }).closest('[data-slot="field"]') as HTMLElement;
-  return within(field).getAllByRole("option").map(option => option.textContent);
-};
-const today = () => new Date();
-const civil = (date: Date, day: number) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-/** Opens the shared date picker and clicks day 1 of the month it opens on (always a past or current day). */
-const pickFirstOfMonth = async (user: ReturnType<typeof userEvent.setup>, label: string) => {
-  await user.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }));
-  const cell = await waitFor(() => { const found = document.querySelector(`[data-day="${civil(today(), 1)}"] button`); expect(found).not.toBeNull(); return found as HTMLElement; });
-  await user.click(cell);
-  return civil(today(), 1);
-};
+const openPanel = async (user: ReturnType<typeof userEvent.setup>, name: RegExp) => { await user.click(screen.getByRole("button", { name })); return screen.findByRole("dialog"); };
 
 beforeEach(() => {
+  vi.stubGlobal("PointerEvent", MouseEvent); // Base UI radios and checkboxes read it; jsdom has none
   vi.resetAllMocks();
   at();
   list.mockResolvedValue({ ok: true, data: auditPage() });
@@ -63,36 +35,91 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); at(); });
 
+
 describe("page shell (same as the talent base)", () => {
-  it("renders in the shared page content, with the eyebrow/title/description hierarchy and a card region holding the rich table", async () => {
+  it("renders in the shared page content: title with «Solo el dueño» beside it, the description and a card region holding the rich table", async () => {
     const { container } = render(<AuditWorkspace />);
     await screen.findByRole("table");
     expect(container.querySelector("[data-pf-page-content]")).toHaveClass("max-w-screen-2xl", "mx-auto");
     // The shared employer header owns the single H1; the page names itself with an H2 like the talent base.
     expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
-    expect(screen.getByRole("heading", { level: 2, name: "Registro de actividad" })).toHaveClass("font-heading", "text-2xl");
-    expect(screen.getByText("TRAZABILIDAD DE TU EMPRESA")).toBeInTheDocument();
+    const title = screen.getByRole("heading", { level: 2, name: "Registro de actividad" });
+    expect(title).toHaveClass("font-heading", "text-2xl");
+    const header = container.querySelector("[data-audit-header]") as HTMLElement;
+    expect(within(header).getByText("Solo el dueño")).toHaveAttribute("data-slot", "badge");
+    expect(title.closest("[data-audit-title-row]")).toContainElement(within(header).getByText("Solo el dueño"));
+    expect(within(header).getByText("Quién hizo qué en tu empresa, cuándo y desde dónde. Los registros no se pueden editar.")).toBeInTheDocument();
+    expect(screen.queryByText("TRAZABILIDAD DE TU EMPRESA")).toBeNull();
     const card = screen.getByRole("region", { name: "Registro de actividad" });
     expect(card).toHaveAttribute("data-slot", "card");
     expect(within(card).getByRole("region", { name: "Tabla con desplazamiento horizontal" })).toBeInTheDocument();
-    expect(within(card).getByText(/registrados en tu empresa/)).toHaveTextContent("1 evento registrados en tu empresa");
+    expect(within(card).getByText(/registrados en tu empresa/).closest("[role=status]")).toHaveTextContent("1 evento registrados en tu empresa · Más recientes primero");
   });
 
-  it("puts «Filtros» and «Exportar CSV» in the toolbar like the talent base and shows the session note as a muted note", async () => {
+  it("keeps the description on one line and adds the summary «N eventos · hora de la Ciudad de México» under it (the API has no first-event date)", async () => {
+    list.mockResolvedValue({ ok: true, data: auditPage([auditEvent()], { total: 597 }) });
+    const { container } = render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    const header = container.querySelector("[data-audit-header]") as HTMLElement;
+    const description = within(header).getByText("Quién hizo qué en tu empresa, cuándo y desde dónde. Los registros no se pueden editar.");
+    expect(description).toHaveClass("max-w-2xl");
+    expect(description).not.toHaveClass("max-w-prose");
+    const summary = within(header).getByText(/hora de la Ciudad de México/).closest("p") as HTMLElement;
+    expect(summary).toHaveTextContent("597 eventos · hora de la Ciudad de México");
+    expect(within(summary).getByText("597").tagName).toBe("STRONG");
+    expect(summary).not.toHaveTextContent(/desde el/);
+    // The description sits first, then the summary.
+    expect(description.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("reserves the summary line while loading and says «con estos filtros» when filtered", async () => {
+    at("?from=2026-11-01");
+    const pending = deferred<Awaited<ReturnType<typeof listAuditEventsAction>>>();
+    list.mockReturnValue(pending.promise);
+    const { container } = render(<AuditWorkspace />);
+    const header = container.querySelector("[data-audit-header]") as HTMLElement;
+    expect(header.querySelector("[data-audit-summary]")).toHaveClass("min-h-5");
+    expect(header.querySelector("[data-audit-summary] [data-slot=skeleton]")).not.toBeNull();
+    await act(async () => { pending.resolve({ ok: true, data: auditPage([auditEvent()], { total: 3 }) }); });
+    await screen.findByRole("table");
+    expect(header.querySelector("[data-audit-summary]")).toHaveTextContent("3 eventos con estos filtros · hora de la Ciudad de México");
+    expect(header.querySelector("[data-audit-summary] [data-slot=skeleton]")).toBeNull();
+  });
+
+  it("singular: «1 evento · hora de la Ciudad de México»", async () => {
+    const { container } = render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    expect(container.querySelector("[data-audit-summary]")).toHaveTextContent("1 evento · hora de la Ciudad de México");
+  });
+
+  it("puts the filter bar, the date range, «Columnas» and the view reset in the toolbar and «Exportar CSV» beside the title", async () => {
     const { container } = render(<AuditWorkspace />);
     await screen.findByRole("table");
     const toolbar = container.querySelector("[data-audit-toolbar]") as HTMLElement;
-    expect(within(toolbar).getByRole("button", { name: /^Filtros/ })).toHaveClass("min-h-10");
-    expect(within(toolbar).getByRole("button", { name: "Exportar CSV" })).toHaveClass("min-h-10");
-    expect(within(toolbar).getByRole("button", { name: "Columnas" })).toBeInTheDocument();
-    expect(screen.getByTestId("audit-session-note")).toHaveClass("bg-muted", "text-muted-foreground");
+    for (const name of [/^Persona(?!lizado)/, /^Acción/, /^Vacante/, "Columnas"]) expect(within(toolbar).getByRole("button", { name })).toHaveClass("min-h-10");
+    expect(within(toolbar).getByRole("group", { name: "Rango de fechas" })).toBeInTheDocument();
+    expect(within(toolbar).getByRole("button", { name: "Restablecer vista" })).toBeInTheDocument();
+    expect(within(toolbar).queryByRole("button", { name: /^Filtros/ })).toBeNull();
+    expect(within(container.querySelector("[data-audit-header]") as HTMLElement).getByRole("button", { name: "Exportar CSV" })).toBeEnabled();
   });
 
-  it("loads with skeleton rows under the real headers, not a bare placeholder", async () => {
+  it("explains what is recorded on demand, in a help popover that keeps the sessions note", async () => {
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    expect(screen.queryByTestId("audit-session-note")).toBeNull();
+    const panel = await openPanel(user, /^¿Qué se registra\?/);
+    expect(within(panel).getByTestId("audit-session-note")).toHaveTextContent("«Cerró sesión» significa que la persona hizo clic en cerrar sesión");
+    expect(within(panel).getByText(/Los registros no se pueden editar/)).toBeInTheDocument();
+  });
+
+  it("loads with skeleton rows under the real headers while the filter bar and the title are already there", async () => {
     const pending = deferred<Awaited<ReturnType<typeof listAuditEventsAction>>>();
     list.mockReturnValue(pending.promise);
     const { container } = render(<AuditWorkspace />);
     expect(container.querySelector("[data-audit-skeleton=table]")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("heading", { level: 2, name: "Registro de actividad" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Persona(?!lizado)/ })).toBeInTheDocument();
     await act(async () => { pending.resolve({ ok: true, data: auditPage() }); });
     await screen.findByRole("table");
     expect(container.querySelector("[data-audit-skeleton]")).toBeNull();
@@ -168,7 +195,9 @@ describe("rows", () => {
     const row = (await screen.findAllByRole("row"))[1];
     expect(within(row).getByText(/11:03:12/)).toBeInTheDocument();
     expect(within(row).getByText("Ana López")).toBeInTheDocument();
-    expect(within(row).getByText("ana@empresa.mx")).toBeInTheDocument();
+    // The email no longer sits under the name (the table fits at 1440): it stays in the tooltip and in the detail sheet.
+    expect(within(row).queryByText("ana@empresa.mx")).toBeNull();
+    expect(within(row).getByText("Ana López")).toHaveAttribute("title", "Ana López · ana@empresa.mx");
     expect(within(row).getByText("Inició la descarga de un CV")).toBeInTheDocument();
     expect(within(row).getByText("María Pérez")).toBeInTheDocument();
     expect(within(row).getByText("Ejecutivo de ventas")).toBeInTheDocument();
@@ -200,7 +229,9 @@ describe("rows", () => {
     const [deleted, former, system, goneVacancy] = rowsOf();
     expect(within(deleted).getByText("Usuario eliminado")).toBeInTheDocument();
     expect(within(deleted).getByText("Ex miembro")).toBeInTheDocument();
-    expect(within(deleted).getByText("Sin etiqueta")).toBeInTheDocument();
+    // No entity label reads as a dash in the table (artboard), not «Sin etiqueta».
+    expect(within(deleted).getByText("—")).toBeInTheDocument();
+    expect(within(deleted).queryByText("Sin etiqueta")).toBeNull();
     expect(within(former).getByText("Luis Soto")).toBeInTheDocument();
     expect(within(former).getByText("Ex miembro")).toBeInTheDocument();
     expect(within(system).getByText("Sistema")).toBeInTheDocument();
@@ -229,13 +260,75 @@ describe("rows", () => {
     expect(within(row).getByText("SomethingNew")).toBeInTheDocument();
   });
 
-  it("is honest about sessions: «Cerró sesión» is a clicked sign-out; expiry and closed tabs are not recorded", async () => {
-    list.mockResolvedValue({ ok: true, data: auditPage([auditEvent({ event_type: "SessionEnded", category: "session" })]) });
+  it("wraps the cells up to three lines instead of truncating, with the full text on hover", async () => {
+    const title = "Supervisor de Producción Turno Nocturno — Planta Apodaca (reemplazo temporal por incapacidad)";
+    list.mockResolvedValue({ ok: true, data: auditPage([auditEvent({ vacancy: { id: vacancyId, title }, entity: { type: "company_candidate", id: "e", label: "María Fernanda Guerrero Salinas de la Cruz" } })]) });
     render(<AuditWorkspace />);
-    expect(await screen.findByText("Cerró sesión")).toBeInTheDocument();
-    const note = screen.getByTestId("audit-session-note");
-    expect(note).toHaveTextContent("«Cerró sesión» significa que la persona hizo clic en cerrar sesión");
-    expect(note).toHaveTextContent("expiración o al cerrar la pestaña no se registran");
+    const [row] = await waitFor(() => { const found = rowsOf(); expect(found).toHaveLength(1); return found; });
+    for (const text of [title, "María Fernanda Guerrero Salinas de la Cruz", "Inició la descarga de un CV"]) {
+      const cell = within(row).getByText(text);
+      expect(cell).toHaveClass("line-clamp-3", "whitespace-normal", "[overflow-wrap:anywhere]");
+      expect(cell).not.toHaveClass("truncate");
+      expect(cell).toHaveAttribute("title", text);
+    }
+    expect(within(row).getByText("Ana López")).toHaveClass("line-clamp-3");
+  });
+
+  it("opens the event detail sheet when the row is clicked and returns to the table when it is closed", async () => {
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    const [row] = await waitFor(() => { const found = rowsOf(); expect(found).toHaveLength(1); return found; });
+    await user.click(within(row).getByText("María Pérez"));
+    const sheet = await screen.findByRole("dialog", { name: "Inició la descarga de un CV" });
+    expect(within(sheet).getByText("201.141.12.7")).toBeInTheDocument();
+    expect(within(sheet).getByText(/hora de la Ciudad de México/)).toBeInTheDocument();
+    await user.click(within(sheet).getAllByRole("button", { name: "Cerrar" })[0]);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("opens the same sheet with Enter on a focused row and never from a click on a control inside the row", async () => {
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    const [row] = await waitFor(() => { const found = rowsOf(); expect(found).toHaveLength(1); return found; });
+    expect(row).toHaveAttribute("tabindex", "0");
+    row.focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("dialog", { name: "Inició la descarga de un CV" })).toBeInTheDocument();
+  });
+
+  it("opens the same sheet with Space on a focused row", async () => {
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    const [row] = await waitFor(() => { const found = rowsOf(); expect(found).toHaveLength(1); return found; });
+    row.focus();
+    await user.keyboard(" ");
+    expect(await screen.findByRole("dialog", { name: "Inició la descarga de un CV" })).toBeInTheDocument();
+  });
+
+  it("orders the columns as the artboard (Cuándo first), with no pinned column", async () => {
+    const { container } = render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    expect(screen.getAllByRole("columnheader").map(header => header.getAttribute("aria-label"))).toEqual(["Cuándo", "Quién", "Acción", "Sobre", "Vacante", "IP y navegador"]);
+    expect(container.querySelector("[data-pinned]")).toBeNull();
+  });
+
+  it("lets the rows shrink to their content (up to the three-line clamp) instead of the table's fixed 100 px", async () => {
+    const { container } = render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    const wrapper = container.querySelector("[data-audit-table]");
+    expect(wrapper).toHaveClass("[&_tbody_tr]:h-auto", "[&_tbody_td]:align-top");
+  });
+
+  it("keeps the «Sobre» rule in the sheet too: «—» when the entity is the vacancy", async () => {
+    list.mockResolvedValue({ ok: true, data: auditPage([auditEvent({ entity: { type: "job_draft", id: vacancyId, label: "Ejecutivo de ventas" } })]) });
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    const [row] = await waitFor(() => { const found = rowsOf(); expect(found).toHaveLength(1); return found; });
+    await user.click(within(row).getByText("Ana López"));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(screen.getByText("Sobre", { selector: "dt" }).closest("div") as HTMLElement).queryByText("Ejecutivo de ventas")).toBeNull();
+    expect(within(sheet).getAllByText("Ejecutivo de ventas")).toHaveLength(1);
   });
 });
 
@@ -314,7 +407,7 @@ describe("pagination (cursor, previous/next)", () => {
     await screen.findByRole("table");
     await user.click(button("Ir a la página siguiente"));
     await waitFor(() => expect(within(nav()).getByText("Página 2 de 3")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Quitar filtro Desde: 1 de noviembre de 2026" }));
+    await user.click(screen.getByRole("button", { name: "Quitar filtro Fecha: Desde el 1 de noviembre de 2026" }));
     await waitFor(() => expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 50 }));
     await waitFor(() => expect(within(nav()).getByText("Página 1 de 3")).toBeInTheDocument());
     expect(button("Ir a la página anterior")).toBeDisabled();
@@ -384,194 +477,143 @@ describe("edge inset", () => {
 });
 
 describe("filters (in the URL)", () => {
-  it("offers people including former members, the Annex action labels grouped by category and vacancies including deleted ones", async () => {
+  it("offers people including former members, the Annex actions grouped by category and vacancies including deleted ones", async () => {
+    const user = userEvent.setup();
     render(<AuditWorkspace />);
     await screen.findByRole("table");
-    await openFilters();
-    await screen.findByRole("combobox", { name: "Persona" });
-    await waitFor(() => expect(optionsOf("Persona")).toEqual(["Todas las personas", "Ana López", "Luis Soto (ex miembro)"]));
-    expect(optionsOf("Acción")).toEqual([
-      "Todas las acciones", "Inició sesión", "Cerró sesión", "Inició la descarga de un CV", "Exportó la auditoría"]);
-    expect(["Sesiones", "Consultas sensibles", "Auditoría"].every(group => screen.getByText(group))).toBe(true);
-    expect(optionsOf("Vacante")).toEqual(["Todas las vacantes", "Ejecutivo de ventas", "Vacante eliminada"]);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Persona(?!lizado)/ })).toBeEnabled());
+    const persons = await openPanel(user, /^Persona(?!lizado)/);
+    await waitFor(() => expect(within(persons).getAllByRole("radio").map(radio => radio.textContent)).toHaveLength(3));
+    expect(within(persons).getByRole("radio", { name: "Luis Soto" })).toHaveTextContent("Ex miembro");
+    await user.click(within(persons).getByRole("radio", { name: "Ana López" }));
+    const actions = await openPanel(user, /^Acción/);
+    for (const group of [/^Sesiones/, /^Consultas sensibles/, /^Auditoría/]) expect(within(actions).getByRole("group", { name: group })).toBeInTheDocument();
+    await user.click(within(actions).getByRole("checkbox", { name: "Cerró sesión" }));
+    await user.click(screen.getByRole("button", { name: /^Acción/ }));
+    const vacancies = await openPanel(user, /^Vacante/);
+    expect(within(vacancies).getAllByRole("radio").map(radio => radio.textContent?.replace(/Identificador.*/, ""))).toEqual(["Todas las vacantes", "Ejecutivo de ventas", "Vacante eliminada"]);
+    expect(within(vacancies).getByText(`Identificador #${deletedVacancyId.slice(0, 8)}`)).toBeInTheDocument();
   });
 
-  it("writes each filter to the URL and re-reads the list with it", async () => {
+  it("writes each filter to the URL and re-reads the list with it, date presets included", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-25T03:30:00Z"));
+    const user = userEvent.setup();
     render(<AuditWorkspace />);
     await screen.findByRole("table");
-    const user = await openFilters();
-    await waitFor(() => expect((optionsOf("Persona")).length).toBe(3));
-    await pick(user, "Persona", "Ana López");
-    await pick(user, "Acción", "Cerró sesión");
-    await pick(user, "Vacante", "Ejecutivo de ventas");
-    const day = await pickFirstOfMonth(user, "Desde");
-    await pickFirstOfMonth(user, "Hasta");
-    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ filters: { actor_id: anaId, event_type: ["SessionEnded"], vacancy_id: vacancyId, from: day, to: day }, limit: 50 }));
+    await waitFor(() => expect(options).toHaveBeenCalled());
+    let panel = await openPanel(user, /^Persona(?!lizado)/);
+    await user.click(await within(panel).findByRole("radio", { name: "Ana López" }));
+    panel = await openPanel(user, /^Acción/);
+    await user.click(within(panel).getByRole("checkbox", { name: "Cerró sesión" }));
+    panel = await openPanel(user, /^Vacante/);
+    await user.click(await within(panel).findByRole("radio", { name: "Ejecutivo de ventas" }));
+    await user.click(screen.getByRole("button", { name: "7 días" }));
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ filters: { actor_id: anaId, event_type: ["SessionEnded"], vacancy_id: vacancyId, from: "2026-11-18", to: "2026-11-24" }, limit: 50 }));
     const params = new URLSearchParams(window.location.search);
     expect(params.get("actor_id")).toBe(anaId);
     expect(params.getAll("event_type")).toEqual(["SessionEnded"]);
     expect(params.get("vacancy_id")).toBe(vacancyId);
-    expect(params.get("from")).toBe(day);
-    expect(params.get("to")).toBe(day);
-    expect(day).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+    expect(params.get("from")).toBe("2026-11-18");
+    expect(params.get("to")).toBe("2026-11-24");
     await user.click(screen.getAllByRole("button", { name: "Limpiar filtros" })[0]);
     expect(window.location.search).toBe("");
+    vi.useRealTimers();
   });
 
-  it("uses the shared shadcn date picker for «Desde» and «Hasta», never a native date input", async () => {
+  it("starts from the URL: chips, selector counts and the preset show it, the first read uses it and a chip removes one filter", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-25T03:30:00Z"));
+    at(`?actor_id=${luisId}&event_type=SessionStarted&event_type=SessionEnded&from=2026-11-18&to=2026-11-24`);
+    const user = userEvent.setup();
     render(<AuditWorkspace />);
     await screen.findByRole("table");
-    await openFilters();
-    expect(document.querySelectorAll('[data-slot="date-picker-field"]')).toHaveLength(2);
-    expect(document.querySelector('input[type="date"]')).toBeNull();
-    for (const label of ["Desde", "Hasta"]) expect(screen.getByLabelText(label)).toHaveTextContent("Elige una fecha");
-    expect(screen.getByText("Las fechas se cuentan en hora de la Ciudad de México.")).toBeInTheDocument();
-  });
-
-  it("starts from the URL: the panel is open, controls and removable chips show it and the first read uses it", async () => {
-    at(`?actor_id=${luisId}&event_type=SessionStarted&event_type=SessionEnded&from=2026-11-01`);
-    render(<AuditWorkspace />);
-    await screen.findByRole("table");
-    expect(list).toHaveBeenCalledWith({ filters: { actor_id: luisId, event_type: ["SessionStarted", "SessionEnded"], from: "2026-11-01" }, limit: 50 });
-    expect(await screen.findByRole("combobox", { name: "Persona" })).toHaveTextContent("Luis Soto (ex miembro)");
-    expect(screen.getByRole("combobox", { name: "Acción" })).toHaveTextContent("Varias acciones (2)");
-    expect(screen.getByLabelText("Desde")).toHaveTextContent("1 de noviembre de 2026");
-    expect(screen.getByRole("button", { name: /^Filtros/ })).toHaveTextContent("4");
-    await userEvent.click(screen.getByRole("button", { name: "Quitar filtro Desde: 1 de noviembre de 2026" }));
+    expect(list).toHaveBeenCalledWith({ filters: { actor_id: luisId, event_type: ["SessionStarted", "SessionEnded"], from: "2026-11-18", to: "2026-11-24" }, limit: 50 });
+    const chips = screen.getByRole("group", { name: "Filtros activos" });
+    expect(await within(chips).findByText("Luis Soto (ex miembro)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Acción/ })).toHaveTextContent("2");
+    expect(screen.getByRole("button", { name: "7 días" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(chips).getByRole("button", { name: /^Quitar filtro Fecha:/ }));
     expect(new URLSearchParams(window.location.search).get("from")).toBeNull();
+    expect(new URLSearchParams(window.location.search).get("to")).toBeNull();
     expect(new URLSearchParams(window.location.search).get("actor_id")).toBe(luisId);
+    vi.useRealTimers();
+  });
+
+  it("keeps a URL with only «from» working: an open-ended range is a chip and a custom range", async () => {
+    at("?from=2026-11-01");
+    render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    expect(list).toHaveBeenCalledWith({ filters: { from: "2026-11-01" }, limit: 50 });
+    expect(screen.getByRole("button", { name: "Quitar filtro Fecha: Desde el 1 de noviembre de 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Personalizado" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("still filters by the known Annex actions when the catalogs cannot be loaded, and says so", async () => {
     options.mockResolvedValue(failure("server_error"));
+    const user = userEvent.setup();
     render(<AuditWorkspace />);
     await screen.findByRole("table");
-    const user = await openFilters();
     expect(await screen.findByText("No pudimos cargar las opciones de persona y vacante.")).toBeInTheDocument();
-    expect(optionsOf("Acción")).toContain("Vio el detalle de un candidato");
+    const panel = await openPanel(user, /^Acción/);
+    expect(within(panel).getByRole("checkbox", { name: "Vio el detalle de un candidato" })).toBeInTheDocument();
     options.mockResolvedValue(okOptions);
     await user.click(screen.getByRole("button", { name: "Reintentar opciones" }));
-    await waitFor(() => expect(optionsOf("Persona")).toContain("Luis Soto (ex miembro)"));
+    await waitFor(() => expect(screen.queryByText("No pudimos cargar las opciones de persona y vacante.")).toBeNull());
   });
 
-  it("uses the generic label for a server-side type the frontend does not know", async () => {
-    options.mockResolvedValue({ ...okOptions, types: [...auditTypes, { event_type: "SomethingNew", category: "brand_new" }] });
+  it("keeps the filters and offers «Limpiar filtros» when nothing matches", async () => {
+    at(`?actor_id=${luisId}`);
+    list.mockResolvedValueOnce({ ok: true, data: auditPage([]) });
+    const user = userEvent.setup();
     render(<AuditWorkspace />);
-    await screen.findByRole("table");
-    await openFilters();
-    await waitFor(() => expect(optionsOf("Acción")).toContain("Otra acción (SomethingNew)"));
-    expect(screen.getByText("Otras acciones")).toBeInTheDocument();
+    expect(await screen.findByText("Sin resultados")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Filtros activos" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Persona(?!lizado)/ })).toHaveTextContent("1");
+    await user.click(screen.getAllByRole("button", { name: "Limpiar filtros" }).at(-1)!);
+    expect(await screen.findByRole("table")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
   });
 });
 
-describe("export (owner only, requires from/to, ≤ 366 days)", () => {
-  let created: Blob[];
-  let downloads: string[];
-  const fetchMock = vi.fn();
-  beforeEach(() => {
-    created = []; downloads = [];
-    fetchMock.mockReset();
+describe("export from the workspace", () => {
+  it("keeps «Exportar CSV» enabled with no dates and exports the URL's range from the panel", async () => {
+    at(`?actor_id=${anaId}&from=2026-11-01&to=2026-11-04`);
+    const fetchMock = vi.fn().mockResolvedValue(new Response("﻿occurred_at\r\n", { headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="auditoria-2026-11-04.csv"' } }));
     vi.stubGlobal("fetch", fetchMock);
-    URL.createObjectURL = vi.fn((blob: Blob) => { created.push(blob); return "blob:audit"; });
-    URL.revokeObjectURL = vi.fn();
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { downloads.push(this.download); });
+    URL.createObjectURL = vi.fn(() => "blob:audit"); URL.revokeObjectURL = vi.fn();
+    const clicked: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { clicked.push(this.download); });
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    const panel = await openPanel(user, /^Exportar CSV/);
+    await user.click(within(panel).getByRole("button", { name: "Descargar CSV" }));
+    await waitFor(() => expect(clicked).toEqual(["auditoria-2026-11-04.csv"]));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ actor_id: anaId, from: "2026-11-01", to: "2026-11-04" });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/company/audit-events/export");
+    vi.restoreAllMocks();
   });
-  afterEach(() => vi.restoreAllMocks());
-  const exportButton = () => screen.getByRole("button", { name: /Exportar CSV|Exportando/ });
-  const csv = () => new Response("﻿occurred_at\r\n", { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="auditoria-2026-11-04.csv"' } });
 
-  it("keeps the export disabled with a visible hint until both dates are set, without moving the toolbar", async () => {
+  it("does not shift the toolbar: the requirement is a hint on its own line and the validation errors live in the panel", async () => {
+    at("?from=2026-11-01");
+    const user = userEvent.setup();
     const { container } = render(<AuditWorkspace />);
     await screen.findByRole("table");
-    expect(exportButton()).toBeDisabled();
-    const hint = screen.getByText("Elige las fechas «Desde» y «Hasta» para exportar.");
-    expect(exportButton()).toHaveAccessibleDescription("Elige las fechas «Desde» y «Hasta» para exportar.");
-    expect(hint.closest("[data-pf-audit-export-slot]")).toHaveClass("min-h-10");
+    const toolbar = container.querySelector("[data-audit-toolbar]") as HTMLElement;
+    expect(screen.getByRole("button", { name: "Exportar CSV" })).toBeEnabled();
     expect(container.querySelectorAll("[data-pf-audit-export-slot]")).toHaveLength(1);
-    await userEvent.click(exportButton());
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(created).toHaveLength(0);
+    const panel = await openPanel(user, /^Exportar CSV/);
+    expect(within(panel).getByRole("alert")).toHaveTextContent("Elige las fechas «Desde» y «Hasta» para exportar.");
+    expect(within(panel).getByRole("button", { name: "Descargar CSV" })).toBeDisabled();
+    expect(toolbar.textContent).not.toContain("Elige las fechas");
+    expect(container.querySelectorAll("[data-pf-audit-export-slot]")).toHaveLength(1);
   });
 
-  it("refuses a range over 366 days", async () => {
-    at("?from=2025-01-01&to=2026-11-04");
-    render(<AuditWorkspace />);
+  it("keeps the hint on one reserved line when dates are set, so the button stays aligned with the title row", async () => {
+    at("?from=2026-10-26&to=2026-11-24");
+    const { container } = render(<AuditWorkspace />);
     await screen.findByRole("table");
-    expect(exportButton()).toBeDisabled();
-    expect(screen.getByText(/El rango no puede pasar de 366 días\./)).toBeVisible();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("refuses an inverted range", async () => {
-    at("?from=2026-11-05&to=2026-11-04");
-    render(<AuditWorkspace />);
-    await screen.findByRole("table");
-    expect(exportButton()).toBeDisabled();
-    expect(screen.getByText("La fecha «Desde» debe ser anterior o igual a «Hasta».")).toBeVisible();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("POSTs the filters to the same-origin route and downloads the CSV under the server's filename", async () => {
-    at(`?actor_id=${anaId}&event_type=SessionEnded&from=2026-11-01&to=2026-11-04`);
-    fetchMock.mockResolvedValue(csv());
-    render(<AuditWorkspace />);
-    await screen.findByRole("table");
-    await userEvent.click(exportButton());
-    await waitFor(() => expect(downloads).toEqual(["auditoria-2026-11-04.csv"]));
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("/api/company/audit-events/export");
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body)).toEqual({ actor_id: anaId, event_types: ["SessionEnded"], from: "2026-11-01", to: "2026-11-04" });
-    expect(created).toHaveLength(1);
-    expect(await screen.findByText(/Exportación descargada/)).toBeInTheDocument();
-  });
-
-  it("shows the too-large message with row_count and limit and downloads nothing", async () => {
-    at("?from=2026-01-01&to=2026-11-04");
-    fetchMock.mockResolvedValue(Response.json({ error: "audit_export_too_large", code: "audit_export_too_large", row_count: 60123, limit: 50000 }, { status: 422 }));
-    render(<AuditWorkspace />);
-    await screen.findByRole("table");
-    await userEvent.click(exportButton());
-    expect(await screen.findByRole("alert")).toHaveTextContent("La exportación tiene 60,123 registros y el límite es 50,000. Acorta el rango de fechas o agrega filtros; no se descargó ningún archivo.");
-    expect(created).toHaveLength(0);
-    expect(downloads).toHaveLength(0);
-  });
-
-  it.each([
-    [403, { code: "forbidden" }, "Solo el dueño de la empresa puede exportar la auditoría."],
-    [503, { code: "no_response" }, "No pudimos generar la exportación. No se descargó ningún archivo"],
-  ])("maps a %s to a clear message and downloads nothing", async (status, body, message) => {
-    at("?from=2026-11-01&to=2026-11-04");
-    fetchMock.mockResolvedValue(Response.json({ error: body.code, ...body }, { status }));
-    render(<AuditWorkspace />);
-    await screen.findByRole("table");
-    await userEvent.click(exportButton());
-    expect(await screen.findByRole("alert")).toHaveTextContent(message);
-    expect(created).toHaveLength(0);
-  });
-
-  it("treats a network failure as an error with no download", async () => {
-    at("?from=2026-11-01&to=2026-11-04");
-    fetchMock.mockRejectedValue(new Error("offline"));
-    render(<AuditWorkspace />);
-    await screen.findByRole("table");
-    await userEvent.click(exportButton());
-    expect(await screen.findByRole("alert")).toHaveTextContent("No se descargó ningún archivo");
-    expect(created).toHaveLength(0);
-  });
-
-  it("blocks a second click while the export is running", async () => {
-    at("?from=2026-11-01&to=2026-11-04");
-    const pending = deferred<Response>();
-    fetchMock.mockReturnValue(pending.promise);
-    render(<AuditWorkspace />);
-    await screen.findByRole("table");
-    await userEvent.click(exportButton());
-    expect(exportButton()).toBeDisabled();
-    await userEvent.click(exportButton());
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    await act(async () => { pending.resolve(csv()); });
-    await waitFor(() => expect(exportButton()).toBeEnabled());
+    const slot = container.querySelector("[data-pf-audit-export-slot]");
+    expect(slot).toHaveClass("h-4", "overflow-hidden");
+    expect(slot).toHaveTextContent(/^Exportación: .*26 oct 2026.*24 nov 2026/);
   });
 });

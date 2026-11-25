@@ -165,6 +165,11 @@ export function formatOccurredAt(iso: string): string {
  */
 const CANDIDATE_SELF_EVENTS = new Set(["CandidateAccountCreated", "VacancyApplicationSubmitted", "ApplicationSubmitted", "PsychometricConsentGiven", "PsychometricAssessmentFinished"]);
 
+/** «Sobre» repeats «Vacante» when the event is about the vacancy itself: same id, or a vacancy-typed entity carrying the same title. */
+export function isTheVacancy({ entity, vacancy }: AuditEvent): boolean {
+  return !!vacancy && (entity.id === vacancy.id || (/vacancy|job_draft/.test(entity.type) && !!entity.label && entity.label === vacancy.title));
+}
+
 export function describeActor(actor: AuditActorRef, eventType?: string): { name: string; email: string | null; former: boolean; system: boolean } {
   if (actor.type === "system") return { name: "Sistema", email: null, former: false, system: true };
   const candidate = eventType !== undefined && CANDIDATE_SELF_EVENTS.has(eventType);
