@@ -8,15 +8,26 @@ function subscribe(listener: () => void) {
   return () => { window.removeEventListener("popstate", listener); window.removeEventListener(CHANGED, listener); };
 }
 
-/** Period and filters live in the URL, so a view is shareable and the back button restores it. */
-export function useMetricsUrl() {
+/**
+ * Period and filters live in the URL, so a view is shareable and the back button restores it. `keep` names other params of
+ * the page (the recruiter table's `sort` and `hide`, a recruiter page's `origin`) that a filter change must not drop;
+ * `write` replaces the whole query for the page's own state (push by default, `replace` for view changes).
+ */
+export function useMetricsUrl(keep: readonly string[] = []) {
   const search = useSyncExternalStore(subscribe, () => window.location.search, () => "");
   const filters = useMemo(() => parseFilters(new URLSearchParams(search)), [search]);
   const key = serializeFilters(filters).toString();
-  const update = useCallback((next: MetricsFilters) => {
-    const query = serializeFilters(next).toString();
-    window.history.pushState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+  const write = useCallback((params: URLSearchParams, mode: "push" | "replace" = "push") => {
+    const query = params.toString();
+    window.history[mode === "push" ? "pushState" : "replaceState"](null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
     window.dispatchEvent(new Event(CHANGED));
   }, []);
-  return { filters, key, update };
+  const kept = keep.join(",");
+  const update = useCallback((next: MetricsFilters) => {
+    const params = serializeFilters(next);
+    const current = new URLSearchParams(window.location.search);
+    for (const name of kept ? kept.split(",") : []) { const value = current.get(name); if (value !== null) params.set(name, value); }
+    write(params);
+  }, [kept, write]);
+  return { filters, key, search, update, write };
 }

@@ -4,16 +4,11 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const flags = vi.hoisted(() => ({ detailPage: false }));
-const table = vi.hoisted(() => ({ props: null as null | { items: { user_id: string }[]; href: (card: { user_id: string }) => string } }));
 // The detail page is off until T10b; flipping it here checks the exact query each figure opens.
 vi.mock("../drilldown", async importOriginal => {
   const actual = await importOriginal<typeof import("../drilldown")>();
   return { ...actual, drilldownHref: (...[target, filters, options]: Parameters<typeof actual.drilldownHref>) => actual.drilldownHref(target, filters, { ...options, enabled: flags.detailPage }) };
 });
-// The full table is reused as is; this boundary only records what the section hands it.
-vi.mock("../recruiter-table", () => ({
-  RecruiterTable: (props: NonNullable<typeof table.props>) => { table.props = props; return <p>{`Tabla completa con ${props.items.length} personas`}</p>; },
-}));
 // Same boundary as metrics-workspace.test: the real Base UI popover close path refocus-loops under jsdom.
 vi.mock("@/components/ui/popover", async () => {
   const Context = React.createContext<{ open: boolean; setOpen: (next: boolean) => void }>({ open: false, setOpen: () => {} });
@@ -29,14 +24,6 @@ vi.mock("@/components/ui/popover", async () => {
     PopoverDescription: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   };
 });
-// jsdom has no matchMedia for the Base UI dialog; the sheet opens inline with its title.
-vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ open, children }: { open?: boolean; children?: React.ReactNode }) => open ? <div role="dialog" aria-label="Desempeño por reclutador">{children}</div> : null,
-  SheetContent: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  SheetHeader: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  SheetTitle: ({ children }: { children?: React.ReactNode }) => <h2>{children}</h2>,
-  SheetDescription: ({ children }: { children?: React.ReactNode }) => <p>{children}</p>,
-}));
 import type { RecruiterCard } from "../model";
 import type { SectionState } from "../use-section";
 import { andrea, card, carlos, fernanda, fernandaId, marianaId, recruiterPage } from "../test-fixtures";
@@ -50,7 +37,7 @@ const rows = () => screen.getAllByRole("row").slice(1);
 const query = (link: HTMLElement) => { const params = new URL(link.getAttribute("href")!, "https://app.test").searchParams; params.delete("back"); return Object.fromEntries(params); };
 const back = (link: HTMLElement) => new URL(link.getAttribute("href")!, "https://app.test").searchParams.get("back");
 
-beforeEach(() => { flags.detailPage = false; table.props = null; });
+beforeEach(() => { flags.detailPage = false; });
 afterEach(cleanup);
 
 describe("Desempeño por reclutador (artboard 07)", () => {
@@ -82,14 +69,14 @@ describe("Desempeño por reclutador (artboard 07)", () => {
     show();
     const heading = screen.getByRole("heading", { level: 2, name: "Desempeño por reclutador" });
     expect(heading.parentElement).toHaveClass("flex-wrap");
-    expect(screen.getByRole("button", { name: "Ver tabla completa" }).parentElement).toHaveClass("ml-auto");
+    expect(screen.getByRole("link", { name: "Ver tabla completa" }).parentElement).toHaveClass("ml-auto");
   });
 
   it("puts «Cómo se calcula» first in the header actions, as the other sections", () => {
     show();
     const heading = screen.getByRole("heading", { level: 2, name: "Desempeño por reclutador" });
     const actions = heading.nextElementSibling as HTMLElement;
-    expect(within(actions).getAllByRole("button").map(button => button.textContent)).toEqual(["Cómo se calcula", "Ver tabla completa"]);
+    expect([...actions.querySelectorAll("button, a")].map(control => control.textContent)).toEqual(["Cómo se calcula", "Ver tabla completa"]);
   });
 
   it("gives the name priority on a narrow row: it wraps, and «Sin datos suficientes» wraps in a narrow column (rule 14)", () => {
@@ -160,19 +147,27 @@ describe("Desempeño por reclutador (artboard 07)", () => {
     expect(screen.getByRole("link", { name: "Mariana Torres" })).toHaveAttribute("href", href);
   });
 
-  it("shows the first five and opens the full table in a sheet", async () => {
+  it("shows the first five and links «Ver tabla completa» to its own page, no sheet (S2)", () => {
     const many = [andrea(), carlos(), fernanda(), card(), card({ user_id: "u5", name: "Rosa Díaz" }), card({ user_id: "u6", name: "Iván Soto" })];
     show(many);
     expect(rows()).toHaveLength(5);
-    await userEvent.click(screen.getByRole("button", { name: "Ver tabla completa" }));
-    expect(screen.getByText("Tabla completa con 6 personas")).toBeInTheDocument();
-    expect(table.props?.href({ user_id: fernandaId })).toBe(`/empresa/metricas/reclutadores/${fernandaId}?from=2026-08-01&to=2026-10-31`);
+    expect(screen.getByRole("link", { name: "Ver tabla completa" })).toHaveAttribute("href", "/empresa/metricas/reclutadores?from=2026-08-01&to=2026-10-31");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ver tabla completa" })).toBeNull();
+  });
+
+  it("carries the period and every board filter to the table page, the process filter included", () => {
+    const recruiter = fernandaId;
+    render(<RecruitersSection state={ready(recruiterPage().items)} period={period} filters={{ recruiter_id: recruiter, requester_kind: "client", requester_id: "none", process_kind: "replacement" }} />);
+    const url = new URL(screen.getByRole("link", { name: "Ver tabla completa" }).getAttribute("href")!, "https://app.test");
+    expect(url.pathname).toBe("/empresa/metricas/reclutadores");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ ...period, recruiter_id: recruiter, requester_kind: "client", requester_id: "none", process_kind: "replacement" });
   });
 
   it("shows the empty card when nobody had activity", () => {
     show([]);
     expect(screen.getByText("Aún no hay reclutadores con actividad en este periodo")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Ver tabla completa" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ver tabla completa" })).not.toBeInTheDocument();
   });
 
   it("opens every figure's records per contract §4.6, and a 0 is never a link", () => {

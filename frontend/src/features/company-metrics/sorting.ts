@@ -1,4 +1,4 @@
-import { placementTotal, type RecruiterCard } from "./model";
+import { onTimeRate, placementTotal, type RecruiterCard } from "./model";
 
 /** Sorting arranges rows on demand; it never assigns positions (D11: no score, no rank). */
 export const SORT_KEYS = ["name", "assigned", "on_time", "median", "delivered", "placements", "conversion", "reassignments", "business_days"] as const;
@@ -8,7 +8,8 @@ export const DEFAULT_SORT: RecruiterSort = { key: "name", direction: "ascending"
 
 const VALUE: Record<Exclude<SortKey, "name">, (card: RecruiterCard) => number | null> = {
   assigned: card => card.vacancies.assigned,
-  on_time: card => card.delivery.on_time,
+  // S3: the percentage of «Entregas a tiempo» (the figure the column shows first); the count only breaks a tie.
+  on_time: card => onTimeRate(card).value,
   median: card => card.delivery.median_business_days_to_target,
   delivered: card => card.delivery.delivered_in_tramo,
   placements: card => placementTotal(card.placements),
@@ -16,6 +17,7 @@ const VALUE: Record<Exclude<SortKey, "name">, (card: RecruiterCard) => number | 
   reassignments: card => card.reassignments.received,
   business_days: card => card.business_days_in_tramos,
 };
+const TIEBREAK: Partial<Record<Exclude<SortKey, "name">, (card: RecruiterCard) => number>> = { on_time: card => card.delivery.on_time };
 const SORT_NAME: Record<SortKey, string> = {
   name: "nombre", assigned: "asignadas", on_time: "entregas a tiempo", median: "mediana a la meta", delivered: "entregados en su tramo",
   placements: "placements", conversion: "conversión", reassignments: "reasignaciones recibidas", business_days: "días en tramos",
@@ -24,7 +26,7 @@ const SORT_NAME: Record<SortKey, string> = {
 /**
  * The backend already orders the cards by lowercase name with null names last (§3.7.11): «nombre A–Z» keeps that
  * order and «Z–A» reverses the named ones, nulls still last. Other columns put values without a sample last in either
- * direction and break ties by that same name order.
+ * direction; ties go to the column's own count (`on_time`: «N de M»), then to that same name order.
  */
 export function sortRecruiters(items: readonly RecruiterCard[], { key, direction }: RecruiterSort): RecruiterCard[] {
   const sign = direction === "ascending" ? 1 : -1;
@@ -35,10 +37,13 @@ export function sortRecruiters(items: readonly RecruiterCard[], { key, direction
   const position = new Map(items.map((item, index) => [item, index]));
   const byName = (a: RecruiterCard, b: RecruiterCard) => position.get(a)! - position.get(b)!;
   const value = VALUE[key];
+  const count = TIEBREAK[key];
   return [...items].sort((a, b) => {
     const left = value(a); const right = value(b);
     if (left === null || right === null) return left === right ? byName(a, b) : left === null ? 1 : -1;
-    return left === right ? byName(a, b) : sign * (left - right);
+    if (left !== right) return sign * (left - right);
+    const apart = count ? count(a) - count(b) : 0;
+    return apart ? sign * apart : byName(a, b);
   });
 }
 export const nextSort = (current: RecruiterSort, key: SortKey): RecruiterSort =>

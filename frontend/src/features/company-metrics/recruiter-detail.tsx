@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, UserX } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
@@ -24,6 +24,7 @@ import { ProcessNote } from "./process-kind";
 import { MonthlySection } from "./recruiter-detail/monthly";
 import { HelpList, see, type Drill, type Who } from "./recruiter-detail/parts";
 import { PeriodControl } from "./recruiter-detail/period-control";
+import { detailOrigin, parseTableView, recruiterFromTable, TABLE_PARAMS, tableReturn } from "./recruiter-view";
 import { DeliveriesSection, SummarySection, targets, WorkloadSection } from "./recruiter-detail/sections";
 import { MetricsSection } from "./section";
 import { useMetricsUrl } from "./use-metrics-url";
@@ -78,8 +79,13 @@ function VacanciesSection({ who, assigned, period, process, drill, vacancyHref }
 }
 
 function RecruiterDetailWorkspace({ userId, role }: { userId: string; role: Role }) {
-  const { filters, update } = useMetricsUrl();
+  const { filters, search, update } = useMetricsUrl(TABLE_PARAMS);
   const [today] = useState(mexicoToday);
+  // S4: opened from the table (`origin=table`), «volver» returns to it with its period, filters, order and columns; any other
+  // origin, or none, returns to Métricas. Only the table's own validated state is read, never a URL taken from the query.
+  const params = useMemo(() => new URLSearchParams(search), [search]);
+  const fromTable = detailOrigin(params) !== null;
+  const carried: MetricsFilters = fromTable ? { recruiter_id: filters.recruiter_id, requester_kind: filters.requester_kind, requester_id: filters.requester_id } : {};
   // The page reads the period and the process filter only; the board's other filters do not narrow one person's numbers.
   const process = filters.process_kind ? { process_kind: filters.process_kind } : {};
   const periodFilters: MetricsFilters = { ...(filters.from ? { from: filters.from } : {}), ...(filters.to ? { to: filters.to } : {}), ...process };
@@ -89,11 +95,12 @@ function RecruiterDetailWorkspace({ userId, role }: { userId: string; role: Role
   // Back keeps the board window and the process filter only, never this person as a filter (L47); replace, so the browser's Back skips it.
   const scope: MetricsFilters = { ...period, ...process };
   const back = `/empresa/metricas?${serializeFilters(scope)}`;
+  const table = fromTable ? tableReturn(params, period) : null;
   const data = state.status === "failed" ? null : state.data;
   const name = data ? personName(data) : null;
   const who: Who | null = name ? { id: userId, name, first: name.split(/\s+/)[0] } : null;
   // Every figure opened from here returns to this page with its window (drill-down «back», `drilldown.ts`).
-  const here = recruiterPath(userId, scope);
+  const here = fromTable ? recruiterFromTable(userId, { ...scope, ...carried }, parseTableView(params)) : recruiterPath(userId, scope);
   const drill: Drill = (target, count) => drilldownHref(target, scope, { count, back: here });
   // The role decides where a vacancy opens (v2 §7): the owner its board, a stakeholder its records inside Métricas.
   const vacancyHref = (row: VacancyRow) => role === "owner" ? `/empresa/vacantes/${row.draft_id}/pipeline`
@@ -101,7 +108,7 @@ function RecruiterDetailWorkspace({ userId, role }: { userId: string; role: Role
   const failure = state.status === "failed" ? state.failure : null;
 
   if (failure?.reason === "not_found") return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-6">
-    <StateCard icon={UserX} tone="empty" title="Esta persona no tiene historial en la empresa" description="No tuvo tramos en ninguna vacante de tu empresa, así que no hay ficha que mostrar." primaryAction={{ label: "Volver a Métricas", href: back }} />
+    <StateCard icon={UserX} tone="empty" title="Esta persona no tiene historial en la empresa" description="No tuvo tramos en ninguna vacante de tu empresa, así que no hay ficha que mostrar." primaryAction={table ? { label: "Volver a la tabla", href: table } : { label: "Volver a Métricas", href: back }} />
   </DashboardPageContent>;
 
   const shown = data ? { from: data.period.from, to: data.period.to } : period;
@@ -117,6 +124,10 @@ function RecruiterDetailWorkspace({ userId, role }: { userId: string; role: Role
           <ChevronLeft aria-hidden="true" className="size-4" />Métricas
         </Link>
         <ChevronRight aria-hidden="true" className="size-3.5" />
+        {table && <>
+          <Link href={table} replace className="inline-flex min-h-10 items-center rounded-lg px-2 font-medium text-primary-text outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">Desempeño por reclutador</Link>
+          <ChevronRight aria-hidden="true" className="size-3.5" />
+        </>}
         {name ? <span aria-current="page" className="min-w-0 truncate font-medium text-foreground">{name}</span> : <Skeleton className="h-4 w-32" />}
       </nav>
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
@@ -131,7 +142,7 @@ function RecruiterDetailWorkspace({ userId, role }: { userId: string; role: Role
             <p className="text-xs text-muted-foreground">{freshness}</p>
           </div>
         </div>
-        <PeriodControl period={period} today={today} error={periodError} onChange={next => update({ ...next, ...process })} />
+        <PeriodControl period={period} today={today} error={periodError} onChange={next => update({ ...next, ...process, ...carried })} />
       </header>
     </div>
     {failure ? <MetricsFailureCard failure={failure} subject="la ficha" onRetry={state.retry} onReset={() => update({})} />

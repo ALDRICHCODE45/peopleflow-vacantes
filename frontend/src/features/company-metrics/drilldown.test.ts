@@ -89,7 +89,7 @@ describe("back to the board (only a same-origin /empresa/metricas path)", () => 
 
   it("rejects every other recruiter-like path", () => {
     const id = "10000000-0000-4000-8000-000000000001";
-    for (const value of ["/empresa/metricas/reclutadores", "/empresa/metricas/reclutadores/", "/empresa/metricas/reclutadores/not-a-uuid",
+    for (const value of ["/empresa/metricas/reclutadores/", "/empresa/metricas/reclutadores/not-a-uuid",
       `/empresa/metricas/reclutadores/${id}/extra`, `/empresa/metricas/reclutadores/${id}/`, `/empresa/metricas/reclutadores/${id}x`,
       `/empresa/metricas/reclutadores/${id}/../../../vacantes`, `/empresa/metricas/reclutadores/%2e%2e/${id}`, `/empresa/metricas/reclutadores/${id}%2Fextra`,
       `https://evil.test/empresa/metricas/reclutadores/${id}`, `//evil.test/empresa/metricas/reclutadores/${id}`, `/empresa/metricas/reclutadoresx/${id}`,

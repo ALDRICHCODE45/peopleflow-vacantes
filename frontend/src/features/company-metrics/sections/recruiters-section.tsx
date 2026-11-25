@@ -1,12 +1,10 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Users } from "lucide-react";
 import { STACKED_CELL, STACKED_TABLE } from "@/components/data-table/stacked-table";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { accentAvatar } from "@/lib/accent";
@@ -14,15 +12,16 @@ import { cn } from "@/lib/utils";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
 import { drilldownHref, type Drilldown } from "../drilldown";
 import { Figure } from "../figure";
-import { dayLabel, formatRate, NO_SAMPLE, number, personName, placementTotal, type Rate, type RecruiterCard } from "../model";
+import { formatRate, NO_SAMPLE, number, onTimeRate, personName, placementTotal, type RecruiterCard } from "../model";
 import type { Period } from "../period";
 import { ProcessNote } from "../process-kind";
-import { RecruiterTable } from "../recruiter-table";
+import { tablePath } from "../recruiter-view";
 import { MetricsSection } from "../section";
+import { sortRecruiters } from "../sorting";
 import { serializeFilters, type MetricsFilters } from "../url-state";
 import type { SectionProps } from "./types";
 
-/** Rows shown on the board (rule 12); «Ver tabla completa» opens every person with every column. */
+/** Rows shown on the board (rule 12); «Ver tabla completa» links to the table page with every person and every column. */
 const VISIBLE_ROWS = 5;
 
 const HELP = [
@@ -33,15 +32,8 @@ const HELP = [
   ["Orden", "De mayor a menor porcentaje de entregas a tiempo; quien no tuvo entregas con fecha va al final. Ordenar no asigna posiciones."],
 ] as const;
 
-/** Delivery rate of a card (v1 2.3): on time among the deliveries already due; no sample without any. */
-export function onTimeRate(card: RecruiterCard): Rate {
-  const denominator = card.delivery.on_time + card.delivery.late + card.delivery.overdue;
-  return { value: denominator > 0 ? card.delivery.on_time / denominator : null, numerator: card.delivery.on_time, denominator };
-}
-/** Highest on-time rate first, rows without a sample last; ties keep the backend order. */
-export function byOnTime(items: RecruiterCard[]): RecruiterCard[] {
-  return [...items].sort((a, b) => (onTimeRate(b).value ?? -1) - (onTimeRate(a).value ?? -1));
-}
+/** Highest on-time rate first (then the larger count), rows without a sample last: the table's order for «Entregas a tiempo» (S3). */
+export const byOnTime = (items: RecruiterCard[]): RecruiterCard[] => sortRecruiters(items, { key: "on_time", direction: "descending" });
 /** The existing recruiter detail route with the board period and the process filter (the page reads no other filter). */
 export const recruiterHref = (card: Pick<RecruiterCard, "user_id">, scope: Period & Pick<MetricsFilters, "process_kind">) => `/empresa/metricas/reclutadores/${card.user_id}?${serializeFilters(scope)}`;
 /** «Vacantes asignadas» and «Conversión» are vacancy level (replacement-processes-v1 «Metrics»): the process filter does not change them. */
@@ -49,9 +41,8 @@ const IGNORED_COLUMNS = "«Vacantes asignadas» y «Conversión» no cambian con
 
 type Href = (target: Drilldown, count: number) => string | null;
 
-/** «Desempeño por reclutador» (artboard 07): a six-column comparison, the first five rows, the full table in a sheet. */
+/** «Desempeño por reclutador» (artboard 07): a six-column comparison, the first five rows, the full table on its own page (S2). */
 export function RecruitersSection({ state, filters, period }: SectionProps<RecruiterCard[]>) {
-  const [open, setOpen] = useState(false);
   const items = state.data ?? [];
   const href: Href = (target, count) => drilldownHref(target, { ...filters, ...period } satisfies MetricsFilters, { count });
   const scope = { ...period, process_kind: filters.process_kind };
@@ -59,7 +50,7 @@ export function RecruitersSection({ state, filters, period }: SectionProps<Recru
     help={{ title: "Cómo se calcula por reclutador", body: <dl className="flex flex-col gap-3">
       {HELP.map(([term, text]) => <div key={term} className="flex flex-col gap-1"><dt className="font-medium text-foreground">{term}</dt><dd>{text}</dd></div>)}
     </dl> }}
-    actions={state.status !== "failed" && items.length > 0 && <Button type="button" variant="ghost" className="min-h-10" onClick={() => setOpen(true)}>
+    actions={state.status !== "failed" && items.length > 0 && <Button variant="ghost" className="min-h-10" nativeButton={false} role="link" render={<Link href={tablePath({ ...filters, ...period })} />}>
       Ver tabla completa<ChevronRight aria-hidden="true" data-icon="inline-end" />
     </Button>}
     skeleton={<RecruitersSkeleton />}>
@@ -84,18 +75,6 @@ export function RecruitersSection({ state, filters, period }: SectionProps<Recru
           </Table>}
         <ProcessNote filters={filters}>{IGNORED_COLUMNS}</ProcessNote>
       </Card>
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="w-full sm:max-w-6xl">
-          <SheetHeader>
-            <SheetTitle>Desempeño por reclutador</SheetTitle>
-            <SheetDescription>{`${dayLabel(period.from)} – ${dayLabel(period.to)}`}</SheetDescription>
-            <ProcessNote filters={filters}>{IGNORED_COLUMNS}</ProcessNote>
-          </SheetHeader>
-          <div className="min-h-0 overflow-y-auto px-4 pb-4">
-            <RecruiterTable items={data} href={card => recruiterHref(card, scope)} />
-          </div>
-        </SheetContent>
-      </Sheet>
     </>}
   </MetricsSection>;
 }

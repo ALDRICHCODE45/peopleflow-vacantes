@@ -1,5 +1,6 @@
 import { UUID_PATTERN } from "./model";
 import type { Period } from "./period";
+import { detailOrigin, parseTableView, recruiterFromTable, TABLE_PATH, tablePath } from "./recruiter-view";
 import { parseFilters, serializeFilters, type MetricsFilters } from "./url-state";
 
 /** The detail page every figure opens (`design/system.md` rule 16, artboard 08). */
@@ -19,10 +20,10 @@ export function recruiterPath(userId: string, filters: MetricsFilters): string {
   return `${RECRUITER_PATH}/${userId}${query ? `?${query}` : ""}`;
 }
 /**
- * A `back` value read from a URL: only a same-origin path to the board, or exactly to one recruiter page
- * (`/empresa/metricas/reclutadores/<uuid>`), rebuilt from its normalized filters (the recruiter page keeps its window
- * and the process filter only), so it can never point to another origin, another page or carry anything but that page's own query. Null
- * otherwise.
+ * A `back` value read from a URL: only a same-origin path to the board, to the recruiter table (`/empresa/metricas/reclutadores`),
+ * or exactly to one recruiter page (`/empresa/metricas/reclutadores/<uuid>`), rebuilt from its normalized filters (the recruiter
+ * page keeps its window and the process filter, and the table's filters and view when it was opened from the table), so it can
+ * never point to another origin, another page or carry anything but that page's own query. Null otherwise.
  */
 export function safeBoardPath(value: string | null | undefined): string | null {
   if (!value || !value.startsWith(`${BOARD_PATH}`) || value.includes("\\")) return null;
@@ -32,9 +33,11 @@ export function safeBoardPath(value: string | null | undefined): string | null {
   if (url.origin !== base) return null;
   const filters = parseFilters(url.searchParams);
   if (url.pathname === BOARD_PATH) return boardPath(filters);
+  if (url.pathname === TABLE_PATH) return tablePath(filters, parseTableView(url.searchParams));
   const prefix = `${RECRUITER_PATH}/`;
   const id = url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) : "";
-  return UUID_PATTERN.test(id) ? recruiterPath(id, filters) : null;
+  if (!UUID_PATTERN.test(id)) return null;
+  return detailOrigin(url.searchParams) ? recruiterFromTable(id, filters, parseTableView(url.searchParams)) : recruiterPath(id, filters);
 }
 /** The detail page shipped with T10b; a figure stays plain text only when it is 0. */
 export const DETAIL_PAGE_ENABLED = true;

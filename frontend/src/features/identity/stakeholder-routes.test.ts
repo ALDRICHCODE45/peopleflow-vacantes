@@ -5,7 +5,7 @@ const ID = "123e4567-e89b-42d3-a456-426614174000";
 
 it("lets a stakeholder reach Métricas and the invitation pages only", () => {
   expect(STAKEHOLDER_HOME).toBe("/empresa/metricas");
-  for (const path of ["/empresa/metricas", "/empresa/metricas/reclutadores/u1", "/empresa/invitacion", "/empresa/invitacion/abc_DEF-1"]) expect(stakeholderRoute(path)).toBe("allowed");
+  for (const path of ["/empresa/metricas", "/empresa/metricas/reclutadores", "/empresa/metricas/reclutadores/u1", "/empresa/invitacion", "/empresa/invitacion/abc_DEF-1"]) expect(stakeholderRoute(path)).toBe("allowed");
 });
 
 // S11/S12: the read-only «Vacantes» list and the Documentos tab of one vacancy; nothing else under /empresa/vacantes.
