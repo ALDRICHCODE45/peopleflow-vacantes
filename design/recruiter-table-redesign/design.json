@@ -1,0 +1,28 @@
+{
+  "title": "Desempeño por reclutador · tres direcciones para «Ver tabla completa» (tabla legible a 1440 y 390)",
+  "brief": "T1 · S1. «Ver tabla completa» abre hoy una hoja de ~380 px con una tabla ancha cortada en «Asigna…»: ilegible. Tres direcciones, cada una a 1440×900 y 390×844 (claro y oscuro, dueño o stakeholder), con las ocho columnas de la hoja actual (Asignadas con «N nuevas», Entregas con «N tarde · N vencidas», Mediana a la meta, Entregados, Placements con dir./part./comp. y «no se sostuvo», Conversión con «N de M», Reasignaciones, Días en tramos), el nombre con «N como responsable» o «Ex miembro», orden con etiqueta «Orden: …», columnas a elección con «Restablecer vista», «Qué mide cada columna», periodo «27 ago 2026 – 24 nov 2026», filtro de proceso con su nota, estados sin resultados / sin actividad / cargando / error y la navegación fila → ficha de la persona (y de vuelta). Datos de Grupo Altavista: Andrea Salinas, Arturo Villaseñor Peña, Emiliano Ochoa Treviño, Paulina Cervantes Lara, Rodrigo Treviño (ex miembro) y Ximena Robles Iturbide (sin muestra: «Sin datos suficientes»). Solo tokens y reglas de design/system.md (incl. «Filter bar with chips»); las desviaciones están en self-check.md. Ninguna dirección está elegida todavía.",
+  "feature": "odd/tasks/recruiter-table-redesign.md",
+  "artboards": [
+    {
+      "file": "01-pagina-propia-de-tabla.html",
+      "title": "01 · Página propia de tabla (/empresa/metricas/reclutadores) · S1",
+      "tradeoff": "La más completa y la que mejor se puede enlazar: la tarjeta «Ver tabla completa» pasa a ser un enlace a una página con el ancho entero, encabezados agrupados (Carga de trabajo · Entrega de candidatos · Contratación), primera columna y encabezado fijos, orden, columnas y periodo en una sola barra y URL compartible; a 1440 caben las ocho columnas sin desplazarse. A cambio, agrega una ruta nueva y un destino más al «volver» de la ficha, cambia el orden de las columnas respecto a hoy, las celdas se parten en varias líneas (excepción a «sin saltos» de la tabla) y en móvil son fichas largas (~480 px por persona) en lugar de una tabla.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "02-dialogo-ancho-con-tabla-completa.html",
+      "title": "02 · Diálogo ancho con la tabla completa (sobre Métricas) · S1",
+      "tradeoff": "El cambio más pequeño: sigue siendo un botón sobre el tablero que abre la misma tabla, en las mismas columnas y orden de hoy, pero en un diálogo de 1392 × 852 (en móvil, pantalla completa con la columna del nombre fija y un grupo de columnas a la vez: Carga · Entregas · Contratación); Esc o «Cerrar» regresan con el foco en el botón y las barras de a tiempo y conversión ayudan a leer. A cambio, no hay URL propia (no se comparte ni se guarda el orden), el diálogo no se reabre al volver de una ficha, los filtros y el periodo se heredan del tablero (aquí solo se quitan), pide una excepción al ancho de 448 px del Dialog y el móvil muestra tres de las ocho columnas a la vez.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "03-comparativa-por-tarjetas.html",
+      "title": "03 · Comparativa por tarjetas con modo «Comparar» · S1",
+      "tradeoff": "La que mejor se lee persona por persona y la única que compara de verdad a 2 o 3: una tarjeta por reclutador con sus datos agrupados (entregas, contratación, carga) y barras pequeñas (a tiempo, tarde, vencida; conversión), orden y métricas visibles a elección, y una bandeja que fija a hasta 3 personas lado a lado (en móvil, métrica por métrica). A cambio, comparar a las seis a la vez es más difícil que con filas alineadas, a 1440 solo se ven ~3 tarjetas por pantalla (más desplazamiento), la comparación necesita estado propio (personas elegidas, máximo 3, idealmente en la URL) y cambia el vocabulario («Métricas visibles», «Qué mide cada métrica») y los componentes (tarjeta de persona, bandeja de comparación).",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}

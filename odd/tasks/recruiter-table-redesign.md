@@ -25,3 +25,9 @@ illegible. Design options first, then implementation.
   por reclutador», «Orden: nombre (A–Z)», «Qué mide cada columna», «Columnas», reset, a table whose columns are cut after
   «Asigna…»), verbatim S1. Before that: «Muy bien hermano, me gusta mucho, commit, merge y yo hago push» about the settings
   and audit redesign (already merged to local main `648e92ce`).
+- **L2** (2026-11-24) T1/S1: `design/recruiter-table-redesign/` — three directions, each at 1440×900 and 390×844 (light/dark, owner/stakeholder),
+  with all eight columns of the current sheet, sort, column choice, «Qué mide cada columna», period, empty/loading/error states and
+  row → recruiter-detail navigation: `01-pagina-propia-de-tabla.html` (own page `/empresa/metricas/reclutadores`, grouped headers, sticky
+  first column and header), `02-dialogo-ancho-con-tabla-completa.html` (near-fullscreen dialog over Métricas, same columns as today;
+  phone = full screen with pinned name and column groups), `03-comparativa-por-tarjetas.html` (one card per recruiter plus a compare mode
+  for 2–3). Reviewed in Chromium (axe 0 violations, 57 keyboard/click checks); deviations in `self-check.md`. None chosen yet; the user picks one.
