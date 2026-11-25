@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Eye, LayoutTemplate, Lock, Monitor, PanelLeft, PanelRight, SlidersHorizontal, Smartphone, Tablet, Trash2, RefreshCw, Maximize2, Minimize2 } from "lucide-react";
+import { CloudUpload, Eye, LayoutTemplate, Lock, Monitor, PanelLeft, PanelRight, SlidersHorizontal, Smartphone, Tablet, RefreshCw, Maximize2, Minimize2 } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
+import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +22,7 @@ import { defaultEditorLayout, EDITOR_PANEL_SIZES, readEditorLayout, saveEditorLa
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { saveDraftAction } from "../api/actions";
 import type { SiteState } from "../api/model";
-import { createAutosave, type AutosaveController } from "../autosave";
+import { createAutosave, type AutosaveController, type HistoryTarget } from "../autosave";
 import { useAutosave } from "../use-autosave";
 import { BLOCK_LIBRARY } from "../defaults";
 import type { SiteBlock } from "../model";
@@ -36,6 +37,9 @@ import { SectionForm } from "./forms/section-form";
 import { useWorkspaceHeight } from "./use-workspace-height";
 import { BrandSettings, SiteSettings } from "./site-settings";
 import { SitePublication, type PublicationTarget } from "./publication";
+import { HistoryControls, useHistoryShortcuts } from "./editor-history";
+
+const DELETED_TOAST = "company-site-section-deleted";
 
 export type CareersSiteEditorProps = { initialSite: SiteState; role: string; preview: CompanySitePreviewData; notice?: string };
 /** Controller lifetime is effect-owned: React StrictMode cleanup creates a fresh
@@ -142,7 +146,7 @@ function EditorSurface({ desktop, sections, properties, focused, children }: { d
   return desktop ? <DesktopPanels sections={sections} properties={properties} focused={focused}>{children}</DesktopPanels> : children({});
 }
 function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<CareersSiteEditorProps, "initialSite"> & { controller: AutosaveController; onLoadSite: (site: SiteState) => void }) {
-  const { editor, status } = useAutosave(controller);
+  const { editor, status, history } = useAutosave(controller);
   const [tab, setTab] = useState("sections");
   // Publication responses do not replace the autosave draft or newer local
   // edits. Their metadata lasts until the next confirmed autosave snapshot.
@@ -159,7 +163,7 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
   const [library, setLibrary] = useState(false); const [visitor, setVisitor] = useState(false);
   const visitorTrigger = useRef<HTMLButtonElement>(null);
   const [sectionsOpen, setSectionsOpen] = useState(false); const [propertiesOpen, setPropertiesOpen] = useState(false);
-  const [deleting, setDeleting] = useState<SiteBlock | null>(null); const [reload, setReload] = useState(false);
+  const [reload, setReload] = useState(false); const [keepMine, setKeepMine] = useState(false);
   const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
   const workspace = useWorkspaceHeight(desktop);
   useEffect(() => {
@@ -173,6 +177,24 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
     window.addEventListener("beforeunload", beforeUnload); return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [editor.dirty, status.kind]);
   const select = useCallback((id: string) => { controller.dispatch({ type: "select", id }); setTab("sections"); }, [controller]);
+  // The controller already selected the changed section; show the tab that owns the change.
+  const showHistoryTarget = useCallback((target: HistoryTarget | null) => { if (target) setTab(target.area); }, []);
+  const undo = useCallback(() => showHistoryTarget(controller.undo()), [controller, showHistoryTarget]);
+  const redo = useCallback(() => showHistoryTarget(controller.redo()), [controller, showHistoryTarget]);
+  useHistoryShortcuts(undo, redo);
+  const reorder = useCallback((id: string, toIndex: number) => controller.dispatch({ type: "reorder", id, toIndex }), [controller]);
+  // A toast that outlives this session is inert: a disposed controller ignores dispatches.
+  const removeBlock = useCallback((block: SiteBlock) => {
+    const exists = () => controller.getSnapshot().editor.draft.blocks.some(item => item.id === block.id);
+    const index = controller.getSnapshot().editor.draft.blocks.findIndex(item => item.id === block.id);
+    controller.dispatch({ type: "delete", id: block.id });
+    if (exists()) return;
+    notifyActionResult({ key: DELETED_TOAST, type: "success", title: "Sección eliminada", description: `${BLOCK_LIBRARY[block.type].label} ya no está en tu borrador.`, action: { title: "Deshacer", onClick: () => {
+      // Ctrl+Z may already have brought it back; then only show it.
+      if (!exists()) controller.dispatch({ type: "insert", block, index });
+      select(block.id);
+    } } });
+  }, [controller, select]);
   function navigateIssue(target: PublicationTarget) {
     setTab(target.tab); setPreviewFocused(false);
     if (target.blockId) select(target.blockId);
@@ -191,14 +213,14 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
   </> : <SectionEmpty title="Selecciona una sección para verla aquí" description="Elige una sección de la lista o de la vista previa para cambiar su contenido y diseño." icon={LayoutTemplate} tone="info" />}</div>;
   const sections = <Tabs value={tab} onValueChange={value => setTab(String(value))} className="flex min-w-0 flex-col gap-5">
     <TabsList variant="line" aria-label="Editor del sitio" className="w-full"><TabsTrigger value="sections" className="flex-1 px-1">Secciones</TabsTrigger><TabsTrigger value="brand" className="flex-1 px-1">Marca</TabsTrigger><TabsTrigger value="settings" className="flex-1 px-1">Ajustes</TabsTrigger></TabsList>
-    <TabsContent value="sections"><SectionList editor={editor} controller={controller} onSelect={id => { select(id); setSectionsOpen(false); if (!desktop) setPropertiesOpen(true); }} onDelete={setDeleting} onAdd={() => { setSectionsOpen(false); setLibrary(true); }} /></TabsContent>
+    <TabsContent value="sections"><SectionList editor={editor} controller={controller} onSelect={id => { select(id); setSectionsOpen(false); if (!desktop) setPropertiesOpen(true); }} onDelete={removeBlock} onReorder={reorder} onAdd={() => { setSectionsOpen(false); setLibrary(true); }} /></TabsContent>
     <TabsContent value="brand"><BrandSettings theme={editor.draft.theme} onChange={theme => controller.dispatch({ type: "theme", theme })} /></TabsContent>
     <TabsContent value="settings" className="px-1 py-1 pr-3"><SiteSettings draft={editor.draft} savedSlug={editor.lastSaved.slug} slugError={editor.fieldErrors.find(error => error.field === "slug" && !error.blockId)} company={preview.company} onSlug={slug => controller.dispatch({ type: "slug", slug })} onSeo={seo => controller.dispatch({ type: "seo", seo })} /></TabsContent>
   </Tabs>;
-  return <TooltipProvider><div ref={workspace.ref} data-editor-workspace="" style={{ height: workspace.height }} className="flex min-h-0 min-w-0 flex-col gap-4 lg:overflow-hidden">
+  return <TooltipProvider><div ref={workspace.ref} data-editor-workspace="" onBlur={() => controller.checkpoint()} style={{ height: workspace.height }} className="flex min-h-0 min-w-0 flex-col gap-4 lg:overflow-hidden">
     <header data-editor-region="toolbar" className="flex shrink-0 flex-wrap items-center justify-between gap-4">
       <div className="flex min-w-0 flex-col gap-2"><div className="flex flex-wrap items-center gap-3"><h2 className="text-xl font-semibold">{preview.company.name}</h2><Badge variant={published ? unpublishedChanges ? "review" : "success" : "neutral"} dot>{published ? unpublishedChanges ? "Cambios sin publicar" : "Publicado" : "Sin publicar"}</Badge>{published && <a href={`/empresas/${encodeURIComponent(published.slug)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center text-sm underline underline-offset-4">Ver sitio</a>}</div>{editor.draft.slug ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground underline underline-offset-4">{url}</a> : <p className="text-sm text-muted-foreground">{url}</p>}</div>
-      <div className="flex flex-wrap items-center gap-3"><SaveStatus status={status} dirty={editor.dirty} onLoadLatest={() => setReload(true)} onRetry={() => { void controller.retry(); }} /><Button variant="outline" className="min-h-10" ref={visitorTrigger} onClick={() => setVisitor(true)}><Eye aria-hidden="true" data-icon="inline-start" />Ver como visitante</Button>
+      <div className="flex flex-wrap items-center gap-3"><HistoryControls canUndo={history.canUndo} canRedo={history.canRedo} onUndo={undo} onRedo={redo} /><SaveStatus status={status} dirty={editor.dirty} onLoadLatest={() => setReload(true)} onRetry={() => { void controller.retry(); }} />{status.kind === "conflict" && <Button variant="link" className="min-h-10" onClick={() => setKeepMine(true)}>Conservar mis cambios</Button>}<Button variant="outline" className="min-h-10" ref={visitorTrigger} onClick={() => setVisitor(true)}><Eye aria-hidden="true" data-icon="inline-start" />Ver como visitante</Button>
         <SitePublication controller={controller} role={role} company={preview.company} companyKnown={!notice} published={published} onState={state => setPublication({ published: state.published, baseline: controller.getSnapshot().editor.server })} onNavigate={navigateIssue} onConflict={current => { setPublishConflict(current); setReload(true); }} />
       </div>
     </header>
@@ -232,7 +254,10 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
     </EditorSurface>
     <p className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"><Lock className="size-4 shrink-0" aria-hidden="true" />Tus cambios solo son visibles para tu equipo hasta que publiques.</p>
     <SectionLibrary open={library} onOpenChange={setLibrary} editor={editor} controller={controller} />
-    <ConfirmActionDialog open={deleting !== null} onOpenChange={open => { if (!open) setDeleting(null); }} icon={Trash2} tone="destructive" title={`¿Eliminar ${deleting ? BLOCK_LIBRARY[deleting.type].label : "esta sección"}?`} description="Su contenido se eliminará del borrador. Esta acción no se puede deshacer." confirmLabel="Eliminar sección" onConfirm={() => { if (deleting) controller.dispatch({ type: "delete", id: deleting.id }); setDeleting(null); }} />
+    <ConfirmActionDialog open={keepMine && status.kind === "conflict"} onOpenChange={setKeepMine} icon={CloudUpload} title="¿Conservar tus cambios?" description="Tu versión se guardará y reemplazará los cambios que hizo la otra persona." confirmLabel="Conservar mis cambios" onConfirm={() => {
+      if (status.kind === "conflict") controller.resolveConflict(status.current, `"${status.current.draft_version}"`, "keep-local");
+      setKeepMine(false);
+    }} />
     <ConfirmActionDialog open={reload} onOpenChange={setReload} icon={RefreshCw} title="¿Cargar la versión más reciente?" description="Tus cambios locales se descartarán y se cargará la versión que guardó la otra persona." confirmLabel="Cargar versión" onConfirm={() => {
       const autosaveConflict = status.kind === "conflict" ? status.current : null;
       const latest = autosaveConflict && (!publishConflict || autosaveConflict.draft_version >= publishConflict.draft_version) ? autosaveConflict : publishConflict;

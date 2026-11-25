@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultBlock, defaultSiteDraft } from "./defaults";
-import { createEditorState, editorReducer, addBlockAction, duplicateBlockAction, mapFieldErrors } from "./editor-state";
+import { createEditorState, editorReducer, addBlockAction, duplicateBlockAction, mapFieldErrors, canReorder, type EditorState } from "./editor-state";
 import { canPublish, RECRUITER_PUBLISH_REASON } from "./permissions";
 import type { SiteState } from "./api/model";
 export const serverState = (): SiteState => ({ draft: defaultSiteDraft(), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" });
@@ -55,6 +55,56 @@ describe("editor reducer", () => {
     expect(mapFieldErrors([{ field: "blocks[2].content.items[0].question", code: "too_long" }, { field: "slug", code: "invalid" }], draft)).toEqual([
       { field: "content.items[0].question", code: "too_long", blockId: draft.blocks[2].id }, { field: "slug", code: "invalid" },
     ]);
+  });
+  describe("reorder", () => {
+    // hero, story, faq, jobs, closing
+    const setup = (): EditorState => {
+      const data = serverState(); data.draft.blocks.splice(1, 0, defaultBlock("story"), defaultBlock("faq")); data.draft.blocks.push(defaultBlock("closing"));
+      return createEditorState(data, '"1"');
+    };
+    const types = (state: EditorState) => state.draft.blocks.map(b => b.type);
+    it("places the block at the requested final index in one change", () => {
+      const state = setup(); const story = state.draft.blocks[1].id;
+      const down = editorReducer(state, { type: "reorder", id: story, toIndex: 3 });
+      expect(types(down)).toEqual(["hero", "faq", "jobs", "story", "closing"]); expect(down.dirty).toBe(true);
+      const closing = state.draft.blocks[4].id;
+      expect(types(editorReducer(state, { type: "reorder", id: closing, toIndex: 1 }))).toEqual(["hero", "closing", "story", "faq", "jobs"]);
+    });
+    it("is a no-op for the same index, out of range or an unknown id", () => {
+      const state = setup(); const story = state.draft.blocks[1].id;
+      for (const toIndex of [1, -1, 5]) expect(editorReducer(state, { type: "reorder", id: story, toIndex })).toBe(state);
+      expect(editorReducer(state, { type: "reorder", id: "missing", toIndex: 0 })).toBe(state);
+    });
+    it("rejects moving Portada away from first, anything above it, or Vacantes above Portada", () => {
+      const state = setup(); const [hero, story, , jobs] = state.draft.blocks.map(b => b.id);
+      expect(editorReducer(state, { type: "reorder", id: hero, toIndex: 2 })).toBe(state);
+      expect(editorReducer(state, { type: "reorder", id: story, toIndex: 0 })).toBe(state);
+      expect(editorReducer(state, { type: "reorder", id: jobs, toIndex: 0 })).toBe(state);
+      expect(canReorder(state.draft.blocks, story, 0)).toBe(false); expect(canReorder(state.draft.blocks, story, 2)).toBe(true);
+      expect(canReorder(state.draft.blocks, jobs, 1)).toBe(true); expect(canReorder(state.draft.blocks, story, 1)).toBe(true);
+    });
+    it("keeps stable block field errors like move", () => {
+      let state = setup(); const story = state.draft.blocks[1].id;
+      state = editorReducer(state, { type: "invalid", fields: [{ field: "blocks[1].content.title", code: "too_long" }], submitted: state.draft });
+      expect(editorReducer(state, { type: "reorder", id: story, toIndex: 2 }).fieldErrors).toEqual(state.fieldErrors);
+    });
+  });
+  it("inserts a deleted block back at its index and selects it, never duplicating ids or required blocks", () => {
+    const data = serverState(); const story = defaultBlock("story"); data.draft.blocks.splice(1, 0, story);
+    const state = createEditorState(data, '"1"');
+    const deleted = editorReducer(state, { type: "delete", id: story.id });
+    const restored = editorReducer(deleted, { type: "insert", block: story, index: 1 });
+    expect(restored.draft).toEqual(state.draft); expect(restored.selectedId).toBe(story.id); expect(restored.dirty).toBe(false);
+    expect(editorReducer(restored, { type: "insert", block: story, index: 1 })).toBe(restored);
+    expect(editorReducer(deleted, { type: "insert", block: defaultBlock("hero"), index: 1 })).toBe(deleted);
+    expect(editorReducer(deleted, { type: "insert", block: story, index: 0 }).draft.blocks[0].type).toBe("hero");
+  });
+  it("restores a whole draft as an edit and applies a valid selection", () => {
+    const state = createEditorState(serverState(), '"1"'); const id = state.draft.blocks[1].id;
+    const edited = editorReducer(state, { type: "slug", slug: "otro" });
+    const restored = editorReducer(edited, { type: "restore", draft: state.draft, selectedId: id });
+    expect(restored.draft).toEqual(state.draft); expect(restored.dirty).toBe(false); expect(restored.selectedId).toBe(id);
+    expect(editorReducer(edited, { type: "restore", draft: state.draft, selectedId: "gone" }).selectedId).toBeNull();
   });
   it("caps the block library at 30", () => {
     let state = createEditorState(serverState(), '"1"'); for (let i = 0; i < 28; i++) state = editorReducer(state, addBlockAction("faq"));

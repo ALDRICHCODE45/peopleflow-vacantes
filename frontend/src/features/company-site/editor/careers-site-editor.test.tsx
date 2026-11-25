@@ -192,7 +192,6 @@ it("shows the nothing-selected properties state after deleting the selected bloc
   await screen.findByRole("heading", { name: "Tu página" });
   fireEvent.click(within(row("Historia")).getByRole("button", { name: "Seleccionar Historia" }));
   fireEvent.click(within(row("Historia")).getByRole("menuitem", { name: "Eliminar" }));
-  fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Eliminar sección" }));
   const panel = screen.getByRole("complementary", { name: "Propiedades de la sección" });
   const heading = within(panel).getByRole("heading", { name: "Selecciona una sección para verla aquí", level: 3 });
   expect(within(panel).getByText("Elige una sección de la lista o de la vista previa para cambiar su contenido y diseño.")).toBeVisible();
@@ -200,7 +199,7 @@ it("shows the nothing-selected properties state after deleting the selected bloc
   expect(heading.closest('[data-slot="empty"]')?.querySelector("svg")).toHaveClass("lucide-layout-template");
   expect(within(panel).queryByRole("button")).not.toBeInTheDocument();
 });
-it("reorders with keyboard actions, hides/shows, duplicates and confirms deletion", async () => {
+it("reorders with keyboard actions, hides/shows, duplicates and deletes without a confirmation", async () => {
   const props = fixture(); props.initialSite.draft.blocks.splice(1, 0, defaultBlock("story"));
   render(<CareersSiteEditor {...props} />); await screen.findByRole("heading", { name: "Tu página" });
   const user = userEvent.setup();
@@ -216,12 +215,8 @@ it("reorders with keyboard actions, hides/shows, duplicates and confirms deletio
   expect(within(list()).getAllByRole("button", { name: "Seleccionar Historia" })).toHaveLength(2);
   const rows = within(list()).getAllByRole("listitem");
   await user.click(within(rows[1]).getByRole("menuitem", { name: "Eliminar" }));
-  const confirm = await screen.findByRole("alertdialog");
-  expect(within(confirm).getByRole("button", { name: "Cancelar" })).toHaveFocus();
-  expect(within(rows[1].parentElement!).getAllByRole("button", { name: "Seleccionar Historia", hidden: true })).toHaveLength(2);
-  await user.click(within(confirm).getByRole("button", { name: "Cancelar" }));
-  await user.click(within(rows[1]).getByRole("menuitem", { name: "Eliminar" }));
-  await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Eliminar sección" }));
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(screen.queryByText(/no se puede deshacer/)).toBeNull();
   expect(within(list()).getAllByRole("button", { name: "Seleccionar Historia" })).toHaveLength(1);
 });
 it("protects hero and jobs without forbidding their model-supported reordering", async () => {
