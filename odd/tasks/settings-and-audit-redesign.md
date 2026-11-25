@@ -55,3 +55,13 @@ truncated select values). Design first with options on the canvas, then implemen
   are alternatives). Settings direction not picked yet.
 - **L4** (2026-11-24) Canvas handoff: implement `settings-redesign/02-resumen-compacto-y-secciones.html` (01 and 03 are
   alternatives).
+- **L5** Implemented: audit log desktop `a2d22e3e` + phone `cf7d8b34`; settings `3e8560a2` (old card-composition settings
+  case removed: it pinned the five-card layout S1 removes); integrated `7d65088b`. Full suite: 645 files / 11793 passed,
+  1 failed in company-metrics detail (not touched; passes alone 34/34 — load flake); tsc 0, lint 0 errors. Browser check
+  on the production build: most items pass (no big cards, strip, location dialog, talent sheet with guard, theme,
+  Próximamente, recruiter variant; real popovers with full values, search, category select, chips, presets, wrapping,
+  detail sheet, export validation and CSV download, URL reload, phone cards/drawer/bottom sheets). To fix before merging:
+  leave-guard button contrast 4:1 and different Back copy; phone location editor not a bottom sheet; phone row
+  descriptions clamped; audit table needs horizontal scroll at 1440; arrow keys in Acción and from the search; focus lost
+  after removing a chip; date fields truncated; header summary line missing; «Sin etiqueta» instead of «—»; phone detail
+  `dl` not focusable (axe). Data: one «Exportó la auditoría» event.
