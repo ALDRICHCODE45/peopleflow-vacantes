@@ -9,6 +9,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"slices"
 
 	"github.com/google/uuid"
 )
@@ -37,8 +38,27 @@ type MediaStore interface {
 	FindMedia(context.Context, uuid.UUID) (StoredMedia, error)
 }
 
-// PrepareMedia inspects headers only; metadata is removed without touching compressed pixels.
+// MediaKinds are the upload kinds (contract §3.4); `logo` is sections v2.
+var MediaKinds = []string{"cover", "gallery", "portrait", "story", "logo"}
+
+func IsMediaKind(kind string) bool { return slices.Contains(MediaKinds, kind) }
+
+// PrepareMedia applies the photo rules shared by cover, gallery, portrait and story.
 func PrepareMedia(data []byte) ([]byte, string, int, int, string) {
+	return prepareMedia(data, 200, true)
+}
+
+// PrepareMediaKind applies the per-kind rules: logos are PNG or WebP (alpha is
+// kept) with at least 64 px per side; every other kind uses PrepareMedia.
+func PrepareMediaKind(kind string, data []byte) ([]byte, string, int, int, string) {
+	if kind == "logo" {
+		return prepareMedia(data, 64, false)
+	}
+	return PrepareMedia(data)
+}
+
+// prepareMedia inspects headers only; metadata is removed without touching compressed pixels.
+func prepareMedia(data []byte, minSide int, allowJPEG bool) ([]byte, string, int, int, string) {
 	if len(data) > MaxMediaBytes {
 		return nil, "", 0, 0, "payload_too_large"
 	}
@@ -51,6 +71,9 @@ func PrepareMedia(data []byte) ([]byte, string, int, int, string) {
 	case len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP":
 		typ = "image/webp"
 	default:
+		return nil, "", 0, 0, "unsupported_media_type"
+	}
+	if typ == "image/jpeg" && !allowJPEG {
 		return nil, "", 0, 0, "unsupported_media_type"
 	}
 	var w, h int
@@ -73,7 +96,7 @@ func PrepareMedia(data []byte) ([]byte, string, int, int, string) {
 	if err != nil || w == 0 || h == 0 {
 		return nil, "", 0, 0, "unsupported_media_type"
 	}
-	if w < 200 || h < 200 {
+	if w < minSide || h < minSide {
 		return nil, "", w, h, "image_too_small"
 	}
 	if w > 6000 || h > 6000 {

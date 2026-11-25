@@ -130,6 +130,146 @@ this contract does not depend on it.
   `values`/`benefits` still require item titles and minimum list sizes. Publishing still copies the stored draft
   version exactly; normalization is on read, not a data migration.
 
+### 2.3 Sections v2 — amendment 2026-11-25 (additive; backend branch `feat/careers-site-sections-v2-backend`)
+
+Slice A of the careers site sections v2 (task `odd/tasks/careers-site-sections-v2-backend.md` S1–S3 and L4). New
+variants, four new block types, a per-block `style`, hero button and collage keys, a testimonial video URL and the media
+kind `logo`. No document migration; one media migration (00066). Everything in §2–§2.2 stays valid.
+
+**Wire rule (deployment order).** Keys added to existing envelopes and types — `style`, the hero keys `images`,
+`primary_label`, `secondary_visible`, `secondary_label`, `secondary_target`, and `testimonials.items[].video_url` — are
+**never inserted** into a document that lacks them, neither on PUT canonicalization nor on GET draft, publish responses
+or GET public. Absent means “use the default below”; validation and publish logic apply that default. A stored v1
+document therefore re-reads byte-identical to its §2.2 canonical form, and a PUT echoing it is a no-op (§6.6). The keys
+appear only once a client sends them. New block types (`team`, `logos`, `areas`, `talent_cta`) are normalized like every
+other block (missing strings → `null`, missing lists → `[]`).
+
+**New variants on existing types**
+
+| type | added variants | notes |
+| --- | --- | --- |
+| `hero` | `background_loop`, `photo_jobs`, `collage` | `background_loop` is publish-blocked until slice B (hero video); `collage` needs ≥ 2 `images` to publish |
+| `values`, `benefits` | `bento`, `big_icons` | |
+| `stats` (Cifras) | `brand_band` | count-up is presentation only |
+| `testimonials` | `carousel` | items may carry `video_url` (below), on any variant |
+| `gallery` | `photo_strip` | reduced motion is presentation only |
+
+**Block envelope `style`** (optional, next to `id`, `type`, `variant`, `hidden`, `content`; any block type):
+
+```json
+{ "background": "default", "spacing": "airy", "align": "start", "overlay": null, "image": null }
+```
+
+- That object is the default (absent `style` means exactly this). `style: null` is accepted and dropped (= absent). A
+  present `style` fills each missing key with its default and is returned with all five keys.
+- `background`: `default` | `tint` | `brand` | `image`; `spacing`: `compact` | `airy`; `align`: `center` | `start`;
+  `overlay`: `soft` | `medium` | `strong` | `null`; `image`: media ref (kind `cover`, ownership checked like every
+  media ref) or `null`. Curated values only; enum values are trimmed and compared exactly.
+- `overlay` and `image` must be `null` unless `background = "image"` (`not_allowed`). With `background = "image"`,
+  `overlay` may be `null`, and a missing `image` is **not** a save error: it is the publish issue `style_image_missing`.
+
+**Hero content additions** (all optional, absent stays absent):
+
+```json
+{ "title": "Únete", "subtitle": null, "cover": { "media_id": "uuid" },
+  "images": [ { "media_id": "uuid" }, { "media_id": "uuid" } ],
+  "primary_label": "Ver puestos", "secondary_visible": true, "secondary_label": "Conócenos",
+  "secondary_target": "uuid-of-another-block" }
+```
+
+| key | rule | absent / blank means |
+| --- | --- | --- |
+| `images` | 0–3 non-null media refs (kind `gallery`); `null` → `[]` | `[]` |
+| `primary_label` | string ≤ 24 or `null`; blank → `null` | presentation falls back to «Ver vacantes» |
+| `secondary_label` | string ≤ 24 or `null`; blank → `null` | presentation falls back to «Conoce la empresa» |
+| `secondary_visible` | boolean (`null` is `invalid`) | `true` |
+| `secondary_target` | `null` or the id (UUID, any case, stored lower-case) of **another** block of the document | `null` = first block after the hero |
+
+`secondary_target` naming the hero itself or an id not in the document → `invalid`. Stored documents whose target no
+longer exists (including the public projection, which drops hidden blocks) read the target as `null`.
+
+**Testimonial items**: `video_url` string ≤ 500 or `null` (blank → `null`). Accepted exactly as the editor parses a
+video block URL: `http(s)` without credentials or port; `youtube.com`/`www.youtube.com` `/watch?v=ID`, `/embed/ID`,
+`/shorts/ID`; `youtu.be/ID`; `vimeo.com`/`www.vimeo.com` `/ID`; `player.vimeo.com/video/ID` (host case-insensitive);
+YouTube id `^[A-Za-z0-9_-]{11}$`, Vimeo id `^\d{1,12}$`. Anything else → `invalid`; over 500 → `too_long`.
+
+**New block types**
+
+| type | variants | content |
+| --- | --- | --- |
+| `team` («Equipo / Líderes») | `grid`, `portraits` | `title` ≤ 80, `intro` ≤ 200, `items` 0–12 × {`name` ≤ 80, `role` ≤ 80, `photo` media ref (kind `portrait`) nullable, `consent` boolean} |
+| `logos` («Logos / Reconocimientos») | `strip`, `grid` | `title` ≤ 80, `items` 0–12 × {`name` ≤ 80, `image` media ref (kind `logo`) nullable, `caption` ≤ 80} |
+| `areas` («Áreas de trabajo») | `icon_cards`, `photo_cards` | `title` ≤ 80, `intro` ≤ 200, `overrides` 0–16 × {`key`, `icon`, `photo` media ref (kind `gallery`)} |
+| `talent_cta` («Llamado a talento») | `banner`, `split` | `title` ≤ 80, `text` ≤ 240, `button_label` ≤ 24 (blank → `null`; presentation falls back to «Dejar mi CV») |
+
+```json
+{ "id": "uuid", "type": "team", "variant": "portraits", "hidden": false,
+  "content": { "title": "Líderes", "intro": null,
+    "items": [ { "name": "Luis", "role": "CEO", "photo": { "media_id": "uuid" }, "consent": true } ] } }
+{ "id": "uuid", "type": "logos", "variant": "strip", "hidden": false,
+  "content": { "title": "Reconocimientos",
+    "items": [ { "name": "Great Place to Work", "image": { "media_id": "uuid" }, "caption": "2026" } ] } }
+{ "id": "uuid", "type": "areas", "variant": "photo_cards", "hidden": false,
+  "content": { "title": "Áreas", "intro": null,
+    "overrides": [ { "key": "logistics_transport", "icon": null, "photo": { "media_id": "uuid" } },
+                   { "key": "legal", "icon": "scale", "photo": null } ] } }
+{ "id": "uuid", "type": "talent_cta", "variant": "banner", "hidden": false,
+  "content": { "title": "¿No hay vacante para ti?", "text": "Déjanos tu CV", "button_label": "Dejar mi CV" } }
+```
+
+- `team.items[].consent`: same rule as testimonials (non-boolean → `invalid`; `true` required only to publish).
+- `areas`: the areas themselves come from the published vacancies (`professional_area`); `overrides` only restyle one.
+  `key` must be one of the 16 vacancy `professional_area` literals (`technology_systems`, `engineering`, `product`,
+  `design_creative`, `sales_business_development`, `marketing_communications`, `administration_finance`,
+  `human_resources`, `operations_production`, `logistics_transport`, `customer_service_support`, `healthcare`,
+  `education_training`, `legal`, `construction_maintenance`, `tourism_hospitality_gastronomy`); `icon` is the §2.1
+  icon enum; exactly one of `icon` / `photo` is non-null. Unlike `values`/`benefits` decorations this is enforced on
+  every PUT (no legacy data exists).
+- `talent_cta` is accepted and publishable; its form ships with slice C (until then the editor does not offer it).
+
+**Validation errors** (400 `validation_error`, nothing written; `p = blocks[i]`):
+
+| condition | field | code |
+| --- | --- | --- |
+| unknown variant / type | `p.variant` / `p.type` | `invalid` |
+| `style` not an object; `background`/`spacing`/`align`/`overlay` outside its set (incl. `null` for the first three) | `p.style` / `p.style.<key>` | `invalid` |
+| unknown key in `style` | `p.style.<key>` | `unknown_key` |
+| `overlay` or `image` non-null while `background ≠ "image"` | `p.style.overlay` / `p.style.image` | `not_allowed` |
+| `style.image` malformed / not this company's `cover` media | `p.style.image.media_id` / `p.style.image` | `invalid` |
+| hero label over 24 / not a string | `p.content.primary_label` (or `secondary_label`) | `too_long` / `invalid` |
+| `secondary_visible` not a boolean | `p.content.secondary_visible` | `invalid` |
+| `secondary_target` malformed, unknown or the hero itself | `p.content.secondary_target` | `invalid` |
+| `images` not a list / over 3 / null item / not this company's `gallery` media | `p.content.images` / `p.content.images` / `p.content.images[k]` / `p.content.images[k]` | `invalid` / `too_long` / `required` / `invalid` |
+| `video_url` not a supported URL / over 500 | `p.content.items[j].video_url` | `invalid` / `too_long` |
+| team/logos list over 12, overrides over 16 | `p.content.items` / `p.content.overrides` | `too_long` |
+| team photo not `portrait`, logo image not `logo`, override photo not `gallery` (or foreign) | the ref's field | `invalid` |
+| override `key` missing / outside the catalog / repeated | `p.content.overrides[k].key` | `required` / `invalid` / `duplicate` |
+| override with both `icon` and `photo` / neither | `p.content.overrides[k].photo` / `p.content.overrides[k].icon` | `not_allowed` / `required` |
+| unknown icon in an override | `p.content.overrides[k].icon` | `invalid` |
+| string limits above | the string's field | `too_long` |
+
+**Publish requirements and issues** (422 `publish_blocked`, visible blocks only):
+
+| type / condition | issue code | field |
+| --- | --- | --- |
+| `team` | `block_incomplete` unless 1–12 items, each `name` and `consent: true` (photo optional) | `blocks[i]` |
+| `logos` | `block_incomplete` unless 1–12 items, each `name` and `image` | `blocks[i]` |
+| `areas` | `block_incomplete` unless `title` (overrides never block) | `blocks[i]` |
+| `talent_cta` | `block_incomplete` unless `title` | `blocks[i]` |
+| hero `background_loop` (always, until slice B) | `hero_video_missing` | `blocks[i]` |
+| hero `collage` with fewer than 2 `images` (absent = `[]`) | `hero_collage_images_missing` | `blocks[i]` |
+| `secondary_target` names a hidden block while `secondary_visible` is `true` (absent = `true`) | `secondary_target_hidden` | `blocks[i].content.secondary_target` |
+| any visible block with `style.background = "image"` and `style.image` null/missing | `style_image_missing` | `blocks[i].style.image` |
+
+Issue order: per block in document order — hero `hero_title_missing`, `hero_video_missing`,
+`hero_collage_images_missing`, `secondary_target_hidden`; other blocks `block_incomplete`; then `style_image_missing` —
+followed by the existing document-level issues. The §2.1 table is otherwise unchanged.
+
+**Media kind `logo`** (§3.4): `POST /v2/me/company/site/media` accepts `kind=logo`: PNG or WebP only (alpha kept;
+JPEG → 415 `unsupported_media_type`), 64–6,000 px per side (below → 422 `image_too_small`), ≤ 5 MB, same magic-byte
+detection and metadata stripping. Other kinds are unchanged (JPEG/PNG/WebP, 200–6,000 px). Migration 00066 relaxes the
+`company_site_media` CHECKs accordingly; its Down refuses while any `logo` media exists.
+
 ## 3. Private endpoints (`requireAuth` + `requireRecruiter`, member of the company; `Cache-Control: no-store`)
 
 ### 3.1 `GET /v2/me/company/site`
@@ -161,13 +301,13 @@ Body: full site document. `If-Match: "<draft_version>"` required (428 `precondit
 - `publish`: `If-Match: "<draft_version>"` — publishes exactly that version. 200 same shape as 3.1. 412 if the draft
   changed. 403 `forbidden` for non-owners (`requireOwner`). 422 `publish_blocked` with
   `issues: [{ "code": "slug_missing" | "hero_title_missing" | "no_content_block" | "block_incomplete" |
-  "company_logo_missing" | "company_name_missing", "field": "blocks[2]" | "slug" | null }]` — `no_content_block` means no
+  "company_logo_missing" | "company_name_missing" | the §2.3 codes, "field": "blocks[2]" | "slug" | null }]` — `no_content_block` means no
   visible block other than hero and jobs; `block_incomplete` means a visible block below its publish minimums.
 - `unpublish`: 200; the public read returns 404 afterwards. Idempotent.
 - Changing the slug and publishing moves the public URL; the previous published slug answers a redirect (§4.1).
 
 ### 3.4 `POST /v2/me/company/site/media`
-`multipart/form-data`: `kind` (`cover` | `gallery` | `portrait` | `story`) and `file`. The frontend crops client-side
+`multipart/form-data`: `kind` (`cover` | `gallery` | `portrait` | `story` | `logo` — §2.3) and `file`. The frontend crops client-side
 (cover 16:9, gallery 4:3, portrait 1:1, story free) and uploads the result.
 - Accept JPEG, PNG, WebP by **magic bytes**; ≤ 5 MB; 200–6,000 px per side; strip EXIF; store via the existing storage
   port (S3 in production). 201 `{ id, kind, url, width, height, content_type }`.
