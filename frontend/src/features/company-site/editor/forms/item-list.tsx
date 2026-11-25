@@ -1,23 +1,33 @@
 "use client";
 
-import { useId, useRef, useState, type ReactNode } from "react";
-import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { useId, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
+import { useDraggable } from "@dnd-kit/core";
 import { ArrowDown, ArrowUp, Ellipsis, GripVertical, Plus, Trash2 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SectionEmpty } from "@/components/feedback/state-card";
-import type { LucideIcon } from "lucide-react";
 import { FieldError } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
+import { DRAG_ROW_MOTION, SortableList, useListDrag } from "../dnd/use-list-drag";
 
-function Row({ id, title, index, count, min, move, remove, children }: { id: string; title: string; index: number; count: number; min: number; move: (from: number, to: number) => void; remove: (index: number) => void; children: ReactNode }) {
-  const drag = useDraggable({ id }); const drop = useDroppable({ id });
-  return <AccordionItem value={id} ref={node => { drag.setNodeRef(node); drop.setNodeRef(node); }} className={cn(drag.isDragging && "opacity-50", drop.isOver && "ring-2 ring-inset ring-ring")}>
-    {/* The drag handle and action menu are siblings, never nested in the disclosure button. */}
-    <div className="flex min-w-0 items-center gap-2">
-      <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 touch-none" ref={drag.setActivatorNodeRef} {...drag.listeners} {...drag.attributes} aria-label={`Arrastrar elemento ${index + 1}`}><GripVertical aria-hidden="true" /></Button>
+type Drag = ReturnType<typeof useListDrag>;
+const INSTRUCTIONS = "Para mover un elemento, pulsa Espacio o Enter en su manija, usa las flechas arriba y abajo y vuelve a pulsar Espacio o Enter para soltarlo; Escape cancela. También puedes usar Subir y Bajar en el menú de acciones.";
+
+function Row({ id, title, index, count, min, move, remove, drag, children }: { id: string; title: string; index: number; count: number; min: number; move: (from: number, to: number) => void; remove: (index: number) => void; drag: Drag; children: ReactNode }) {
+  const draggable = useDraggable({ id, attributes: { roleDescription: "manija de arrastre" } });
+  const { ref: rowRef, ...rowAttrs } = drag.rowProps(id);
+  const { ref: gripRef, ...grip } = drag.gripProps(id);
+  return <AccordionItem value={id} ref={rowRef} {...rowAttrs}
+    className={cn("relative", DRAG_ROW_MOTION,
+      "data-[drag=placeholder]:rounded-xl data-[drag=placeholder]:border-transparent data-[drag=placeholder]:bg-primary/5 data-[drag=placeholder]:outline-2 data-[drag=placeholder]:outline-primary/50 data-[drag=placeholder]:outline-dashed data-[drag=placeholder]:*:opacity-0",
+      "data-[drag=lifted]:z-10 data-[drag=lifted]:rounded-xl data-[drag=lifted]:bg-card data-[drag=lifted]:shadow-lg data-[drag=lifted]:ring-2 data-[drag=lifted]:ring-primary dark:data-[drag=lifted]:ring-primary-text")}>
+    {/* The drag handle and action menu are siblings, never nested in the disclosure button.
+        The header row is the drag node, so the floating copy is one row tall even when open. */}
+    <div ref={draggable.setNodeRef} className="flex min-w-0 items-center gap-2">
+      <Button type="button" variant="ghost" size="icon" ref={node => { draggable.setActivatorNodeRef(node); gripRef(node); }} {...draggable.listeners} {...draggable.attributes} {...grip} aria-label={`Arrastrar elemento ${index + 1}`}
+        className="size-10 shrink-0 cursor-grab touch-manipulation text-muted-foreground select-none [-webkit-touch-callout:none] active:cursor-grabbing"><GripVertical aria-hidden="true" /></Button>
       <span title={title} className="min-w-0 flex-1 line-clamp-2 break-words text-sm font-medium">{title}</span>
       <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10 shrink-0" />} aria-label={`Acciones de elemento ${index + 1}`}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
         <DropdownMenuContent align="end"><DropdownMenuGroup>
@@ -33,9 +43,16 @@ function Row({ id, title, index, count, min, move, remove, children }: { id: str
     <AccordionContent><div className="flex min-w-0 flex-col gap-5">{children}</div></AccordionContent>
   </AccordionItem>;
 }
+/** Floating copy of the header row that follows the pointer. */
+function ItemOverlay({ title }: { title: string }) {
+  return <div data-drag-overlay="" className="flex size-full cursor-grabbing items-center gap-2 rounded-xl bg-card pr-3 shadow-lg ring-1 ring-border motion-safe:scale-[1.02] dark:ring-foreground/15">
+    <span className="flex size-10 shrink-0 items-center justify-center text-muted-foreground"><GripVertical className="size-4" aria-hidden="true" /></span>
+    <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
+  </div>;
+}
 /** Wire items have no ids. Local identities travel with the item on moves and
  * removals so disclosure, focus, and buffered fields don't attach to another item. */
-export function ItemList<T>({ items, onChange, create, summary, children, min, max, error, empty }: { empty?: { title: string; description: string; action: string; icon: LucideIcon };  items: T[]; onChange: (items: T[]) => void; create: () => T; summary: (item: T, index: number) => string; children: (item: T, index: number) => ReactNode; min: number; max: number; error?: string }) {
+export function ItemList<T>({ items, onChange, create, summary, children, min, max, error, empty }: { empty?: { title: string; description: string; action: string; icon: ComponentType<SVGProps<SVGSVGElement>> };  items: T[]; onChange: (items: T[]) => void; create: () => T; summary: (item: T, index: number) => string; children: (item: T, index: number) => ReactNode; min: number; max: number; error?: string }) {
   const prefix = useId(); const serial = useRef(items.length);
   const [keys, setKeys] = useState(() => items.map((_, i) => `${prefix}-${i}`));
   const [open, setOpen] = useState<string[]>(() => keys.slice(0, 1));
@@ -45,7 +62,6 @@ export function ItemList<T>({ items, onChange, create, summary, children, min, m
     ids = items.map((_, i) => keys[i] ?? `${prefix}-${serial.current++}`);
     setKeys(ids);
   }
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   function move(from: number, to: number) {
     if (from === to || from < 0 || to < 0 || to >= items.length) return;
     const next = [...items]; const nextKeys = [...ids];
@@ -58,7 +74,8 @@ export function ItemList<T>({ items, onChange, create, summary, children, min, m
     setKeys(remaining); setOpen(remaining[Math.min(index, remaining.length - 1)] ? [remaining[Math.min(index, remaining.length - 1)]] : []);
     onChange(items.filter((_, i) => i !== index));
   }
-  function drop({ active, over }: DragEndEvent) { if (over) move(ids.indexOf(String(active.id)), ids.indexOf(String(over.id))); }
+  const titleOf = (id: string) => { const index = ids.indexOf(id); return index < 0 ? "Elemento" : summary(items[index], index); };
+  const drag = useListDrag({ ids, label: titleOf, instructions: INSTRUCTIONS, onMove: (id, to) => move(ids.indexOf(id), to) });
   function add() {
     if (items.length >= max) return;
     const key = `${prefix}-${serial.current++}`;
@@ -68,14 +85,9 @@ export function ItemList<T>({ items, onChange, create, summary, children, min, m
     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Para publicar: de {min} a {max} elementos.</p><Badge variant="secondary">{items.length}/{max}</Badge></div>
     {error && <FieldError>{error}</FieldError>}
     {items.length === 0 && empty ? <SectionEmpty icon={empty.icon} tone="info" title={empty.title} description={empty.description} primaryAction={{ label: empty.action, onClick: add, disabled: items.length >= max, "aria-describedby": `${prefix}-limit` }} /> :
-      <DndContext sensors={sensors} onDragEnd={drop} accessibility={{ screenReaderInstructions: { draggable: "Arrastra desde la manija o usa Subir y Bajar en el menú de acciones." }, announcements: {
-        onDragStart: ({ active }) => `Moviendo elemento ${ids.indexOf(String(active.id)) + 1}.`,
-        onDragOver: ({ over }) => over ? `Destino: posición ${ids.indexOf(String(over.id)) + 1}.` : "Fuera de la lista.",
-        onDragEnd: ({ over }) => over ? `Nueva posición: ${ids.indexOf(String(over.id)) + 1}.` : "Se conservó el orden.",
-        onDragCancel: () => "Movimiento cancelado.",
-      } }}>
-        <Accordion value={open} onValueChange={setOpen}>{items.map((item, index) => <Row key={ids[index]} id={ids[index]} title={summary(item, index)} index={index} count={items.length} min={min} move={move} remove={remove}>{children(item, index)}</Row>)}</Accordion>
-      </DndContext>}
+      <SortableList drag={drag} overlay={session => <ItemOverlay title={titleOf(session.id)} />}>
+        <Accordion value={open} onValueChange={setOpen}>{items.map((item, index) => <Row key={ids[index]} id={ids[index]} title={summary(item, index)} index={index} count={items.length} min={min} move={move} remove={remove} drag={drag}>{children(item, index)}</Row>)}</Accordion>
+      </SortableList>}
     {(items.length > 0 || !empty) && <Button type="button" variant="outline" className="min-h-10" disabled={items.length >= max} aria-describedby={`${prefix}-limit`} onClick={add}><Plus aria-hidden="true" data-icon="inline-start" />Agregar</Button>}
     <p id={`${prefix}-limit`} className="text-xs text-muted-foreground">{items.length >= max ? `Llegaste al límite de ${max} elementos.` : items.length <= min && items.length > 0 ? `Conserva al menos ${min} ${min === 1 ? "elemento" : "elementos"} para publicar.` : "Puedes cambiar el orden con la manija o desde el menú de cada elemento."}</p>
   </div>;
