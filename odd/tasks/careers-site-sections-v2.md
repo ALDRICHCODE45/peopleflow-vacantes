@@ -51,3 +51,11 @@ picks a direction, coordinated with the backend session.
   theme/palette combination, no horizontal overflow at the declared widths, visible keyboard focus, reduced motion
   shows final figures and stops the loops. Deviations from `design/system.md` are listed in `self-check.md`. No direction
   is chosen yet; the user picks before T2/T3.
+- **L3** (2026-11-25) User, verbatim: «Me gustan los estilos de las 2 y las 3.y me gusta la opcion para editar "Estilo de
+  seccion" (1440), pero siempre y cuando se mantenga el hecho de poder redimencionar la seccion de la edicion y la seccion
+  de la vista previa y se pueda seguir escondiendo el "editor" me sigues?? que sea todo muy organico y pueda esconder o
+  redimencionar las secciones.» → directions 02 (Bento moderno) and 03 (Humano y fotográfico) both kept: their section
+  designs become layout options per section (proposed by the agent; e.g. Portada «Fondo en movimiento» from 02 and
+  «Foto con vacantes recientes» from 03), and 07's «Estilo de sección» group is adopted inside the current editor whose
+  side panels stay resizable and collapsible (list, preview, properties; preview focus mode), properties scrolling on
+  their own with collapsible groups. Open: hero video source, «Dejar mi CV» destination.
