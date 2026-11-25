@@ -65,3 +65,7 @@ truncated select values). Design first with options on the canvas, then implemen
   descriptions clamped; audit table needs horizontal scroll at 1440; arrow keys in Acción and from the search; focus lost
   after removing a chip; date fields truncated; header summary line missing; «Sin etiqueta» instead of «—»; phone detail
   `dl` not focusable (axe). Data: one «Exportó la auditoría» event.
+- **L6** Fix round `e7f95a7f` (14 items) + `33063a76` (IP header width, summary at 0 events). Full suite at `e7f95a7f`:
+  646 files / 11836 passed, tsc 0, lint 0 errors; `33063a76` related 5 files / 87 passed. Browser re-check on the
+  production build: all 14 fixes pass, axe 0 on 31 screens/states; only the «IP y navegador» header was truncated (fixed
+  in `33063a76`). Merged to local main.
