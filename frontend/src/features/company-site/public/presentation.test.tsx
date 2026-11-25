@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import "@testing-library/jest-dom/vitest";
@@ -71,6 +71,67 @@ it("only editor mode exposes selectable empty sections and selected outline", ()
   expect(section).toHaveAttribute("data-editor-selected", "true");
   fireEvent.click(section); expect(select).toHaveBeenCalledWith(story.id);
   fireEvent.keyDown(section, { key: "Enter" }); expect(select).toHaveBeenCalledTimes(2);
+});
+describe("drag insertion line (S4)", () => {
+  // hero, story, faq, jobs, closing
+  function site(change: (blocks: ReturnType<typeof defaultBlock>[]) => void = () => {}) {
+    const data = publishedFixture();
+    data.site.blocks = [data.site.blocks.find(block => block.type === "hero")!, defaultBlock("story"), defaultBlock("faq"), data.site.blocks.find(block => block.type === "jobs")!, defaultBlock("closing")];
+    change(data.site.blocks);
+    return data;
+  }
+  function draw(data: ReturnType<typeof site>, dragPreview: { activeId: string; toIndex: number; allowed: boolean } | null, editor = true) {
+    return render(<CompanySitePresentation site={data.site} company={data.company} jobs={[]} officeLabels={new Map()} dragPreview={dragPreview} {...(editor ? { onSelectBlock: vi.fn() } : {})} />).container;
+  }
+  const line = (container: HTMLElement) => container.querySelectorAll("[data-editor-drop-line]");
+  const typeOf = (node: Element | null | undefined) => node?.getAttribute("data-block-type") ?? null;
+  it.each([
+    ["moving up", "closing", 1, "hero", "story"],
+    ["moving down", "story", 3, "jobs", "closing"],
+    ["moving down by one", "story", 2, "faq", "jobs"],
+    ["to the end", "story", 4, "closing", null],
+  ] as const)("draws one line at the landing gap when %s, ignoring the dragged section's own slot", (_case, type, toIndex, before, after) => {
+    const data = site(); const dragged = data.site.blocks.find(block => block.type === type)!;
+    const container = draw(data, { activeId: dragged.id, toIndex, allowed: true });
+    expect(line(container)).toHaveLength(1);
+    const drop = line(container)[0];
+    expect(drop).toHaveAttribute("aria-hidden", "true");
+    expect(drop).toHaveTextContent("Soltar aquí");
+    expect(typeOf(drop.previousElementSibling)).toBe(before);
+    expect(typeOf(drop.nextElementSibling)).toBe(after);
+    expect(container.querySelector(`[id="bloque-${dragged.id}"]`)).toHaveAttribute("data-editor-dragging", "true");
+    expect(container.querySelectorAll("[data-editor-dragging]")).toHaveLength(1);
+  });
+  it("marks the dragged section without dimming its text (axe color-contrast mid-drag)", () => {
+    const data = site(); const story = data.site.blocks[1];
+    const container = draw(data, { activeId: story.id, toIndex: 3, allowed: true });
+    const dragged = container.querySelector(`[id="bloque-${story.id}"]`) as HTMLElement;
+    expect(dragged.className).not.toMatch(/opacity/);
+    expect(dragged).toHaveClass("data-editor-dragging:after:border-dashed", "data-editor-dragging:after:border-(--editor-primary)");
+    for (const section of container.querySelectorAll<HTMLElement>("section")) expect(section.className).not.toMatch(/opacity-\d/);
+  });
+  it("skips hidden sections when finding the gap", () => {
+    const data = site(blocks => { blocks[1] = { ...blocks[1], hidden: true }; });
+    const closing = data.site.blocks[4];
+    const container = draw(data, { activeId: closing.id, toIndex: 2, allowed: true });
+    expect(typeOf(line(container)[0].previousElementSibling)).toBe("hero");
+    expect(typeOf(line(container)[0].nextElementSibling)).toBe("faq");
+  });
+  it("draws nothing when idle, unchanged or forbidden", () => {
+    const data = site(); const story = data.site.blocks[1];
+    for (const preview of [null, { activeId: story.id, toIndex: 1, allowed: true }, { activeId: story.id, toIndex: 0, allowed: false }]) {
+      const container = draw(data, preview);
+      expect(line(container)).toHaveLength(0);
+      cleanup();
+    }
+  });
+  it("never renders drag affordances on the public page", () => {
+    const data = site(); const story = data.site.blocks[1];
+    const container = draw(data, { activeId: story.id, toIndex: 3, allowed: true }, false);
+    expect(line(container)).toHaveLength(0);
+    expect(container.querySelector("[data-editor-dragging]")).toBeNull();
+    expect(container.innerHTML).not.toContain("Soltar aquí");
+  });
 });
 it("resolves office labels through the shared catalogs, preserving fallback on failure", async () => {
   const office = defaultBlock("offices");

@@ -1,20 +1,52 @@
 import type { SaveInput } from "./api/client";
 import type { Failure, SiteResult, SiteState } from "./api/model";
 import { createEditorState, editorReducer, sameDraft, type EditorAction, type EditorState } from "./editor-state";
+import { breakStep, createHistory, diffPath, recordStep, redoStep, undoStep, type History, type HistoryFocus } from "./history";
+import type { SiteDraft } from "./model";
 
 export type AutosaveStatus =
   | { kind: "idle" | "saving" | "offline" | "invalid" }
   | { kind: "saved"; at: number }
   | { kind: "conflict"; current: SiteState }
   | { kind: "error"; failure: Failure };
-export type AutosaveSnapshot = { editor: EditorState; status: AutosaveStatus };
-export type EditAction = Exclude<EditorAction, { type: "load" | "saved" | "invalid" }>;
+export type HistoryState = { canUndo: boolean; canRedo: boolean };
+export type AutosaveSnapshot = { editor: EditorState; status: AutosaveStatus; history: HistoryState };
+export type EditAction = Exclude<EditorAction, { type: "load" | "saved" | "invalid" | "restore" }>;
+/** Where an undo/redo landed: the section to show, or the tab that owns the change. */
+export type HistoryTarget = { blockId: string | null; area: "sections" | "brand" | "settings" };
+
+function historyFocus(action: EditAction): HistoryFocus | null {
+  switch (action.type) {
+    case "select": return null;
+    case "theme": return { kind: "brand" };
+    case "seo": case "slug": return { kind: "settings" };
+    case "add": case "insert": return { kind: "block", id: action.block.id };
+    case "duplicate": return { kind: "block", id: action.newId };
+    default: return { kind: "block", id: action.id };
+  }
+}
+/** Same action kind on the same block/field path coalesces; structural edits never do. */
+function historyKey(action: EditAction, before: SiteDraft): string | null {
+  const path = (a: unknown, b: unknown) => diffPath(a, b);
+  switch (action.type) {
+    case "slug": return "slug";
+    case "theme": { const p = path(before.theme, action.theme); return p === null ? null : `theme:${p}`; }
+    case "seo": { const p = path(before.seo, action.seo); return p === null ? null : `seo:${p}`; }
+    case "content": {
+      const p = path(before.blocks.find(block => block.id === action.id)?.content, action.content);
+      return p === null ? null : `content:${action.id}:${p}`;
+    }
+    default: return null;
+  }
+}
 export type SaveDraft = (input: SaveInput) => Promise<SiteResult>;
 export type FlushResult = { ok: true; version: number } | { ok: false; reason: "conflict" | "offline" | "invalid" | "error" | "unauthenticated" };
 
 /** One controller per editor session; its owner calls dispose when leaving the editor. */
 export function createAutosave(initial: SiteState, etag: string, save: SaveDraft, debounceMs = 1500) {
-  let snapshot: AutosaveSnapshot = { editor: createEditorState(initial, etag), status: { kind: "idle" } };
+  let history: History<SiteDraft> = createHistory();
+  const historyState = (): HistoryState => ({ canUndo: history.past.length > 0, canRedo: history.future.length > 0 });
+  let snapshot: AutosaveSnapshot = { editor: createEditorState(initial, etag), status: { kind: "idle" }, history: historyState() };
   let timer: ReturnType<typeof setTimeout> | undefined;
   let inFlight = false; let due = false; let disposed = false;
   // After an uncertain save the server may hold the unconfirmed document, so a
@@ -45,7 +77,7 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
   const listeners = new Set<() => void>();
   const onlineCleanups = new Set<() => void>();
   const emit = (editor: EditorState, status: AutosaveStatus) => {
-    snapshot = { editor, status }; listeners.forEach(listener => listener());
+    snapshot = { editor, status, history: historyState() }; listeners.forEach(listener => listener());
   };
   function cancelPending() { clearTimeout(timer); timer = undefined; due = false; }
   function schedule() {
@@ -92,6 +124,27 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
     else emit(snapshot.editor, { kind: "error", failure: result });
     settleFlush(failure() ?? { ok: false, reason: "error" });
   }
+  function commit(before: EditorState, editor: EditorState) {
+    const edited = !sameDraft(before.draft, editor.draft);
+    // Returning to the confirmed saved draft leaves nothing to fix or save.
+    const settled = edited && !editor.dirty && !inFlight && !unconfirmed && snapshot.status.kind === "invalid";
+    emit(editor, settled ? { kind: "idle" } : snapshot.status);
+    if (!edited || snapshot.status.kind === "conflict") return;
+    if (!editor.dirty && !inFlight && !unconfirmed) cancelPending(); else schedule();
+  }
+  function travel(direction: "undo" | "redo"): HistoryTarget | null {
+    if (disposed) return null;
+    const before = snapshot.editor;
+    const moved = (direction === "undo" ? undoStep : redoStep)(history, { value: before.draft, selection: before.selectedId }, sameDraft);
+    if (!moved) return null;
+    history = moved.history;
+    const { value: draft, focus, selection } = moved.step;
+    const exists = (id: string | null) => id !== null && draft.blocks.some(block => block.id === id);
+    // Show the section that changed; when it no longer exists (undo of an add), go back to the selection of that time.
+    const selectedId = focus?.kind === "block" ? exists(focus.id) ? focus.id : exists(selection) ? selection : null : exists(before.selectedId) ? before.selectedId : null;
+    commit(before, editorReducer(before, { type: "restore", draft, selectedId }));
+    return focus?.kind === "brand" || focus?.kind === "settings" ? { blockId: null, area: focus.kind } : { blockId: selectedId, area: "sections" };
+  }
   return {
     flush: flushLatest,
     /** Explicit retry never bypasses authentication or conflict resolution. */
@@ -109,13 +162,16 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
       if (disposed) return;
       const before = snapshot.editor;
       const editor = editorReducer(before, action);
-      const edited = !sameDraft(before.draft, editor.draft);
-      // Returning to the confirmed saved draft leaves nothing to fix or save.
-      const settled = edited && !editor.dirty && !inFlight && !unconfirmed && snapshot.status.kind === "invalid";
-      emit(editor, settled ? { kind: "idle" } : snapshot.status);
-      if (!edited || snapshot.status.kind === "conflict") return;
-      if (!editor.dirty && !inFlight && !unconfirmed) cancelPending(); else schedule();
+      if (!sameDraft(before.draft, editor.draft)) {
+        history = recordStep(history, { value: before.draft, selection: before.selectedId, focus: historyFocus(action) }, historyKey(action, before.draft), Date.now());
+      }
+      commit(before, editor);
     },
+    /** Restore the previous draft as an ordinary edit (it autosaves). */
+    undo: () => travel("undo"),
+    redo: () => travel("redo"),
+    /** Close the current typing step (blur, explicit boundary). */
+    checkpoint() { history = breakStep(history); },
     attachOnline(target: Pick<EventTarget, "addEventListener" | "removeEventListener">) {
       const online = () => { if (snapshot.status.kind === "offline") void flush(); };
       target.addEventListener("online", online);
@@ -127,7 +183,9 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
       if (disposed || snapshot.status.kind !== "conflict") return;
       const local = snapshot.editor.draft;
       let editor = createEditorState(current, currentEtag);
-      if (choice === "keep-local") editor = { ...editor, draft: local, dirty: !sameDraft(local, editor.lastSaved) };
+      // The server copy replaces the history; keeping local edits keeps their history.
+      history = choice === "use-server" ? createHistory() : breakStep(history);
+      if (choice === "keep-local") editor = { ...editor, draft: local, dirty: !sameDraft(local, editor.lastSaved), selectedId: snapshot.editor.selectedId };
       emit(editor, { kind: "idle" });
       if (editor.dirty) schedule();
     },

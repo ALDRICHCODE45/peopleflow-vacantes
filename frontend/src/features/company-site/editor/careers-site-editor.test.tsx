@@ -72,7 +72,8 @@ it("keeps a long section name from running under its indicators", async () => {
   render(<CareersSiteEditor {...fixture()} />); await screen.findByRole("heading", { name: "Tu página" });
   const row = screen.getByRole("button", { name: "Seleccionar Vacantes abiertas" }).closest('[role="listitem"]') as HTMLElement;
   const name = within(row).getByText("Vacantes abiertas");
-  expect(name).toHaveClass("truncate", "max-w-full");
+  expect(name).toHaveClass("line-clamp-2", "whitespace-normal");
+  expect(name).not.toHaveClass("truncate");
   expect(name.closest("[data-slot='item-content']")).toHaveClass("overflow-hidden", "min-w-0");
 });
 it("shows only the selected section heading and description in the mobile properties Sheet", async () => {
@@ -192,7 +193,6 @@ it("shows the nothing-selected properties state after deleting the selected bloc
   await screen.findByRole("heading", { name: "Tu página" });
   fireEvent.click(within(row("Historia")).getByRole("button", { name: "Seleccionar Historia" }));
   fireEvent.click(within(row("Historia")).getByRole("menuitem", { name: "Eliminar" }));
-  fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Eliminar sección" }));
   const panel = screen.getByRole("complementary", { name: "Propiedades de la sección" });
   const heading = within(panel).getByRole("heading", { name: "Selecciona una sección para verla aquí", level: 3 });
   expect(within(panel).getByText("Elige una sección de la lista o de la vista previa para cambiar su contenido y diseño.")).toBeVisible();
@@ -200,13 +200,16 @@ it("shows the nothing-selected properties state after deleting the selected bloc
   expect(heading.closest('[data-slot="empty"]')?.querySelector("svg")).toHaveClass("lucide-layout-template");
   expect(within(panel).queryByRole("button")).not.toBeInTheDocument();
 });
-it("reorders with keyboard actions, hides/shows, duplicates and confirms deletion", async () => {
+it("reorders with keyboard actions, hides/shows, duplicates and deletes without a confirmation", async () => {
   const props = fixture(); props.initialSite.draft.blocks.splice(1, 0, defaultBlock("story"));
   render(<CareersSiteEditor {...props} />); await screen.findByRole("heading", { name: "Tu página" });
   const user = userEvent.setup();
-  const up = within(row("Historia")).getByRole("menuitem", { name: "Subir" }); up.focus(); await user.keyboard("{Enter}");
-  expect(within(list()).getAllByRole("listitem")[0]).toHaveTextContent("Historia");
+  // Directly under Portada, Historia can't go up (S4); it goes down and back up.
+  expect(within(row("Historia")).getByRole("menuitem", { name: "Subir" })).toHaveAttribute("aria-disabled", "true");
   const down = within(row("Historia")).getByRole("menuitem", { name: "Bajar" }); down.focus(); await user.keyboard("{Enter}");
+  expect(within(list()).getAllByRole("listitem").map(item => item.textContent)).toEqual([expect.stringContaining("Portada"), expect.stringContaining("Vacantes abiertas"), expect.stringContaining("Historia")]);
+  const up = within(row("Historia")).getByRole("menuitem", { name: "Subir" }); up.focus(); await user.keyboard("{Enter}");
+  expect(within(list()).getAllByRole("listitem")[1]).toHaveTextContent("Historia");
   expect(within(list()).getAllByRole("listitem")[0]).toHaveTextContent("Portada");
   await user.click(within(row("Historia")).getByRole("switch", { name: "Mostrar Historia" }));
   expect(row("Historia")).toHaveTextContent("Oculta");
@@ -216,15 +219,11 @@ it("reorders with keyboard actions, hides/shows, duplicates and confirms deletio
   expect(within(list()).getAllByRole("button", { name: "Seleccionar Historia" })).toHaveLength(2);
   const rows = within(list()).getAllByRole("listitem");
   await user.click(within(rows[1]).getByRole("menuitem", { name: "Eliminar" }));
-  const confirm = await screen.findByRole("alertdialog");
-  expect(within(confirm).getByRole("button", { name: "Cancelar" })).toHaveFocus();
-  expect(within(rows[1].parentElement!).getAllByRole("button", { name: "Seleccionar Historia", hidden: true })).toHaveLength(2);
-  await user.click(within(confirm).getByRole("button", { name: "Cancelar" }));
-  await user.click(within(rows[1]).getByRole("menuitem", { name: "Eliminar" }));
-  await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Eliminar sección" }));
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(screen.queryByText(/no se puede deshacer/)).toBeNull();
   expect(within(list()).getAllByRole("button", { name: "Seleccionar Historia" })).toHaveLength(1);
 });
-it("protects hero and jobs without forbidding their model-supported reordering", async () => {
+it("protects hero and jobs; Portada stays first and Vacantes can't go above it", async () => {
   await mount();
   for (const label of ["Portada", "Vacantes abiertas"]) {
     expect(within(row(label)).getByRole("switch")).toBeDisabled();
@@ -232,8 +231,46 @@ it("protects hero and jobs without forbidding their model-supported reordering",
     expect(within(row(label)).getByRole("menuitem", { name: "Eliminar" })).toHaveAttribute("aria-disabled", "true");
   }
   expect(within(row("Portada")).getByRole("menuitem", { name: "Subir" })).toHaveAttribute("aria-disabled", "true");
+  expect(within(row("Portada")).getByRole("menuitem", { name: "Bajar" })).toHaveAttribute("aria-disabled", "true");
+  expect(within(row("Vacantes abiertas")).getByRole("menuitem", { name: "Subir" })).toHaveAttribute("aria-disabled", "true");
   expect(within(row("Vacantes abiertas")).getByRole("menuitem", { name: "Bajar" })).toHaveAttribute("aria-disabled", "true");
+  expect(row("Portada")).toHaveTextContent("Portada siempre va primero.");
+  expect(row("Vacantes abiertas")).toHaveTextContent("Portada siempre va primero.");
   expect(row("Vacantes abiertas")).not.toHaveTextContent("Incompleta");
+});
+it("Subir/Bajar move one step as one undo step and never past Portada", async () => {
+  const props = fixture(); props.initialSite.draft.blocks.push(defaultBlock("story"), defaultBlock("faq"));
+  render(<CareersSiteEditor {...props} />); await screen.findByRole("heading", { name: "Tu página" });
+  const user = userEvent.setup();
+  const order = () => within(list()).getAllByRole("button", { name: /^Seleccionar / }).map(button => button.getAttribute("aria-label")!.replace("Seleccionar ", ""));
+  expect(order()).toEqual(["Portada", "Vacantes abiertas", "Historia", "Preguntas frecuentes"]);
+  expect(within(row("Preguntas frecuentes")).getByRole("menuitem", { name: "Bajar" })).toHaveAttribute("aria-disabled", "true");
+  expect(row("Preguntas frecuentes")).not.toHaveTextContent("Portada siempre va primero.");
+  const up = within(row("Preguntas frecuentes")).getByRole("menuitem", { name: "Subir" }); up.focus(); await user.keyboard("{Enter}");
+  expect(order()).toEqual(["Portada", "Vacantes abiertas", "Preguntas frecuentes", "Historia"]);
+  const again = within(row("Preguntas frecuentes")).getByRole("menuitem", { name: "Subir" }); again.focus(); await user.keyboard("{Enter}");
+  expect(order()).toEqual(["Portada", "Preguntas frecuentes", "Vacantes abiertas", "Historia"]);
+  expect(within(row("Preguntas frecuentes")).getByRole("menuitem", { name: "Subir" })).toHaveAttribute("aria-disabled", "true");
+  // fireEvent: userEvent's pointer-events walk over the whole editor is very slow in jsdom.
+  fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+  expect(order()).toEqual(["Portada", "Vacantes abiertas", "Preguntas frecuentes", "Historia"]);
+});
+it("draws the preview's insertion line while a section is dragged, and nothing at a forbidden spot", async () => {
+  const props = fixture(); props.initialSite.draft.blocks.splice(1, 0, defaultBlock("story"));
+  render(<CareersSiteEditor {...props} />); await screen.findByRole("heading", { name: "Tu página" });
+  const doc = () => (screen.getByTitle("Vista previa del sitio") as HTMLIFrameElement).contentDocument!;
+  const handle = within(list()).getByRole("button", { name: "Arrastrar Historia" }); act(() => handle.focus());
+  expect(doc().querySelector("[data-editor-drop-line]")).toBeNull();
+  fireEvent.keyDown(handle, { key: " " });
+  expect(doc().querySelector('[data-editor-dragging="true"]')).toHaveAttribute("data-block-type", "story");
+  fireEvent.keyDown(handle, { key: "ArrowDown" });
+  const drop = doc().querySelector("[data-editor-drop-line]")!;
+  expect(drop.previousElementSibling).toHaveAttribute("data-block-type", "jobs");
+  fireEvent.keyDown(handle, { key: "Home" });
+  expect(doc().querySelector("[data-editor-drop-line]")).toBeNull();
+  fireEvent.keyDown(handle, { key: "Escape" });
+  expect(doc().querySelector("[data-editor-drop-line]")).toBeNull();
+  expect(doc().querySelector("[data-editor-dragging]")).toBeNull();
 });
 it("selects from list and preview, changes real variant markers and device width", async () => {
   await mount(); const user = userEvent.setup();

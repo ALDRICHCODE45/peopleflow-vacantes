@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutosave, autosaveLabel } from "./autosave";
-import { defaultSiteDraft } from "./defaults";
+import { defaultBlock, defaultSiteDraft } from "./defaults";
 import type { SiteResult, SiteState } from "./api/model";
 const data = (): SiteState => ({ draft: defaultSiteDraft(), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" });
 const deferred = () => { let resolve!: (result: SiteResult) => void; const promise = new Promise<SiteResult>(r => { resolve = r; }); return { promise, resolve }; };
@@ -191,4 +191,94 @@ it("reports saved time, no-op versions, error and exact Spanish labels", async (
   c.dispatch({ type: "slug", slug: "local" }); await vi.advanceTimersByTimeAsync(1500); expect(c.getSnapshot().status).toEqual({ kind: "saved", at: expect.any(Number) }); expect(c.getSnapshot().editor.draft_version).toBe(1);
   expect(autosaveLabel({ kind: "saving" })).toBe("Guardando…"); expect(autosaveLabel({ kind: "saved", at: 0 }, 120000)).toBe("Guardado hace 2 min"); expect(autosaveLabel({ kind: "offline" })).toBe("Sin conexión · tus cambios se guardarán al reconectar"); expect(autosaveLabel({ kind: "conflict", current: initial })).toBe("Alguien más editó este sitio");
   save.mockRejectedValueOnce(new Error("offline")); c.dispatch({ type: "slug", slug: "again" }); await vi.advanceTimersByTimeAsync(1500); expect(c.getSnapshot().status.kind).toBe("offline"); c.dispose();
+});
+describe("undo/redo history", () => {
+  const echo = (initial: SiteState) => vi.fn().mockImplementation(async ({ body }) => ({ kind: "success", data: { ...initial, draft: body, draft_version: 2 }, etag: '"2"' }));
+  const withStory = () => { const initial = data(); initial.draft.blocks.splice(1, 0, defaultBlock("story")); return initial; };
+  it("starts empty, undoes and redoes a draft change, and autosaves the result like any edit", async () => {
+    const initial = data(); const save = echo(initial); const c = createAutosave(initial, '"1"', save);
+    expect(c.getSnapshot().history).toEqual({ canUndo: false, canRedo: false });
+    expect(c.undo()).toBeNull();
+    c.dispatch({ type: "slug", slug: "nexo" }); await vi.advanceTimersByTimeAsync(1500);
+    expect(save).toHaveBeenCalledTimes(1); expect(c.getSnapshot().history).toEqual({ canUndo: true, canRedo: false });
+    expect(c.undo()).toEqual({ blockId: null, area: "settings" });
+    expect(c.getSnapshot().editor.draft.slug).toBe(initial.draft.slug); expect(c.getSnapshot().history).toEqual({ canUndo: false, canRedo: true });
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(save).toHaveBeenCalledTimes(2); expect(save.mock.calls[1][0].body.slug).toBe(initial.draft.slug);
+    c.redo(); expect(c.getSnapshot().editor.draft.slug).toBe("nexo");
+    await vi.advanceTimersByTimeAsync(1500); expect(save).toHaveBeenCalledTimes(3); c.dispose();
+  });
+  it("selection is not history: selecting adds no step and undo re-selects the changed section", () => {
+    const initial = withStory(); const [hero, story] = initial.draft.blocks; const c = createAutosave(initial, '"1"', echo(initial));
+    c.dispatch({ type: "select", id: hero.id }); expect(c.getSnapshot().history.canUndo).toBe(false);
+    c.dispatch({ type: "hidden", id: story.id, hidden: true }); c.dispatch({ type: "select", id: hero.id });
+    expect(c.undo()).toEqual({ blockId: story.id, area: "sections" });
+    expect(c.getSnapshot().editor).toMatchObject({ selectedId: story.id, dirty: false });
+    expect(c.getSnapshot().editor.draft.blocks[1].hidden).toBe(false); c.dispose();
+  });
+  it("coalesces a typing burst in one field into one step; a pause, blur or another field starts a new one", () => {
+    const initial = data(); const hero = initial.draft.blocks[0]; const c = createAutosave(initial, '"1"', echo(initial));
+    const type = (title: string, subtitle: string | null = null) => c.dispatch({ type: "content", id: hero.id, content: { title, subtitle, cover: null } });
+    type("H"); vi.advanceTimersByTime(300); type("Ho"); vi.advanceTimersByTime(300); type("Hol");
+    vi.advanceTimersByTime(1000); type("Hola");
+    c.checkpoint(); type("Hola!");
+    type("Hola!", "s");
+    c.undo(); expect(c.getSnapshot().editor.draft.blocks[0].content).toMatchObject({ title: "Hola!", subtitle: null });
+    c.undo(); expect(c.getSnapshot().editor.draft.blocks[0].content).toMatchObject({ title: "Hola" });
+    c.undo(); expect(c.getSnapshot().editor.draft.blocks[0].content).toMatchObject({ title: "Hol" });
+    c.undo(); expect(c.getSnapshot().editor.draft).toEqual(initial.draft);
+    expect(c.getSnapshot().history.canUndo).toBe(false); c.dispose();
+  });
+  it("one reorder is one step; a same-place or forbidden reorder records nothing", () => {
+    const initial = withStory(); initial.draft.blocks.push(defaultBlock("faq")); const [hero, story] = initial.draft.blocks;
+    const c = createAutosave(initial, '"1"', echo(initial));
+    c.dispatch({ type: "reorder", id: story.id, toIndex: 1 }); c.dispatch({ type: "reorder", id: hero.id, toIndex: 2 });
+    expect(c.getSnapshot().history.canUndo).toBe(false);
+    c.dispatch({ type: "reorder", id: story.id, toIndex: 3 });
+    expect(c.getSnapshot().editor.draft.blocks.map(b => b.type)).toEqual(["hero", "jobs", "faq", "story"]);
+    expect(c.undo()).toEqual({ blockId: story.id, area: "sections" });
+    expect(c.getSnapshot().editor.draft).toEqual(initial.draft); expect(c.getSnapshot().history.canUndo).toBe(false); c.dispose();
+  });
+  it("undo of an add returns to the previous selection; undo of a delete restores the section in place, selected", () => {
+    const initial = withStory(); const [hero, story] = initial.draft.blocks; const c = createAutosave(initial, '"1"', echo(initial));
+    c.dispatch({ type: "select", id: hero.id });
+    const faq = defaultBlock("faq"); c.dispatch({ type: "add", block: faq }); expect(c.getSnapshot().editor.selectedId).toBe(faq.id);
+    c.undo(); expect(c.getSnapshot().editor.selectedId).toBe(hero.id); expect(c.getSnapshot().editor.draft).toEqual(initial.draft);
+    c.redo(); expect(c.getSnapshot().editor.selectedId).toBe(faq.id);
+    const beforeDelete = c.getSnapshot().editor.draft;
+    c.dispatch({ type: "delete", id: story.id }); expect(c.getSnapshot().editor.draft.blocks.some(b => b.id === story.id)).toBe(false);
+    c.undo(); expect(c.getSnapshot().editor.draft).toEqual(beforeDelete); expect(c.getSnapshot().editor.selectedId).toBe(story.id);
+    c.dispose();
+  });
+  it("a new edit after undo clears redo; history is capped at 100 steps", () => {
+    const c = createAutosave(data(), '"1"', echo(data()));
+    for (let i = 0; i < 105; i++) { c.dispatch({ type: "slug", slug: `s-${i}` }); c.checkpoint(); }
+    let undone = 0; while (c.undo()) undone++;
+    expect(undone).toBe(100); expect(c.getSnapshot().editor.draft.slug).toBe("s-4");
+    c.dispatch({ type: "slug", slug: "fresh" }); expect(c.getSnapshot().history.canRedo).toBe(false); c.dispose();
+  });
+  it("keeps history after autosave and after keep-local, clears it when the server version is loaded", async () => {
+    const initial = data(); const current = { ...initial, draft_version: 4 };
+    const save = vi.fn().mockResolvedValueOnce({ kind: "success", data: { ...initial, draft: { ...initial.draft, slug: "a" }, draft_version: 2 }, etag: '"2"' }).mockResolvedValue({ kind: "conflict", current });
+    const c = createAutosave(initial, '"1"', save);
+    c.dispatch({ type: "slug", slug: "a" }); await vi.advanceTimersByTimeAsync(1500); expect(c.getSnapshot().status.kind).toBe("saved");
+    c.dispatch({ type: "slug", slug: "b" }); await vi.advanceTimersByTimeAsync(1500); expect(c.getSnapshot().status.kind).toBe("conflict");
+    expect(c.getSnapshot().history.canUndo).toBe(true);
+    c.resolveConflict(current, '"4"', "keep-local"); expect(c.getSnapshot().history.canUndo).toBe(true);
+    c.undo(); expect(c.getSnapshot().editor.draft.slug).toBe("a");
+    await vi.advanceTimersByTimeAsync(1500); expect(c.getSnapshot().status.kind).toBe("conflict");
+    c.resolveConflict(current, '"4"', "use-server");
+    expect(c.getSnapshot().history).toEqual({ canUndo: false, canRedo: false }); c.dispose();
+  });
+  it("undo while saves are blocked by a conflict changes only the local draft", async () => {
+    const initial = data(); const save = vi.fn().mockResolvedValue({ kind: "conflict", current: initial }); const c = createAutosave(initial, '"1"', save);
+    c.dispatch({ type: "slug", slug: "a" }); await vi.advanceTimersByTimeAsync(1500);
+    c.undo(); expect(c.getSnapshot().editor.draft.slug).toBe(initial.draft.slug);
+    await vi.advanceTimersByTimeAsync(10000); expect(save).toHaveBeenCalledOnce(); expect(c.getSnapshot().status.kind).toBe("conflict"); c.dispose();
+  });
+  it("targets the brand tab for theme changes", () => {
+    const initial = data(); const c = createAutosave(initial, '"1"', echo(initial));
+    c.dispatch({ type: "theme", theme: { ...initial.draft.theme, brand_color: "#000000" } });
+    expect(c.undo()).toEqual({ blockId: null, area: "brand" }); expect(c.redo()).toEqual({ blockId: null, area: "brand" }); c.dispose();
+  });
 });

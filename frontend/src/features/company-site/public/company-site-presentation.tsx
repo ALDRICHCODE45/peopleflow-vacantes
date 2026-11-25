@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useState, type CSSProperties } from "react";
+import { Fragment, useContext, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -45,9 +45,35 @@ export function hasSiteBlockContent(block: SiteBlock): boolean {
   }
 }
 
+/** Where a section dragged in the editor's list would land (`toIndex` is its
+ * final index in `site.blocks`). Editor-only, like every affordance below. */
+type DragPreview = { activeId: string; toIndex: number; allowed: boolean } | null;
+/** Id of the visible section the dragged one would land before ("" = after the
+ * last), counted without the dragged section's own slot; null draws nothing. */
+function dropBefore(all: readonly SiteBlock[], visible: readonly SiteBlock[], drag: DragPreview): string | null {
+  const from = drag ? all.findIndex(block => block.id === drag.activeId) : -1;
+  if (!drag || !drag.allowed || from < 0 || from === drag.toIndex) return null;
+  const rest = all.filter(block => block.id !== drag.activeId);
+  const shown = new Set(visible.map(block => block.id));
+  return rest.slice(drag.toIndex).find(block => shown.has(block.id))?.id ?? "";
+}
+/** A calm 3 px editor-accent rule with a small label, laid over the gap without
+ * changing the page's height; counter-scaled like the selection outline. */
+function DropLine({ id }: { id: string }) {
+  return <div data-editor-drop-line={id} aria-hidden="true" className="pointer-events-none relative z-10 h-0">
+    <div className="absolute inset-x-0 top-[calc(-1.5px*var(--editor-inverse-scale,1))] h-[calc(3px*var(--editor-inverse-scale,1))] rounded-full bg-(--editor-primary) motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150" />
+    <span className="absolute top-0 left-1/2 origin-center -translate-x-1/2 -translate-y-1/2 [scale:var(--editor-inverse-scale,1)] rounded-full bg-(--editor-primary) px-2.5 py-0.5 font-sans text-xs font-medium text-(--editor-primary-foreground) shadow-sm">Soltar aquí</span>
+  </div>;
+}
+
+/** The section being dragged keeps its full text contrast: a dashed editor-accent
+ * frame (counter-scaled like the selection outline) and a softer saturation mark
+ * it, never a lower opacity. */
+const dragMark = "motion-safe:transition-[filter] motion-safe:duration-150 data-editor-dragging:saturate-50 data-editor-dragging:after:pointer-events-none data-editor-dragging:after:absolute data-editor-dragging:after:inset-0 data-editor-dragging:after:z-10 data-editor-dragging:after:border-dashed data-editor-dragging:after:border-(--editor-primary) data-editor-dragging:after:border-[length:calc(2px*var(--editor-inverse-scale,1))]";
+
 /** No reads, server imports or alternate rendering tree: the editor uses this exact page.
  * Editor affordances are opt-in; without onSelectBlock public markup is unchanged. */
-export function CompanySitePresentation({ site, company, jobs, jobsAvailable = true, officeLabels, selectedBlockId, onSelectBlock }: CompanySitePresentationProps) {
+export function CompanySitePresentation({ site, company, jobs, jobsAvailable = true, officeLabels, selectedBlockId, onSelectBlock, dragPreview = null }: CompanySitePresentationProps & { dragPreview?: DragPreview }) {
   const previewContainer = useContext(SitePortalContext);
   const [portalRoot, setPortalRoot] = useState<HTMLDivElement | null>(null);
   const [previewRoot, setPreviewRoot] = useState<HTMLDivElement | null>(null);
@@ -55,6 +81,8 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
   const style = siteBrandTokens(site.theme.brand_color, site.theme.accent_color, site.theme.background_color) as CSSProperties;
   const jobsBlock = blocks.find(block => block.type === "jobs");
   const storyBlock = blocks.find(block => block.type === "story");
+  const drop = onSelectBlock ? dropBefore(site.blocks, blocks, dragPreview) : null;
+  const dragging = onSelectBlock && dragPreview ? dragPreview.activeId : null;
   const themeProps = {
     "data-font-pair": site.theme.font_pair,
     "data-site-palette": Boolean(site.theme.accent_color || site.theme.background_color),
@@ -72,16 +100,17 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
       </div>
     </header>
     <main id="contenido" tabIndex={-1} className="min-w-0 outline-none">
-    {blocks.map(block => <section key={block.id} id={anchor(block)} aria-labelledby={`${anchor(block)}-title`} data-block-type={block.type} data-variant={block.variant}
+    {blocks.map(block => <Fragment key={block.id}>{drop === block.id && <DropLine id={dragPreview!.activeId} />}<section id={anchor(block)} aria-labelledby={`${anchor(block)}-title`} data-block-type={block.type} data-variant={block.variant}
       {...(onSelectBlock ? {
-        tabIndex: 0, "data-editor-selected": selectedBlockId === block.id,
+        tabIndex: 0, "data-editor-selected": selectedBlockId === block.id, ...(dragging === block.id ? { "data-editor-dragging": true } : {}),
         onClickCapture: (event: React.MouseEvent) => { event.preventDefault(); event.stopPropagation(); onSelectBlock(block.id); },
         onKeyDown: (event: React.KeyboardEvent) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelectBlock(block.id); } },
       } : {})}
-      className={cn("scroll-mt-6", (block.type === "story" || block.type === "jobs" || block.type === "stats" && block.variant === "row" || block.type === "benefits" && block.variant === "grid" || block.type === "video" && block.variant === "split") && "bg-(--site-band)", onSelectBlock && editorStyles.section)}>
+      className={cn("scroll-mt-6", (block.type === "story" || block.type === "jobs" || block.type === "stats" && block.variant === "row" || block.type === "benefits" && block.variant === "grid" || block.type === "video" && block.variant === "split") && "bg-(--site-band)", onSelectBlock && editorStyles.section, onSelectBlock && dragMark)}>
       {onSelectBlock && selectedBlockId === block.id && <Badge data-editor-label="" className={editorStyles.label}>{BLOCK_LIBRARY[block.type].label}</Badge>}
       <div className="mx-auto max-w-7xl px-6 py-10 sm:px-10 sm:py-14 lg:px-16 lg:py-16">{!hasSiteBlockContent(block) ? <BlankSection block={block} onSelect={onSelectBlock} /> : block.type === "jobs" && !jobsAvailable ? <StateCard icon={Briefcase} tone="error" title={<span id={`${anchor(block)}-title`}>No pudimos cargar las vacantes</span>} description="La vista previa de las vacantes no está disponible. El contenido del sitio no cambió." /> : <SiteBlockContent block={block} company={company} jobs={jobs} offices={officeLabels} jobsHref={jobsBlock ? `#${anchor(jobsBlock)}` : undefined} storyHref={storyBlock ? `#${anchor(storyBlock)}` : undefined} />}</div>
-    </section>)}
+    </section></Fragment>)}
+    {drop === "" && <DropLine id={dragPreview!.activeId} />}
     </main>
     <Separator />
     <footer className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8 sm:px-10 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-16">
