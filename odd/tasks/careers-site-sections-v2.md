@@ -84,3 +84,10 @@ picks a direction, coordinated with the backend session.
   fallbacks, «Íconos grandes» not centred, plain «Banda de marca», slash eyebrows. Phase B persisted round-trip restored
   the draft content exactly (draft_version 33 → 35, published 33 untouched; editor now shows «Cambios sin publicar»).
   Fix round launched.
+- **L10** (2026-11-25) Fix round `ea5b6c28` (panels always reachable: fold the other side or open as Sheets below 608 px of
+  panel space; distinct «Tinte suave» surface; fixed alignment stated per layout; library ids + phone select; v2 headings
+  semibold; light photo placeholders; centred «Íconos grandes» and «Banda de marca»; jobs list separators a11y) and
+  `1bca628c` + `87f1e37c` (hidden file input and sr-only helpers no longer overflow the properties scroll area). Full suite
+  on `ea5b6c28`: 662 files / 12323 passed, tsc 0, lint 0 errors. Browser re-check (Chromium + Firefox): 11/12 then the
+  properties panel measured clean at 1440/1280/1024 (no sideways scroll, single scrollbar); axe 0 violations everywhere.
+  :3000 serves BUILD_ID `aZjt_CmVbkudSA5EqNLKC` with the flag on. Waiting for the user's review before merging.
