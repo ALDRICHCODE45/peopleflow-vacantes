@@ -187,8 +187,10 @@ export type SectionStyle = {
 export const DEFAULT_SECTION_STYLE: Readonly<SectionStyle> = Object.freeze({ background: "default", spacing: "airy", align: "start", overlay: null, image: null });
 const wireIssue = (ctx: z.RefinementCtx, path: (string | number)[], code: "required" | "not_allowed" | "invalid" | "duplicate") =>
   ctx.addIssue({ code: "custom", path, message: code, params: { wireCode: code } });
+/** §2.3: `null` is accepted and dropped (= absent), so it takes the absent default. */
+const nullAsAbsent = <T extends z.ZodTypeAny>(schema: T) => z.preprocess(value => value === null ? undefined : value, schema);
 /** Curated per-block style (S3): overlay and image only with an image background, which then needs its image. */
-export const sectionStyleSchema = z.object({
+const sectionStyleObject = z.object({
   background: z.enum(SECTION_BACKGROUNDS).default(DEFAULT_SECTION_STYLE.background),
   spacing: z.enum(SECTION_SPACINGS).default(DEFAULT_SECTION_STYLE.spacing),
   align: z.enum(SECTION_ALIGNS).default(DEFAULT_SECTION_STYLE.align),
@@ -201,6 +203,7 @@ export const sectionStyleSchema = z.object({
   if (style.overlay !== null) wireIssue(ctx, ["overlay"], "not_allowed");
   if (style.image !== null) wireIssue(ctx, ["image"], "not_allowed");
 }).default(() => ({ ...DEFAULT_SECTION_STYLE }));
+export const sectionStyleSchema = nullAsAbsent(sectionStyleObject);
 const styled = { style: sectionStyleSchema };
 
 /** Contract defaults for hero button keys missing on read (null target = first block after the hero). */
@@ -209,11 +212,12 @@ export const HERO_COLLAGE_MAX = 3;
 /** Publishing a collage needs at least this many images (contract only caps it at 3). */
 export const HERO_COLLAGE_MIN_TO_PUBLISH = 2;
 const heroContentV2 = heroBlockSchema.shape.content.extend({
-  images: z.array(z.object({ media_id: z.string().uuid() }).strict()).max(HERO_COLLAGE_MAX).default(() => []),
+  images: nullAsAbsent(z.array(z.object({ media_id: z.string().uuid() }).strict()).max(HERO_COLLAGE_MAX).default(() => [])),
   primary_label: text(24).default(HERO_BUTTON_DEFAULTS.primary_label),
   secondary_visible: z.boolean().default(HERO_BUTTON_DEFAULTS.secondary_visible),
   secondary_label: text(24).default(HERO_BUTTON_DEFAULTS.secondary_label),
-  secondary_target: z.string().uuid().nullable().default(HERO_BUTTON_DEFAULTS.secondary_target),
+  // Any case on the wire, stored lower-case (§2.3).
+  secondary_target: z.string().uuid().transform(id => id.toLowerCase()).nullable().default(HERO_BUTTON_DEFAULTS.secondary_target),
 });
 export const heroBlockSchemaV2 = heroBlockSchema.extend({ variant: z.enum(["photo", "split", "centered", "background_loop", "photo_jobs", "collage"]), content: heroContentV2, ...styled });
 const decoratedVariants = ["bento", "big_icons"] as const;
@@ -221,28 +225,39 @@ export const valuesBlockSchemaV2 = valuesBlockSchema.extend({ variant: z.enum(["
 export const benefitsBlockSchemaV2 = benefitsBlockSchema.extend({ variant: z.enum(["grid", "compact", ...decoratedVariants]), ...styled });
 export const statsBlockSchemaV2 = statsBlockSchema.extend({ variant: z.enum(["row", "cards", "brand_band"]), ...styled });
 export const galleryBlockSchemaV2 = galleryBlockSchema.extend({ variant: z.enum(["grid", "mosaic", "carousel", "photo_strip"]), ...styled });
-/** Stored as the URL the company pasted; accepted only when the existing YouTube/Vimeo parser recognizes it. */
-const testimonialVideoUrl = text(500).refine(value => value === null || parseVideoUrl(value) !== null, { message: "invalid", params: { wireCode: "invalid" } });
+/** WHATWG URL drops a scheme's default port (":443"); the backend rejects any explicit port. */
+function hasExplicitPort(value: string): boolean {
+  const authority = /^[a-z][a-z\d+.-]*:\/\/([^/?#\\]*)/i.exec(value.trim())?.[1] ?? "";
+  const host = authority.slice(authority.lastIndexOf("@") + 1);
+  return /:\d+$/.test(host.startsWith("[") ? host.slice(host.indexOf("]") + 1) : host);
+}
+/** Stored as the URL the company pasted; accepted only when the existing YouTube/Vimeo parser recognizes it (no port, even :443). */
+const testimonialVideoUrl = text(500).refine(value => value === null || (parseVideoUrl(value) !== null && !hasExplicitPort(value)), { message: "invalid", params: { wireCode: "invalid" } });
 export const testimonialsBlockSchemaV2 = testimonialsBlockSchema.extend({
   variant: z.enum(["cards", "quote", "carousel"]),
   content: testimonialsBlockSchema.shape.content.extend({ items: z.array(testimonialItem.extend({ video_url: testimonialVideoUrl.default(null) })).max(6) }),
   ...styled,
 });
+// New block types are normalized like every other block (§2.3): missing strings and
+// media refs → null, missing lists → []. Consent and override choices stay explicit.
+const str = (max: number) => text(max).default(null);
+const ref = mediaRefSchema.default(null);
+const list = <T extends z.ZodTypeAny>(schema: z.ZodArray<T>) => nullAsAbsent(schema.default(() => []));
 export const teamBlockSchema = z.object({ ...common, type: z.literal("team"), variant: z.enum(["grid", "portraits"]), content: z.object({
-  title: text(80), intro: text(200),
-  items: z.array(z.object({ name: text(80), role: text(80), photo: mediaRefSchema, consent: z.boolean() }).strict()).max(12),
+  title: str(80), intro: str(200),
+  items: list(z.array(z.object({ name: str(80), role: str(80), photo: ref, consent: z.boolean() }).strict()).max(12)),
 }).strict(), ...styled }).strict();
 export const logosBlockSchema = z.object({ ...common, type: z.literal("logos"), variant: z.enum(["strip", "grid"]), content: z.object({
-  title: text(80),
-  items: z.array(z.object({ name: text(80), image: mediaRefSchema, caption: text(80) }).strict()).max(12),
+  title: str(80),
+  items: list(z.array(z.object({ name: str(80), image: ref, caption: str(80) }).strict()).max(12)),
 }).strict(), ...styled }).strict();
-export const areaOverrideSchema = z.object({ key: z.enum(PROFESSIONAL_AREAS), icon: iconSchema.nullable(), photo: mediaRefSchema }).strict().superRefine((override, ctx) => {
+export const areaOverrideSchema = z.object({ key: z.enum(PROFESSIONAL_AREAS), icon: iconSchema.nullable().default(null), photo: ref }).strict().superRefine((override, ctx) => {
   if (override.icon === null && override.photo === null) wireIssue(ctx, ["icon"], "required");
   if (override.icon !== null && override.photo !== null) wireIssue(ctx, ["photo"], "not_allowed");
 });
 export const areasBlockSchema = z.object({ ...common, type: z.literal("areas"), variant: z.enum(["icon_cards", "photo_cards"]), content: z.object({
-  title: text(80), intro: text(200),
-  overrides: z.array(areaOverrideSchema).max(PROFESSIONAL_AREAS.length).superRefine((overrides, ctx) => {
+  title: str(80), intro: str(200),
+  overrides: list(z.array(areaOverrideSchema).max(PROFESSIONAL_AREAS.length)).superRefine((overrides, ctx) => {
     const seen = new Set<string>();
     overrides.forEach((override, index) => {
       if (seen.has(override.key)) wireIssue(ctx, [index, "key"], "duplicate");
@@ -251,7 +266,7 @@ export const areasBlockSchema = z.object({ ...common, type: z.literal("areas"), 
   }),
 }).strict(), ...styled }).strict();
 export const talentCtaBlockSchema = z.object({ ...common, type: z.literal("talent_cta"), variant: z.enum(["banner", "split"]), content: z.object({
-  title: text(80), text: text(240), button_label: text(24),
+  title: str(80), text: str(240), button_label: str(24),
 }).strict(), ...styled }).strict();
 
 const [storyV2, processV2, videoV2, officesV2, jobsV2, faqV2, closingV2] = [
@@ -279,8 +294,17 @@ export type SiteDraftV2 = z.infer<typeof siteDraftSchemaV2>;
 const storedValuesV2 = valuesBlockSchemaV2.extend({ content: storedValues.shape.content });
 const storedBenefitsV2 = benefitsBlockSchemaV2.extend({ content: storedBenefits.shape.content });
 const storedBlockV2 = z.discriminatedUnion("type", [heroBlockSchemaV2, storyV2, storedValuesV2, storedBenefitsV2, statsBlockSchemaV2, processV2, galleryBlockSchemaV2, testimonialsBlockSchemaV2, videoV2, officesV2, jobsV2, faqV2, closingV2, teamBlockSchema, logosBlockSchema, areasBlockSchema, talentCtaBlockSchema]);
+/** §2.3: a stored target that no longer names another block (deleted, or hidden in the public projection) reads as null. */
+function dropDanglingTargets<Draft extends { blocks: SiteBlockV2[] }>(draft: Draft): Draft {
+  const ids = new Set(draft.blocks.map(block => block.id));
+  return { ...draft, blocks: draft.blocks.map(block => {
+    if (block.type !== "hero") return block;
+    const target = block.content.secondary_target;
+    return target === null || (target !== block.id && ids.has(target)) ? block : { ...block, content: { ...block.content, secondary_target: null } };
+  }) };
+}
 /** Read: accepts documents without any slice A key and normalizes them to the contract defaults. */
-export const siteDraftReadSchemaV2 = siteDraftObject.extend({ blocks: z.array(storedBlockV2).min(2).max(30) }).superRefine(draftInvariantsV2);
+export const siteDraftReadSchemaV2 = siteDraftObject.extend({ blocks: z.array(storedBlockV2).min(2).max(30) }).superRefine(draftInvariants).transform(dropDanglingTargets);
 
 const LEGACY_VARIANTS = new Map<string, readonly string[]>(blockSchema.options.map(option => [option.shape.type.value, option.shape.variant.options]));
 const sameValue = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
@@ -323,20 +347,26 @@ export type PublishIssueV2 = PublishIssue | {
   code: "hero_video_missing" | "secondary_target_hidden" | "hero_collage_images_missing" | "style_image_missing";
   field: string;
 };
-/** publishIssues plus the slice A rules; callers pass a parsed v2 draft. */
+/** publishIssues plus the slice A rules, in the §2.3 order; callers pass a parsed v2 draft. */
 export function publishIssuesV2(draft: SiteDraftV2, company: { name: string | null; logo_url: string | null }): PublishIssueV2[] {
-  const issues: PublishIssueV2[] = baseIssues(draft);
+  const issues: PublishIssueV2[] = [];
+  if (!present(draft.slug)) issues.push({ code: "slug_missing", field: "slug" });
   const visible = new Map(draft.blocks.map(block => [block.id, !block.hidden]));
   draft.blocks.forEach((block, index) => {
     if (block.hidden) return;
     const field = `blocks[${index}]`;
+    // Per block: hero_title_missing, hero_video_missing, hero_collage_images_missing,
+    // secondary_target_hidden; other blocks block_incomplete; then style_image_missing.
+    if (block.type === "hero") {
+      if (!complete(block)) issues.push({ code: "hero_title_missing", field });
+      // Background video arrives with slice B; until then this layout cannot go live.
+      if (block.variant === "background_loop") issues.push({ code: "hero_video_missing", field });
+      if (block.variant === "collage" && block.content.images.length < HERO_COLLAGE_MIN_TO_PUBLISH) issues.push({ code: "hero_collage_images_missing", field });
+      const target = block.content.secondary_target;
+      if (block.content.secondary_visible && target !== null && visible.get(target) === false) issues.push({ code: "secondary_target_hidden", field: `${field}.content.secondary_target` });
+    } else if (!complete(block)) issues.push({ code: "block_incomplete", field });
     if (block.style.background === "image" && block.style.image === null) issues.push({ code: "style_image_missing", field: `${field}.style.image` });
-    if (block.type !== "hero") return;
-    // Background video arrives with slice B; until then this layout cannot go live.
-    if (block.variant === "background_loop") issues.push({ code: "hero_video_missing", field });
-    if (block.variant === "collage" && block.content.images.length < HERO_COLLAGE_MIN_TO_PUBLISH) issues.push({ code: "hero_collage_images_missing", field });
-    const target = block.content.secondary_target;
-    if (block.content.secondary_visible && target !== null && visible.get(target) === false) issues.push({ code: "secondary_target_hidden", field: `${field}.content.secondary_target` });
   });
+  if (!draft.blocks.some(block => !block.hidden && block.type !== "hero" && block.type !== "jobs")) issues.push({ code: "no_content_block", field: null });
   return [...issues, ...companyIssues(company)];
 }

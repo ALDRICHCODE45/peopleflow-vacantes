@@ -6,7 +6,7 @@ import { draftFieldErrors } from "./api/validation";
 import { defaultBlock, defaultBlockV2, defaultSiteDraft } from "./defaults";
 import {
   blockSchema, blockSchemaV2, createSiteDraftPayloadSchema, DEFAULT_SECTION_STYLE, HERO_BUTTON_DEFAULTS,
-  publishIssuesV2, siteDraftPayloadSchema, siteDraftReadSchemaV2, siteDraftSchema, siteDraftSchemaV2,
+  publishIssuesV2, siteDraftPayloadSchema, siteDraftReadSchema, siteDraftReadSchemaV2, siteDraftSchema, siteDraftSchemaV2,
   type BlockTypeV2,
 } from "./model";
 import { SECTIONS_V2_ENABLED } from "./sections-v2";
@@ -158,7 +158,7 @@ describe("new section types", () => {
       [{ ...override("engineering", "rocket", null), extra: true }],
     ]) expect(accepts({ ...areas, content: { ...areas.content, overrides } })).toBe(false);
     const both = errorsOf(draftV2({ ...areas, content: { ...areas.content, overrides: [override("engineering", "rocket", media)] } }));
-    expect(both).toContainEqual({ field: "blocks[2].content.overrides", code: "not_allowed" });
+    expect(both).toContainEqual({ field: "blocks[2].content.overrides[0].photo", code: "not_allowed" });
   });
   it("areas and talent_cta publish needs only the title", () => {
     for (const type of ["areas", "talent_cta"] as const) {
@@ -190,12 +190,12 @@ describe("per-block style", () => {
     [{ background: "image", spacing: "airy", align: "start", overlay: null, image: media }, []],
     // Saving "Imagen" before uploading it is allowed; publication asks for the image.
     [{ background: "image", spacing: "airy", align: "start", overlay: "soft", image: null }, []],
-    [{ background: "default", spacing: "airy", align: "start", overlay: null, image: media }, [{ field: "blocks[2]", code: "not_allowed" }]],
-    [{ background: "tint", spacing: "airy", align: "start", overlay: "medium", image: null }, [{ field: "blocks[2]", code: "not_allowed" }]],
-    [{ background: "video", spacing: "airy", align: "start", overlay: null, image: null }, [{ field: "blocks[2]", code: "invalid" }]],
-    [{ background: "default", spacing: "loose", align: "start", overlay: null, image: null }, [{ field: "blocks[2]", code: "invalid" }]],
-    [{ background: "default", spacing: "airy", align: "right", overlay: null, image: null }, [{ field: "blocks[2]", code: "invalid" }]],
-    [{ background: "default", spacing: "airy", align: "start", overlay: null, image: null, color: "#000000" }, [{ field: "blocks[2]", code: "unknown_key" }]],
+    [{ background: "default", spacing: "airy", align: "start", overlay: null, image: media }, [{ field: "blocks[2].style.image", code: "not_allowed" }]],
+    [{ background: "tint", spacing: "airy", align: "start", overlay: "medium", image: null }, [{ field: "blocks[2].style.overlay", code: "not_allowed" }]],
+    [{ background: "video", spacing: "airy", align: "start", overlay: null, image: null }, [{ field: "blocks[2].style.background", code: "invalid" }]],
+    [{ background: "default", spacing: "loose", align: "start", overlay: null, image: null }, [{ field: "blocks[2].style.spacing", code: "invalid" }]],
+    [{ background: "default", spacing: "airy", align: "right", overlay: null, image: null }, [{ field: "blocks[2].style.align", code: "invalid" }]],
+    [{ background: "default", spacing: "airy", align: "start", overlay: null, image: null, color: "#000000" }, [{ field: "blocks[2].style.color", code: "unknown_key" }]],
   ])("style %o → %o", (style, expected) => {
     expect(errorsOf(draftV2({ ...v2("story"), style }))).toEqual(expected);
   });
@@ -210,7 +210,7 @@ describe("per-block style", () => {
     const draft = draftV2({ ...story, style: { ...DEFAULT_SECTION_STYLE, background: "image" } });
     expect(siteDraftSchemaV2.safeParse(draft).success).toBe(true);
     expect(issuesOf(draft)).toEqual([{ code: "style_image_missing", field: "blocks[2].style.image" }]);
-    draft.blocks[2] = { ...draft.blocks[2], hidden: true };
+    draft.blocks[2] = { ...(draft.blocks[2] as Candidate), hidden: true };
     expect(issuesOf(draft).map(issue => issue.code)).not.toContain("style_image_missing");
   });
 });
@@ -313,11 +313,14 @@ describe("legacy documents read through the v2 schemas", () => {
     const testimonials = parsed.blocks[3];
     expect(testimonials.type === "testimonials" && testimonials.content.items[0].video_url).toBeNull();
   });
-  it("the strict legacy read still rejects new keys (flag-off editor unchanged)", () => {
+  it("the strict legacy read still rejects new keys while the editor state decodes them through the v2 read", () => {
     const draft = legacyDraft();
     const withStyle = { ...draft, blocks: draft.blocks.map(block => ({ ...block, style: DEFAULT_SECTION_STYLE })) };
     const state = { draft: withStyle, draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-01-01T00:00:00Z" };
-    expect(siteStateSchema.safeParse(state).success).toBe(false);
+    expect(siteDraftReadSchema.safeParse(withStyle).success).toBe(false);
+    const decoded = siteStateSchema.safeParse(state);
+    expect(decoded.success).toBe(true);
+    if (decoded.success) expect(decoded.data.draft).toEqual(siteDraftReadSchemaV2.parse(withStyle));
     expect(siteDraftReadSchemaV2.safeParse(withStyle).success).toBe(true);
   });
 });
@@ -356,7 +359,7 @@ describe("flag-off write payload", () => {
     const cases: [unknown, string][] = [
       [{ ...base, blocks: [...base.blocks, v2("team")] }, `blocks[${base.blocks.length}]`],
       [{ ...base, blocks: base.blocks.map((b, i) => i === 1 ? { ...b, variant: "bento" } : b) }, "blocks[1]"],
-      [{ ...base, blocks: base.blocks.map((b, i) => i === 1 ? { ...b, style: { ...DEFAULT_SECTION_STYLE, spacing: "compact" } } : b) }, "blocks[1]"],
+      [{ ...base, blocks: base.blocks.map((b, i) => i === 1 ? { ...b, style: { ...DEFAULT_SECTION_STYLE, spacing: "compact" } } : b) }, "blocks[1].style"],
       [{ ...base, blocks: base.blocks.map((b, i) => i === 0 ? { ...b, content: { ...b.content, primary_label: "Únete" } } : b) }, "blocks[0].content.primary_label"],
       [{ ...base, blocks: base.blocks.map((b, i) => i === 0 ? { ...b, content: { ...b.content, images: [media] } } : b) }, "blocks[0].content.images"],
       [{ ...base, blocks: base.blocks.map((b, i) => i === 2 ? { ...b, content: { items: [{ quote: "Hola", name: "Ana", role: null, photo: null, consent: true, video_url: "https://youtu.be/dQw4w9WgXcQ" }] } } : b) }, "blocks[2].content.items[0].video_url"],
@@ -379,5 +382,106 @@ describe("flag-off write payload", () => {
     expect(parsed.blocks.map(block => block.type)).toEqual(["hero", "jobs", "team"]);
     expect(parsed.blocks.every(block => "style" in block)).toBe(true);
     expect(parsed.blocks[0].content).toHaveProperty("primary_label", "Ver vacantes");
+  });
+});
+
+describe("backend §2.3 normalization rules", () => {
+  const readBlocks = (...extra: unknown[]) => siteDraftReadSchemaV2.parse(draftV2(...extra)).blocks;
+  it("style: null is dropped like an absent style (defaults) on write and read", () => {
+    const story = { ...v2("story"), style: null };
+    expect(blockSchemaV2.parse(story).style).toEqual(DEFAULT_SECTION_STYLE);
+    expect(readBlocks(story)[2].style).toEqual(DEFAULT_SECTION_STYLE);
+    expect(errorsOf(draftV2(story))).toEqual([]);
+  });
+  it("a present style is filled to all five keys on read", () => {
+    expect(readBlocks({ ...v2("story"), style: { background: "tint" } })[2].style).toEqual({ ...DEFAULT_SECTION_STYLE, background: "tint" });
+    expect(readBlocks({ ...v2("story"), style: {} })[2].style).toEqual(DEFAULT_SECTION_STYLE);
+  });
+  it("style that is not an object is still invalid", () => {
+    expect(errorsOf(draftV2({ ...v2("story"), style: "brand" }))).toEqual([{ field: "blocks[2].style", code: "invalid" }]);
+  });
+  it("hero images: null reads and writes as []", () => {
+    const hero = heroV2({ images: null });
+    const parsed = blockSchemaV2.parse(hero);
+    expect(parsed.type === "hero" && parsed.content.images).toEqual([]);
+    const draft = draftV2();
+    draft.blocks[0] = hero;
+    const read = siteDraftReadSchemaV2.parse(draft).blocks[0];
+    expect(read.type === "hero" && read.content.images).toEqual([]);
+  });
+  it.each([
+    ["team", { variant: "grid", content: {} }, { title: null, intro: null, items: [] }],
+    ["logos", { variant: "strip", content: {} }, { title: null, items: [] }],
+    ["areas", { variant: "icon_cards", content: {} }, { title: null, intro: null, overrides: [] }],
+    ["talent_cta", { variant: "banner", content: {} }, { title: null, text: null, button_label: null }],
+  ] as const)("%s: absent strings read as null and absent lists as []", (type, patch, expected) => {
+    const block = { id: crypto.randomUUID(), type, hidden: false, ...patch };
+    const read = readBlocks(block)[2];
+    expect(read.content).toEqual(expected);
+  });
+  it("team and logos items: absent strings and media refs read as null", () => {
+    const team = { ...v2("team"), content: { items: [{ name: "Ana", consent: true }] } };
+    const logos = { ...v2("logos"), content: { items: [{ name: "GPTW" }] } };
+    const [, , readTeam, readLogos] = readBlocks(team, logos);
+    expect(readTeam.content).toEqual({ title: null, intro: null, items: [{ name: "Ana", role: null, photo: null, consent: true }] });
+    expect(readLogos.content).toEqual({ title: null, items: [{ name: "GPTW", image: null, caption: null }] });
+  });
+  it("team consent stays required (non-boolean is invalid, never defaulted)", () => {
+    const team = { ...v2("team"), content: { items: [{ name: "Ana" }] } };
+    expect(siteDraftReadSchemaV2.safeParse(draftV2(team)).success).toBe(false);
+  });
+  it("a stored secondary_target that no longer matches a block reads as null; writes still reject it", () => {
+    const story = { ...v2("story"), content: { title: null, body: rich("Historia"), image: null } };
+    const draft = draftV2(story);
+    draft.blocks[0] = heroV2({ secondary_target: crypto.randomUUID() });
+    const hero = siteDraftReadSchemaV2.parse(draft).blocks[0];
+    expect(hero.type === "hero" && hero.content.secondary_target).toBeNull();
+    expect(errorsOf(draft)).toEqual([{ field: "blocks[0].content.secondary_target", code: "invalid" }]);
+    draft.blocks[0] = heroV2({ secondary_target: story.id.toUpperCase() });
+    const existing = siteDraftReadSchemaV2.parse(draft).blocks[0];
+    expect(existing.type === "hero" && existing.content.secondary_target).toBe(story.id);
+  });
+  it("a stored secondary_target naming the hero itself reads as null; writes reject it", () => {
+    const hero = heroV2();
+    const draft = draftV2();
+    draft.blocks[0] = { ...hero, content: { ...hero.content, secondary_target: hero.id } };
+    const read = siteDraftReadSchemaV2.parse(draft).blocks[0];
+    expect(read.type === "hero" && read.content.secondary_target).toBeNull();
+    expect(errorsOf(draft)).toEqual([{ field: "blocks[0].content.secondary_target", code: "invalid" }]);
+  });
+  it("secondary_target is compared and stored lower-case", () => {
+    const story = { ...v2("story"), content: { title: null, body: rich("Historia"), image: null } };
+    const draft = draftV2(story);
+    draft.blocks[0] = heroV2({ secondary_target: story.id.toUpperCase() });
+    const parsed = siteDraftSchemaV2.parse(draft).blocks[0];
+    expect(parsed.type === "hero" && parsed.content.secondary_target).toBe(story.id);
+  });
+  it.each([
+    "https://youtu.be:443/dQw4w9WgXcQ", "http://youtu.be:80/dQw4w9WgXcQ", "https://www.youtube.com:8443/watch?v=dQw4w9WgXcQ",
+    "https://vimeo.com:443/123456", "https://user@youtu.be/dQw4w9WgXcQ",
+  ])("testimonial video_url %s is invalid (explicit port or credentials)", video_url => {
+    const testimonials = v2("testimonials");
+    testimonials.content.items = [{ quote: "Excelente", name: "Ana", role: null, photo: null, consent: true, video_url }];
+    expect(errorsOf(draftV2(testimonials))).toEqual([{ field: "blocks[2].content.items[0].video_url", code: "invalid" }]);
+    expect(siteDraftReadSchemaV2.safeParse(draftV2(testimonials)).success).toBe(false);
+  });
+  it("testimonial video_url accepts the host case-insensitively and caps at 500 code points", () => {
+    const testimonials = v2("testimonials");
+    const item = { quote: "Excelente", name: "Ana", role: null, photo: null, consent: true };
+    testimonials.content.items = [{ ...item, video_url: "https://YOUTU.BE/dQw4w9WgXcQ" }];
+    expect(errorsOf(draftV2(testimonials))).toEqual([]);
+    testimonials.content.items = [{ ...item, video_url: `https://youtu.be/dQw4w9WgXcQ?t=${"1".repeat(500)}` }];
+    expect(errorsOf(draftV2(testimonials))).toEqual([{ field: "blocks[2].content.items[0].video_url", code: "too_long" }]);
+  });
+  it("publish issues follow the §2.3 order: per block (hero codes, block_incomplete, style_image_missing), then document-level", () => {
+    const team = { ...v2("team"), style: { ...DEFAULT_SECTION_STYLE, background: "image" } };
+    const story = { ...v2("story"), content: { title: null, body: rich("Historia"), image: null } };
+    const draft = draftV2(team, story);
+    draft.blocks[0] = { ...heroV2({ title: null, images: [] }), variant: "collage", style: { ...DEFAULT_SECTION_STYLE, background: "image" } };
+    expect(issuesOf(draft)).toEqual([
+      { code: "hero_title_missing", field: "blocks[0]" }, { code: "hero_collage_images_missing", field: "blocks[0]" },
+      { code: "style_image_missing", field: "blocks[0].style.image" },
+      { code: "block_incomplete", field: "blocks[2]" }, { code: "style_image_missing", field: "blocks[2].style.image" },
+    ]);
   });
 });

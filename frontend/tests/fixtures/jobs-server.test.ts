@@ -10,7 +10,7 @@ import { publicJobDetailSchema, publicJobsListSchema } from "../../src/features/
 import { countriesSchema, statesSchema, municipalitiesSchema, postalSchema, locationReadSchema } from "../../src/features/geo/model";
 import { languageCatalogSchema } from "../../src/features/languages/model";
 import { publicSiteSchema } from "../../src/features/company-site/public/schema";
-import { ICONS, publishIssues, siteDraftSchema } from "../../src/features/company-site/model";
+import { ICONS, publishIssues, publishIssuesV2, siteDraftReadSchemaV2, siteDraftSchema } from "../../src/features/company-site/model";
 let server: ChildProcess;
 let origin: string;
 beforeAll(async () => {
@@ -246,13 +246,13 @@ test("draft controls cover recruiter permissions, forbidden/inactive gates and n
   await json("/__site-draft?mode=new");
   const fresh = await readDraft();
   const defaults = defaultSiteDraft();
-  expect(fresh.draft).toEqual({ ...defaults, blocks: defaults.blocks.map((block, i) => ({ ...block, id: fresh.draft.blocks[i].id })) });
+  expect(fresh.draft).toEqual(siteDraftReadSchemaV2.parse({ ...defaults, blocks: defaults.blocks.map((block, i) => ({ ...block, id: fresh.draft.blocks[i].id })) }));
   expect(fresh.published).toBeNull();
   expect(fresh.media).toEqual([]);
   expect((await fetch(`${origin}/v2/company-sites/nexo-labs`)).status).toBe(404);
   const blocked = await siteRequest("/publish", "POST", undefined, '"1"');
   expect(blocked.status).toBe(422);
-  expect(decodeFailure(422, await blocked.json())).toMatchObject({ kind: "error", code: "publish_blocked", issues: publishIssues(fresh.draft, { name: "Nexo Labs", logo_url: "fixture" }) });
+  expect(decodeFailure(422, await blocked.json())).toMatchObject({ kind: "error", code: "publish_blocked", issues: publishIssuesV2(fresh.draft, { name: "Nexo Labs", logo_url: "fixture" }) });
   expect((await fetch(`${origin}/__site-draft?role=invalid&mode=new`)).status).toBe(400);
   await json("/__reset");
   expect((await readDraft()).draft).toEqual(initial.draft);
