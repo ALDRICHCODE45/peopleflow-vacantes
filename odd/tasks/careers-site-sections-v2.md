@@ -71,3 +71,5 @@ picks a direction, coordinated with the backend session.
   correo» (counter in Base de talento + email to the owner). Slice A goes to the backend session first.
 - **L7** (2026-11-25) Backend session took slice A with six adjustments (recorded at the end of the contract file).
   Frontend slice A starts: T3a model/schema first, then editor and presentation in parallel.
+- **L8** (2026-11-25) Backend slice A merged into local main `64e2e379` (migration 00066, dev DB v66, :8080 runs it;
+  stored documents read byte-identical). The frontend may switch to the v2 model and enable the flag when ready.
