@@ -86,7 +86,7 @@ function PreviewScroll({ desktop, children }: { desktop: boolean; children: Reac
     observer.observe(viewport, { attributes: true, attributeFilter: ["tabindex", "role", "aria-label"] });
     return () => observer.disconnect();
   }, [desktop]);
-  const content = <div className="min-w-0 p-3">{children}</div>;
+  const content = <div className="relative min-w-0 p-3">{children}</div>;
   return desktop ? <ScrollArea ref={root} className="min-h-0 min-w-0 flex-1">{content}</ScrollArea> : content;
 }
 type PanelControls = { sectionsToggle?: ReactNode; propertiesToggle?: ReactNode };
@@ -192,7 +192,7 @@ function DesktopPanels({ sections, properties, children, focused: previewFocused
         <aside id="editor-properties" hidden={focused || collapsed.properties} data-editor-region="properties" aria-label="Propiedades de la sección" className="h-full min-h-0 min-w-0">
           {/* Scrolls on its own, vertically only: nothing may widen the panel past its
               minimum (the viewport's inline overflow:scroll would let it pan sideways). */}
-          <ScrollArea className="h-full min-w-0 [&>[data-slot=scroll-area-viewport]]:overflow-x-hidden!"><div data-properties-content="" className="min-w-0 p-3">{properties}</div></ScrollArea>
+          <ScrollArea className="h-full min-w-0 [&>[data-slot=scroll-area-viewport]]:overflow-x-hidden!"><div data-properties-content="" className="relative min-w-0 p-3">{properties}</div></ScrollArea>
         </aside>
       </ResizablePanel>
     </ResizablePanelGroup>

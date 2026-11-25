@@ -212,7 +212,9 @@ describe("properties panel", () => {
     await mount();
     const viewport = properties().querySelector('[data-slot="scroll-area-viewport"]')!;
     expect(viewport.parentElement!.className).toContain("[&>[data-slot=scroll-area-viewport]]:overflow-x-hidden!");
-    expect(properties().querySelector("[data-properties-content]")).toHaveClass("min-w-0");
+    // Positioned content: hidden (sr-only) helpers inside forms stay within the scrolling
+    // content instead of positioning against the scroll area root and overflowing the panel.
+    expect(properties().querySelector("[data-properties-content]")).toHaveClass("min-w-0", "relative");
     expect(properties().querySelector("[data-property-groups]")).toHaveClass("min-w-0");
     for (const group of properties().querySelectorAll('[data-section-style] [data-slot="toggle-group"]')) expect(group).toHaveClass("w-full", "grid");
     for (const item of properties().querySelectorAll('[data-section-style] [data-slot="toggle-group-item"]')) expect(item).toHaveClass("min-w-0", "whitespace-normal");
