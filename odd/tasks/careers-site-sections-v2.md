@@ -62,3 +62,7 @@ picks a direction, coordinated with the backend session.
 - **L4** (2026-11-25) User answers: mix «Sí, así (recomendado)» (02 and 03 designs are layout options per section, each
   company picks); hero background video «La empresa sube un video corto» (short MP4 upload with a size limit → backend
   video media); «Llamado a talento» → «Entra a la Base de talento» (unsolicited candidate with CV in the talent base).
+- **L5** (2026-11-25) T2 draft: `odd/tasks/careers-site-sections-v2-contract.md` — slice A document additions (new
+  variants from 02/03, sections team/logos/areas/talent_cta, per-block `style`, hero button texts; additive v1 amendment,
+  no document migration, backend first), slice B hero video upload (media migration, Range serving, proxy), slice C public
+  «Dejar mi CV» (anonymous endpoint, talent-base schema, consent, rate limit). B and C are high risk (data/security).
