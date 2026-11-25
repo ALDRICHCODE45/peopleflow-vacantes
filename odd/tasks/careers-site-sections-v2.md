@@ -59,3 +59,6 @@ picks a direction, coordinated with the backend session.
   «Foto con vacantes recientes» from 03), and 07's «Estilo de sección» group is adopted inside the current editor whose
   side panels stay resizable and collapsible (list, preview, properties; preview focus mode), properties scrolling on
   their own with collapsible groups. Open: hero video source, «Dejar mi CV» destination.
+- **L4** (2026-11-25) User answers: mix «Sí, así (recomendado)» (02 and 03 designs are layout options per section, each
+  company picks); hero background video «La empresa sube un video corto» (short MP4 upload with a size limit → backend
+  video media); «Llamado a talento» → «Entra a la Base de talento» (unsolicited candidate with CV in the talent base).
