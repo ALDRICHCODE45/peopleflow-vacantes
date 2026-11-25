@@ -27,7 +27,8 @@ describe("public site read schema v2", () => {
   it("rejects invalid v2 documents as an invalid published site", () => {
     const fixture = publishedFixture();
     const site = structuredClone(fixture.site) as unknown as { blocks: Record<string, unknown>[] };
-    site.blocks[1] = { ...site.blocks[1], style: { ...DEFAULT_SECTION_STYLE, background: "image" } };
+    // An overlay only exists over an image background (a missing image is a publish issue, not a read error).
+    site.blocks[1] = { ...site.blocks[1], style: { ...DEFAULT_SECTION_STYLE, overlay: "soft" } };
     const parsed = publicSiteSchemaV2.safeParse({ ...fixture, site });
     expect(parsed.success).toBe(false);
     if (!parsed.success) expect(parsed.error.issues.map(issue => issue.path)).toContainEqual(["site"]);

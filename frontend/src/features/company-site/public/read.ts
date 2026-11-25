@@ -3,15 +3,16 @@ import { z } from "zod";
 import { requestJson } from "@/lib/api/server";
 import { publicJobsListSchema } from "@/features/jobs/schemas";
 import { validateSlug } from "../slug";
-import { publicSiteSchema, type PublicSite } from "./schema";
+import { publicSiteSchemaV2, type PublicSiteV2 } from "./schema";
 
-export type PublicSiteResult = { kind: "found"; data: PublicSite } | { kind: "moved"; slug: string } | { kind: "notFound" | "unavailable" };
+/** Sections v2 read: legacy documents arrive normalized to the slice A defaults. */
+export type PublicSiteResult = { kind: "found"; data: PublicSiteV2 } | { kind: "moved"; slug: string } | { kind: "notFound" | "unavailable" };
 export async function getPublicSite(slug: string): Promise<PublicSiteResult> {
   if (validateSlug(slug) !== null) return { kind: "notFound" };
   const { serverEnv } = await import("@/lib/env/server");
   const result = await requestJson(new URL(`/v2/company-sites/${slug}`, serverEnv.apiBaseUrl).toString(), {
     expectedStatus: 200, redirect: "error", timeoutMs: serverEnv.apiTimeoutMs,
-    decoder: value => publicSiteSchema.parse(value),
+    decoder: value => publicSiteSchemaV2.parse(value),
     errorDecoder: value => z.object({ code: z.literal("site_not_found") }).parse(value),
     maxErrorBodyBytes: 8192,
   });

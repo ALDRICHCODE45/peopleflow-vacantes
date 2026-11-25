@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, useId, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Briefcase, Search, SearchX, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, Briefcase, Search, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -18,6 +18,7 @@ import { careersSiteVacancyHref } from "@/features/jobs/application/application-
 import type { PublicJobItem } from "@/features/jobs/types";
 
 import { useSitePortalContainer } from "./site-portal";
+import { useSiteAreaFilter } from "./site-area-filter";
 
 type DimensionKey = "areas" | "modes" | "states" | "schedules" | "contracts" | "levels";
 export type CompanyJobFilters = { search: string; modes: string[]; states: string[] } & Partial<Record<Exclude<DimensionKey, "modes" | "states">, string[]>>;
@@ -82,7 +83,15 @@ function Dimension({ label, help, options, values, onChange }: { label: string; 
   </Combobox>{help && <FieldDescription id={`${id}-help`}>{help}</FieldDescription>}</Field>;
 }
 export function CompanyJobs({ jobs, variant = "list" }: { jobs: PublicJobItem[]; variant?: "list" | "cards" | "by_area" }) {
-  const [filters, setFilters] = useState(emptyFilters);
+  const [local, setLocal] = useState(emptyFilters);
+  // On the careers site the «Área» filter is page-level: «Áreas de trabajo» cards set it too.
+  const areaFilter = useSiteAreaFilter();
+  const filters: CompanyJobFilters = areaFilter ? { ...local, areas: areaFilter.areas } : local;
+  const setFilters = (next: CompanyJobFilters) => {
+    if (!areaFilter) return setLocal(next);
+    areaFilter.setAreas(next.areas ?? []);
+    setLocal({ ...next, areas: [] });
+  };
   const [open, setOpen] = useState(false);
   const id = useId();
   const shown = filterCompanyJobs(jobs, filters);
@@ -114,6 +123,10 @@ export function CompanyJobs({ jobs, variant = "list" }: { jobs: PublicJobItem[];
       </SheetContent>
     </Sheet>
     </div>
+    {areaFilter?.chips && filters.areas?.length ? <div data-area-chips="" className="flex flex-wrap gap-2">{filters.areas.map(area => {
+      const label = `Área: ${areaLabel(area as PublicJobItem["professional_area"])}`;
+      return <Button key={area} type="button" variant="secondary" className="min-h-10" aria-label={`Quitar filtro ${label}`} onClick={() => setFilters({ ...filters, areas: filters.areas!.filter(value => value !== area) })}>{label}<X aria-hidden="true" data-icon="inline-end" /></Button>;
+    })}</div> : null}
     <p role="status" className="text-sm text-muted-foreground">{shown.length === 1 ? "1 vacante" : `${shown.length} vacantes`}</p>
     {shown.length ? <div aria-label="Vacantes de la empresa" className="flex flex-col gap-8">{variant === "by_area" ? [...new Set(shown.map(job => job.professional_area))].map(area => <section key={area ?? "other"} className="flex flex-col gap-4"><div className="flex items-center gap-3"><h3 className="text-xl font-medium">{areaLabel(area)}</h3><Badge variant="secondary">{shown.filter(job => job.professional_area === area).length}</Badge></div><JobResults jobs={shown.filter(job => job.professional_area === area)} cards={false} /></section>) : <JobResults jobs={shown} cards={variant === "cards"} />}</div> : <StateCard icon={SearchX} tone="empty" title="Sin resultados" description={noResultsDescription} primaryAction={query || count ? { label: "Limpiar filtros", onClick: clear } : undefined} />}
   </div>;

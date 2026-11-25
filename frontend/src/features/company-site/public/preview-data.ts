@@ -1,13 +1,13 @@
 import "server-only";
 import { getCountries, getMunicipalities, getStates } from "@/features/geo/client";
-import type { SiteBlock } from "../model";
+import type { SiteBlock, SiteBlockV2 } from "../model";
 import type { PublicSite } from "./schema";
 import type { CompanySitePreviewData } from "./presentation-types";
 import { listCompanyJobs } from "./read";
 
 /** Anonymous catalog resolution shared by published sites and the draft editor route.
  * Failed catalogs omit the label rather than displaying wire codes as place names. */
-export async function resolveOfficeLabels(blocks: SiteBlock[]): Promise<Map<string, string>> {
+export async function resolveOfficeLabels(blocks: readonly (SiteBlock | SiteBlockV2)[]): Promise<Map<string, string>> {
   const offices = blocks.flatMap(block => block.type === "offices" ? block.content.items : []);
   const locations = offices.flatMap(office => office.location ? [office.location] : []);
   const labels = new Map<string, string>();
@@ -26,7 +26,7 @@ export async function resolveOfficeLabels(blocks: SiteBlock[]): Promise<Map<stri
 }
 
 /** The route owns profile loading. This helper adds only public jobs and geo labels. */
-export async function loadPreviewData(company: PublicSite["company"], blocks: SiteBlock[]): Promise<CompanySitePreviewData> {
+export async function loadPreviewData(company: PublicSite["company"], blocks: readonly (SiteBlock | SiteBlockV2)[]): Promise<CompanySitePreviewData> {
   const [jobs, officeLabels] = await Promise.all([listCompanyJobs(company.id), resolveOfficeLabels(blocks)]);
   return { company, jobs: jobs.ok ? jobs.data.items : [], jobsAvailable: jobs.ok, officeLabels };
 }

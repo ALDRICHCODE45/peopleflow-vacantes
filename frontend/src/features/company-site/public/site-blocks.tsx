@@ -1,5 +1,4 @@
 "use client";
-import type { ReactNode } from "react";
 import { ArrowDown, ArrowUpRight, Clock, MapPin, Quote } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,8 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { DraftRichDescriptionContent } from "@/features/jobs/drafts/ui/draft-rich-description";
 import type { PublicJobItem } from "@/features/jobs/types";
-import { BLOCK_LIBRARY } from "../defaults";
-import type { SiteBlock } from "../model";
+import { HERO_BUTTON_DEFAULTS, type SiteBlockV2 } from "../model";
 import type { PublicSite } from "./schema";
 import { SITE_ICONS } from "./site-icons";
 import { SiteMedia } from "./site-media";
@@ -20,11 +18,10 @@ import { SiteGallery } from "./site-gallery";
 import { mediaUrl } from "./media";
 import { VideoPlayer } from "./video-player";
 import { CompanyJobs } from "./company-jobs";
+import { Heading, JobsLink, siteAnchor } from "./site-heading";
+import { Areas, BigIcons, DecoratedBento, HeroV2, Logos, PhotoStrip, StatsBand, TalentCta, Team, TestimonialsCarousel } from "./site-blocks-v2";
 
-export const siteAnchor = (block: SiteBlock) => `bloque-${block.id}`;
-export function siteBlockTitle(block: SiteBlock): string {
-  return ("title" in block.content && block.content.title) || BLOCK_LIBRARY[block.type].label;
-}
+export { siteAnchor, siteBlockTitle } from "./site-heading";
 export function SocialLinks({ company, onBrand = false, centered = false, placement = "footer" }: { company: PublicSite["company"]; onBrand?: boolean; centered?: boolean; placement?: "footer" | "closing" }) {
   const links = [["Sitio web", company.website], ["LinkedIn", company.linkedin_url], ["Instagram", company.instagram_url], ["Facebook", company.facebook_url], ["X", company.twitter_url]];
   if (!links.some(([, href]) => href)) return null;
@@ -34,29 +31,19 @@ export function SocialLinks({ company, onBrand = false, centered = false, placem
   // Repeated closing blocks are lists, not duplicate navigation landmarks.
   return placement === "closing" ? list : <nav aria-label={`Redes de ${company.name} en el pie`} className="-mx-3" data-brand-text-link="">{list}</nav>;
 }
-function Heading({ block, children }: { block: SiteBlock; children?: ReactNode }) {
-  return <div className="flex max-w-prose flex-col gap-4">
-    {siteBlockTitle(block) !== BLOCK_LIBRARY[block.type].label && <p className="text-xs font-medium tracking-widest text-(--site-brand-text) uppercase">{BLOCK_LIBRARY[block.type].label}</p>}
-    <h2 id={`${siteAnchor(block)}-title`} className="max-w-[24ch] text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl lg:text-5xl">{siteBlockTitle(block)}</h2>
-    {children}
-  </div>;
-}
-function JobsLink({ href, onBrand = false, centered = false }: { href?: string; onBrand?: boolean; centered?: boolean }) {
-  if (!href) return null;
-  return <Button nativeButton={false} role="link" data-brand-surface={onBrand ? undefined : ""} data-brand-inverse={onBrand ? "" : undefined} className={cn("min-h-10 w-full sm:w-auto", centered ? "sm:self-center" : "sm:self-start")} render={<a href={href} />}>Ver vacantes<ArrowDown aria-hidden="true" data-icon="inline-end" /></Button>;
-}
-
-export function SiteBlockContent({ block, company, jobs, offices, jobsHref, storyHref }: { block: SiteBlock; company: PublicSite["company"]; jobs: PublicJobItem[]; offices: Map<string, string>; jobsHref?: string; storyHref?: string }) {
+/** `secondaryHref`: the hero's secondary button target, already resolved (absent = hidden). */
+export function SiteBlockContent({ block, company, jobs, offices, jobsHref, secondaryHref }: { block: SiteBlockV2; company: PublicSite["company"]; jobs: PublicJobItem[]; offices: Map<string, string>; jobsHref?: string; secondaryHref?: string }) {
   const marker = `${block.type}-${block.variant}`;
   switch (block.type) {
     case "hero": {
+      if (block.variant === "background_loop" || block.variant === "photo_jobs" || block.variant === "collage") return <HeroV2 block={block} company={company} jobs={jobs} jobsHref={jobsHref} secondaryHref={secondaryHref} />;
       const split = block.variant === "split";
       return <div data-layout={marker} className={cn("grid items-center gap-8 sm:gap-12", split && block.content.cover && "lg:grid-cols-2")}>
         <div className={cn("flex flex-col gap-6", !split && "mx-auto max-w-3xl items-center text-center")}>
           <p className="text-xs font-medium tracking-widest text-(--site-brand-text) uppercase">{company.name} · Tu próximo capítulo</p>
           <h1 id={`${siteAnchor(block)}-title`} className="text-4xl leading-[1.12] font-medium tracking-tight text-balance whitespace-pre-line sm:text-5xl lg:text-6xl">{block.content.title}</h1>
           {block.content.subtitle && <p className="max-w-[48ch] text-base leading-relaxed text-pretty text-muted-foreground sm:text-lg">{block.content.subtitle}</p>}
-          <div className="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row"><JobsLink href={jobsHref} />{storyHref && <Button nativeButton={false} role="link" variant="ghost" className="min-h-10 w-full sm:w-auto" render={<a href={storyHref} />}>Conoce la empresa<ArrowDown aria-hidden="true" data-icon="inline-end" /></Button>}</div>
+          <div className="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row"><JobsLink href={jobsHref} label={block.content.primary_label ?? HERO_BUTTON_DEFAULTS.primary_label} />{secondaryHref && <Button nativeButton={false} role="link" variant="ghost" className="min-h-10 w-full sm:w-auto" render={<a href={secondaryHref} />}>{block.content.secondary_label ?? HERO_BUTTON_DEFAULTS.secondary_label}<ArrowDown aria-hidden="true" data-icon="inline-end" /></Button>}</div>
         </div>
         {block.variant !== "centered" && <SiteMedia eager image={block.content.cover} alt={block.content.title ?? `Equipo de ${company.name}`} className={cn("aspect-[2.3]", split && "aspect-4/3 lg:aspect-4/5")} />}
       </div>;
@@ -67,6 +54,8 @@ export function SiteBlockContent({ block, company, jobs, offices, jobsHref, stor
       {block.content.body && <div className={cn("min-w-0 text-base leading-relaxed text-muted-foreground", block.variant === "text_image" && block.content.image && "lg:col-start-2")}><DraftRichDescriptionContent description={block.content.body} /></div>}
     </div>;
     case "values": case "benefits": {
+      if (block.variant === "bento") return <DecoratedBento block={block} />;
+      if (block.variant === "big_icons") return <BigIcons block={block} />;
       const grid = block.variant === "grid";
       const items = block.content.items.filter(item => item.title);
       return <div data-layout={marker} className={cn("grid gap-8", !grid && "lg:grid-cols-[1fr_1.5fr] lg:gap-12")}>
@@ -80,7 +69,8 @@ export function SiteBlockContent({ block, company, jobs, offices, jobsHref, stor
         })}</ItemGroup>}
       </div>;
     }
-    case "stats": return <div data-layout={marker} className={cn("grid gap-8", block.variant === "cards" && "lg:grid-cols-[1fr_1.5fr] lg:gap-12")}>
+    case "stats": if (block.variant === "brand_band") return <StatsBand block={block} />;
+      return <div data-layout={marker} className={cn("grid gap-8", block.variant === "cards" && "lg:grid-cols-[1fr_1.5fr] lg:gap-12")}>
       <Heading block={block} />
       {/* Auto-fit prevents the approved reference's three narrow columns breaking Monterrey. */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-6">
@@ -103,8 +93,10 @@ export function SiteBlockContent({ block, company, jobs, offices, jobsHref, stor
         </li>)}
       </ol>
     </div>;
-    case "gallery": return <div className="flex flex-col gap-8"><Heading block={block} /><SiteGallery block={block} /></div>;
-    case "testimonials": return <div data-layout={marker} className="flex flex-col gap-8"><Heading block={block} />
+    case "gallery": if (block.variant === "photo_strip") return <PhotoStrip block={block} />;
+      return <div className="flex flex-col gap-8"><Heading block={block} /><SiteGallery block={{ ...block, variant: block.variant }} /></div>;
+    case "testimonials": if (block.variant === "carousel") return <TestimonialsCarousel block={block} />;
+      return <div data-layout={marker} className="flex flex-col gap-8"><Heading block={block} />
       <div className={cn("grid gap-6", block.variant === "cards" && "lg:grid-cols-2")}>
         {block.content.items.filter(item => item.consent && item.quote && item.name).map((item, index) => <Card key={index} className={cn(block.variant === "quote" && "mx-auto w-full max-w-4xl text-center")}>
           {block.variant === "cards" && <SiteMedia image={item.photo} alt={`Retrato de ${item.name}`} className="aspect-[1.7]" />}
@@ -128,6 +120,10 @@ export function SiteBlockContent({ block, company, jobs, offices, jobsHref, stor
       <CardHeader className="gap-4"><CardTitle><h2 id={`${siteAnchor(block)}-title`} className="mx-auto max-w-[22ch] text-3xl leading-tight font-medium tracking-tight text-balance sm:text-5xl">{block.content.title}</h2></CardTitle>{block.content.text && <CardDescription>{block.content.text}</CardDescription>}</CardHeader>
       <CardContent className="flex flex-col items-center gap-6"><JobsLink href={jobsHref} centered onBrand={block.variant === "banner"} /><SocialLinks company={company} placement="closing" centered onBrand={block.variant === "banner"} /></CardContent>
     </Card></div>;
+    case "team": return <Team block={block} />;
+    case "logos": return <Logos block={block} />;
+    case "areas": return <Areas block={block} jobs={jobs} />;
+    case "talent_cta": return <TalentCta block={block} jobsHref={jobsHref} />;
   }
 }
 function OfficeAddress({ address, label }: { address: string | null; label?: string }) {
