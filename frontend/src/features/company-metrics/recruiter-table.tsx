@@ -26,15 +26,23 @@ type Props = {
   drill: Drill;
 };
 
-const FIRST_WIDTH = 168;
+export const FIRST_WIDTH = 168;
 const CHEVRON_WIDTH = 40;
-/** What a sort button adds around its label: padding, gap and the 16 px icon (its classes below); the label wraps on spaces only. */
-export const SORT_BUTTON_CHROME = 30;
-/** Width of the table for the visible columns: the card's scroll area is 1092 px at 1440 with the app sidebar open, so the eight fit. */
+/**
+ * What a figure column's header spends around its label: the cell's `px-1` (2 × 4) plus the button's padding (4 + 4), gap (2) and 14 px sort icon
+ * (its classes below). The label gets the column width minus this, and wraps on spaces only.
+ */
+export const SORT_BUTTON_CHROME = 32;
+/**
+ * Width of the table for the visible columns. The page gives the table 1077 px at 1440 with the app sidebar open and a classic 15 px page
+ * scrollbar (1440 − 288 sidebar − 12 margin − 2 × 24 padding − 15), and the region has no scrollbar of its own, so the eight must stay at most 1050.
+ */
 export const tableMinWidth = (visible: readonly ColumnId[]) => FIRST_WIDTH + CHEVRON_WIDTH + visible.reduce((sum, id) => sum + COLUMNS[id].width, 0);
 /** Sticky offsets: the group row is `h-10`, so the column row sticks right below it. */
 const GROUP_ROW = "h-10";
 const STICKY_HEAD = "sticky z-20 bg-card";
+/** From this width the eight columns fit and the region stops scrolling (a literal: Tailwind reads class names statically; the test ties it to `tableMinWidth`). */
+const FITS = "@min-[1049px]:overflow-visible @min-[1049px]:max-h-none";
 const STICKY_FIRST = "sticky left-0 z-10 bg-card shadow-[inset_-1px_0_0_var(--border)]";
 
 const NAME_LINK = "rounded-sm text-sm leading-5 font-medium text-foreground underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring";
@@ -52,19 +60,28 @@ function Person({ card, href }: { card: RecruiterCard; href: string }) {
 const OpenCard = ({ card, href }: { card: RecruiterCard; href: string }) =>
   <Button variant="ghost" size="icon" className="size-10 text-muted-foreground" nativeButton={false} role="link" aria-label={`Ver ficha de ${personName(card)}`} render={<Link href={href} />}><ChevronRight aria-hidden="true" /></Button>;
 
-/** A header that sorts: a button inside the `th`, which carries `aria-sort`; the label wraps rather than being cut. */
+/**
+ * A header that sorts: a button inside the `th`, which carries `aria-sort`; the label wraps rather than being cut. 12 px medium (the
+ * system's small-label size) so every word fits its column; the figure columns right-align with the icon on the figures' right edge.
+ */
 function SortButton({ id, label, sort, onSort, numeric }: { id: SortKey; label: string; sort: RecruiterSort; onSort: Props["onSort"]; numeric?: boolean }) {
   const Icon = sort.key !== id ? ArrowUpDown : sort.direction === "ascending" ? ArrowUp : ArrowDown;
   return <Button type="button" variant="ghost" size="sm" onClick={() => onSort(id)}
-    className={cn("-mx-2 h-auto min-h-10 max-w-full gap-1 border-0 px-1.5 py-1 leading-tight hyphens-none whitespace-normal has-data-[icon=inline-end]:pr-1", numeric ? "ml-auto justify-end text-right" : "text-left", sort.key === id ? "text-foreground" : "text-muted-foreground")}>
-    {label}<Icon aria-hidden="true" data-icon="inline-end" />
+    className={cn("h-auto min-h-10 max-w-full gap-0.5 border-0 px-1 py-1 text-xs leading-tight hyphens-none whitespace-normal has-data-[icon=inline-end]:pr-1", numeric ? "ml-auto justify-end text-right" : "-ml-2 text-left", sort.key === id ? "text-foreground" : "text-muted-foreground")}>
+    {label}<Icon aria-hidden="true" data-icon="inline-end" className="size-3.5" />
   </Button>;
 }
 const ariaSort = (sort: RecruiterSort, id: SortKey) => sort.key === id ? sort.direction : undefined;
 
+/** The column widths shared by the table and its loading skeleton, so the skeleton does not shift when the data arrives. */
+export function TableCols({ visible }: { visible: readonly ColumnId[] }) {
+  return <colgroup><col style={{ width: FIRST_WIDTH }} />{visible.map(id => <col key={id} style={{ width: COLUMNS[id].width }} />)}<col style={{ width: CHEVRON_WIDTH }} /></colgroup>;
+}
+
 /**
  * The full recruiter table (S2, artboard `recruiter-table-redesign/01`): from `md` a table with grouped headers, the person
- * and both header rows sticky inside one scroll region (the eight columns fit at 1440 with the app sidebar open without scrolling sideways; cells wrap,
+ * and both header rows sticky (the eight columns fit at 1440 with the app sidebar open without scrolling sideways, and then the region neither scrolls
+ * nor caps its height: the page scrolls and the headers stick to the viewport; narrower, the region scrolls both ways and holds them; cells wrap,
  * extending the audit-table exception of `design/system.md`); below `md` one card per person with the same groups, no
  * sideways scroll (rule 14).
  */
@@ -94,23 +111,24 @@ export function RecruiterTable({ items, sort, hidden, onSort, href, drill }: Pro
         </article>
       </li>)}
     </ul>
-    <Card className="hidden gap-0 overflow-hidden p-0 md:flex">
+    {/* `overflow-clip` rounds the corners without becoming the scroll container `position: sticky` would stick to (`overflow-hidden` would). */}
+    <Card className="@container hidden gap-0 overflow-clip p-0 md:flex">
       <div role="region" aria-label="Tabla con desplazamiento horizontal" tabIndex={0}
-        className="max-h-[max(480px,calc(100dvh-120px))] overflow-auto outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-text">
+        className={cn("max-h-[max(480px,calc(100dvh-120px))] overflow-auto outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-text", FITS)}>
         <table className="w-full table-fixed border-separate border-spacing-0 text-sm" style={{ minWidth }}>
           <caption className="sr-only">{`Reclutadores del periodo. ${sortLabel(sort)}`}</caption>
-          <colgroup><col style={{ width: FIRST_WIDTH }} />{visible.map(id => <col key={id} style={{ width: COLUMNS[id].width }} />)}<col style={{ width: CHEVRON_WIDTH }} /></colgroup>
+          <TableCols visible={visible} />
           <TableHeader>
             <TableRow className="border-0 hover:bg-transparent">
               <TableHead scope="col" rowSpan={2} aria-sort={ariaSort(sort, "name")} className={cn(STICKY_HEAD, "top-0 left-0 z-30 border-b px-4 align-bottom shadow-[inset_-1px_0_0_var(--border)]")}>
                 <SortButton id="name" label="Reclutador" sort={sort} onSort={onSort} />
               </TableHead>
               {groups.map(group => <TableHead key={group.id} scope="colgroup" colSpan={group.columns.length} className={cn(STICKY_HEAD, GROUP_ROW, "top-0 border-b px-2 font-semibold shadow-[inset_1px_0_0_var(--border)]")}>{group.label}</TableHead>)}
-              <TableHead scope="col" rowSpan={2} className={cn(STICKY_HEAD, "top-0 right-0 z-30 border-b p-0")}><span className="sr-only">Ver ficha</span></TableHead>
+              <TableHead scope="col" rowSpan={2} className={cn("sticky top-0 z-20 border-b bg-card p-0")}><span className="sr-only">Ver ficha</span></TableHead>
             </TableRow>
             <TableRow className="border-0 hover:bg-transparent">
               {groups.flatMap(group => group.columns).map(id => <TableHead key={id} scope="col" aria-sort={ariaSort(sort, id)}
-                className={cn(STICKY_HEAD, "top-10 border-b px-2 align-bottom", starts.has(id) && "shadow-[inset_1px_0_0_var(--border)]")}>
+                className={cn(STICKY_HEAD, "top-10 border-b px-1 align-bottom", starts.has(id) && "shadow-[inset_1px_0_0_var(--border)]")}>
                 <SortButton id={id} label={COLUMNS[id].label} sort={sort} onSort={onSort} numeric />
               </TableHead>)}
             </TableRow>
@@ -121,7 +139,7 @@ export function RecruiterTable({ items, sort, hidden, onSort, href, drill }: Pro
               {groups.flatMap(group => group.columns).map(id => <TableCell key={id} className={cn("border-b px-2 py-4 text-right align-top whitespace-normal group-hover/row:bg-muted", starts.has(id) && "shadow-[inset_1px_0_0_var(--border)]")}>
                 <CellView parts={COLUMNS[id].cell({ card, drill })} className="justify-items-end text-right" />
               </TableCell>)}
-              <TableCell className={cn("sticky right-0 z-10 border-b bg-card p-0 align-top group-hover/row:bg-muted")}><div className="grid h-full place-items-center pt-3"><OpenCard card={card} href={href(card)} /></div></TableCell>
+              <TableCell className="border-b p-0 align-top group-hover/row:bg-muted"><div className="grid h-full place-items-center pt-3"><OpenCard card={card} href={href(card)} /></div></TableCell>
             </TableRow>)}
           </TableBody>
         </table>

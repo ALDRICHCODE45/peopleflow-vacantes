@@ -9,7 +9,7 @@ import { drilldownHref } from "../drilldown";
 import type { ColumnId } from "../recruiter-view";
 import type { SortKey } from "../sorting";
 import { COLUMNS } from "../recruiter-columns";
-import { RecruiterTable, SORT_BUTTON_CHROME, tableMinWidth } from "../recruiter-table";
+import { FIRST_WIDTH, RecruiterTable, SORT_BUTTON_CHROME, tableMinWidth } from "../recruiter-table";
 import { COLUMN_IDS } from "../recruiter-view";
 import { DEFAULT_SORT, type RecruiterSort } from "../sorting";
 import { andrea, andreaId, card, carlos, fernanda } from "../test-fixtures";
@@ -50,24 +50,94 @@ describe("full recruiter table at desktop width (S2)", () => {
     expect(within(table()).getAllByRole("cell")[0].className).not.toMatch(/truncate|whitespace-nowrap/);
   });
 
-  // 1440 − 288 sidebar − 2 × 12 inset margin − 2 × 24 page padding = 1092 px: the card's scroll area with the app sidebar open (collapsed it only gets wider).
-  it("fits the scroll area at 1440 with the sidebar open: first column, eight figures and the chevron add up to at most 1092 px", () => {
-    expect(tableMinWidth(COLUMN_IDS)).toBeLessThanOrEqual(1092);
+  // The width the table gets at 1440 × 900 with the app sidebar open and CLASSIC scrollbars (the user's Firefox on Linux):
+  //   1440 viewport − 288 sidebar (18 rem) − 12 right inset margin − 2 × 24 page padding = 1092 px of card, and
+  //   1092 − 15 px page scrollbar = 1077 px. The table region has no vertical scroll of its own (it would take another 15 px),
+  //   so 1077 px is all there is. The table has to be at most 1050 px, which leaves about 27 px of slack for rounding and borders.
+  it("fits the scroll area at 1440 with the sidebar open and a classic page scrollbar: at most 1050 px for 1077 px", () => {
+    const AREA = 1092 - 15;
+    expect(tableMinWidth(COLUMN_IDS)).toBeLessThanOrEqual(1050);
+    expect(AREA - tableMinWidth(COLUMN_IDS)).toBeGreaterThanOrEqual(25);
     show();
     expect(table().style.minWidth).toBe(`${tableMinWidth(COLUMN_IDS)}px`);
+    const cols = Array.from(table().querySelectorAll("col")).map(col => parseInt((col as HTMLElement).style.width, 10));
+    expect(cols.reduce((sum, width) => sum + width, 0)).toBe(tableMinWidth(COLUMN_IDS));
     expect(tableMinWidth(COLUMN_IDS.filter(id => id !== "median"))).toBeLessThan(tableMinWidth(COLUMN_IDS));
   });
 
-  it("wraps headers on spaces only: no hyphenation, and every column is wide enough for its longest header word", () => {
+  it("lets the page scroll when the table fits (no region scrollbar, header sticky against the page) and keeps the region scroll only below that width", () => {
+    show();
+    const region = screen.getByRole("region", { name: "Tabla con desplazamiento horizontal" });
+    const fit = `@min-[${tableMinWidth(COLUMN_IDS)}px]`;
+    // From the width the table needs, the region neither scrolls nor caps its height: `overflow: visible` keeps `position: sticky` tied to the page.
+    expect(region).toHaveClass(`${fit}:overflow-visible`, `${fit}:max-h-none`);
+    // Below it the region scrolls sideways (and holds the sticky header) as before.
+    expect(region).toHaveClass("overflow-auto");
+    // The card clips its corners with `overflow: clip`, which, unlike `hidden`, does not become the sticky container.
+    const card = region.parentElement!;
+    expect(card).toHaveClass("overflow-clip", "@container");
+    expect(card.className).not.toMatch(/overflow-hidden/);
+  });
+
+  it("keeps the sticky columns off the cell content: the chevron column does not stick over «Conversión», the person column is opaque and as wide as its colgroup", () => {
+    show();
+    const chevron = within(rowOf("Mariana")).getByRole("link", { name: "Ver ficha de Mariana Torres" }).closest("td")!;
+    expect(chevron.className).not.toMatch(/sticky|right-0/);
+    const head = within(table()).getByRole("columnheader", { name: "Ver ficha" });
+    expect(head.className).not.toMatch(/right-0/);
+    const first = within(rowOf("Mariana")).getAllByRole("rowheader")[0];
+    expect(first).toHaveClass("sticky", "left-0", "bg-card");
+    expect(table().querySelector("col")).toHaveStyle({ width: `${FIRST_WIDTH}px` });
+  });
+
+  // Inter 500 at 12 px, measured in Chromium with the font the app ships (`.next/static/media`, latin subset) at 120 px and divided by 10,
+  // so hinting does not round them. Hinted Chromium text runs up to 4.7 % wider, so the test inflates by 5 %.
+  const WIDTH_12: Record<string, number> = {
+    Asignadas: 60.6, Reasignaciones: 91.3, "Días": 25.2, en: 14.5, tramos: 40.1, Entregas: 51.3, a: 6.9, tiempo: 39.8, Mediana: 49.8, la: 10, meta: 29,
+    Entregados: 66.1, Placements: 67.6, "Conversión": 65.9,
+  };
+  const SPACE_12 = 3.2;
+  const SAFETY = 1.05;
+  const SLACK = 2;
+  const wordWidth = (word: string) => {
+    const width = WIDTH_12[word];
+    if (width === undefined) throw new Error(`measure «${word}» (12 px / 500) and add it to WIDTH_12`);
+    return width * SAFETY;
+  };
+  /** Greedy line breaking on spaces only, like the header button (`whitespace-normal`, `hyphens-none`); a line has to fit with `SLACK` px to spare. */
+  const wrap = (label: string, available: number) => {
+    const lines: string[][] = [[]];
+    for (const word of label.split(" ")) {
+      const line = lines[lines.length - 1];
+      const width = [...line, word].reduce((sum, item, index) => sum + wordWidth(item) + (index ? SPACE_12 * SAFETY : 0), 0);
+      if (line.length === 0 || width + SLACK <= available) line.push(word); else lines.push([word]);
+    }
+    return lines;
+  };
+
+  it("wraps headers on spaces only: every word inside its column with at least 2 px to spare, in at most 2 lines (12 px / 500, sidebar open)", () => {
     show();
     for (const id of COLUMN_IDS) {
-      const longest = Math.max(...COLUMNS[id].label.split(" ").map(word => word.length));
-      // Inter 14px/500 measures 7.8 px per character at most for these words; the button adds its padding, gap and the sort icon.
-      expect(Math.ceil(longest * 7.8) + SORT_BUTTON_CHROME, COLUMNS[id].label).toBeLessThanOrEqual(COLUMNS[id].width);
+      const available = COLUMNS[id].width - SORT_BUTTON_CHROME;
+      const lines = wrap(COLUMNS[id].label, available);
+      expect(lines.length, `${COLUMNS[id].label} in ${COLUMNS[id].width} px`).toBeLessThanOrEqual(2);
+      for (const line of lines) {
+        const width = line.reduce((sum, word, index) => sum + wordWidth(word) + (index ? SPACE_12 * SAFETY : 0), 0);
+        expect(width + SLACK, `${line.join(" ")} in ${available} px`).toBeLessThanOrEqual(available);
+      }
     }
     for (const button of within(table()).getAllByRole("button")) {
       expect(button.className).not.toMatch(/hyphens-auto/);
       expect(button).toHaveClass("hyphens-none");
+    }
+  });
+
+  it("sets the column headers at the table-header size of the recruiter table, 12 px medium", () => {
+    show();
+    for (const id of COLUMN_IDS) {
+      const button = within(table()).getByRole("button", { name: new RegExp(COLUMNS[id].label) });
+      expect(button).toHaveClass("text-xs");
+      expect(button.className).not.toMatch(/(^|\s)text-(sm|base)(\s|$)/);
     }
   });
 

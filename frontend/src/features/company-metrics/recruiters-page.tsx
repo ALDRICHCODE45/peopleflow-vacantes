@@ -18,7 +18,7 @@ import { momentLabel, type RecruiterCard } from "./model";
 import { mexicoToday, periodLabel } from "./period";
 import { ProcessNote } from "./process-kind";
 import { COLUMNS } from "./recruiter-columns";
-import { RecruiterTable } from "./recruiter-table";
+import { RecruiterTable, TableCols, tableMinWidth } from "./recruiter-table";
 import { IGNORED_COLUMNS, TableToolbar } from "./recruiter-toolbar";
 import { COLUMN_IDS, parseTableView, recruiterFromTable, serializeTableView, tablePath, type TableView } from "./recruiter-view";
 import { sortLabel, sortRecruiters, nextSort, type SortKey } from "./sorting";
@@ -48,12 +48,13 @@ function TableSkeleton({ view }: { view: TableView }) {
   const columns = COLUMN_IDS.filter(id => !view.hidden.includes(id));
   return <div role="status" aria-label="Cargando desempeño por reclutador" aria-busy="true">
     <Card aria-hidden="true" className="hidden gap-0 overflow-hidden p-0 md:flex">
-      <table className="w-full table-fixed text-sm">
-        <thead><tr className="border-b text-muted-foreground"><th scope="col" className="h-10 w-42 px-4 text-left font-medium">Reclutador</th>
-          {columns.map(id => <th key={id} scope="col" className="h-10 px-2 text-right font-medium">{COLUMNS[id].label}</th>)}</tr></thead>
+      <table className="w-full table-fixed text-sm" style={{ minWidth: tableMinWidth(columns) }}>
+        <TableCols visible={columns} />
+        <thead><tr className="border-b text-xs text-muted-foreground"><th scope="col" className="h-10 px-4 text-left font-medium">Reclutador</th>
+          {columns.map(id => <th key={id} scope="col" className="h-10 px-1 pr-2 text-right font-medium">{COLUMNS[id].label}</th>)}<th scope="col" /></tr></thead>
         <tbody>{[0, 1, 2, 3, 4, 5].map(row => <tr key={row} className="h-[86px] border-b last:border-0">
           <td className="px-4"><div className="flex gap-3"><Skeleton className="size-10 rounded-full" /><div className="grid gap-2"><Skeleton className="h-3.5 w-28" /><Skeleton className="h-3 w-20" /></div></div></td>
-          {columns.map(id => <td key={id} className="px-2"><div className="grid justify-items-end gap-2"><Skeleton className="h-3.5 w-14" /><Skeleton className="h-3 w-[72px]" /></div></td>)}</tr>)}</tbody>
+          {columns.map(id => <td key={id} className="px-2"><div className="grid justify-items-end gap-2"><Skeleton className="h-3.5 w-14" /><Skeleton className="h-3 w-[72px]" /></div></td>)}<td /></tr>)}</tbody>
       </table>
     </Card>
     <Card aria-hidden="true" className="gap-4 p-4 md:hidden">{[0, 1, 2].map(row => <div key={row} className="grid gap-3"><div className="flex gap-3"><Skeleton className="size-10 rounded-full" /><Skeleton className="h-4 w-36" /></div><Skeleton className="h-11 w-full" /><Skeleton className="h-9 w-full" /></div>)}</Card>
@@ -110,7 +111,7 @@ function RecruitersWorkspace({ role }: { role: "owner" | "stakeholder" }) {
         <p className="text-xs text-muted-foreground">{freshness}</p>
       </header>
     </div>
-    <TableToolbar filters={filters} period={period} today={today} view={view} periodError={periodError} onFilters={update} onView={setView} />
+    <TableToolbar filters={filters} period={period} today={today} view={view} version={list?.definitions_version} periodError={periodError} onFilters={update} onView={setView} />
     <Chips chips={chips} onRemove={remove} onClear={clear} />
     <ProcessNote filters={filters}>{IGNORED_COLUMNS}</ProcessNote>
     {failure ? <MetricsFailureCard failure={failure} subject="el desempeño por reclutador" onRetry={state.retry} onReset={() => update({})} />

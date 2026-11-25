@@ -16,12 +16,18 @@ const PERIODS: { value: Shortcut; label: string }[] = [
   { value: "last_30", label: "30 días" }, { value: "last_90", label: "90 días" }, { value: "last_12_months", label: "12 meses" },
 ];
 const OPTION = "min-h-10 rounded-lg px-3 text-muted-foreground";
+const COMPACT_OPTION = "max-md:flex-auto max-md:px-2 max-md:whitespace-nowrap";
 const SELECTED = "bg-primary/10 font-semibold text-primary-text hover:bg-primary/15 hover:text-primary-text";
 
-/** `compact`: on a phone the four options share one full-width line (no icon, tighter padding) instead of wrapping onto a second one. */
+/**
+ * `compact`: on a phone the four options share one full-width line (no icon, tighter padding, «Otro rango» for «Personalizado») instead of wrapping onto a
+ * second one. The chips size to their content and share what is left (`flex-auto`, never narrower than their label), so none is clipped: measured in
+ * Chromium and Firefox with Inter, the four labels need 310 px at most (with «Otro rango» selected) of the 322 px the group has at 360 px and the 352 px at 390 px.
+ * Below about 330 px wide the group would overflow by a few px; no supported phone is that narrow.
+ */
 export function PeriodControl({ period, today, error, compact, className, onChange }: { period: Period; today: string; error?: string; compact?: boolean; className?: string; onChange: (next: Period) => void }) {
   const shortcut = matchingShortcut(period, today);
-  const option = cn(OPTION, compact && "max-md:min-w-0 max-md:flex-1 max-md:px-2");
+  const option = cn(OPTION, compact && COMPACT_OPTION);
   // Rule 14: on a narrow screen the options wrap onto a second line, «Personalizado» whole (unless `compact`: one line).
   return <div role="group" aria-label="Periodo" className={cn("flex max-w-full rounded-xl border bg-card p-0.5", compact ? "flex-nowrap max-md:w-full md:flex-wrap" : "flex-wrap", className)}>
     {PERIODS.map(item => <Button key={item.value} type="button" variant="ghost" aria-pressed={shortcut === item.value}
@@ -38,8 +44,9 @@ function CustomPeriod({ period, active, error, compact, onApply }: { period: Per
   const issues = periodIssues(draft);
   const issue = (field: "from" | "to") => issues.find(item => item.field === field)?.message;
   return <Popover open={open} onOpenChange={setOpen}>
-    <PopoverTrigger render={<Button type="button" variant="ghost" aria-pressed={active} className={cn(OPTION, compact && "max-md:min-w-0 max-md:flex-1 max-md:px-2", active && SELECTED)} />}>
-      <CalendarRange aria-hidden="true" data-icon="inline-start" className={cn(compact && "max-md:hidden")} />Personalizado
+    <PopoverTrigger render={<Button type="button" variant="ghost" aria-pressed={active} className={cn(OPTION, compact && COMPACT_OPTION, active && SELECTED)} />}>
+      <CalendarRange aria-hidden="true" data-icon="inline-start" className={cn(compact && "max-md:hidden")} />
+      {compact ? <><span className="md:hidden">Otro rango</span><span className="max-md:hidden">Personalizado</span></> : "Personalizado"}
     </PopoverTrigger>
     <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)]">
       <PopoverTitle className="font-semibold">Periodo personalizado</PopoverTitle>

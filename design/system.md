@@ -412,6 +412,9 @@ self-check `design/audit-log-redesign/self-check.md`). Implementation: `frontend
    fit at 1440 without a horizontal scroll (the region still scrolls and is focusable below that). Headers are grouped (Carga de trabajo · Entrega de candidatos ·
    Contratación), the person column and both header rows are `sticky`, and the inherited board filters (Reclutador, Cliente o área) show as the same multi-line
    chips as the audit log. Below `md` each person is one card with the same three groups (rule 14: no sideways scroll); sorting there is a labelled «Orden» selector.
+   Its column headers are `text-xs font-medium` (not the table rule's `text-sm`) so every header word fits its column in ≤ 2 lines; the table's
+   min-width budget is ≤ 1050 px (1440 − 288 sidebar − page padding − a 15 px classic scrollbar), and from that width up the region does not scroll
+   vertically: the page scrolls and the header sticks to the viewport, so a classic-scrollbar browser never shows two scrollbars.
    «Entregas a tiempo» always shows the percentage and «N de M»; the order uses the percentage, then the count. This is the one recruiter table: the board's
    «Ver tabla completa» is a link to it (no narrow sheet).
 

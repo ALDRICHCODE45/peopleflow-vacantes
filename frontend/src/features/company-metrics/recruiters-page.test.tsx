@@ -1,6 +1,6 @@
 import * as React from "react";
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -29,7 +29,8 @@ vi.mock("@/components/ui/popover", async () => {
   };
 });
 vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ open, modal, children }: { open?: boolean; modal?: boolean | "trap-focus"; children?: React.ReactNode }) => open ? <div role="dialog" aria-label="Qué mide cada columna" data-modal={String(modal ?? true)}>{children}</div> : null,
+  Sheet: ({ open, modal, onOpenChange, children }: { open?: boolean; modal?: boolean | "trap-focus"; onOpenChange?: (next: boolean) => void; children?: React.ReactNode }) =>
+    open ? <div role="dialog" aria-label="Qué mide cada columna" data-modal={String(modal ?? true)} onKeyDown={event => { if (event.key === "Escape") onOpenChange?.(false); }}>{children}</div> : null,
   SheetContent: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   SheetHeader: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   SheetTitle: ({ children }: { children?: React.ReactNode }) => <h2>{children}</h2>,
@@ -47,9 +48,9 @@ const at = (search = "") => window.history.replaceState(null, "", `/empresa/metr
 const search = () => new URLSearchParams(window.location.search);
 const people = () => [andrea(), carlos(), fernanda(), card()];
 const AS_OF = "2026-11-07T17:42:00Z";
-const answer = (items: RecruiterCard[], asOf: string | null = AS_OF): MetricsResult<RecruiterList> => ({ ok: true, data: { items, definitions_version: "v1", ...(asOf && { as_of: asOf }) } });
-const show = async (items: RecruiterCard[] = people(), asOf: string | null = AS_OF) => {
-  recruiters.mockResolvedValue(answer(items, asOf));
+const answer = (items: RecruiterCard[], asOf: string | null = AS_OF, version = "v1"): MetricsResult<RecruiterList> => ({ ok: true, data: { items, definitions_version: version, ...(asOf && { as_of: asOf }) } });
+const show = async (items: RecruiterCard[] = people(), asOf: string | null = AS_OF, version = "v1") => {
+  recruiters.mockResolvedValue(answer(items, asOf, version));
   render(<RecruitersPage />);
   await screen.findByRole("table");
 };
@@ -218,7 +219,7 @@ describe("the page and its URL state (S2, S4)", () => {
 
   it("opens «Qué mide cada columna» with the definitions in the table's order", async () => {
     await show();
-    await userEvent.click(screen.getByRole("button", { name: "Qué mide cada columna" }));
+    await userEvent.click(screen.getByRole("button", { name: /Qué mide cada columna/ }));
     const terms = within(screen.getByRole("dialog", { name: "Qué mide cada columna" })).getAllByRole("term").map(term => term.textContent!.split(" · ")[0]);
     expect(terms).toEqual(["Asignadas", "Reasignaciones", "Días en tramos", "Entregas a tiempo", "Mediana a la meta", "Entregados", "Placements", "Conversión"]);
   });
@@ -232,24 +233,70 @@ describe("the toolbar on a phone and the definitions sheet", () => {
     const period = within(bar).getByRole("group", { name: "Periodo" });
     expect(period).toHaveClass("flex-nowrap", "col-span-2");
     expect(period.className).not.toMatch(/(^|\s)flex-wrap/);
-    expect(within(period).getByRole("button", { name: "Personalizado" }).querySelector("svg")).toHaveClass("max-md:hidden");
-    expect(within(bar).getByRole("button", { name: "Qué mide cada columna" })).toHaveClass("max-md:whitespace-normal");
+    // Phone: the chips size to their content (never narrower than it) and «Personalizado» becomes «Otro rango», so nothing is clipped.
+    const custom = within(period).getByRole("button", { name: /Personalizado/ });
+    expect(custom.querySelector("svg")).toHaveClass("max-md:hidden");
+    expect(within(custom).getByText("Otro rango")).toHaveClass("md:hidden");
+    expect(within(custom).getByText("Personalizado")).toHaveClass("max-md:hidden");
+    for (const chip of within(period).getAllByRole("button")) expect(chip).toHaveClass("max-md:flex-auto", "max-md:whitespace-nowrap");
+    // «Definiciones» on a phone, the full wording from md; one line, so the row is as tall as the select next to it.
+    const definitions = within(bar).getByRole("button", { name: /Qué mide cada columna/ });
+    expect(within(definitions).getByText("Definiciones")).toHaveClass("md:hidden");
+    expect(within(definitions).getByText("Qué mide cada columna")).toHaveClass("max-md:hidden");
+    expect(definitions).not.toHaveClass("max-md:whitespace-normal");
+    expect(definitions).toHaveClass("max-md:h-auto");
     expect(within(bar).getByRole("button", { name: "Proceso" })).toHaveClass("max-md:w-full");
     expect(within(bar).getByRole("combobox", { name: "Orden" }).closest("div")).toHaveClass("md:hidden");
     // The reset only takes a row on a phone when there is something to reset.
     expect(within(bar).getByRole("button", { name: "Restablecer vista" })).toHaveClass("max-md:disabled:hidden", "max-md:col-span-2");
   });
 
-  it("opens the definitions without locking the page scroll (no jump behind the sheet), in a focusable, named scroll region", async () => {
+  it("opens the definitions as a real modal (focus trapped, page behind hidden), in a focusable, named scroll region", async () => {
     await show();
-    await userEvent.click(screen.getByRole("button", { name: "Qué mide cada columna" }));
+    await userEvent.click(screen.getByRole("button", { name: /Qué mide cada columna/ }));
     const sheet = screen.getByRole("dialog", { name: "Qué mide cada columna" });
-    expect(sheet).toHaveAttribute("data-modal", "trap-focus");
+    // `modal="trap-focus"` let Tab reach the page behind; the default (`true`) traps focus and hides the page.
+    expect(sheet).toHaveAttribute("data-modal", "true");
     const region = within(sheet).getByRole("region", { name: "Definiciones de las columnas" });
     expect(region).toHaveAttribute("tabindex", "0");
     expect(region).toHaveClass("overflow-y-auto", "overscroll-contain");
     expect(region.querySelector("dl")).not.toHaveClass("overflow-y-auto");
     expect(within(region).getAllByRole("term")).toHaveLength(8);
+  });
+
+  it("takes the sheet's definitions version from the same data as the page subtitle", async () => {
+    await show(people(), AS_OF, "v2");
+    expect(screen.getByText(/1 ago 2026 – 31 oct 2026 · Definiciones v2$/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Qué mide cada columna/ }));
+    const sheet = screen.getByRole("dialog", { name: "Qué mide cada columna" });
+    expect(within(sheet).getByText(/^Definiciones v2\./)).toBeInTheDocument();
+    expect(within(sheet).queryByText(/Definiciones v1/)).toBeNull();
+  });
+
+  it("keeps the page where it was when the sheet opens and closes, even if the scroll lock moves it", async () => {
+    await show();
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => frames.push(callback));
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    const at = (top: number) => { Object.defineProperty(window, "scrollY", { configurable: true, value: top }); Object.defineProperty(window, "scrollX", { configurable: true, value: 0 }); };
+    const flush = () => act(() => { while (frames.length) frames.shift()!(0); });
+    try {
+      at(640);
+      await userEvent.click(screen.getByRole("button", { name: /Qué mide cada columna/ }));
+      // The lock (or the focus move) resets the page to the top…
+      at(0);
+      flush();
+      // …and the sheet puts it back.
+      expect(scrollTo).toHaveBeenCalledWith({ left: 0, top: 640, behavior: "instant" });
+      // Closing does the same if the page moved while the sheet was open (focus returning to a trigger that is off screen).
+      scrollTo.mockClear();
+      fireEvent.keyDown(screen.getByRole("dialog", { name: "Qué mide cada columna" }), { key: "Escape" });
+      at(0);
+      flush();
+      expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 640, behavior: "instant" });
+    } finally {
+      raf.mockRestore(); scrollTo.mockRestore(); at(0);
+    }
   });
 });
 

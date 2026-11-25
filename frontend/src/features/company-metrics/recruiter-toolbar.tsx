@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { BookOpen, ChevronDown, Columns3, ListFilter, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChoiceList } from "@/components/ui/choice-list";
@@ -59,16 +59,35 @@ function ColumnsPanel({ view, onView }: { view: TableView; onView: (next: TableV
   </Popover>;
 }
 
+/**
+ * The modal sheet may move the page: the scroll lock (and the focus going in or back to a trigger that is off screen) can reset it. Remember
+ * where it was when the sheet opened and put it back after the lock settles, and again after it is released on close.
+ */
+function useKeepScroll(open: boolean) {
+  useLayoutEffect(() => {
+    if (!open) return;
+    const { scrollX: left, scrollY: top } = window;
+    const restore = () => { if (window.scrollY !== top || window.scrollX !== left) window.scrollTo({ left, top, behavior: "instant" }); };
+    // Two frames: the lock is applied in a timeout after opening and released after closing.
+    const later = () => requestAnimationFrame(() => requestAnimationFrame(restore));
+    later();
+    return () => { later(); };
+  }, [open]);
+}
+
 /** «Qué mide cada columna»: the definitions, kept out of the headers; they follow the table's column order. */
-function DefinitionsSheet() {
+function DefinitionsSheet({ version }: { version?: string }) {
   const [open, setOpen] = useState(false);
+  useKeepScroll(open);
   return <>
-    {/* On a phone the label may take two lines in its half of the row (artboard `.mrow2 .btn`). */}
-    <Button type="button" variant="outline" className="min-h-10 max-md:order-5 max-md:h-auto max-md:justify-start max-md:py-2 max-md:text-left max-md:whitespace-normal" aria-haspopup="dialog" onClick={() => setOpen(true)}><BookOpen aria-hidden="true" data-icon="inline-start" />Qué mide cada columna</Button>
-    {/* `trap-focus`: focus stays in the sheet but the page is not scroll-locked, so nothing behind it jumps when the lock hides the scrollbar. */}
-    <Sheet open={open} onOpenChange={setOpen} modal="trap-focus">
+    {/* On a phone the label is the short «Definiciones» so the button stays on one line next to «Orden»; the full wording from `md`. */}
+    <Button type="button" variant="outline" className="min-h-10 max-md:order-5 max-md:h-auto max-md:min-w-0 max-md:justify-start" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <BookOpen aria-hidden="true" data-icon="inline-start" /><span className="md:hidden">Definiciones</span><span className="max-md:hidden">Qué mide cada columna</span>
+    </Button>
+    {/* A real modal: focus is trapped in the sheet and the page behind is hidden; `useKeepScroll` keeps the page where it was. */}
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent className="sm:max-w-md">
-        <SheetHeader><SheetTitle>Qué mide cada columna</SheetTitle><SheetDescription>Definiciones v1. Cada columna se lee por separado; la tabla no asigna posiciones.</SheetDescription></SheetHeader>
+        <SheetHeader><SheetTitle>Qué mide cada columna</SheetTitle><SheetDescription>{version ? `Definiciones ${version}. ` : ""}Cada columna se lee por separado; la tabla no asigna posiciones.</SheetDescription></SheetHeader>
         {/* The scroll region is focusable and named (axe `scrollable-region-focusable`), as in the audit detail. */}
         <div role="region" aria-label="Definiciones de las columnas" tabIndex={0}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-text">
@@ -103,11 +122,11 @@ function OrderSelect({ sort, onSort }: { sort: RecruiterSort; onSort: (next: Rec
 
 /**
  * The page's one toolbar (recipe «Filter bar with chips»): Proceso · period · … · Columnas, reset, definitions. On a phone it is
- * the artboard's compact grid, about 150 px tall: the period on one line, Proceso | Columnas, Orden | Qué mide cada columna,
+ * the artboard's compact grid, about 150 px tall: the period on one line, Proceso | Columnas, Orden | Definiciones,
  * and «Restablecer vista» only when there is something to reset. The `md:` row below keeps the DOM order of the desktop bar.
  */
-export function TableToolbar({ filters, period, today, view, periodError, onFilters, onView }: {
-  filters: MetricsFilters; period: Period; today: string; view: TableView; periodError?: string;
+export function TableToolbar({ filters, period, today, view, version, periodError, onFilters, onView }: {
+  filters: MetricsFilters; period: Period; today: string; view: TableView; /** The definitions version the page shows (`definitions_version`), the sheet's too. */ version?: string; periodError?: string;
   onFilters: (next: MetricsFilters) => void; onView: (next: TableView) => void;
 }) {
   return <div role="group" aria-label="Filtros y vista" className="grid grid-cols-2 gap-2.5 md:flex md:flex-wrap md:items-center">
@@ -118,7 +137,7 @@ export function TableToolbar({ filters, period, today, view, periodError, onFilt
       <ColumnsPanel view={view} onView={onView} />
       <Button type="button" variant="ghost" size="icon" className="size-10 text-muted-foreground max-md:order-6 max-md:col-span-2 max-md:justify-self-start max-md:disabled:hidden" aria-label="Restablecer vista" title="Restablecer vista" disabled={isDefaultView(view)}
         onClick={() => onView({ sort: { key: "name", direction: "ascending" }, hidden: [] })}><RotateCcw aria-hidden="true" /></Button>
-      <DefinitionsSheet />
+      <DefinitionsSheet version={version} />
     </div>
     <OrderSelect sort={view.sort} onSort={sort => onView({ ...view, sort })} />
   </div>;
