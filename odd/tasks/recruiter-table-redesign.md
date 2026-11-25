@@ -9,13 +9,21 @@ illegible. Design options first, then implementation.
   y sinceramente considero que es ILEJIBLE o al menos muy poco comodo de leer, no alcanzo a leer NADAA, no me gusta nada,
   dame algunas preopuetas para solucionar eso por favor» → 2–3 directions on the canvas that make the full recruiter
   table comfortable to read at 1440 and 390, grounded in design/system.md, visually reviewed before showing them.
+- **S2** User: «si, la 01, esta bien» → own page `/empresa/metricas/reclutadores` from
+  `design/recruiter-table-redesign/01-pagina-propia-de-tabla.html`; the card's «Ver tabla completa» becomes a link; the
+  narrow sheet goes away.
+- **S3** User on «Entregas a tiempo»: «lo que sea mas completo» → percentage + «N de M» (as the board card), sorted by the
+  percentage with the count as tiebreak.
+- **S4** User on «volver»: «lo que recomiendes que sea la mejor experiencia» → the recruiter detail returns to the page the
+  person came from: from the table page back to the table (keeping period, filters, order and columns in the URL); from
+  Métricas back to Métricas; direct visits fall back to Métricas.
 
 ## Tasks
 
 | ID | Specs | Task | Commit |
 | --- | --- | --- | --- |
 | T1 | S1 | Design directions (`design/recruiter-table-redesign/`) | |
-| T2 | S1 | Implementation of the chosen artboard | |
+| T2 | S1–S4 | Implementation of `01-pagina-propia-de-tabla.html` | |
 | T3 | S1 | Browser check, full suite, merge to main | |
 
 ## Log
@@ -31,3 +39,6 @@ illegible. Design options first, then implementation.
   first column and header), `02-dialogo-ancho-con-tabla-completa.html` (near-fullscreen dialog over Métricas, same columns as today;
   phone = full screen with pinned name and column groups), `03-comparativa-por-tarjetas.html` (one card per recruiter plus a compare mode
   for 2–3). Reviewed in Chromium (axe 0 violations, 57 keyboard/click checks); deviations in `self-check.md`. None chosen yet; the user picks one.
+- **L3** (2026-11-24) User: «1. si, la 01, esta bien. 2. lo que sea mas completo. 3. lo que recomiendes que sea la mejor
+  experiencia.» → S2–S4. Canvas handoff of `01-pagina-propia-de-tabla.html` (02 and 03 are alternatives). Table cells may
+  wrap (extends the audit-table exception in design/system.md to this table).
