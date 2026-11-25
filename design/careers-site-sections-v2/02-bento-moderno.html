@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="es-MX" data-theme="light" data-palette="altavista" data-notes="on" data-benefits="6" data-device="desktop">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 · Bento moderno — Sitio de empleo de Grupo Altavista (1440)</title>
+<style>
+/* ===== Base: --site-* roles (design/system.md «Colors — public careers site»), computed per palette and theme ===== */
+:root{
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-head:var(--font-body);
+  --r-card:24px; --r-btn:18px; --r-xl:14px; --r-md:8px;
+  /* Grupo Altavista (brand #1F3A5F, accent #1E7369), light */
+  --page:#F7F5FB; --card:#FFFFFF; --muted:#F1EEF7; --fg:#1A1626; --secondary:#6B6480;
+  --brand:#1F3A5F; --on-brand:#FFFFFF; --brand-text:#1F3A5F; --band:#E8E8F0;
+  --accent:#1E7369; --on-accent:#FFFFFF; --ring:#1E7369;
+  --border:color-mix(in srgb,var(--fg) 18%,var(--page));
+  --hairline:color-mix(in srgb,var(--fg) 10%,var(--page));
+  --shadow-sm:0 1px 2px color-mix(in srgb,var(--fg) 8%,transparent);
+  --ring-card:0 0 0 1px color-mix(in srgb,var(--fg) 5%,transparent);
+  --scrim:oklch(0.14 0.02 292 / 0.66);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --page:#0C0912; --card:#15121F; --muted:#171226; --fg:#F6F2FF; --secondary:#A79FBF;
+  --brand:#34557F; --on-brand:#FFFFFF; --brand-text:#9DB8DD; --band:#0F0E1A;
+  --accent:#5BBFAE; --on-accent:#0C0912; --ring:#5BBFAE;
+  --ring-card:0 0 0 1px color-mix(in srgb,var(--fg) 10%,transparent);
+  color-scheme:dark;
+}
+/* Terracota preset (palettes.ts: brand #9A3412, accent #7C3F58, page #FFF7ED) */
+html[data-palette="terracota"]{
+  --page:#FFF7ED; --card:#FFFFFF; --muted:#FFFFFF; --fg:#1A1626; --secondary:#645C78;
+  --brand:#9A3412; --on-brand:#FFFFFF; --brand-text:#9A3412; --band:#F8E9DE;
+  --accent:#7C3F58; --on-accent:#FFFFFF; --ring:#7C3F58;
+}
+html[data-palette="terracota"][data-theme="dark"]{
+  --page:#140E0A; --card:#1F1813; --muted:#1F1813; --fg:#F8F1EA; --secondary:#BFAE9F;
+  --brand:#A8401B; --on-brand:#FFFFFF; --brand-text:#F2A27E; --band:#1B110C;
+  --accent:#E59AB6; --on-accent:#140E0A; --ring:#F2A27E;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--page);color:var(--fg);font:16px/1.6 var(--font-body);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere;overflow-x:hidden}
+img,svg{display:block;max-width:100%}
+h1,h2,h3,h4{font-family:var(--font-head);margin:0;font-weight:500;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0}
+ul,ol{margin:0;padding:0;list-style:none}
+a{color:inherit}
+button{font:inherit;color:inherit}
+.sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+:focus-visible{outline:2px solid var(--ring);outline-offset:3px}
+.skip{position:absolute;left:16px;top:-80px;z-index:50;background:var(--card);color:var(--fg);padding:12px 16px;border-radius:var(--r-xl);outline:2px solid var(--ring)}
+.skip:focus{top:16px}
+.wrap{max-width:1312px;margin-inline:auto;padding-inline:64px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--brand-text)}
+.lead{font-size:18px;line-height:1.65;color:var(--secondary);max-width:52ch;text-wrap:pretty}
+.muted{color:var(--secondary)}
+
+/* Buttons (components/ui/button.tsx: rounded-2xl, 14/500; public site min-h-10/11) */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 18px;border-radius:var(--r-btn);font-size:15px;font-weight:500;text-decoration:none;border:1px solid transparent;cursor:pointer;line-height:1.2;transition:background-color .15s,transform .15s}
+.btn:active{transform:translateY(1px)}
+.btn svg{width:16px;height:16px;flex:none}
+.btn-primary{background:var(--accent);color:var(--on-accent)}
+.btn-primary:hover{background:color-mix(in srgb,var(--accent) 86%,var(--fg))}
+.btn-outline{background:var(--page);color:var(--fg);border-color:var(--border)}
+.btn-outline:hover{background:var(--muted)}
+.btn-ghost{background:transparent;color:var(--fg)}
+.btn-ghost:hover{background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.btn-link{background:none;border:0;padding:8px 4px;min-height:40px;color:var(--brand-text);text-decoration:underline;text-underline-offset:4px;font-weight:500;cursor:pointer}
+.btn-icon{width:44px;height:44px;padding:0;border-radius:999px}
+@media (prefers-reduced-motion:reduce){.btn{transition:none}.btn:active{transform:none}}
+
+/* Section style (S3): background × spacing × alignment — a curated set, never free values */
+.sec{position:relative;scroll-margin-top:16px}
+.bg-normal{background:var(--page)}
+.bg-tint{background:var(--band)}
+.bg-brand{background:var(--brand);color:var(--on-brand);--fg:var(--on-brand);--secondary:color-mix(in srgb,var(--on-brand) 90%,var(--brand));--brand-text:var(--on-brand);--ring:var(--on-brand);--border:color-mix(in srgb,var(--on-brand) 32%,var(--brand));--hairline:color-mix(in srgb,var(--on-brand) 22%,var(--brand))}
+.bg-brand .btn-primary{background:var(--on-brand);color:var(--brand)}
+.bg-brand .btn-primary:hover{background:color-mix(in srgb,var(--on-brand) 88%,var(--brand))}
+.bg-brand .btn-outline{background:transparent;color:var(--on-brand);border-color:color-mix(in srgb,var(--on-brand) 60%,var(--brand))}
+.bg-image{color:#fff;--fg:#FFFFFF;--secondary:rgb(255 255 255 / .9);--brand-text:#FFFFFF;--ring:#FFFFFF;--border:rgb(255 255 255 / .55);isolation:isolate}
+.bg-image .btn-primary{background:#FFFFFF;color:oklch(0.2 0.03 292)}
+.bg-image .btn-primary:hover{background:oklch(0.93 0.01 292)}
+.bg-image .btn-outline,.bg-image .btn-ghost{background:transparent;color:#fff;border-color:rgb(255 255 255 / .75)}
+.bg-image .btn-outline:hover,.bg-image .btn-ghost:hover{background:rgb(255 255 255 / .1)}
+.bg-image>.bg-media{position:absolute;inset:0;z-index:-2;overflow:hidden}
+.bg-image>.bg-veil{position:absolute;inset:0;z-index:-1;background:oklch(0.14 0.02 292 / var(--veil,.66))}
+.sp-compact{padding-block:56px}
+.sp-airy{padding-block:112px}
+.al-center{text-align:center}
+.al-center .lead{margin-inline:auto}
+
+/* Style annotations (artboard only) */
+.sec>p.note{display:none;position:absolute;top:10px;left:12px;z-index:5;max-width:calc(100% - 24px);font:500 11.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:0;text-transform:none;color:#1A1626;background:#FFFFFF;border:1px dashed #6B6480;border-radius:999px;padding:4px 10px;text-align:left}
+.sec>p.note b{font-weight:700}
+html[data-notes="on"] .sec>p.note{display:block}
+
+/* Artboard control bar (not part of the public page) */
+.board-bar{position:relative;z-index:30;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:10px 24px;background:#1A1626;color:#F6F2FF;font:500 13px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.board-bar strong{font-weight:650;margin-right:6px}
+.board-bar .grp{display:flex;align-items:center;gap:6px}
+.board-bar .grp>span{color:#C9C2DB}
+.board-bar .seg{display:inline-flex;gap:2px;padding:3px;border-radius:12px;background:#2A2438}
+.board-bar .seg button{min-height:32px;min-width:32px;padding:4px 10px;border:0;border-radius:9px;background:transparent;color:#E6E0F5;cursor:pointer}
+.board-bar .seg button[aria-pressed="true"]{background:#F6F2FF;color:#1A1626}
+.board-bar :focus-visible{outline:2px solid #C4B5FD;outline-offset:2px}
+.board-bar .fine{color:#C9C2DB;font-weight:400;margin-left:auto}
+
+/* Photo stand-ins: duotone scenes that follow the brand palette (no external images) */
+.ph{position:relative;overflow:hidden;border-radius:var(--r-card);background:linear-gradient(150deg,color-mix(in srgb,var(--brand) 92%,#000) 0%,var(--brand) 45%,color-mix(in srgb,var(--accent) 80%,var(--brand)) 100%);color:#FFFFFF}
+.ph>svg{position:absolute;inset:0;width:100%;height:100%}
+.ph.b{background:linear-gradient(200deg,color-mix(in srgb,var(--accent) 70%,#fff) 0%,var(--accent) 55%,color-mix(in srgb,var(--accent) 60%,var(--brand)) 100%)}
+.ph.c{background:linear-gradient(170deg,color-mix(in srgb,var(--brand) 35%,#fff) 0%,color-mix(in srgb,var(--brand) 70%,var(--accent)) 100%)}
+.ph.d{background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 30%,var(--page)) 0%,color-mix(in srgb,var(--brand) 55%,var(--accent)) 100%)}
+.ph .cap{position:absolute;left:14px;bottom:12px;font-size:12px;font-weight:500;background:rgb(12 9 18 / .62);color:#fff;padding:4px 10px;border-radius:999px}
+.avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:40px;height:40px;border-radius:999px;background:color-mix(in srgb,var(--brand) 14%,var(--card));color:var(--brand-text);font-weight:600;font-size:14px}
+
+/* Vacancy rows and area filter shared states */
+.job{display:flex;align-items:center;gap:16px;padding:16px 20px;border-radius:var(--r-btn);text-decoration:none;color:var(--fg)}
+.job:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.job h4{font-family:var(--font-body);font-size:16px;font-weight:600;letter-spacing:-.005em}
+.job .meta{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:14px;color:var(--secondary);margin-top:4px}
+.job .meta span{display:inline-flex;align-items:center;gap:6px}
+.job .meta svg{width:14px;height:14px}
+.job time{display:block;font-size:12px;color:var(--secondary);margin-top:4px}
+.job>svg{width:20px;height:20px;flex:none;margin-left:auto;color:var(--secondary)}
+.job-group[hidden],.job-item[hidden]{display:none}
+.chip-filter{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:6px 8px 6px 14px;border-radius:var(--r-xl);background:color-mix(in srgb,var(--accent) 12%,var(--card));border:1px solid color-mix(in srgb,var(--accent) 40%,var(--border));font-size:14px;font-weight:500}
+.chip-filter button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:8px;background:transparent;cursor:pointer}
+.chip-filter button:hover{background:color-mix(in srgb,var(--fg) 8%,transparent)}
+.chip-filter svg{width:14px;height:14px}
+.badge{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:var(--r-md);font-size:12px;font-weight:600;background:var(--muted);color:var(--fg);border:1px solid var(--border)}
+.field{display:flex;flex-direction:column;gap:8px;font-size:14px;font-weight:500}
+.input{min-height:44px;width:100%;border:1px solid transparent;border-radius:var(--r-btn);background:color-mix(in srgb,var(--fg) 6%,var(--card));color:var(--fg);padding:10px 14px;font:inherit;font-weight:400}
+.input::placeholder{color:var(--secondary)}
+.input:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+
+/* Footer */
+.foot{border-top:1px solid var(--hairline);padding-block:40px}
+.foot .wrap{display:flex;flex-wrap:wrap;gap:24px 48px;justify-content:space-between}
+.foot p.desc{max-width:64ch;font-size:14px;color:var(--secondary);line-height:1.65;margin-top:8px}
+.foot .pf{flex-basis:100%;font-size:12.5px;color:var(--secondary)}
+.foot .pf a{font-weight:600;text-underline-offset:4px;display:inline-flex;min-height:40px;align-items:center}
+
+@media (max-width:760px){
+  .wrap{padding-inline:20px}
+  .sp-compact{padding-block:40px}
+  .sp-airy{padding-block:64px}
+  .lead{font-size:16px}
+  .board-bar{padding:8px 12px;gap:8px 12px;font-size:12px}
+  .board-bar .fine{margin-left:0;flex-basis:100%}
+  .sec>p.note{font-size:10.5px;top:8px;left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .job{padding:14px 12px;align-items:flex-start}
+}
+
+/* Shared section mechanics for the three directions */
+.site-head{position:relative;z-index:10}
+.site-head .wrap{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-block:20px}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;font-weight:650;font-size:18px;letter-spacing:-.01em}
+.brand .mark{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:var(--brand);color:var(--on-brand);font:700 14px/1 var(--font-body);letter-spacing:.02em}
+.nav{display:flex;align-items:center;gap:4px}
+.nav a.navlink{display:inline-flex;align-items:center;min-height:40px;padding:8px 12px;border-radius:var(--r-btn);text-decoration:none;font-size:15px;font-weight:500}
+.nav a.navlink:hover{background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.menu-btn{display:none}
+.menu-panel{position:absolute;right:20px;top:72px;z-index:20;min-width:240px;background:var(--card);color:var(--fg);border-radius:18px;box-shadow:0 12px 32px -12px rgb(0 0 0 / .35),var(--ring-card);padding:6px}
+.menu-panel a{display:flex;align-items:center;min-height:44px;padding:8px 12px;border-radius:12px;text-decoration:none}
+.menu-panel a:hover{background:var(--muted)}
+
+/* Bento: layout picked by item count (1–6) — never a lone half-width card */
+.bento{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;grid-auto-flow:row dense}
+.bento>li{grid-column:span 3;min-width:0}
+.bento>li[hidden]{display:none}
+.bento[data-n="1"]>li:nth-child(1){grid-column:1/-1}
+.bento[data-n="3"]>li:nth-child(1),.bento[data-n="5"]>li:nth-child(1){grid-row:span 2}
+.bento[data-n="4"]>li:nth-child(1),.bento[data-n="4"]>li:nth-child(4){grid-column:span 4}
+.bento[data-n="4"]>li:nth-child(2),.bento[data-n="4"]>li:nth-child(3){grid-column:span 2}
+.bento[data-n="6"]>li{grid-column:span 2}
+.bento[data-n="6"]>li:nth-child(1){grid-column:span 4;grid-row:span 2}
+
+/* Carousel chrome */
+.car-ctrl{display:flex;align-items:center;gap:12px}
+.car-ctrl .btn-icon{border:1px solid var(--border);background:var(--card)}
+.car-ctrl .btn-icon:disabled{opacity:.45;cursor:not-allowed}
+.car-ctrl [data-carousel-status]{font-size:14px;color:var(--secondary);font-variant-numeric:tabular-nums;min-width:48px;text-align:center}
+.dots{display:flex;gap:4px}
+.dots button{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.dots button::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--border)}
+.dots button[aria-current="true"]::before{width:20px;background:var(--fg)}
+
+@media (max-width:1100px){
+  .nav a.navlink,.nav .nav-more{display:none}
+  .menu-btn{display:inline-flex}
+}
+@media (max-width:760px){
+  .site-head .wrap{padding-block:14px}
+  .brand{font-size:16px}
+  .brand .mark{width:36px;height:36px}
+  .nav .hide-sm{display:none}
+  .bento{grid-template-columns:minmax(0,1fr);gap:12px}
+  .bento>li,.bento[data-n]>li:nth-child(n){grid-column:1/-1;grid-row:auto}
+}
+
+/* ===== 02 Bento moderno: «modern» font pair (Plus Jakarta Sans → system sans stand-in), card mosaic, soft tints, icon-forward ===== */
+h1,h2,h3{font-weight:650;letter-spacing:-.03em}
+.bm-h2{font-size:clamp(30px,3.4vw,48px);line-height:1.08}
+.sec-head{display:flex;justify-content:space-between;align-items:end;gap:24px;flex-wrap:wrap;margin-bottom:32px}
+.sec-head .lead{margin-top:12px}
+.al-center .sec-head{flex-direction:column;align-items:center}
+.tile{background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow-sm),var(--ring-card);padding:24px;min-width:0}
+.tint-a{background:color-mix(in srgb,var(--accent) 9%,var(--card))}
+.tint-b{background:color-mix(in srgb,var(--brand) 8%,var(--card))}
+.ic-tile{width:48px;height:48px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--accent) 16%,var(--card));color:var(--accent);flex:none}
+html[data-theme="dark"] .ic-tile{background:color-mix(in srgb,var(--accent) 20%,var(--card))}
+.ic-tile svg{width:24px;height:24px}
+.ic-tile.brand{background:color-mix(in srgb,var(--brand) 12%,var(--card));color:var(--brand-text)}
+.site-head .nav{background:var(--card);border-radius:999px;padding:4px;box-shadow:var(--shadow-sm),var(--ring-card)}
+.site-head .nav .btn{border-radius:999px}
+.site-head .nav a.navlink{border-radius:999px}
+
+/* Hero: background loop + veil (overlay intensity) */
+.hero{padding:8px 16px 0}
+.hero .stage{position:relative;isolation:isolate;overflow:hidden;border-radius:32px;min-height:640px;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;--fg:#fff;--secondary:rgb(255 255 255 / .9);--ring:#fff;background:var(--brand)}
+.loop{position:absolute;inset:0;z-index:-2;background:linear-gradient(135deg,var(--brand),color-mix(in srgb,var(--accent) 70%,var(--brand)))}
+.loop i{position:absolute;width:62%;aspect-ratio:1;border-radius:50%;filter:blur(40px);opacity:.85;animation:drift 18s ease-in-out infinite alternate}
+.loop i:nth-child(1){left:-10%;top:-20%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 90%,#fff) 0,transparent 65%)}
+.loop i:nth-child(2){right:-14%;bottom:-30%;background:radial-gradient(circle,color-mix(in srgb,var(--brand) 60%,#fff) 0,transparent 65%);animation-duration:22s;animation-direction:alternate-reverse}
+.loop i:nth-child(3){left:30%;top:30%;width:40%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 50%,var(--brand)) 0,transparent 70%);animation-duration:15s}
+.loop svg{position:absolute;inset:auto 0 0 0;height:62%;width:100%;color:#fff;opacity:.22}
+.is-paused .loop i{animation-play-state:paused}
+@keyframes drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(8%,6%) scale(1.08)}100%{transform:translate(-6%,10%) scale(.96)}}
+@media (prefers-reduced-motion:reduce){.loop i{animation:none}}
+.hero .veil{position:absolute;inset:0;z-index:-1;background:oklch(0.14 0.02 292 / var(--veil,.58))}
+.hero .copy{max-width:880px;padding:96px 32px;display:flex;flex-direction:column;align-items:center;gap:24px}
+.hero .eyebrow{color:#fff;background:rgb(255 255 255 / .14);padding:6px 14px;border-radius:999px;border:1px solid rgb(255 255 255 / .3)}
+.hero h1{font-size:clamp(44px,6.4vw,92px);line-height:1;letter-spacing:-.045em;text-shadow:0 2px 24px rgb(0 0 0 / .18)}
+.hero .lead{color:rgb(255 255 255 / .92);font-size:19px;max-width:56ch}
+.hero .acts{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:8px}
+.hero .btn-primary{background:#fff;color:oklch(0.2 0.03 292)}
+.hero .btn-primary:hover{background:oklch(0.93 0.01 292)}
+.hero .btn-outline{background:transparent;color:#fff;border-color:rgb(255 255 255 / .75)}
+.hero .btn-outline:hover{background:rgb(255 255 255 / .1)}
+.loop-btn{position:absolute;right:20px;bottom:20px;display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:8px 14px;border-radius:999px;border:1px solid rgb(255 255 255 / .5);background:rgb(12 9 18 / .45);color:#fff;font-size:13px;font-weight:500;cursor:pointer}
+.loop-btn svg{width:14px;height:14px}
+.hero .facts{position:absolute;left:20px;bottom:20px;display:flex;gap:8px;flex-wrap:wrap}
+.hero .facts span{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 12px;border-radius:999px;background:rgb(12 9 18 / .45);font-size:13px}
+.hero .facts svg{width:14px;height:14px}
+
+/* Stats bento */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:0}
+.stats .tile{display:flex;flex-direction:column;gap:16px}
+.stats .v{margin:0;font-size:clamp(44px,4.4vw,64px);font-weight:700;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+.stats .l{color:var(--secondary);font-size:15px}
+.stats .tile{gap:6px}.stats .ic-tile{margin-bottom:10px}
+
+/* Benefits bento (modern skin) */
+.bcard{height:100%;display:flex;flex-direction:column;gap:14px;padding:24px;border-radius:var(--r-card);background:var(--card);box-shadow:var(--shadow-sm),var(--ring-card)}
+.bcard h3{font-size:20px;line-height:1.2;letter-spacing:-.02em}
+.bcard p{color:var(--secondary);font-size:15px}
+.bento>li:nth-child(1) .bcard{background:color-mix(in srgb,var(--accent) 10%,var(--card));justify-content:flex-end;min-height:300px}
+.bento>li:nth-child(1) .bcard h3{font-size:clamp(26px,2.6vw,36px)}
+.bento>li:nth-child(1) .bcard .ic-tile{width:64px;height:64px;border-radius:18px;margin-bottom:auto}
+.bento>li:nth-child(1) .bcard .ic-tile svg{width:32px;height:32px}
+.bento>li:nth-child(4n+3) .bcard{background:color-mix(in srgb,var(--brand) 7%,var(--card))}
+.bento[data-n="1"]>li:nth-child(1) .bcard{flex-direction:row;align-items:center;gap:32px;min-height:0;padding:32px}
+.bento[data-n="1"]>li:nth-child(1) .bcard .ic-tile{margin:0;width:96px;height:96px;border-radius:24px}
+.bento[data-n="1"]>li:nth-child(1) .bcard .ic-tile svg{width:44px;height:44px}
+.bento[data-n="1"] .bcard .chips{display:flex}
+.bcard .chips{display:none;flex-wrap:wrap;gap:8px;margin-left:auto}
+.bcard .chips span{padding:6px 12px;border-radius:999px;background:var(--card);font-size:13px;font-weight:500;box-shadow:var(--ring-card)}
+
+/* Areas: icon cards that filter */
+.area-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.area-grid button{width:100%;height:100%;display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding:20px;border-radius:20px;border:1px solid transparent;background:var(--card);box-shadow:var(--shadow-sm),var(--ring-card);text-align:left;cursor:pointer}
+.area-grid button:hover{background:color-mix(in srgb,var(--accent) 6%,var(--card))}
+.area-grid button[aria-pressed="true"]{background:color-mix(in srgb,var(--accent) 12%,var(--card));border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.area-grid .nm{font-weight:600;font-size:16px;line-height:1.25}
+.area-grid .ct{font-size:14px;color:var(--secondary);margin-top:auto}
+.area-grid .pressed-mark{display:none;font-size:12px;font-weight:600;color:var(--fg)}
+.area-grid button[aria-pressed="true"] .pressed-mark{display:inline}
+
+/* Vacancies as cards */
+.vac-tools{display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+.vac-tools .field{flex:1 1 320px}
+.vac-status{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:20px 0 16px;font-size:14px;color:var(--secondary)}
+.jobs-list{display:flex;flex-direction:column;gap:28px;outline:none}
+.jg-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.jg-head h3{font-size:18px;letter-spacing:-.01em}
+.jobs-list ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.jobs-list ul>li:last-child:nth-child(odd){grid-column:1/-1}
+.jobs-list .job{height:100%;align-items:flex-start;background:var(--card);border-radius:20px;box-shadow:var(--shadow-sm),var(--ring-card);padding:20px}
+.jobs-list .job:hover{background:color-mix(in srgb,var(--accent) 6%,var(--card))}
+
+/* Story bento */
+.story-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.story-grid .txt{grid-column:span 7;padding:36px;display:flex;flex-direction:column;gap:18px}
+.story-grid .txt p{color:var(--secondary)}
+.story-grid .txt p.first{color:var(--fg);font-size:20px;line-height:1.5}
+.story-grid .ph{grid-column:span 5;min-height:340px}
+.story-grid .fact{grid-column:span 4;display:flex;align-items:center;gap:16px}
+.story-grid .fact b{display:block;font-size:20px;letter-spacing:-.02em}
+.story-grid .fact span{color:var(--secondary);font-size:14px}
+
+/* Values on brand band */
+.vals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:40px;text-align:left}
+.vals li{border-radius:var(--r-card);padding:28px;background:color-mix(in srgb,var(--on-brand) 9%,var(--brand));display:flex;flex-direction:column;gap:12px}
+.vals .ic-tile{background:var(--on-brand);color:var(--brand);width:56px;height:56px}
+.vals h3{font-size:24px}
+.vals p{color:var(--fg)}
+.mission{font-size:clamp(20px,2vw,26px);line-height:1.45;max-width:40ch;margin:16px auto 0;color:var(--secondary)}
+
+/* Testimonials: video + quotes */
+.testi-grid{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:16px}
+.vcard{position:relative;padding:0;overflow:hidden;display:flex;flex-direction:column}
+.vcard .ph{border-radius:0;aspect-ratio:16/10}
+.vcard .play{position:absolute;left:24px;top:24px;display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:6px 18px 6px 6px;border-radius:999px;border:0;background:#fff;color:oklch(0.2 0.03 292);font-weight:600;cursor:pointer;box-shadow:0 8px 24px -10px rgb(0 0 0 / .5)}
+.vcard .play .pi{width:36px;height:36px;border-radius:999px;background:var(--accent);color:var(--on-accent);display:inline-flex;align-items:center;justify-content:center}
+.vcard .play svg{width:16px;height:16px}
+.vcard .body{padding:24px;display:flex;flex-direction:column;gap:14px}
+.vcard blockquote{margin:0;font-size:22px;line-height:1.4;letter-spacing:-.015em;font-weight:500}
+.quotes{display:flex;flex-direction:column;gap:16px}
+.quotes .tile{display:flex;flex-direction:column;gap:16px;flex:1}
+.quotes blockquote{margin:0;font-size:17px;line-height:1.5}
+.quotes svg.q{width:28px;height:28px;color:var(--accent)}
+.who{display:flex;align-items:center;gap:12px}
+.who b{display:block;font-weight:600;font-size:15px}
+.who small{display:block;color:var(--secondary);font-size:13.5px}
+.transcript{font-size:14px;color:var(--secondary);background:var(--muted);border-radius:14px;padding:12px 14px}
+
+/* Team cards */
+.team-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.team-grid .tile{display:flex;flex-direction:column;gap:14px}
+.team-grid .avatar{width:64px;height:64px;font-size:20px;background:color-mix(in srgb,var(--accent) 16%,var(--card));color:var(--fg)}
+.team-grid h3{font-size:17px;letter-spacing:-.01em}
+.team-grid p{color:var(--secondary);font-size:14px}
+.team-grid .loc{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--secondary);margin-top:auto}
+.team-grid .loc svg{width:14px;height:14px}
+
+/* Logos tiles */
+.logo-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.logo-grid li{display:flex;align-items:center;justify-content:center;gap:8px;min-height:84px;padding:12px;border-radius:18px;background:var(--card);box-shadow:var(--ring-card);font-weight:650;color:var(--secondary);text-align:center;font-size:15px}
+.logo-grid li i{width:16px;height:16px;border-radius:5px;background:currentColor;opacity:.5;flex:none}
+.rec-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:12px}
+.rec-row li{display:flex;align-items:center;gap:12px;padding:12px 18px;border-radius:18px;background:color-mix(in srgb,var(--accent) 9%,var(--card));font-size:14px;font-weight:500}
+.rec-row svg{width:22px;height:22px;color:var(--accent)}
+
+/* Talent call: card with short form */
+.talent-card{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:40px;padding:40px;align-items:start}
+.talent-card .pitch{display:flex;flex-direction:column;gap:16px}
+.talent-card .pitch p{color:var(--secondary)}
+.talent-card form{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.talent-card form .full{grid-column:1/-1}
+.talent-card select.input{appearance:none;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 20px) 50%,calc(100% - 15px) 50%;background-size:5px 5px;background-repeat:no-repeat}
+.filefield{display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-height:56px;padding:10px 10px 10px 16px;border-radius:var(--r-btn);background:color-mix(in srgb,var(--fg) 6%,var(--card))}
+.filefield svg{width:22px;height:22px;color:var(--secondary)}
+.filefield .t{flex:1;min-width:180px;font-weight:400}
+.filefield .t small{display:block;color:var(--secondary);font-size:12.5px}
+.form-status{grid-column:1/-1;font-size:14px;min-height:20px;font-weight:400}
+.input[aria-invalid="true"]{border-color:#C0262D}
+
+/* FAQ accordion */
+.faq-list{max-width:880px;margin-inline:auto;display:flex;flex-direction:column;gap:8px}
+.faq-list details{background:var(--card);border-radius:20px;box-shadow:var(--ring-card)}
+.faq-list summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:60px;padding:16px 20px;cursor:pointer;font-weight:600;border-radius:20px}
+.faq-list summary::-webkit-details-marker{display:none}
+.faq-list summary svg{width:20px;height:20px;flex:none;transition:transform .2s}
+.faq-list details[open] summary svg{transform:rotate(180deg)}
+@media (prefers-reduced-motion:reduce){.faq-list summary svg{transition:none}}
+.faq-list details p{padding:0 20px 20px;color:var(--secondary)}
+
+/* Closing: soft tint, centered */
+.closing h2{font-size:clamp(34px,4.4vw,60px);line-height:1.05;max-width:18ch;margin-inline:auto}
+.closing p{color:var(--secondary);margin:16px auto 0;max-width:48ch}
+.closing .acts{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:28px}
+
+@media (max-width:1100px){
+  .area-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  .site-head .nav{background:transparent;box-shadow:none;padding:0}
+  .hero{padding:4px 8px 0}
+  .hero .stage{min-height:0;border-radius:24px;flex-direction:column;align-items:stretch}
+  .hero .copy{padding:48px 20px 20px;gap:18px}
+  .hero h1{font-size:44px}
+  .hero .lead{font-size:16px}
+  .hero .acts{width:100%}
+  .hero .acts .btn{flex:1 1 100%}
+  .hero .facts{position:static;justify-content:center;padding:0 12px}
+  .loop-btn{position:static;align-self:center;margin:12px 0 20px}
+  .stats{gap:10px}
+  .stats .tile{padding:18px}
+  .stats dd{font-size:40px}
+  .stats .l{font-size:13.5px}
+  .bcard{padding:20px}
+  .bento>li:nth-child(1) .bcard{min-height:0}
+  .bento[data-n="1"]>li:nth-child(1) .bcard{flex-direction:column;align-items:flex-start;padding:24px;gap:16px}
+  .bento[data-n="1"]>li:nth-child(1) .bcard .ic-tile{width:64px;height:64px}
+  .bcard .chips{margin-left:0}
+  .area-grid{gap:10px}
+  .area-grid button{padding:16px;gap:10px}
+  .area-grid .nm{font-size:15px}
+  .jobs-list ul{grid-template-columns:1fr}
+  .jobs-list .job{padding:16px}
+  .story-grid{grid-template-columns:1fr}
+  .story-grid>*{grid-column:1/-1!important}
+  .story-grid .txt{padding:24px}
+  .story-grid .ph{min-height:220px}
+  .vals{grid-template-columns:1fr;margin-top:28px}
+  .vals li{padding:22px}
+  .testi-grid{grid-template-columns:1fr}
+  .vcard blockquote{font-size:19px}
+  .team-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .team-grid .tile{padding:16px}
+  .team-grid .avatar{width:52px;height:52px;font-size:17px}
+  .logo-grid{grid-template-columns:1fr 1fr}
+  .logo-grid li:last-child{grid-column:1/-1}
+  .talent-card{grid-template-columns:1fr;padding:24px;gap:24px}
+  .talent-card form{grid-template-columns:1fr}
+  .filefield .btn{flex:1 1 100%}
+  .closing .acts .btn{flex:1 1 100%}
+}
+
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <!-- Scenes: decorative photo stand-ins in currentColor (white) layers -->
+    <symbol id="sc-team" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><rect x="24" y="30" width="352" height="150" rx="10" opacity=".08"/>
+      <g opacity=".14"><rect x="40" y="46" width="70" height="56" rx="4"/><rect x="122" y="46" width="70" height="56" rx="4"/><rect x="204" y="46" width="70" height="56" rx="4"/><rect x="286" y="46" width="70" height="56" rx="4"/></g>
+      <circle cx="120" cy="150" r="30" opacity=".55"/><path d="M58 300c0-50 28-96 62-96s62 46 62 96z" opacity=".55"/>
+      <circle cx="210" cy="132" r="34" opacity=".8"/><path d="M140 300c0-58 32-110 70-110s70 52 70 110z" opacity=".8"/>
+      <circle cx="300" cy="156" r="28" opacity=".45"/><path d="M244 300c0-46 26-90 56-90s56 44 56 90z" opacity=".45"/></g>
+    </symbol>
+    <symbol id="sc-person" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><circle cx="230" cy="70" r="46" opacity=".12"/><circle cx="150" cy="122" r="52" opacity=".75"/><path d="M50 300c0-80 45-136 100-136s100 56 100 136z" opacity=".75"/></g>
+    </symbol>
+    <symbol id="sc-city" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><circle cx="300" cy="80" r="34" opacity=".35"/>
+      <path d="M0 210 60 150 110 175 160 112 200 160 236 104 290 168 340 140 400 186V300H0z" opacity=".22"/>
+      <g opacity=".5"><rect x="30" y="200" width="40" height="100"/><rect x="78" y="176" width="30" height="124"/><rect x="116" y="214" width="46" height="86"/><rect x="200" y="186" width="34" height="114"/><rect x="242" y="226" width="54" height="74"/><rect x="306" y="196" width="36" height="104"/><rect x="350" y="232" width="40" height="68"/></g>
+      <g opacity=".22"><rect x="84" y="190" width="6" height="8"/><rect x="96" y="190" width="6" height="8"/><rect x="84" y="208" width="6" height="8"/><rect x="96" y="208" width="6" height="8"/><rect x="208" y="200" width="6" height="8"/><rect x="220" y="200" width="6" height="8"/><rect x="208" y="218" width="6" height="8"/><rect x="220" y="218" width="6" height="8"/></g></g>
+    </symbol>
+    <symbol id="sc-warehouse" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><g opacity=".22"><rect x="20" y="40" width="10" height="240"/><rect x="170" y="40" width="10" height="240"/><rect x="20" y="96" width="160" height="8"/><rect x="20" y="166" width="160" height="8"/><rect x="20" y="236" width="160" height="8"/></g>
+      <g opacity=".42"><rect x="36" y="58" width="40" height="38" rx="3"/><rect x="82" y="66" width="34" height="30" rx="3"/><rect x="122" y="54" width="42" height="42" rx="3"/><rect x="40" y="132" width="50" height="34" rx="3"/><rect x="96" y="126" width="34" height="40" rx="3"/><rect x="40" y="204" width="36" height="32" rx="3"/><rect x="110" y="198" width="50" height="38" rx="3"/></g>
+      <path d="M240 288v-86h70l22 40h34v46z" opacity=".7"/><rect x="214" y="150" width="8" height="138" opacity=".7"/><rect x="200" y="252" width="40" height="8" opacity=".7"/><circle cx="262" cy="288" r="14" opacity=".9"/><circle cx="342" cy="288" r="14" opacity=".9"/></g>
+    </symbol>
+    <symbol id="sc-office" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><rect x="0" y="210" width="400" height="10" opacity=".35"/><rect x="40" y="220" width="10" height="80" opacity=".35"/><rect x="350" y="220" width="10" height="80" opacity=".35"/>
+      <rect x="150" y="140" width="110" height="70" rx="6" opacity=".7"/><rect x="132" y="206" width="146" height="6" rx="3" opacity=".7"/>
+      <path d="M320 210c-10-30-4-60 14-80-2 26 4 50 16 80z" opacity=".45"/><path d="M330 210c4-34 22-52 46-58-14 18-22 36-24 58z" opacity=".35"/><rect x="316" y="196" width="34" height="16" rx="4" opacity=".6"/>
+      <circle cx="80" cy="150" r="26" opacity=".5"/><path d="M34 300c0-50 20-100 46-100s46 50 46 100z" opacity=".5"/>
+      <g opacity=".12"><rect x="40" y="30" width="90" height="70" rx="6"/><rect x="150" y="30" width="90" height="70" rx="6"/><rect x="260" y="30" width="90" height="70" rx="6"/></g></g>
+    </symbol>
+    <symbol id="sc-site" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><path d="M0 230 80 180 150 206 230 150 300 190 400 160V300H0z" opacity=".2"/>
+      <rect x="250" y="40" width="8" height="200" opacity=".55"/><rect x="150" y="40" width="200" height="8" opacity=".55"/><rect x="170" y="48" width="2" height="70" opacity=".55"/><rect x="160" y="118" width="22" height="16" opacity=".55"/>
+      <g opacity=".45"><rect x="40" y="170" width="120" height="130"/><rect x="60" y="190" width="18" height="18" fill-opacity=".4"/><rect x="92" y="190" width="18" height="18" fill-opacity=".4"/><rect x="124" y="190" width="18" height="18" fill-opacity=".4"/><rect x="60" y="222" width="18" height="18" fill-opacity=".4"/><rect x="92" y="222" width="18" height="18" fill-opacity=".4"/></g>
+      <circle cx="320" cy="236" r="20" opacity=".7"/><path d="M290 300c0-30 13-50 30-50s30 20 30 50z" opacity=".7"/></g>
+    </symbol>
+    <!-- Icons (lucide-like, 24 grid, stroke) -->
+    <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 12-8 12s-8-7-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></g></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"/></g></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></g></symbol>
+    <symbol id="i-stethoscope" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v6a5 5 0 0 0 10 0V3"/><path d="M10 14v2a5 5 0 0 0 10 0v-2"/><circle cx="20" cy="12" r="2"/></g></symbol>
+    <symbol id="i-cap" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></g></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></g></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></g></symbol>
+    <symbol id="i-calendar-check" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M9 15l2 2 4-4"/></g></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></g></symbol>
+    <symbol id="i-heart-hand" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 12 5.5 5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/><path d="M12 5.5 9 8.8a2 2 0 0 0 2.8 2.8L14 9.5l3 3"/></g></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></g></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></g></symbol>
+    <symbol id="i-truck" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-4l-3-4h-5"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></g></symbol>
+    <symbol id="i-headset" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="2" y="14" width="5" height="6" rx="2"/><rect x="17" y="14" width="5" height="6" rx="2"/></g></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M22 7 13.5 15.5l-5-5L2 17M16 7h6v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pill" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="8" width="19" height="8" rx="4" transform="rotate(-45 12 12)"/><path d="m8.5 8.5 7 7"/></g></symbol>
+    <symbol id="i-hardhat" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h20v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1z"/><path d="M4 15v-3a8 8 0 0 1 16 0v3M10 5v5M14 5v5"/></g></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3-3 3 3"/></g></symbol>
+    <symbol id="i-quote" viewBox="0 0 24 24"><path d="M3 21c3 0 7-1 7-8V5H3v8h4c0 3-1 5-4 5zM14 21c3 0 7-1 7-8V5h-7v8h4c0 3-1 5-4 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></g></symbol>
+    <symbol id="i-award" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.5 13 17 22l-5-3-5 3 1.5-9"/></g></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></g></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-captions" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></g></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="8" height="7" rx="1.5"/><rect x="15" y="14" width="6" height="7" rx="1.5"/></g></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></g></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6z"/></g></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></g></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></g></symbol>
+    <symbol id="i-briefcase" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></g></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 2-2.5 3.5M12 17h0"/></g></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></g></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></g></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></g></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></g></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></g></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></g></symbol>
+    <symbol id="i-tablet" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/></g></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="3" width="10" height="18" rx="2"/></g></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></g></symbol>
+    <symbol id="i-align-left" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-align-center" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M5 18h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a5 5 0 1 1 1-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="board-bar" role="region" aria-label="Controles del artboard">
+  <strong>02 · Bento moderno</strong>
+  <div class="grp"><span id="c-theme">Tema</span><div class="seg" role="group" aria-labelledby="c-theme" data-ctl="theme"><button type="button" data-v="light" aria-pressed="true">Claro</button><button type="button" data-v="dark" aria-pressed="false">Oscuro</button></div></div>
+  <div class="grp"><span id="c-pal">Paleta</span><div class="seg" role="group" aria-labelledby="c-pal" data-ctl="palette"><button type="button" data-v="altavista" aria-pressed="true">Grupo Altavista</button><button type="button" data-v="terracota" aria-pressed="false">Terracota</button></div></div>
+  <div class="grp"><span id="c-veil">Velo de portada</span><div class="seg" role="group" aria-labelledby="c-veil" data-ctl="veil"><button type="button" data-v="suave" aria-pressed="false">Suave</button><button type="button" data-v="media" aria-pressed="true">Medio</button><button type="button" data-v="fuerte" aria-pressed="false">Fuerte</button></div></div>
+  <div class="grp"><span id="c-ben">Beneficios</span><div class="seg" role="group" aria-labelledby="c-ben" data-ctl="benefits"><button type="button" data-v="1" aria-pressed="false">1</button><button type="button" data-v="2" aria-pressed="false">2</button><button type="button" data-v="3" aria-pressed="false">3</button><button type="button" data-v="4" aria-pressed="false">4</button><button type="button" data-v="5" aria-pressed="false">5</button><button type="button" data-v="6" aria-pressed="true">6</button></div></div>
+  <div class="grp"><span id="c-notes">Notas de estilo</span><div class="seg" role="group" aria-labelledby="c-notes" data-ctl="notes"><button type="button" data-v="on" aria-pressed="true">Sí</button><button type="button" data-v="off" aria-pressed="false">No</button></div></div>
+  <span class="fine">Testimonios, líderes, logos y reconocimientos son ilustrativos.</span>
+</div>
+
+<a class="skip" href="#contenido">Saltar al contenido</a>
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="#contenido"><span class="mark" aria-hidden="true">GA</span>Grupo Altavista</a>
+    <nav class="nav" aria-label="Secciones de la empresa">
+      <a class="navlink" href="#nosotros">Nosotros</a>
+      <a class="navlink" href="#vida">La vida en Grupo Altavista</a>
+      <a class="navlink" href="#beneficios">Beneficios</a>
+      <a class="navlink" href="#areas">Áreas</a>
+      <a class="btn btn-primary hide-sm" href="#vacantes">Ver vacantes<svg aria-hidden="true"><use href="#i-arrow-down"/></svg></a>
+      <button type="button" class="btn btn-outline btn-icon menu-btn" data-menu aria-expanded="false" aria-controls="menu-02" aria-label="Abrir navegación de la empresa"><svg aria-hidden="true"><use href="#i-menu"/></svg></button>
+    </nav>
+    <div class="menu-panel" id="menu-02" hidden>
+      <a href="#nosotros">Nosotros</a><a href="#vida">La vida en Grupo Altavista</a><a href="#beneficios">Beneficios</a><a href="#areas">Áreas de trabajo</a><a href="#vacantes">Ver vacantes</a>
+    </div>
+  </div>
+</header>
+
+<main id="contenido" tabindex="-1">
+  <section class="sec hero" aria-labelledby="h-hero">
+    <p class="note"><b>Portada · Fondo en movimiento</b> — Video/loop · velo medio · Amplio · Centrada</p>
+    <div class="stage" id="hero-stage">
+      <div class="loop" aria-hidden="true"><i></i><i></i><i></i><svg><use href="#sc-team"/></svg></div>
+      <div class="veil" data-veil-target style="--veil:.5"></div>
+      <div class="copy">
+        <p class="eyebrow">Grupo Altavista · Tu próximo capítulo</p>
+        <h1 id="h-hero">Talento que mueve al norte de México</h1>
+        <p class="lead">Conectamos a las mejores personas con constructoras, farmacias, operadores logísticos y nuestras propias áreas corporativas.</p>
+        <div class="acts"><a class="btn btn-primary" href="#vacantes">Ver vacantes<svg aria-hidden="true"><use href="#i-arrow-down"/></svg></a><a class="btn btn-outline" href="#nosotros">Conoce la empresa</a></div>
+      </div>
+      <p class="facts"><span><svg aria-hidden="true"><use href="#i-pin"/></svg>Monterrey · Querétaro · CDMX</span><span><svg aria-hidden="true"><use href="#i-users"/></svg>+300 colaboradores</span></p>
+      <button type="button" class="loop-btn" data-loop aria-controls="hero-stage" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pause"/></svg><span data-loop-label>Pausar fondo animado</span></button>
+    </div>
+  </section>
+
+  <section class="sec bg-normal sp-compact" aria-labelledby="h-nums">
+    <p class="note"><b>Cifras · Tarjetas con conteo</b> — Fondo normal · Compacto · Izquierda</p>
+    <div class="wrap">
+      <h2 id="h-nums" class="sr">Grupo Altavista en cifras</h2>
+      <ul class="stats">
+        <li class="tile tint-a"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-calendar"/></svg></span><p class="v"><span aria-hidden="true" data-count="15" data-prefix="+">+15</span><span class="sr">Más de 15</span></p><p class="l">años acompañando a empresas del norte y el Bajío</p></li>
+        <li class="tile"><span class="ic-tile brand" aria-hidden="true"><svg><use href="#i-users"/></svg></span><p class="v"><span aria-hidden="true" data-count="300" data-prefix="+">+300</span><span class="sr">Más de 300</span></p><p class="l">colaboradores en nuestras oficinas y clientes</p></li>
+        <li class="tile"><span class="ic-tile brand" aria-hidden="true"><svg><use href="#i-pin"/></svg></span><p class="v"><span aria-hidden="true" data-count="3">3</span><span class="sr">3</span></p><p class="l">oficinas: Monterrey, Querétaro y Ciudad de México</p></li>
+        <li class="tile tint-a"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-file"/></svg></span><p class="v"><span aria-hidden="true" data-count="12">12</span><span class="sr">12</span></p><p class="l">vacantes abiertas hoy</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec bg-tint sp-airy" id="beneficios" aria-labelledby="h-ben">
+    <p class="note"><b>Beneficios · Bento</b> — Tinte suave · Amplio · Izquierda · se acomoda de 1 a 6</p>
+    <div class="wrap">
+      <div class="sec-head"><div><p class="eyebrow">Beneficios</p><h2 id="h-ben" class="bm-h2" style="margin-top:10px">Lo que te llevas además del sueldo</h2></div><p class="muted" id="ben-status" aria-live="polite">6 beneficios</p></div>
+      <ul class="bento" data-bento="ben-status" data-n="6">
+        <li><article class="bcard"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-home"/></svg></span><div><h3>Trabajo remoto</h3><p style="margin-top:8px">En nuestra empresa, creemos en el trabajo remoto y damos a nuestros colaboradores la oportunidad de trabajar 3 días desde casa.</p></div><p class="chips" aria-label="Detalles"><span>3 días desde casa</span><span>Equipo de cómputo</span></p></article></li>
+        <li><article class="bcard"><span class="ic-tile brand" aria-hidden="true"><svg><use href="#i-stethoscope"/></svg></span><h3>Seguro de gastos médicos mayores</h3><p>Para ti y tus dependientes directos.</p></article></li>
+        <li><article class="bcard"><span class="ic-tile brand" aria-hidden="true"><svg><use href="#i-cap"/></svg></span><h3>Presupuesto de capacitación</h3><p>Cursos y certificaciones para crecer.</p></article></li>
+        <li><article class="bcard"><span class="ic-tile brand" aria-hidden="true"><svg><use href="#i-clock"/></svg></span><h3>Horario flexible</h3><p>Entrada entre 7:00 y 10:00.</p></article></li>
+        <li><article class="bcard"><span class="ic-tile brand" aria-hidden="true"><svg><use href="#i-calendar"/></svg></span><h3>Días libres adicionales</h3><p>Tres días extra al año.</p></article></li>
+        <li><article class="bcard"><span class="ic-tile brand" aria-hidden="true"><svg><use href="#i-gift"/></svg></span><h3>Bono anual</h3><p>Ligado a los resultados de tu área.</p></article></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec bg-normal sp-airy" id="areas" aria-labelledby="h-areas">
+    <p class="note"><b>Áreas de trabajo · Tarjetas con ícono</b> — Fondo normal · Amplio · Izquierda · filtra las vacantes</p>
+    <div class="wrap">
+      <div class="sec-head"><div><p class="eyebrow">Áreas de trabajo</p><h2 id="h-areas" class="bm-h2" style="margin-top:10px">Encuentra tu lugar</h2><p class="lead">Elige un área y te mostramos solo sus vacantes.</p></div></div>
+      <ul class="area-grid">
+        <li><button type="button" data-area="ti" data-label="Tecnología y sistemas" aria-pressed="false"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-code"/></svg></span><span class="nm">Tecnología y sistemas</span><span class="ct">3 vacantes <span class="pressed-mark">· Filtrando</span></span></button></li>
+        <li><button type="button" data-area="rh" data-label="Recursos humanos" aria-pressed="false"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-users"/></svg></span><span class="nm">Recursos humanos</span><span class="ct">2 vacantes <span class="pressed-mark">· Filtrando</span></span></button></li>
+        <li><button type="button" data-area="log" data-label="Logística y transporte" aria-pressed="false"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-truck"/></svg></span><span class="nm">Logística y transporte</span><span class="ct">2 vacantes <span class="pressed-mark">· Filtrando</span></span></button></li>
+        <li><button type="button" data-area="ing" data-label="Ingeniería" aria-pressed="false"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-cog"/></svg></span><span class="nm">Ingeniería</span><span class="ct">1 vacante <span class="pressed-mark">· Filtrando</span></span></button></li>
+        <li><button type="button" data-area="at" data-label="Atención a clientes" aria-pressed="false"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-headset"/></svg></span><span class="nm">Atención a clientes</span><span class="ct">1 vacante <span class="pressed-mark">· Filtrando</span></span></button></li>
+        <li><button type="button" data-area="ven" data-label="Ventas y desarrollo de negocio" aria-pressed="false"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-trend"/></svg></span><span class="nm">Ventas y desarrollo de negocio</span><span class="ct">1 vacante <span class="pressed-mark">· Filtrando</span></span></button></li>
+        <li><button type="button" data-area="sal" data-label="Salud" aria-pressed="false"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-pill"/></svg></span><span class="nm">Salud</span><span class="ct">1 vacante <span class="pressed-mark">· Filtrando</span></span></button></li>
+        <li><button type="button" data-area="con" data-label="Construcción y mantenimiento" aria-pressed="false"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-hardhat"/></svg></span><span class="nm">Construcción y mantenimiento</span><span class="ct">1 vacante <span class="pressed-mark">· Filtrando</span></span></button></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec bg-normal sp-compact" id="vacantes" aria-labelledby="h-vac" style="padding-top:8px">
+    <p class="note"><b>Vacantes abiertas · Tarjetas en panel</b> — Fondo normal · Compacto · Izquierda</p>
+    <div class="wrap" style="padding-top:28px">
+      <div class="tile" style="padding:32px;background:var(--band);box-shadow:none">
+        <div class="sec-head" style="margin-bottom:20px"><div><h2 id="h-vac" class="bm-h2">Vacantes abiertas</h2><p class="lead">Postúlate en minutos; te respondemos en menos de cinco días hábiles.</p></div></div>
+        <div class="vac-tools"><label class="field" for="q-02">Buscar por título<input id="q-02" class="input" type="search" autocomplete="off" style="background:var(--card)"></label><button type="button" class="btn btn-outline">Filtros</button></div>
+        <div class="vac-status"><p role="status" data-job-status>12 vacantes</p><span data-job-chip></span></div>
+        <div id="vacantes-lista" tabindex="-1">
+<div class="jobs-list" data-jobs="vacantes-lista">
+  <section class="job-group" data-group="ti" aria-labelledby="g-ti"><div class="jg-head"><h3 id="g-ti">Tecnología y sistemas</h3><span class="badge">3</span></div>
+    <ul>
+      <li class="job-item"><a class="job" href="#vacantes"><div><h4>Coordinador(a) de Ciclo de Vida del Colaborador</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Presencial</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Monterrey, Nuevo León</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-24">Publicada el 24 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li>
+      <li class="job-item"><a class="job" href="#vacantes"><div><h4>Analista de Soporte Técnico</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Híbrido</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Monterrey, Nuevo León</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-24">Publicada el 24 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li>
+      <li class="job-item"><a class="job" href="#vacantes"><div><h4>Desarrollador(a) Backend Go</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-home"/></svg><span class="sr">Modalidad: </span>Remoto</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Solo desde México</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-18">Publicada el 18 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li>
+    </ul></section>
+  <section class="job-group" data-group="rh" aria-labelledby="g-rh"><div class="jg-head"><h3 id="g-rh">Recursos humanos</h3><span class="badge">2</span></div>
+    <ul>
+      <li class="job-item"><a class="job" href="#vacantes"><div><h4>Analista de Expedientes de Personal, Nóminas y Altas ante el IMSS e INFONAVIT — Corporativo Monterrey</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Presencial</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Monterrey, Nuevo León</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-23">Publicada el 23 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li>
+      <li class="job-item"><a class="job" href="#vacantes"><div><h4>Analista de Nómina</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Híbrido</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Cuauhtémoc, Ciudad de México</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-18">Publicada el 18 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li>
+    </ul></section>
+  <section class="job-group" data-group="log" aria-labelledby="g-log"><div class="jg-head"><h3 id="g-log">Logística y transporte</h3><span class="badge">2</span></div>
+    <ul>
+      <li class="job-item"><a class="job" href="#vacantes"><div><h4>Operador(a) de Montacargas Certificado(a) para Centro de Distribución Apodaca — Turno Nocturno</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Presencial</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Apodaca, Nuevo León</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-23">Publicada el 23 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li>
+      <li class="job-item"><a class="job" href="#vacantes"><div><h4>Supervisor(a) de Almacén</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Presencial</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Apodaca, Nuevo León</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-20">Publicada el 20 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li>
+    </ul></section>
+  <section class="job-group" data-group="ing" aria-labelledby="g-ing"><div class="jg-head"><h3 id="g-ing">Ingeniería</h3><span class="badge">1</span></div>
+    <ul><li class="job-item"><a class="job" href="#vacantes"><div><h4>Analista de Pruebas de Software (QA)</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-home"/></svg><span class="sr">Modalidad: </span>Remoto</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Monterrey, Nuevo León</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Medio tiempo</span></p><time datetime="2026-11-24">Publicada el 24 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li></ul></section>
+  <section class="job-group" data-group="at" aria-labelledby="g-at"><div class="jg-head"><h3 id="g-at">Atención a clientes</h3><span class="badge">1</span></div>
+    <ul><li class="job-item"><a class="job" href="#vacantes"><div><h4>Ejecutivo(a) de Atención a Clientes Bilingüe para Centro de Contacto en San Pedro Garza García, Nuevo León — Turnos Matutino y Vespertino</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Presencial</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>San Pedro Garza García, Nuevo León</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-23">Publicada el 23 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li></ul></section>
+  <section class="job-group" data-group="ven" aria-labelledby="g-ven"><div class="jg-head"><h3 id="g-ven">Ventas y desarrollo de negocio</h3><span class="badge">1</span></div>
+    <ul><li class="job-item"><a class="job" href="#vacantes"><div><h4>Ejecutivo(a) de Ventas Institucionales</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Híbrido</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Guadalajara, Jalisco</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-18">Publicada el 18 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li></ul></section>
+  <section class="job-group" data-group="sal" aria-labelledby="g-sal"><div class="jg-head"><h3 id="g-sal">Salud</h3><span class="badge">1</span></div>
+    <ul><li class="job-item"><a class="job" href="#vacantes"><div><h4>Químico(a) Farmacéutico(a) Responsable Sanitario</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Presencial</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>León, Guanajuato</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-18">Publicada el 18 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li></ul></section>
+  <section class="job-group" data-group="con" aria-labelledby="g-con"><div class="jg-head"><h3 id="g-con">Construcción y mantenimiento</h3><span class="badge">1</span></div>
+    <ul><li class="job-item"><a class="job" href="#vacantes"><div><h4>Residente de Obra Civil</h4><p class="meta"><span><svg aria-hidden="true"><use href="#i-building"/></svg><span class="sr">Modalidad: </span>Presencial</span><span><svg aria-hidden="true"><use href="#i-pin"/></svg><span class="sr">Ubicación: </span>Querétaro, Querétaro</span><span><svg aria-hidden="true"><use href="#i-clock"/></svg><span class="sr">Jornada: </span>Tiempo completo</span></p><time datetime="2026-11-18">Publicada el 18 de noviembre de 2026</time></div><svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a></li></ul></section>
+</div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec bg-normal sp-airy" id="nosotros" aria-labelledby="h-story">
+    <p class="note"><b>Historia · Mosaico</b> — Fondo normal · Amplio · Izquierda</p>
+    <div class="wrap">
+      <div class="sec-head"><div><p class="eyebrow">Historia</p><h2 id="h-story" class="bm-h2" style="margin-top:10px">Nuestra historia</h2></div></div>
+      <div class="story-grid">
+        <div class="tile txt"><p class="first">Grupo Altavista nació en Monterrey en 2009 con una idea sencilla: un proceso de reclutamiento bien llevado cambia la vida de las personas y el rumbo de las empresas.</p><p>Hoy acompañamos a clientes en el norte y el Bajío con <strong style="color:var(--fg)">compromisos de entrega por escrito</strong>, seguimiento cercano a cada candidato y respuestas claras, aunque no siempre sean un sí.</p></div>
+        <div class="ph b" role="img" aria-label="Foto ilustrativa: oficina de Grupo Altavista en Monterrey"><svg aria-hidden="true"><use href="#sc-office"/></svg></div>
+        <div class="tile fact"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-calendar"/></svg></span><div><b>2009</b><span>Nace en Monterrey</span></div></div>
+        <div class="tile fact"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-pin"/></svg></span><div><b>MTY · QRO · CDMX</b><span>Tres oficinas</span></div></div>
+        <div class="tile fact"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-building"/></svg></span><div><b>Norte y Bajío</b><span>Constructoras, farmacias y logística</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec bg-brand sp-airy al-center" aria-labelledby="h-values">
+    <p class="note"><b>Misión y valores · Íconos grandes</b> — Color de marca · Amplio · Centrada</p>
+    <div class="wrap">
+      <p class="eyebrow">Misión y valores</p>
+      <h2 id="h-values" class="bm-h2" style="margin-top:10px">Lo que nos guía</h2>
+      <p class="mission">Que cada vacante se cubra a tiempo y que cada candidato sepa siempre en qué punto va su proceso.</p>
+      <ul class="vals">
+        <li><span class="ic-tile" aria-hidden="true"><svg><use href="#i-calendar-check"/></svg></span><h3>Compromiso</h3><p>Fechas de entrega acordadas con cada cliente.</p></li>
+        <li><span class="ic-tile" aria-hidden="true"><svg><use href="#i-shield"/></svg></span><h3>Transparencia</h3><p>Información clara sobre sueldo y prestaciones desde el inicio.</p></li>
+        <li><span class="ic-tile" aria-hidden="true"><svg><use href="#i-heart-hand"/></svg></span><h3>Trato humano</h3><p>Respondemos a todas las personas que se postulan.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec bg-normal sp-airy" id="vida" aria-labelledby="h-testi">
+    <p class="note"><b>Testimonios · Video + citas</b> — Fondo normal · Amplio · Izquierda</p>
+    <div class="wrap">
+      <div class="sec-head"><div><p class="eyebrow">La vida en Grupo Altavista</p><h2 id="h-testi" class="bm-h2" style="margin-top:10px">Lo cuentan quienes ya están aquí</h2></div></div>
+      <div class="testi-grid">
+        <article class="tile vcard">
+          <div class="ph" role="img" aria-label="Fotograma ilustrativo del video de Jorge Ibarra en el centro de distribución"><svg aria-hidden="true"><use href="#sc-warehouse"/></svg></div>
+          <button type="button" class="play" data-video aria-pressed="false" aria-controls="tr-02"><span class="pi"><svg aria-hidden="true"><use href="#i-play"/></svg></span><span data-video-label>Reproducir video</span> · 1:12</button>
+          <div class="body">
+            <blockquote>«Me explicaron el turno, el sueldo y las prestaciones antes de la entrevista. Eso no me había pasado en otro lado.»</blockquote>
+            <div class="who"><span class="avatar" aria-hidden="true">JI</span><div><b>Jorge Ibarra</b><small>Supervisor de almacén · Apodaca</small></div></div>
+            <p class="transcript" id="tr-02" hidden>Transcripción: «Llegué por una vacante de montacargas y hoy superviso el turno nocturno…» (video de demostración, con subtítulos)</p>
+          </div>
+        </article>
+        <div class="quotes">
+          <article class="tile"><svg class="q" aria-hidden="true"><use href="#i-quote"/></svg><blockquote>«Entré como reclutadora junior y en tres años ya coordino las cuentas de construcción.»</blockquote><div class="who"><span class="avatar" aria-hidden="true">DC</span><div><b>Daniela Cantú</b><small>Coordinadora de cuentas · Monterrey</small></div></div></article>
+          <article class="tile tint-a"><svg class="q" aria-hidden="true"><use href="#i-quote"/></svg><blockquote>«Trabajo tres días desde casa y dos en la oficina de Querétaro. Mi equipo respeta mis horarios.»</blockquote><div class="who"><span class="avatar" aria-hidden="true">PR</span><div><b>Paola Ríos</b><small>Analista de nómina · Querétaro</small></div></div></article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec bg-tint sp-compact" aria-labelledby="h-team">
+    <p class="note"><b>Equipo / Líderes · Tarjetas</b> — Tinte suave · Compacto · Izquierda</p>
+    <div class="wrap">
+      <div class="sec-head" style="margin-bottom:24px"><div><p class="eyebrow">Equipo</p><h2 id="h-team" class="bm-h2" style="margin-top:10px;font-size:clamp(26px,2.6vw,36px)">Las personas que lideran</h2></div></div>
+      <ul class="team-grid">
+        <li class="tile"><span class="avatar" aria-hidden="true">MG</span><div><h3>Mariana Garza Treviño</h3><p>Directora general</p></div><span class="loc"><svg aria-hidden="true"><use href="#i-pin"/></svg>Monterrey</span></li>
+        <li class="tile"><span class="avatar" aria-hidden="true">RV</span><div><h3>Rodrigo Villarreal Cantú</h3><p>Director de operaciones</p></div><span class="loc"><svg aria-hidden="true"><use href="#i-pin"/></svg>Monterrey</span></li>
+        <li class="tile"><span class="avatar" aria-hidden="true">AE</span><div><h3>Ana Sofía Elizondo</h3><p>Gerente de capital humano</p></div><span class="loc"><svg aria-hidden="true"><use href="#i-pin"/></svg>Querétaro</span></li>
+        <li class="tile"><span class="avatar" aria-hidden="true">LQ</span><div><h3>Luis Fernando Quiroga</h3><p>Líder de reclutamiento de tecnología</p></div><span class="loc"><svg aria-hidden="true"><use href="#i-pin"/></svg>Ciudad de México</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec bg-normal sp-compact al-center" aria-labelledby="h-logos">
+    <p class="note"><b>Logos / Reconocimientos · Mosaico</b> — Fondo normal · Compacto · Centrada</p>
+    <div class="wrap">
+      <div class="sec-head" style="margin-bottom:20px"><h2 id="h-logos" class="bm-h2" style="font-size:clamp(22px,2vw,28px)">Empresas que confían en nosotros</h2></div>
+      <ul class="logo-grid" aria-label="Clientes (ilustrativos)">
+        <li><i aria-hidden="true"></i>Constructora Sierra Alta</li><li><i aria-hidden="true"></i>Farmacias Bienestar</li><li><i aria-hidden="true"></i>Logística Apodaca</li><li><i aria-hidden="true"></i>Grupo Cumbres</li><li><i aria-hidden="true"></i>Aceros del Valle</li>
+      </ul>
+      <ul class="rec-row" aria-label="Reconocimientos (ilustrativos)">
+        <li><svg aria-hidden="true"><use href="#i-award"/></svg>Distintivo de empresa incluyente · 2025</li>
+        <li><svg aria-hidden="true"><use href="#i-award"/></svg>Top empleadores de Nuevo León · 2025</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec bg-normal sp-compact" aria-labelledby="h-talent">
+    <p class="note"><b>Llamado a talento · Con formulario corto</b> — Fondo normal · Compacto · Izquierda</p>
+    <div class="wrap">
+      <div class="tile talent-card tint-b">
+        <div class="pitch"><span class="ic-tile" aria-hidden="true"><svg><use href="#i-file"/></svg></span><h2 id="h-talent" class="bm-h2" style="font-size:clamp(28px,3vw,40px)">¿No encontraste tu vacante?</h2><p>Déjanos tu CV y te avisamos cuando se abra una posición que encaje contigo. Solo te contactamos por las áreas que elijas.</p></div>
+        <form data-talent-form novalidate aria-labelledby="h-talent">
+          <label class="field" for="tn-02">Nombre completo<input id="tn-02" class="input" autocomplete="name" style="background:var(--card)"></label>
+          <label class="field" for="te-02">Correo<input id="te-02" class="input" type="email" autocomplete="email" style="background:var(--card)"></label>
+          <label class="field full" for="ta-02">Área de interés<select id="ta-02" class="input" style="background-color:var(--card)"><option>Tecnología y sistemas</option><option>Recursos humanos</option><option>Logística y transporte</option><option>Ingeniería</option><option>Atención a clientes</option><option>Ventas y desarrollo de negocio</option><option>Salud</option><option>Construcción y mantenimiento</option></select></label>
+          <div class="field full"><span id="cv-02">Tu CV</span><div class="filefield" style="background:var(--card)"><svg aria-hidden="true"><use href="#i-file"/></svg><span class="t">Arrastra un archivo o elígelo<small>PDF o Word, máximo 10 MB</small></span><button type="button" class="btn btn-outline" aria-describedby="cv-02">Elegir archivo</button></div></div>
+          <div class="full" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center"><button type="submit" class="btn btn-primary">Enviar mi CV</button><p class="form-status" data-form-status role="status"></p></div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec bg-normal sp-airy" aria-labelledby="h-faq">
+    <p class="note"><b>Preguntas frecuentes · Acordeón</b> — Fondo normal · Amplio · Centrada</p>
+    <div class="wrap">
+      <div class="sec-head" style="justify-content:center;text-align:center"><div><p class="eyebrow">Antes de postularte</p><h2 id="h-faq" class="bm-h2" style="margin-top:10px">Preguntas frecuentes</h2></div></div>
+      <div class="faq-list">
+        <details open><summary>¿Cuánto dura el proceso?<svg aria-hidden="true"><use href="#i-chevron-down"/></svg></summary><p>Entre una y tres semanas según la vacante. Siempre te decimos en qué etapa vas.</p></details>
+        <details><summary>¿Puedo postularme a más de una vacante?<svg aria-hidden="true"><use href="#i-chevron-down"/></svg></summary><p>Sí. Te recomendamos elegir las que mejor encajen con tu experiencia.</p></details>
+        <details><summary>¿Las vacantes son con Grupo Altavista o con sus clientes?<svg aria-hidden="true"><use href="#i-chevron-down"/></svg></summary><p>Ambas. Cada vacante indica si la posición es interna o con una empresa cliente.</p></details>
+        <details><summary>¿Me avisan si no quedo seleccionado?<svg aria-hidden="true"><use href="#i-chevron-down"/></svg></summary><p>Sí. Respondemos a todas las personas que se postulan, con el resultado de su proceso.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec bg-tint sp-airy al-center closing" aria-labelledby="h-close">
+    <p class="note"><b>Cierre · Simple</b> — Tinte suave · Amplio · Centrada</p>
+    <div class="wrap">
+      <h2 id="h-close">¿Listo para tu siguiente paso?</h2>
+      <p>Revisa nuestras vacantes o comparte este sitio con alguien que esté buscando empleo.</p>
+      <div class="acts"><a class="btn btn-primary" href="#vacantes">Ver vacantes<svg aria-hidden="true"><use href="#i-arrow-down"/></svg></a><button type="button" class="btn btn-outline"><svg aria-hidden="true"><use href="#i-share"/></svg>Compartir sitio</button></div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div><p style="font-weight:650;font-size:18px">Grupo Altavista</p><p class="desc">Grupo Altavista es una firma regiomontana de capital humano con más de quince años acompañando a empresas del norte y el Bajío en el reclutamiento de perfiles operativos, técnicos y profesionales. Tenemos oficinas en Monterrey, Querétaro y Ciudad de México y un equipo de más de trescientos colaboradores.</p></div>
+    <p class="pf">Impulsado por <a href="#contenido">PeopleFlow</a></p>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const root = document.documentElement;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  /* Artboard controls: each [data-ctl] group writes one attribute on <html>. */
+  document.querySelectorAll("[data-ctl]").forEach(group => {
+    const key = group.dataset.ctl;
+    group.querySelectorAll("button[data-v]").forEach(button => {
+      button.addEventListener("click", () => {
+        group.querySelectorAll("button[data-v]").forEach(other => other.setAttribute("aria-pressed", String(other === button)));
+        root.setAttribute("data-" + key, button.dataset.v);
+        root.dispatchEvent(new CustomEvent("board:" + key, { detail: button.dataset.v }));
+      });
+    });
+  });
+
+  /* Bento: 1–6 items, the layout is chosen by count so no row is left half empty. */
+  const bentos = document.querySelectorAll("[data-bento]");
+  const applyBento = n => bentos.forEach(bento => {
+    bento.dataset.n = n;
+    [...bento.children].forEach((item, index) => { item.hidden = index >= Number(n); });
+    const status = document.getElementById(bento.dataset.bento);
+    if (status) status.textContent = n === "1" ? "1 beneficio" : n + " beneficios";
+  });
+  if (bentos.length) applyBento(root.dataset.benefits || "6");
+  root.addEventListener("board:benefits", event => applyBento(event.detail));
+
+  /* Count-up: final values are in the markup (no JS, reduced motion and screen readers read them). */
+  const counters = [...document.querySelectorAll("[data-count]")];
+  const format = el => n => (el.dataset.prefix || "") + (el.dataset.group ? n.toLocaleString("es-MX") : n) + (el.dataset.suffix || "");
+  const run = el => {
+    const to = Number(el.dataset.count), from = Number(el.dataset.from || 0), show = format(el), start = performance.now(), dur = 1400;
+    const tick = now => {
+      const t = Math.min(1, (now - start) / dur), eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = show(Math.round(from + (to - from) * eased));
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+  if (!reduce.matches && "IntersectionObserver" in window) {
+    const io = new IntersectionObserver(entries => entries.forEach(entry => {
+      if (entry.isIntersecting) { io.unobserve(entry.target); run(entry.target); }
+    }), { threshold: .5 });
+    counters.forEach(el => { el.textContent = format(el)(Number(el.dataset.from || 0)); io.observe(el); });
+  }
+
+  /* Areas of work filter the vacancy list (one area at a time; «Todas» clears). */
+  const jobs = document.querySelector("[data-jobs]");
+  if (jobs) {
+    const status = document.querySelector("[data-job-status]");
+    const chipSlot = document.querySelector("[data-job-chip]");
+    const triggers = [...document.querySelectorAll("[data-area]")];
+    const setArea = (area, label, moveFocus) => {
+      triggers.forEach(t => t.setAttribute("aria-pressed", String(t.dataset.area === area && area !== "")));
+      let shown = 0;
+      jobs.querySelectorAll(".job-group").forEach(group => {
+        const match = !area || group.dataset.group === area;
+        group.hidden = !match;
+        if (match) shown += group.querySelectorAll(".job-item").length;
+      });
+      if (status) status.textContent = area ? (shown === 1 ? "1 vacante" : shown + " vacantes") + " en " + label : "12 vacantes";
+      if (chipSlot) {
+        chipSlot.innerHTML = "";
+        if (area) {
+          const chip = document.createElement("span");
+          chip.className = "chip-filter";
+          chip.innerHTML = 'Área: ' + label + ' <button type="button" aria-label="Quitar filtro Área: ' + label + '"><svg aria-hidden="true"><use href="#i-x"/></svg></button>';
+          chip.querySelector("button").addEventListener("click", () => setArea("", "", true));
+          chipSlot.append(chip);
+        }
+      }
+      if (moveFocus) document.getElementById(jobs.dataset.jobs)?.focus({ preventScroll: true });
+    };
+    triggers.forEach(t => t.addEventListener("click", event => {
+      const same = t.getAttribute("aria-pressed") === "true";
+      if (t.tagName === "A") event.preventDefault();
+      setArea(same ? "" : t.dataset.area, t.dataset.label || "", false);
+      if (!same) document.getElementById(jobs.dataset.jobs)?.scrollIntoView({ behavior: reduce.matches ? "auto" : "smooth", block: "start" });
+    }));
+    setArea("", "", false);
+  }
+
+  /* Carousels: buttons + arrow keys, polite status, never autoplay. */
+  document.querySelectorAll("[data-carousel]").forEach(region => {
+    const slides = [...region.querySelectorAll("[data-slide]")];
+    const status = region.querySelector("[data-carousel-status]");
+    const prev = region.querySelector("[data-prev]"), next = region.querySelector("[data-next]");
+    const dots = [...region.querySelectorAll("[data-dot]")];
+    let index = 0;
+    const show = i => {
+      index = Math.max(0, Math.min(slides.length - 1, i));
+      slides.forEach((s, k) => { s.hidden = k !== index; });
+      dots.forEach((d, k) => d.setAttribute("aria-current", String(k === index)));
+      if (status) status.textContent = (index + 1) + " de " + slides.length;
+      if (prev) prev.disabled = index === 0;
+      if (next) next.disabled = index === slides.length - 1;
+    };
+    prev?.addEventListener("click", () => show(index - 1));
+    next?.addEventListener("click", () => show(index + 1));
+    dots.forEach((d, k) => d.addEventListener("click", () => show(k)));
+    region.addEventListener("keydown", event => {
+      const map = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: slides.length - 1 };
+      if (event.key in map && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); show(map[event.key]); }
+    });
+    show(0);
+  });
+
+  /* Video testimonial stand-in: play toggles a transcript, honest about being a demo. */
+  document.querySelectorAll("[data-video]").forEach(button => {
+    button.addEventListener("click", () => {
+      const on = button.getAttribute("aria-pressed") !== "true";
+      button.setAttribute("aria-pressed", String(on));
+      const panel = document.getElementById(button.getAttribute("aria-controls"));
+      if (panel) panel.hidden = !on;
+      const label = button.querySelector("[data-video-label]");
+      if (label) label.textContent = on ? "Pausar video" : "Reproducir video";
+      button.querySelector("use")?.setAttribute("href", on ? "#i-pause" : "#i-play");
+    });
+  });
+
+  /* Background loop: paused under reduced motion; a visible control pauses it (WCAG 2.2.2). */
+  document.querySelectorAll("[data-loop]").forEach(button => {
+    const host = document.getElementById(button.getAttribute("aria-controls"));
+    const set = playing => {
+      host?.classList.toggle("is-paused", !playing);
+      button.setAttribute("aria-pressed", String(!playing));
+      button.querySelector("[data-loop-label]").textContent = playing ? (button.dataset.pauseLabel || "Pausar fondo animado") : (button.dataset.playLabel || "Reproducir fondo animado");
+      button.querySelector("use")?.setAttribute("href", playing ? "#i-pause" : "#i-play");
+    };
+    set(!reduce.matches);
+    button.addEventListener("click", () => set(button.getAttribute("aria-pressed") === "true"));
+  });
+
+  /* Overlay intensity (artboard control mirrors the editor setting). */
+  root.addEventListener("board:veil", event => {
+    document.querySelectorAll("[data-veil-target]").forEach(el => el.style.setProperty("--veil", { suave: ".36", media: ".5", fuerte: ".68" }[event.detail]));
+  });
+
+  /* Phone navigation disclosure (Escape closes and returns focus). */
+  document.querySelectorAll("[data-menu]").forEach(button => {
+    const panel = document.getElementById(button.getAttribute("aria-controls"));
+    const set = open => { button.setAttribute("aria-expanded", String(open)); panel.hidden = !open; };
+    button.addEventListener("click", () => set(button.getAttribute("aria-expanded") !== "true"));
+    panel.addEventListener("keydown", event => { if (event.key === "Escape") { set(false); button.focus(); } });
+    panel.querySelectorAll("a").forEach(a => a.addEventListener("click", () => set(false)));
+  });
+
+  /* Short CV form stand-in: validates in place, never submits anywhere. */
+  document.querySelectorAll("[data-talent-form]").forEach(form => {
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const out = form.querySelector("[data-form-status]");
+      const email = form.querySelector("input[type=email]");
+      if (email && !email.value.includes("@")) { email.setAttribute("aria-invalid", "true"); out.textContent = "Escribe un correo válido para que podamos contactarte."; email.focus(); return; }
+      email?.removeAttribute("aria-invalid");
+      out.textContent = "Listo. Guardamos tu perfil para las próximas vacantes (demostración: no se envió nada).";
+    });
+  });
+})();
+
+</script>
+</body>
+</html>

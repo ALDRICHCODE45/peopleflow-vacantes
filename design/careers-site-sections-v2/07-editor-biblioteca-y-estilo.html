@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>07 · Editor — biblioteca visual de secciones y «Estilo de sección» (1440)</title>
+<style>
+/* ===== 07 Editor: app tokens (design/system.md «Colors — light», sidebar, component rules) ===== */
+:root{
+  --background:#F7F5FB; --foreground:#1A1626; --card:#FFFFFF; --muted:#F1EEF7; --muted-foreground:#6B6480; --border:#E4DFF0;
+  --primary:oklch(0.491 0.27 292.581); --primary-foreground:oklch(0.969 0.016 293.756); --primary-text:var(--primary);
+  --selection:var(--primary); --sidebar:oklch(0.985 0 0); --sidebar-accent:oklch(0.97 0 0);
+  --status-success:oklch(0.46 0.13 152); --status-review:oklch(0.47 0.12 70);
+  --control-edge:color-mix(in oklab,var(--foreground) 50%,var(--card));
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  /* Site preview (Grupo Altavista) */
+  --s-page:#F7F5FB; --s-card:#FFFFFF; --s-fg:#1A1626; --s-sec:#6B6480; --s-brand:#1F3A5F; --s-band:#E8E8F0; --s-accent:#1E7369;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#E9E6F0;color:var(--foreground);font:14px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p{margin:0}
+ul{margin:0;padding:0;list-style:none}
+button,input,select{font:inherit;color:inherit}
+svg{display:block}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+:focus-visible{outline:2px solid var(--primary-text);outline-offset:2px}
+.state-label{display:flex;align-items:center;gap:12px;height:44px;padding:0 24px;background:#1A1626;color:#F6F2FF;font-weight:600;font-size:13px}
+.state-label span{font-weight:400;color:#C9C2DB}
+.app.tall{height:1190px}
+.app{display:grid;grid-template-columns:288px minmax(0,1fr);height:900px;background:var(--sidebar);overflow:hidden}
+
+/* App sidebar */
+.side{display:flex;flex-direction:column;gap:6px;padding:20px 16px}
+.logo{font:800 21px/1 var(--font);letter-spacing:-.03em;padding:6px 10px 18px}
+.logo i{font-style:italic;font-weight:500;color:var(--primary-text);font-family:Georgia,serif}
+.side h2{font-size:12px;font-weight:500;color:var(--muted-foreground);padding:14px 12px 6px}
+.side a{display:flex;align-items:center;gap:12px;min-height:40px;padding:8px 12px;border-radius:14px;text-decoration:none;font-size:15px}
+.side a svg{width:18px;height:18px}
+.side a.new{background:var(--primary);color:var(--primary-foreground);border-radius:999px}
+.side a.on{background:var(--muted)}
+.side a:hover:not(.new){background:var(--sidebar-accent)}
+.me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px}
+.me .av{width:32px;height:32px;border-radius:999px;background:var(--primary);color:var(--primary-foreground);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+.me small{display:block;color:var(--muted-foreground);font-size:12px}
+
+/* Inset panel */
+.inset{margin:12px 12px 12px 0;background:var(--background);border-radius:22px;box-shadow:0 4px 6px -1px rgb(0 0 0 / .06),0 0 0 1px color-mix(in srgb,var(--primary) 15%,transparent);display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.top{display:flex;align-items:center;gap:16px;height:48px;padding:0 20px;border-bottom:1px solid var(--border);font-size:16px;font-weight:500}
+.top svg{width:18px;height:18px}
+.head{display:flex;align-items:center;gap:12px;padding:16px 24px 10px}
+.head h1{font-size:20px;font-weight:600}
+.badge{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:8px;font-size:12px;font-weight:500;border:1px solid}
+.badge.ok{color:var(--status-success);border-color:color-mix(in srgb,var(--status-success) 40%,transparent);background:color-mix(in srgb,var(--status-success) 10%,transparent)}
+.badge.ok::before{content:"";width:6px;height:6px;border-radius:999px;background:currentColor}
+.badge.new{color:var(--foreground);border-color:color-mix(in srgb,var(--primary) 40%,transparent);background:color-mix(in srgb,var(--primary) 12%,transparent)}
+.link{color:var(--primary-text);text-decoration:underline;text-underline-offset:4px}
+.head .right{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--muted-foreground)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:8px 14px;border-radius:18px;border:1px solid transparent;font-size:14px;font-weight:500;cursor:pointer;background:transparent;text-decoration:none;white-space:nowrap}
+.btn svg{width:16px;height:16px;flex:none}
+.btn.primary{background:var(--primary);color:var(--primary-foreground)}
+.btn.outline{background:var(--background);border-color:var(--border);color:var(--foreground)}
+.btn.ghost{color:var(--muted-foreground)}
+.btn.icon{width:40px;padding:0}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.work{flex:1;min-height:0;display:grid;gap:0;padding:0 16px 12px}
+.work.s1{grid-template-columns:minmax(0,800px) minmax(0,1fr)}
+.work.s2{grid-template-columns:248px minmax(0,1fr) 352px}
+.foot-note{display:flex;align-items:center;gap:8px;padding:0 24px 12px;color:var(--muted-foreground);font-size:13px}
+.foot-note svg{width:14px;height:14px}
+
+/* Section list (left) */
+.list{display:flex;flex-direction:column;gap:10px;padding:4px 12px 0 4px;min-height:0;overflow:hidden}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border)}
+.tabs span{padding:8px 10px;font-size:15px;color:color-mix(in srgb,var(--foreground) 70%,transparent)}
+.tabs span.on{color:var(--foreground);box-shadow:inset 0 -2px 0 var(--foreground)}
+.list h2{font-size:16px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.cnt{font-size:12px;font-weight:500;background:var(--muted);border-radius:8px;padding:2px 8px}
+.rows{display:flex;flex-direction:column;gap:2px}
+.row{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 10px;border-radius:18px;border:1px solid transparent;min-height:48px;width:100%;background:transparent;text-align:left;cursor:pointer}
+.row.sel{background:var(--card);box-shadow:0 1px 2px rgb(0 0 0 / .05),0 0 0 1px color-mix(in srgb,var(--primary) 40%,transparent)}
+.row .tile{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--primary) 10%,transparent);color:var(--primary-text);flex:none}
+.row.sel .tile{background:var(--selection);color:var(--primary-foreground)}
+.row .tile svg{width:18px;height:18px}
+.row b{display:block;font-weight:500;font-size:14px}
+.row small{display:block;font-size:12px;color:var(--muted-foreground)}
+.row .badge{height:18px;font-size:11px;padding:0 6px}
+.row .more{margin-left:auto;color:var(--muted-foreground);width:24px;height:24px}
+
+/* Library sheet (state 1) */
+.lib{position:relative;display:flex;flex-direction:column;min-height:0;background:var(--card);border-radius:24px;box-shadow:0 20px 25px -5px rgb(0 0 0 / .1),0 0 0 1px color-mix(in srgb,var(--foreground) 5%,transparent);margin:4px 16px 0 0;overflow:hidden}
+.lib-h{display:flex;align-items:flex-start;gap:16px;padding:20px 24px 12px}
+.lib-h h2{font-size:18px;font-weight:600}
+.lib-h p{color:var(--muted-foreground);margin-top:2px}
+.lib-h .x{margin-left:auto;background:var(--muted);border-radius:999px}
+.lib-tools{display:flex;align-items:center;gap:10px;padding:0 24px 12px;flex-wrap:wrap}
+.search{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border-radius:18px;background:color-mix(in srgb,var(--border) 50%,transparent);flex:1 1 240px;color:var(--muted-foreground)}
+.search svg{width:16px;height:16px}
+.search input{border:0;background:transparent;outline:none;flex:1;min-width:0;color:var(--foreground)}
+.search:focus-within{outline:2px solid var(--primary-text)}
+.chips{display:flex;gap:4px;padding:4px;border-radius:14px;background:var(--muted)}
+.chips button{border:0;background:transparent;min-height:32px;padding:4px 10px;border-radius:10px;font-weight:500;color:color-mix(in srgb,var(--foreground) 72%,transparent);cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--card);color:var(--foreground);box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.lib-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 300px;border-top:1px solid var(--border)}
+.types{padding:16px 16px 16px 24px;overflow:auto}
+.types h3{font-size:12px;font-weight:500;color:var(--muted-foreground);margin:6px 0 8px}
+.tgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.type{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:14px;border:1px solid var(--border);background:var(--card);text-align:left;cursor:pointer;position:relative}
+.type:hover{background:var(--muted)}
+.type[aria-pressed="true"]{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary);background:color-mix(in srgb,var(--primary) 5%,var(--card))}
+.type:disabled{cursor:not-allowed;opacity:.62}
+.type .nm{font-weight:500;font-size:13px;line-height:1.25;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.type .why{font-size:11.5px;color:var(--muted-foreground);line-height:1.3}
+.type .badge{height:18px;font-size:11px;padding:0 6px}
+.thumb{width:100%;height:auto;aspect-ratio:120/64;color:var(--muted-foreground)}
+.t-bg{fill:var(--background);stroke:var(--border)}
+.t-m{fill:var(--muted);stroke:var(--border)}
+.t-mm{fill:color-mix(in srgb,var(--muted-foreground) 22%,var(--muted))}
+.t-b{fill:var(--border)}
+.t-c{fill:currentColor}
+.t-p{fill:color-mix(in srgb,var(--primary) 22%,var(--card));stroke:color-mix(in srgb,var(--primary) 35%,transparent)}
+.t-dark{fill:color-mix(in srgb,var(--foreground) 78%,var(--primary))}
+.t-w{fill:#fff}
+.t-w2{fill:rgb(255 255 255 / .55)}
+.t-stroke{stroke:currentColor;stroke-width:1.2;fill:none}
+.t-num{font:600 7px var(--font);fill:currentColor}
+.layouts{padding:16px 24px 16px 16px;border-left:1px solid var(--border);background:color-mix(in srgb,var(--muted) 45%,var(--card));overflow:auto;display:flex;flex-direction:column;gap:10px}
+.layouts h3{font-size:16px;font-weight:600}
+.layouts>p{color:var(--muted-foreground);font-size:13px}
+.lay{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:16px;border:1px solid var(--border);background:var(--card);cursor:pointer;text-align:left;position:relative}
+.lay[aria-checked="true"]{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.lay .nm{font-weight:500;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.lay .ck{width:22px;height:22px;border-radius:999px;border:1.5px solid var(--control-edge);display:inline-flex;align-items:center;justify-content:center}
+.lay[aria-checked="true"] .ck{background:var(--selection);border-color:var(--selection);color:var(--primary-foreground)}
+.lay .ck svg{width:12px;height:12px;opacity:0}
+.lay[aria-checked="true"] .ck svg{opacity:1}
+.lay small{color:var(--muted-foreground);font-size:12px;line-height:1.35}
+.lib-f{display:flex;align-items:center;gap:12px;padding:12px 24px;border-top:1px solid var(--border);flex-wrap:wrap}
+.lib-f label{display:flex;align-items:center;gap:8px;font-weight:500}
+.sel-input{min-height:40px;border-radius:18px;border:0;background:color-mix(in srgb,var(--border) 50%,transparent);padding:0 32px 0 12px;appearance:none;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px;background-repeat:no-repeat}
+.lib-f .hint{color:var(--muted-foreground);font-size:12.5px;flex:1;min-width:200px}
+.lib-f .acts{margin-left:auto;display:flex;gap:8px}
+
+/* Preview */
+.pvcol{display:flex;flex-direction:column;min-width:0;min-height:0;padding:0 8px}
+.pvbar{display:flex;align-items:center;gap:10px;height:48px;color:var(--muted-foreground);font-size:13px}
+.pvbar .dev{margin-left:auto;display:flex;gap:2px;padding:3px;border-radius:12px;background:var(--muted)}
+.pvbar .dev span{width:32px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center}
+.pvbar .dev span.on{background:var(--card);box-shadow:0 1px 2px rgb(0 0 0 / .08);color:var(--foreground)}
+.pvbar svg{width:16px;height:16px}
+.browser{flex:1;min-height:0;background:var(--card);border-radius:16px;box-shadow:0 0 0 1px var(--border);overflow:hidden;display:flex;flex-direction:column}
+.url{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-bottom:1px solid var(--border);color:var(--muted-foreground);font-size:13px}
+.url svg{width:13px;height:13px}
+.pv{flex:1;min-height:0;overflow:hidden;background:var(--s-page);color:var(--s-fg);font-size:9px;line-height:1.45;position:relative}
+.pv .ph{position:relative;overflow:hidden;border-radius:8px;background:linear-gradient(150deg,color-mix(in srgb,var(--s-brand) 92%,#000),var(--s-brand) 45%,color-mix(in srgb,var(--s-accent) 80%,var(--s-brand)));color:#fff}
+.pv .ph svg{position:absolute;inset:0;width:100%;height:100%;opacity:.5}
+.pv-nav{display:flex;align-items:center;gap:6px;padding:10px 18px;font-weight:600;font-size:10px}
+.pv-nav i{width:16px;height:16px;border-radius:5px;background:var(--s-brand);display:inline-block}
+.pv-nav span.r{margin-left:auto;display:flex;gap:10px;font-weight:400;color:var(--s-sec)}
+.pv-sec{position:relative;padding:16px 18px}
+.pv-sec.tint{background:var(--s-band)}
+.pv-sec h4{font-size:14px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
+.pv-hero{text-align:center;padding:22px 18px}
+.pv-hero h4{font-size:20px;line-height:1.05;margin:4px auto 6px;max-width:16ch}
+.pv-hero p{color:var(--s-sec);max-width:40ch;margin:0 auto}
+.pv-eb{font-size:7px;letter-spacing:.14em;font-weight:600;color:var(--s-brand);text-transform:uppercase}
+.pv-btns{display:flex;gap:6px;justify-content:center;margin-top:8px}
+.pv-btns span{padding:3px 8px;border-radius:6px;background:var(--s-accent);color:#fff;font-weight:600}
+.pv-btns span.o{background:transparent;color:var(--s-fg);border:1px solid color-mix(in srgb,var(--s-fg) 25%,transparent)}
+.pv-bento{display:grid;grid-template-columns:2fr 1fr;gap:6px}
+.pv-bento div{background:var(--s-card);border-radius:8px;padding:8px;box-shadow:0 0 0 1px color-mix(in srgb,var(--s-fg) 6%,transparent)}
+.pv-bento div:first-child{grid-row:span 2;background:color-mix(in srgb,var(--s-accent) 10%,var(--s-card))}
+.pv-bento b{display:block;font-size:10px}
+.pv-areas{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.pv-areas span{background:var(--s-card);border-radius:7px;padding:6px;font-weight:600;font-size:8px;box-shadow:0 0 0 1px color-mix(in srgb,var(--s-fg) 6%,transparent)}
+.pv-areas span i{display:block;width:12px;height:12px;border-radius:4px;background:color-mix(in srgb,var(--s-accent) 18%,var(--s-card));margin-bottom:4px}
+.pv-areas small{display:block;font-weight:400;color:var(--s-sec)}
+.pv-ghost{outline:2px dashed var(--primary);outline-offset:-2px;background:color-mix(in srgb,var(--primary) 4%,var(--s-page))}
+.ghost-label{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--primary);color:var(--primary-foreground);font:500 11px/1 var(--font);padding:5px 10px;border-radius:999px;white-space:nowrap;z-index:2}
+.pv-story{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center}
+.pv-story .ph{height:70px}
+.pv-story p{color:var(--s-sec)}
+.selected-sec{outline:2px solid var(--primary);outline-offset:-2px}
+.sec-tag{position:absolute;top:0;left:0;background:var(--primary);color:var(--primary-foreground);font:500 11px/1 var(--font);padding:4px 8px;border-radius:0 0 8px 0;z-index:3}
+
+/* Hero preview with background (state 2) */
+.pv-hero2{position:relative;isolation:isolate;margin:0 10px;border-radius:12px;overflow:hidden;color:#fff;padding:44px 22px;text-align:center}
+.pv-hero2 .bgm{position:absolute;inset:0;z-index:-2;background:linear-gradient(135deg,var(--s-brand),color-mix(in srgb,var(--s-accent) 70%,var(--s-brand)))}
+.pv-hero2 .bgm svg{position:absolute;inset:auto 0 0 0;height:60%;width:100%;color:#fff;opacity:.22}
+.pv-hero2 .vl{position:absolute;inset:0;z-index:-1;background:oklch(0.14 0.02 292 / var(--veil,.5))}
+.pv-hero2 h4{font-size:24px;line-height:1.04;max-width:15ch;margin:6px auto 8px}
+.pv-hero2 p{color:rgb(255 255 255 / .92);max-width:44ch;margin:0 auto}
+.pv-hero2 .pv-eb{color:#fff}
+.pv-hero2 .pv-btns span{background:#fff;color:#1A1626}
+.pv-hero2 .pv-btns span.o{background:transparent;color:#fff;border-color:rgb(255 255 255 / .7)}
+.pv-hero2[data-align="left"]{text-align:left}
+.pv-hero2[data-align="left"] h4,.pv-hero2[data-align="left"] p{margin-left:0}
+.pv-hero2[data-align="left"] .pv-btns{justify-content:flex-start}
+.pv-hero2[data-space="compact"]{padding-block:24px}
+.pv-hero2[data-bg="normal"]{color:var(--s-fg)}
+.pv-hero2[data-bg="normal"] .bgm,.pv-hero2[data-bg="normal"] .vl{display:none}
+.pv-hero2[data-bg="tint"]{color:var(--s-fg);background:var(--s-band)}
+.pv-hero2[data-bg="tint"] .bgm,.pv-hero2[data-bg="tint"] .vl{display:none}
+.pv-hero2[data-bg="brand"]{background:var(--s-brand)}
+.pv-hero2[data-bg="brand"] .bgm,.pv-hero2[data-bg="brand"] .vl{display:none}
+.pv-hero2:is([data-bg="normal"],[data-bg="tint"]) p{color:var(--s-sec)}
+.pv-hero2:is([data-bg="normal"],[data-bg="tint"]) .pv-eb{color:var(--s-brand)}
+.pv-hero2:is([data-bg="normal"],[data-bg="tint"]) .pv-btns span{background:var(--s-accent);color:#fff}
+.pv-hero2:is([data-bg="normal"],[data-bg="tint"]) .pv-btns span.o{background:transparent;color:var(--s-fg);border-color:color-mix(in srgb,var(--s-fg) 25%,transparent)}
+.pv-pause{position:absolute;right:10px;bottom:10px;font:500 9px var(--font);background:rgb(12 9 18 / .5);border:1px solid rgb(255 255 255 / .5);border-radius:999px;padding:3px 8px}
+.pv-hero2:not([data-bg="image"]) .pv-pause{display:none}
+
+/* Properties panel (state 2) */
+.props{display:flex;flex-direction:column;gap:18px;padding:4px 4px 12px 16px;overflow:auto;min-height:0;border-left:1px solid var(--border)}
+.props h2{font-size:16px;font-weight:600}
+.props .sub{color:var(--muted-foreground);margin-top:2px}
+.grp{display:flex;flex-direction:column;gap:10px}
+.grp>.lbl{font-weight:500;display:flex;align-items:center;gap:8px}
+.grp>.lbl .badge{height:18px;font-size:11px;padding:0 6px}
+.lgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.lopt{display:flex;flex-direction:column;gap:4px;padding:6px;line-height:1.2;border-radius:14px;border:1px solid var(--border);background:var(--card);cursor:pointer;text-align:center;font-weight:500;font-size:13px}
+.lopt[aria-checked="true"]{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.lopt .badge{align-self:center;height:16px;font-size:10.5px;padding:0 5px}
+.divider{height:1px;background:var(--border)}
+.style-box{display:flex;flex-direction:column;gap:16px;padding:14px;border-radius:18px;background:color-mix(in srgb,var(--primary) 4%,var(--card));box-shadow:0 0 0 1px color-mix(in srgb,var(--primary) 16%,var(--border))}
+.style-box h3{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.style-box>p{color:var(--muted-foreground);font-size:12.5px;margin-top:-10px}
+.ctl{display:flex;flex-direction:column;gap:8px}
+.ctl>span.cl{font-weight:500;font-size:13px}
+.bgopts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.bgopts button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;border-radius:14px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:500;line-height:1.2}
+.bgopts button[aria-checked="true"]{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.sw{width:36px;height:24px;border-radius:8px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--foreground) 15%,transparent)}
+.sw.n{background:var(--s-page)}
+.sw.t{background:var(--s-band)}
+.sw.b{background:var(--s-brand)}
+.sw.i{background:linear-gradient(135deg,var(--s-brand),var(--s-accent))}
+.seg{display:flex;padding:4px;border-radius:14px;background:var(--muted);gap:2px}
+.seg button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;border:0;border-radius:10px;background:transparent;font-weight:500;color:color-mix(in srgb,var(--foreground) 72%,transparent);cursor:pointer}
+.seg button[aria-checked="true"]{background:var(--background);color:var(--foreground);box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.seg button:disabled{opacity:.5;cursor:not-allowed}
+.seg svg{width:15px;height:15px}
+.contrast{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.contrast .badge{height:20px}
+.contrast .badge.review{color:var(--status-review);border-color:color-mix(in srgb,var(--status-review) 40%,transparent);background:color-mix(in srgb,var(--status-review) 10%,transparent)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-weight:500;font-size:13px}
+.inp{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border-radius:18px;background:color-mix(in srgb,var(--border) 50%,transparent)}
+.inp input{border:0;background:transparent;outline:none;flex:1;min-width:0}
+.inp:focus-within{outline:2px solid var(--primary-text)}
+.inp small{color:var(--muted-foreground);font-size:12px;font-variant-numeric:tabular-nums}
+.sw-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.switch{width:56px;height:40px;border-radius:999px;background:var(--primary);border:0;padding:4px;cursor:pointer;display:flex;align-items:center;justify-content:flex-end}
+.switch::after{content:"";width:32px;height:32px;border-radius:999px;background:#fff}
+.switch[aria-checked="false"]{background:color-mix(in srgb,var(--foreground) 22%,var(--card));justify-content:flex-start}
+.media-card{display:flex;align-items:center;gap:10px;padding:8px;border-radius:16px;background:var(--card);box-shadow:0 0 0 1px var(--border)}
+.media-card .mthumb{width:56px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--s-brand),var(--s-accent));flex:none}
+.media-card b{display:block;font-weight:500;font-size:13px}
+.media-card small{color:var(--muted-foreground);font-size:12px}
+.guard{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--muted-foreground);padding:10px 12px;border-radius:14px;background:var(--muted)}
+.guard svg{width:16px;height:16px;flex:none;margin-top:1px}
+
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <!-- Scenes: decorative photo stand-ins in currentColor (white) layers -->
+    <symbol id="sc-team" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><rect x="24" y="30" width="352" height="150" rx="10" opacity=".08"/>
+      <g opacity=".14"><rect x="40" y="46" width="70" height="56" rx="4"/><rect x="122" y="46" width="70" height="56" rx="4"/><rect x="204" y="46" width="70" height="56" rx="4"/><rect x="286" y="46" width="70" height="56" rx="4"/></g>
+      <circle cx="120" cy="150" r="30" opacity=".55"/><path d="M58 300c0-50 28-96 62-96s62 46 62 96z" opacity=".55"/>
+      <circle cx="210" cy="132" r="34" opacity=".8"/><path d="M140 300c0-58 32-110 70-110s70 52 70 110z" opacity=".8"/>
+      <circle cx="300" cy="156" r="28" opacity=".45"/><path d="M244 300c0-46 26-90 56-90s56 44 56 90z" opacity=".45"/></g>
+    </symbol>
+    <symbol id="sc-person" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><circle cx="230" cy="70" r="46" opacity=".12"/><circle cx="150" cy="122" r="52" opacity=".75"/><path d="M50 300c0-80 45-136 100-136s100 56 100 136z" opacity=".75"/></g>
+    </symbol>
+    <symbol id="sc-city" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><circle cx="300" cy="80" r="34" opacity=".35"/>
+      <path d="M0 210 60 150 110 175 160 112 200 160 236 104 290 168 340 140 400 186V300H0z" opacity=".22"/>
+      <g opacity=".5"><rect x="30" y="200" width="40" height="100"/><rect x="78" y="176" width="30" height="124"/><rect x="116" y="214" width="46" height="86"/><rect x="200" y="186" width="34" height="114"/><rect x="242" y="226" width="54" height="74"/><rect x="306" y="196" width="36" height="104"/><rect x="350" y="232" width="40" height="68"/></g>
+      <g opacity=".22"><rect x="84" y="190" width="6" height="8"/><rect x="96" y="190" width="6" height="8"/><rect x="84" y="208" width="6" height="8"/><rect x="96" y="208" width="6" height="8"/><rect x="208" y="200" width="6" height="8"/><rect x="220" y="200" width="6" height="8"/><rect x="208" y="218" width="6" height="8"/><rect x="220" y="218" width="6" height="8"/></g></g>
+    </symbol>
+    <symbol id="sc-warehouse" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><g opacity=".22"><rect x="20" y="40" width="10" height="240"/><rect x="170" y="40" width="10" height="240"/><rect x="20" y="96" width="160" height="8"/><rect x="20" y="166" width="160" height="8"/><rect x="20" y="236" width="160" height="8"/></g>
+      <g opacity=".42"><rect x="36" y="58" width="40" height="38" rx="3"/><rect x="82" y="66" width="34" height="30" rx="3"/><rect x="122" y="54" width="42" height="42" rx="3"/><rect x="40" y="132" width="50" height="34" rx="3"/><rect x="96" y="126" width="34" height="40" rx="3"/><rect x="40" y="204" width="36" height="32" rx="3"/><rect x="110" y="198" width="50" height="38" rx="3"/></g>
+      <path d="M240 288v-86h70l22 40h34v46z" opacity=".7"/><rect x="214" y="150" width="8" height="138" opacity=".7"/><rect x="200" y="252" width="40" height="8" opacity=".7"/><circle cx="262" cy="288" r="14" opacity=".9"/><circle cx="342" cy="288" r="14" opacity=".9"/></g>
+    </symbol>
+    <symbol id="sc-office" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><rect x="0" y="210" width="400" height="10" opacity=".35"/><rect x="40" y="220" width="10" height="80" opacity=".35"/><rect x="350" y="220" width="10" height="80" opacity=".35"/>
+      <rect x="150" y="140" width="110" height="70" rx="6" opacity=".7"/><rect x="132" y="206" width="146" height="6" rx="3" opacity=".7"/>
+      <path d="M320 210c-10-30-4-60 14-80-2 26 4 50 16 80z" opacity=".45"/><path d="M330 210c4-34 22-52 46-58-14 18-22 36-24 58z" opacity=".35"/><rect x="316" y="196" width="34" height="16" rx="4" opacity=".6"/>
+      <circle cx="80" cy="150" r="26" opacity=".5"/><path d="M34 300c0-50 20-100 46-100s46 50 46 100z" opacity=".5"/>
+      <g opacity=".12"><rect x="40" y="30" width="90" height="70" rx="6"/><rect x="150" y="30" width="90" height="70" rx="6"/><rect x="260" y="30" width="90" height="70" rx="6"/></g></g>
+    </symbol>
+    <symbol id="sc-site" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      <g fill="currentColor"><path d="M0 230 80 180 150 206 230 150 300 190 400 160V300H0z" opacity=".2"/>
+      <rect x="250" y="40" width="8" height="200" opacity=".55"/><rect x="150" y="40" width="200" height="8" opacity=".55"/><rect x="170" y="48" width="2" height="70" opacity=".55"/><rect x="160" y="118" width="22" height="16" opacity=".55"/>
+      <g opacity=".45"><rect x="40" y="170" width="120" height="130"/><rect x="60" y="190" width="18" height="18" fill-opacity=".4"/><rect x="92" y="190" width="18" height="18" fill-opacity=".4"/><rect x="124" y="190" width="18" height="18" fill-opacity=".4"/><rect x="60" y="222" width="18" height="18" fill-opacity=".4"/><rect x="92" y="222" width="18" height="18" fill-opacity=".4"/></g>
+      <circle cx="320" cy="236" r="20" opacity=".7"/><path d="M290 300c0-30 13-50 30-50s30 20 30 50z" opacity=".7"/></g>
+    </symbol>
+    <!-- Icons (lucide-like, 24 grid, stroke) -->
+    <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 12-8 12s-8-7-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></g></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"/></g></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></g></symbol>
+    <symbol id="i-stethoscope" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v6a5 5 0 0 0 10 0V3"/><path d="M10 14v2a5 5 0 0 0 10 0v-2"/><circle cx="20" cy="12" r="2"/></g></symbol>
+    <symbol id="i-cap" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></g></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></g></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></g></symbol>
+    <symbol id="i-calendar-check" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M9 15l2 2 4-4"/></g></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></g></symbol>
+    <symbol id="i-heart-hand" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 12 5.5 5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/><path d="M12 5.5 9 8.8a2 2 0 0 0 2.8 2.8L14 9.5l3 3"/></g></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></g></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></g></symbol>
+    <symbol id="i-truck" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-4l-3-4h-5"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></g></symbol>
+    <symbol id="i-headset" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="2" y="14" width="5" height="6" rx="2"/><rect x="17" y="14" width="5" height="6" rx="2"/></g></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M22 7 13.5 15.5l-5-5L2 17M16 7h6v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pill" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="8" width="19" height="8" rx="4" transform="rotate(-45 12 12)"/><path d="m8.5 8.5 7 7"/></g></symbol>
+    <symbol id="i-hardhat" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h20v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1z"/><path d="M4 15v-3a8 8 0 0 1 16 0v3M10 5v5M14 5v5"/></g></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3-3 3 3"/></g></symbol>
+    <symbol id="i-quote" viewBox="0 0 24 24"><path d="M3 21c3 0 7-1 7-8V5H3v8h4c0 3-1 5-4 5zM14 21c3 0 7-1 7-8V5h-7v8h4c0 3-1 5-4 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></g></symbol>
+    <symbol id="i-award" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.5 13 17 22l-5-3-5 3 1.5-9"/></g></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></g></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-captions" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></g></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="8" height="7" rx="1.5"/><rect x="15" y="14" width="6" height="7" rx="1.5"/></g></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></g></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6z"/></g></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></g></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></g></symbol>
+    <symbol id="i-briefcase" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></g></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 2-2.5 3.5M12 17h0"/></g></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></g></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></g></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></g></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></g></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></g></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></g></symbol>
+    <symbol id="i-tablet" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/></g></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="3" width="10" height="18" rx="2"/></g></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></g></symbol>
+    <symbol id="i-align-left" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-align-center" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M5 18h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a5 5 0 1 1 1-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<main>
+<!-- ===================== Estado 1: biblioteca visual ===================== -->
+<section aria-labelledby="st1">
+  <h2 class="state-label" id="st1">Estado 1 · Agregar sección <span>— biblioteca visual con miniatura por sección y por diseño; la vista previa marca dónde se insertará</span></h2>
+  <div class="app">
+<nav class="side" aria-label="Navegación principal">
+  <p class="logo" aria-label="PeopleFlow">people<i>flow</i></p>
+  <h2>Principal</h2>
+  <a class="new" href="#"><svg aria-hidden="true"><use href="#i-plus"/></svg>Nueva vacante</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-grid"/></svg>Dashboard</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-briefcase"/></svg>Vacantes</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-users"/></svg>Base de talento</a>
+  <h2>Organización</h2>
+  <a href="#"><svg aria-hidden="true"><use href="#i-users"/></svg>Equipo</a>
+  <a class="on" href="#" aria-current="page"><svg aria-hidden="true"><use href="#i-globe"/></svg>Sitio de empleo</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-cog"/></svg>Configuración</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-chart"/></svg>Métricas</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-shield"/></svg>Auditoría</a>
+  <div class="me"><span class="av" aria-hidden="true">VO</span><span><b>Valeria Ortiz</b><small>Grupo Altavista</small></span></div>
+</nav>
+
+    <div class="inset">
+<div class="top"><button type="button" class="btn icon ghost" aria-label="Ocultar barra lateral"><svg aria-hidden="true"><use href="#i-panel"/></svg></button>Sitio de empleo</div>
+<div class="head">
+  <h1>Grupo Altavista</h1><span class="badge ok">Publicado</span><a class="link" href="#">Ver sitio</a>
+  <div class="right"><span style="display:inline-flex;align-items:center;gap:6px"><svg aria-hidden="true" style="width:16px;height:16px"><use href="#i-cloud"/></svg>Borrador guardado</span><a class="btn outline" href="#"><svg aria-hidden="true"><use href="#i-eye"/></svg>Ver como visitante</a><button type="button" class="btn primary"><svg aria-hidden="true"><use href="#i-upload"/></svg>Publicar</button><button type="button" class="btn icon ghost" aria-label="Más acciones"><svg aria-hidden="true"><use href="#i-dots"/></svg></button></div>
+</div>
+
+      <div class="work s1">
+        <div class="lib" role="dialog" aria-modal="false" aria-labelledby="lib-t" aria-describedby="lib-d">
+          <div class="lib-h"><div><h3 id="lib-t" style="font-size:18px;font-weight:600">Agregar sección</h3><p id="lib-d">Elige una sección y su diseño. La vista previa te muestra dónde quedará.</p></div><button type="button" class="btn icon x" aria-label="Cerrar biblioteca"><svg aria-hidden="true"><use href="#i-x"/></svg></button></div>
+          <div class="lib-tools">
+            <label class="search" for="lib-q"><svg aria-hidden="true"><use href="#i-search"/></svg><span class="sr">Buscar una sección</span><input id="lib-q" placeholder="Buscar una sección" autocomplete="off"></label>
+            <div class="chips" role="group" aria-label="Filtrar por tipo"><button type="button" aria-pressed="true">Todas</button><button type="button" aria-pressed="false">Presentación</button><button type="button" aria-pressed="false">Cultura</button><button type="button" aria-pressed="false">Vacantes</button><button type="button" aria-pressed="false">Nuevas · 4</button></div>
+          </div>
+          <div class="lib-body">
+            <div class="types">
+              <h4 class="sr">Secciones disponibles</h4>
+              <h3>Presentación</h3>
+              <div class="tgrid">
+                <button type="button" class="type" disabled aria-describedby="why-hero" data-type="Portada"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="33" y="14" width="54" height="5" rx="1.5" class="t-c"/><rect x="26" y="25" width="68" height="3" rx="1.5" class="t-b"/><rect x="34" y="31" width="52" height="3" rx="1.5" class="t-b"/><rect x="46" y="40" width="28" height="9" rx="3" class="t-p"/></svg><span class="nm">Portada</span><span class="why" id="why-hero">Ya está en tu sitio; solo puede haber una.</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Historia" data-layouts="Manifiesto|Con imagen|Manifiesto con cita"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="10" width="44" height="44" rx="3" class="t-m"/><rect x="60" y="14" width="40" height="4" rx="1.5" class="t-c"/><rect x="60" y="24" width="50" height="3" rx="1.5" class="t-b"/><rect x="60" y="30" width="46" height="3" rx="1.5" class="t-b"/><rect x="60" y="36" width="50" height="3" rx="1.5" class="t-b"/><rect x="60" y="42" width="30" height="3" rx="1.5" class="t-b"/></svg><span class="nm">Historia</span><span class="why">3 diseños</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Misión y valores" data-layouts="Cuadrícula|Lista|Íconos grandes|Bento"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="9" width="40" height="4" rx="1.5" class="t-c"/><circle cx="16" cy="32" r="6" class="t-p"/><rect x="8" y="42" width="28" height="3" rx="1.5" class="t-c"/><rect x="8" y="48" width="24" height="2" rx="1.5" class="t-b"/><circle cx="52" cy="32" r="6" class="t-p"/><rect x="44" y="42" width="28" height="3" rx="1.5" class="t-c"/><rect x="44" y="48" width="24" height="2" rx="1.5" class="t-b"/><circle cx="88" cy="32" r="6" class="t-p"/><rect x="80" y="42" width="28" height="3" rx="1.5" class="t-c"/><rect x="80" y="48" width="24" height="2" rx="1.5" class="t-b"/></svg><span class="nm">Misión y valores</span><span class="why">4 diseños</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Cifras" data-layouts="En fila|Tarjetas|Números grandes en banda"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="4" y="14" width="112" height="36" rx="3" class="t-dark"/><rect x="12" y="24" width="16" height="7" rx="1.5" class="t-w"/><rect x="12" y="36" width="18" height="2" rx="1.5" class="t-w2"/><rect x="40" y="24" width="16" height="7" rx="1.5" class="t-w"/><rect x="40" y="36" width="18" height="2" rx="1.5" class="t-w2"/><rect x="68" y="24" width="16" height="7" rx="1.5" class="t-w"/><rect x="68" y="36" width="18" height="2" rx="1.5" class="t-w2"/><rect x="96" y="24" width="16" height="7" rx="1.5" class="t-w"/><rect x="96" y="36" width="18" height="2" rx="1.5" class="t-w2"/></svg><span class="nm">Cifras</span><span class="why">3 diseños · conteo animado</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Video" data-layouts="Panorámica|Dividida"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="14" y="8" width="92" height="48" rx="3" class="t-m"/><circle cx="60" cy="32" r="9" class="t-p"/><path d="M57 27l9 5-9 5z" class="t-bg"/></svg><span class="nm">Video</span><span class="why">2 diseños</span></button>
+              </div>
+              <h3>Cultura y personas</h3>
+              <div class="tgrid">
+                <button type="button" class="type" aria-pressed="false" data-type="Beneficios" data-layouts="Cuadrícula|Compacta|Bento|Íconos grandes"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="40" height="4" rx="1.5" class="t-c"/><rect x="8" y="17" width="62" height="39" rx="3" class="t-p"/><rect x="74" y="17" width="38" height="18" rx="3" class="t-m"/><rect x="74" y="38" width="38" height="18" rx="3" class="t-m"/></svg><span class="nm">Beneficios</span><span class="why">4 diseños</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Galería de cultura" data-layouts="Cuadrícula|Mosaico|Carrusel|Tira continua"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="10" width="50" height="44" rx="3" class="t-m"/><rect x="62" y="10" width="50" height="20" rx="3" class="t-m"/><rect x="62" y="34" width="50" height="20" rx="3" class="t-m"/></svg><span class="nm">Galería de cultura</span><span class="why">4 diseños</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Testimonios" data-layouts="Tarjetas|Cita|Carrusel con foto grande|Video + citas"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="10" width="46" height="44" rx="3" class="t-m"/><rect x="62" y="16" width="48" height="4" rx="1.5" class="t-c"/><rect x="62" y="25" width="44" height="4" rx="1.5" class="t-c"/><circle cx="66" cy="44" r="4" class="t-p"/><rect x="74" y="42" width="26" height="3" rx="1.5" class="t-b"/></svg><span class="nm">Testimonios</span><span class="why">4 diseños · video</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Equipo / Líderes" data-layouts="Retratos en fila|Retratos redondos|Tarjetas"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="40" height="4" rx="1.5" class="t-c"/><rect x="10" y="18" width="18" height="22" rx="3" class="t-m"/><rect x="10" y="44" width="18" height="2" rx="1.5" class="t-c"/><rect x="10" y="49" width="12" height="2" rx="1.5" class="t-b"/><rect x="38" y="18" width="18" height="22" rx="3" class="t-m"/><rect x="38" y="44" width="18" height="2" rx="1.5" class="t-c"/><rect x="38" y="49" width="12" height="2" rx="1.5" class="t-b"/><rect x="66" y="18" width="18" height="22" rx="3" class="t-m"/><rect x="66" y="44" width="18" height="2" rx="1.5" class="t-c"/><rect x="66" y="49" width="12" height="2" rx="1.5" class="t-b"/><rect x="94" y="18" width="18" height="22" rx="3" class="t-m"/><rect x="94" y="44" width="18" height="2" rx="1.5" class="t-c"/><rect x="94" y="49" width="12" height="2" rx="1.5" class="t-b"/></svg><span class="nm">Equipo / Líderes <span class="badge new">Nueva</span></span><span class="why">3 diseños</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Logos / Reconocimientos" data-layouts="Fila discreta|Mosaico|Píldoras"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="36" y="12" width="48" height="3" rx="1.5" class="t-c"/><rect x="10" y="24" width="20" height="10" rx="2" class="t-m"/><rect x="34" y="24" width="20" height="10" rx="2" class="t-m"/><rect x="58" y="24" width="20" height="10" rx="2" class="t-m"/><rect x="82" y="24" width="20" height="10" rx="2" class="t-m"/><rect x="28" y="42" width="30" height="8" rx="4" class="t-p"/><rect x="62" y="42" width="30" height="8" rx="4" class="t-p"/></svg><span class="nm">Logos / Reconocimientos <span class="badge new">Nueva</span></span><span class="why">3 diseños</span></button>
+              </div>
+              <h3>Vacantes y contacto</h3>
+              <div class="tgrid">
+                <button type="button" class="type" disabled aria-describedby="why-jobs" data-type="Vacantes abiertas"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="40" height="4" rx="1.5" class="t-c"/><rect x="8" y="18" width="104" height="9" rx="2" class="t-m"/><rect x="12" y="21" width="50" height="2" rx="1.5" class="t-c"/><rect x="8" y="30" width="104" height="9" rx="2" class="t-m"/><rect x="12" y="33" width="50" height="2" rx="1.5" class="t-c"/><rect x="8" y="42" width="104" height="9" rx="2" class="t-m"/><rect x="12" y="45" width="50" height="2" rx="1.5" class="t-c"/></svg><span class="nm">Vacantes abiertas</span><span class="why" id="why-jobs">Ya está en tu sitio; solo puede haber una.</span></button>
+                <button type="button" class="type" aria-pressed="true" data-type="Áreas de trabajo" data-layouts="Tarjetas con ícono|Índice|Tarjetas con foto"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="40" height="4" rx="1.5" class="t-c"/><rect x="8" y="18" width="22" height="17" rx="3" class="t-m"/><rect x="8" y="39" width="22" height="17" rx="3" class="t-m"/><rect x="36" y="18" width="22" height="17" rx="3" class="t-m"/><rect x="36" y="39" width="22" height="17" rx="3" class="t-m"/><rect x="64" y="18" width="22" height="17" rx="3" class="t-m"/><rect x="64" y="39" width="22" height="17" rx="3" class="t-m"/><rect x="92" y="18" width="22" height="17" rx="3" class="t-m"/><rect x="92" y="39" width="22" height="17" rx="3" class="t-m"/><rect x="9.5" y="20" width="6" height="6" rx="2" class="t-p"/></svg><span class="nm">Áreas de trabajo <span class="badge new">Nueva</span></span><span class="why">3 diseños · filtra vacantes</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Llamado a talento" data-layouts="Con formulario corto|Con foto|Imagen de fondo"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="104" height="48" rx="3" class="t-p"/><rect x="14" y="18" width="44" height="5" rx="1.5" class="t-c"/><rect x="14" y="28" width="50" height="3" rx="1.5" class="t-b"/><rect x="14" y="38" width="26" height="8" rx="3" class="t-dark"/><rect x="76" y="14" width="30" height="36" rx="15" class="t-m"/></svg><span class="nm">Llamado a talento <span class="badge new">Nueva</span></span><span class="why">3 diseños</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Proceso de selección" data-layouts="Pasos|Cronología"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="9" width="40" height="4" rx="1.5" class="t-c"/><rect x="8" y="22" width="32" height="30" rx="3" class="t-m"/><text x="13" y="32" class="t-num">01</text><rect x="44" y="22" width="32" height="30" rx="3" class="t-m"/><text x="49" y="32" class="t-num">02</text><rect x="80" y="22" width="32" height="30" rx="3" class="t-m"/><text x="85" y="32" class="t-num">03</text></svg><span class="nm">Proceso de selección</span><span class="why">2 diseños</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Oficinas" data-layouts="Lista|Tarjetas"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="9" width="36" height="4" rx="1.5" class="t-c"/><circle cx="14" cy="22" r="3" class="t-p"/><rect x="22" y="20" width="60" height="3" rx="1.5" class="t-b"/><circle cx="14" cy="36" r="3" class="t-p"/><rect x="22" y="34" width="60" height="3" rx="1.5" class="t-b"/><circle cx="14" cy="50" r="3" class="t-p"/><rect x="22" y="48" width="60" height="3" rx="1.5" class="t-b"/></svg><span class="nm">Oficinas</span><span class="why">2 diseños</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Preguntas frecuentes" data-layouts="Acordeón|Dos columnas"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="40" height="4" rx="1.5" class="t-c"/><rect x="8" y="18" width="104" height="9" rx="2" class="t-m"/><path d="M104 21l2.5 3 2.5-3" class="t-stroke"/><rect x="8" y="30" width="104" height="9" rx="2" class="t-m"/><path d="M104 33l2.5 3 2.5-3" class="t-stroke"/><rect x="8" y="42" width="104" height="9" rx="2" class="t-m"/><path d="M104 45l2.5 3 2.5-3" class="t-stroke"/></svg><span class="nm">Preguntas frecuentes</span><span class="why">2 diseños</span></button>
+                <button type="button" class="type" aria-pressed="false" data-type="Cierre" data-layouts="Banner|Simple|Con fotos flotantes"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="104" height="48" rx="3" class="t-dark"/><rect x="32" y="22" width="56" height="5" rx="1.5" class="t-w"/><rect x="46" y="36" width="28" height="8" rx="3" class="t-w"/></svg><span class="nm">Cierre</span><span class="why">3 diseños</span></button>
+              </div>
+            </div>
+            <div class="layouts" aria-labelledby="lay-t">
+              <h3 id="lay-t">Áreas de trabajo</h3>
+              <p id="lay-d">Se arma sola con las áreas de tus vacantes publicadas (hoy 8 áreas, 12 vacantes). Al tocar un área, la lista de vacantes se filtra.</p>
+              <div class="lays" role="radiogroup" aria-labelledby="lay-t" style="display:flex;flex-direction:column;gap:10px">
+                <button type="button" class="lay" role="radio" aria-checked="true"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="40" height="4" rx="1.5" class="t-c"/><rect x="8" y="18" width="22" height="17" rx="3" class="t-m"/><rect x="8" y="39" width="22" height="17" rx="3" class="t-m"/><rect x="36" y="18" width="22" height="17" rx="3" class="t-m"/><rect x="36" y="39" width="22" height="17" rx="3" class="t-m"/><rect x="64" y="18" width="22" height="17" rx="3" class="t-m"/><rect x="64" y="39" width="22" height="17" rx="3" class="t-m"/><rect x="92" y="18" width="22" height="17" rx="3" class="t-m"/><rect x="92" y="39" width="22" height="17" rx="3" class="t-m"/><rect x="9.5" y="20" width="6" height="6" rx="2" class="t-p"/></svg><span class="nm"><span>Tarjetas con ícono</span><span class="ck"><svg aria-hidden="true"><use href="#i-check"/></svg></span></span><small>Ícono y conteo por área. Ideal con 4 a 8 áreas.</small></button>
+                <button type="button" class="lay" role="radio" aria-checked="false" tabindex="-1"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="40" height="4" rx="1.5" class="t-c"/><rect x="8" y="20" width="34" height="3" rx="1.5" class="t-c"/><rect x="70" y="20" width="34" height="3" rx="1.5" class="t-c"/><rect x="8" y="26" width="46" height="0.8" rx="0" class="t-b"/><rect x="70" y="26" width="42" height="0.8" rx="0" class="t-b"/><rect x="8" y="30" width="34" height="3" rx="1.5" class="t-c"/><rect x="70" y="30" width="34" height="3" rx="1.5" class="t-c"/><rect x="8" y="36" width="46" height="0.8" rx="0" class="t-b"/><rect x="70" y="36" width="42" height="0.8" rx="0" class="t-b"/><rect x="8" y="40" width="34" height="3" rx="1.5" class="t-c"/><rect x="70" y="40" width="34" height="3" rx="1.5" class="t-c"/><rect x="8" y="46" width="46" height="0.8" rx="0" class="t-b"/><rect x="70" y="46" width="42" height="0.8" rx="0" class="t-b"/><rect x="8" y="50" width="34" height="3" rx="1.5" class="t-c"/><rect x="70" y="50" width="34" height="3" rx="1.5" class="t-c"/><rect x="8" y="56" width="46" height="0.8" rx="0" class="t-b"/><rect x="70" y="56" width="42" height="0.8" rx="0" class="t-b"/></svg><span class="nm"><span>Índice</span><span class="ck"><svg aria-hidden="true"><use href="#i-check"/></svg></span></span><small>Lista tipográfica en dos columnas; aguanta muchas áreas.</small></button>
+                <button type="button" class="lay" role="radio" aria-checked="false" tabindex="-1"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="8" width="40" height="4" rx="1.5" class="t-c"/><rect x="8" y="18" width="22" height="38" rx="3" class="t-m"/><rect x="11" y="48" width="14" height="2" rx="1.5" class="t-w"/><rect x="36" y="18" width="22" height="38" rx="3" class="t-mm"/><rect x="39" y="48" width="14" height="2" rx="1.5" class="t-w"/><rect x="64" y="18" width="22" height="38" rx="3" class="t-m"/><rect x="67" y="48" width="14" height="2" rx="1.5" class="t-w"/><rect x="92" y="18" width="22" height="38" rx="3" class="t-mm"/><rect x="95" y="48" width="14" height="2" rx="1.5" class="t-w"/></svg><span class="nm"><span>Tarjetas con foto</span><span class="ck"><svg aria-hidden="true"><use href="#i-check"/></svg></span></span><small>Una foto por área; pide imágenes de tu galería.</small></button>
+              </div>
+            </div>
+          </div>
+          <div class="lib-f">
+            <label for="ins">Insertar después de <select id="ins" class="sel-input"><option>Portada</option><option selected>Beneficios</option><option>Historia</option><option>Misión y valores</option><option>Cierre</option><option>Vacantes abiertas</option></select></label>
+            <p class="hint">Portada siempre va primero. Después puedes moverla desde la lista.</p>
+            <div class="acts"><button type="button" class="btn outline">Cancelar</button><button type="button" class="btn primary" id="add-btn"><svg aria-hidden="true"><use href="#i-plus"/></svg><span>Agregar «Áreas de trabajo»</span></button></div>
+          </div>
+        </div>
+        <div class="pvcol">
+          <div class="pvbar"><span>Vista previa en vivo</span><span>37 %</span><span class="dev" aria-hidden="true"><span class="on"><svg><use href="#i-monitor"/></svg></span><span><svg><use href="#i-tablet"/></svg></span><span><svg><use href="#i-phone"/></svg></span></span></div>
+          <div class="browser">
+            <div class="url"><svg aria-hidden="true"><use href="#i-lock"/></svg>/empresas/grupo-altavista</div>
+            <div class="pv" role="img" aria-label="Vista previa: la nueva sección Áreas de trabajo aparece marcada entre Beneficios e Historia">
+              <div class="pv-nav"><i></i>Grupo Altavista<span class="r"><span>Nosotros</span><span>Beneficios</span><span>Vacantes</span></span></div>
+              <div class="pv-hero"><p class="pv-eb">Grupo Altavista · Tu próximo capítulo</p><h4>Talento que mueve al norte de México</h4><p>Conectamos a las mejores personas con constructoras, farmacias y operadores logísticos.</p><div class="pv-btns"><span>Ver vacantes</span><span class="o">Conoce la empresa</span></div></div>
+              <div class="pv-sec tint"><h4>Beneficios</h4><div class="pv-bento"><div><b>Trabajo remoto</b>3 días desde casa</div><div><b>Gastos médicos</b></div><div><b>Capacitación</b></div></div></div>
+              <div class="pv-sec pv-ghost" style="margin-top:14px"><span class="ghost-label" id="ghost-label">Se insertará aquí · Áreas de trabajo</span><h4>Encuentra tu lugar</h4><div class="pv-areas"><span><i></i>Tecnología<small>3 vacantes</small></span><span><i></i>Recursos humanos<small>2 vacantes</small></span><span><i></i>Logística<small>2 vacantes</small></span><span><i></i>Ingeniería<small>1 vacante</small></span><span><i></i>Atención<small>1 vacante</small></span><span><i></i>Ventas<small>1 vacante</small></span><span><i></i>Salud<small>1 vacante</small></span><span><i></i>Construcción<small>1 vacante</small></span></div></div>
+              <div class="pv-sec"><div class="pv-story"><div class="ph"><svg><use href="#sc-city"/></svg></div><div><p class="pv-eb">Historia</p><h4 style="margin:2px 0 4px">Nuestra historia</h4><p>Grupo Altavista nació en Monterrey en 2009 con una idea sencilla…</p></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="foot-note"><svg aria-hidden="true"><use href="#i-lock"/></svg>Tus cambios solo son visibles para tu equipo hasta que publiques.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== Estado 2: propiedades con «Estilo de sección» ===================== -->
+<section aria-labelledby="st2">
+  <h2 class="state-label" id="st2">Estado 2 · Propiedades de Portada <span>— nuevo grupo «Estilo de sección»: fondo, velo, espaciado, alineación y textos de botones; solo opciones curadas</span></h2>
+  <div class="app tall">
+<nav class="side" aria-label="Navegación principal">
+  <p class="logo" aria-label="PeopleFlow">people<i>flow</i></p>
+  <h2>Principal</h2>
+  <a class="new" href="#"><svg aria-hidden="true"><use href="#i-plus"/></svg>Nueva vacante</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-grid"/></svg>Dashboard</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-briefcase"/></svg>Vacantes</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-users"/></svg>Base de talento</a>
+  <h2>Organización</h2>
+  <a href="#"><svg aria-hidden="true"><use href="#i-users"/></svg>Equipo</a>
+  <a class="on" href="#" aria-current="page"><svg aria-hidden="true"><use href="#i-globe"/></svg>Sitio de empleo</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-cog"/></svg>Configuración</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-chart"/></svg>Métricas</a>
+  <a href="#"><svg aria-hidden="true"><use href="#i-shield"/></svg>Auditoría</a>
+  <div class="me"><span class="av" aria-hidden="true">VO</span><span><b>Valeria Ortiz</b><small>Grupo Altavista</small></span></div>
+</nav>
+
+    <div class="inset">
+<div class="top"><button type="button" class="btn icon ghost" aria-label="Ocultar barra lateral"><svg aria-hidden="true"><use href="#i-panel"/></svg></button>Sitio de empleo</div>
+<div class="head">
+  <h1>Grupo Altavista</h1><span class="badge ok">Publicado</span><a class="link" href="#">Ver sitio</a>
+  <div class="right"><span style="display:inline-flex;align-items:center;gap:6px"><svg aria-hidden="true" style="width:16px;height:16px"><use href="#i-cloud"/></svg>Borrador guardado</span><a class="btn outline" href="#"><svg aria-hidden="true"><use href="#i-eye"/></svg>Ver como visitante</a><button type="button" class="btn primary"><svg aria-hidden="true"><use href="#i-upload"/></svg>Publicar</button><button type="button" class="btn icon ghost" aria-label="Más acciones"><svg aria-hidden="true"><use href="#i-dots"/></svg></button></div>
+</div>
+
+      <div class="work s2">
+        <div class="list">
+          <div class="tabs" aria-hidden="true"><span class="on">Secciones</span><span>Marca</span><span>Ajustes</span></div>
+          <h3 style="font-size:16px;font-weight:600;display:flex;justify-content:space-between;align-items:center">Tu página <span class="cnt">7 secciones</span></h3>
+          <div class="rows" role="list" aria-label="Secciones del sitio">
+            <div role="listitem"><button type="button" class="row sel" aria-pressed="true"><span class="tile" aria-hidden="true"><svg><use href="#i-layout"/></svg></span><span><b>Portada</b><small>Fondo en movimiento</small></span></button></div>
+            <div role="listitem"><button type="button" class="row" aria-pressed="false"><span class="tile" aria-hidden="true"><svg><use href="#i-gift"/></svg></span><span><b>Beneficios</b><small>Bento</small></span></button></div>
+            <div role="listitem"><button type="button" class="row" aria-pressed="false"><span class="tile" aria-hidden="true"><svg><use href="#i-grid"/></svg></span><span><b>Áreas de trabajo <span class="badge new">Nueva</span></b><small>Tarjetas con ícono</small></span></button></div>
+            <div role="listitem"><button type="button" class="row" aria-pressed="false"><span class="tile" aria-hidden="true"><svg><use href="#i-book"/></svg></span><span><b>Historia</b><small>Manifiesto con cita</small></span></button></div>
+            <div role="listitem"><button type="button" class="row" aria-pressed="false"><span class="tile" aria-hidden="true"><svg><use href="#i-compass"/></svg></span><span><b>Misión y valores</b><small>Íconos grandes</small></span></button></div>
+            <div role="listitem"><button type="button" class="row" aria-pressed="false"><span class="tile" aria-hidden="true"><svg><use href="#i-flag"/></svg></span><span><b>Cierre</b><small>Simple</small></span></button></div>
+            <div role="listitem"><button type="button" class="row" aria-pressed="false"><span class="tile" aria-hidden="true"><svg><use href="#i-briefcase"/></svg></span><span><b>Vacantes abiertas</b><small>Por área</small></span></button></div>
+          </div>
+          <button type="button" class="btn outline"><svg aria-hidden="true"><use href="#i-plus"/></svg>Agregar sección</button>
+        </div>
+        <div class="pvcol">
+          <div class="pvbar"><span>Vista previa en vivo</span><span>52 %</span><span class="dev" aria-hidden="true"><span class="on"><svg><use href="#i-monitor"/></svg></span><span><svg><use href="#i-tablet"/></svg></span><span><svg><use href="#i-phone"/></svg></span></span></div>
+          <div class="browser">
+            <div class="url"><svg aria-hidden="true"><use href="#i-lock"/></svg>/empresas/grupo-altavista</div>
+            <div class="pv" role="img" aria-label="Vista previa de la portada con el estilo elegido">
+              <div class="pv-nav"><i></i>Grupo Altavista<span class="r"><span>Nosotros</span><span>Beneficios</span><span>Vacantes</span></span></div>
+              <div style="position:relative;padding:6px 0 10px">
+                <span class="sec-tag" style="left:10px;top:6px;border-radius:12px 0 8px 0">Portada</span>
+                <div class="pv-hero2 selected-sec" id="pv-hero" data-bg="image" data-align="center" data-space="airy" style="--veil:.5">
+                  <div class="bgm"><svg><use href="#sc-team"/></svg></div><div class="vl"></div>
+                  <p class="pv-eb">Grupo Altavista · Tu próximo capítulo</p>
+                  <h4>Talento que mueve al norte de México</h4>
+                  <p>Conectamos a las mejores personas con constructoras, farmacias, operadores logísticos y nuestras propias áreas corporativas.</p>
+                  <div class="pv-btns"><span id="pv-b1">Ver vacantes</span><span class="o" id="pv-b2">Conoce la empresa</span></div>
+                  <span class="pv-pause">❚❚ Pausar fondo animado</span>
+                </div>
+              </div>
+              <div class="pv-sec tint"><h4>Beneficios</h4><div class="pv-bento"><div><b>Trabajo remoto</b>3 días desde casa</div><div><b>Gastos médicos</b></div><div><b>Capacitación</b></div></div></div>
+              <div class="pv-sec"><h4>Encuentra tu lugar</h4><div class="pv-areas"><span><i></i>Tecnología<small>3 vacantes</small></span><span><i></i>Recursos humanos<small>2 vacantes</small></span><span><i></i>Logística<small>2 vacantes</small></span><span><i></i>Ingeniería<small>1 vacante</small></span><span><i></i>Atención<small>1 vacante</small></span><span><i></i>Ventas<small>1 vacante</small></span><span><i></i>Salud<small>1 vacante</small></span><span><i></i>Construcción<small>1 vacante</small></span></div></div>
+              <div class="pv-sec"><div class="pv-story"><div class="ph"><svg><use href="#sc-city"/></svg></div><div><p class="pv-eb">Historia</p><h4 style="margin:2px 0 4px">Nuestra historia</h4><p>Grupo Altavista nació en Monterrey en 2009 con una idea sencilla…</p></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="props" aria-labelledby="props-t">
+          <div><h3 id="props-t" style="font-size:16px;font-weight:600">Propiedades de Portada</h3><p class="sub">Cambia la composición sin perder contenido.</p></div>
+          <div class="grp" role="radiogroup" aria-labelledby="g-lay">
+            <span class="lbl" id="g-lay">Diseño de sección</span>
+            <div class="lgrid">
+              <button type="button" class="lopt" role="radio" aria-checked="false" tabindex="-1"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="33" y="14" width="54" height="5" rx="1.5" class="t-c"/><rect x="26" y="25" width="68" height="3" rx="1.5" class="t-b"/><rect x="34" y="31" width="52" height="3" rx="1.5" class="t-b"/><rect x="46" y="40" width="28" height="9" rx="3" class="t-p"/></svg>Centrada</button>
+              <button type="button" class="lopt" role="radio" aria-checked="false" tabindex="-1"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="14" width="44" height="5" rx="1.5" class="t-c"/><rect x="8" y="24" width="38" height="3" rx="1.5" class="t-b"/><rect x="8" y="30" width="42" height="3" rx="1.5" class="t-b"/><rect x="8" y="40" width="22" height="8" rx="3" class="t-p"/><rect x="64" y="8" width="48" height="48" rx="3" class="t-m"/></svg>Dividida</button>
+              <button type="button" class="lopt" role="radio" aria-checked="false" tabindex="-1"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="33" y="9" width="54" height="4" rx="1.5" class="t-c"/><rect x="30" y="17" width="60" height="3" rx="1.5" class="t-b"/><rect x="10" y="26" width="100" height="30" rx="3" class="t-m"/></svg>Fotográfica</button>
+              <button type="button" class="lopt" role="radio" aria-checked="false" tabindex="-1"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="8" y="14" width="40" height="5" rx="1.5" class="t-c"/><rect x="8" y="24" width="36" height="3" rx="1.5" class="t-b"/><rect x="8" y="30" width="40" height="3" rx="1.5" class="t-b"/><rect x="8" y="40" width="22" height="8" rx="3" class="t-p"/><rect x="74" y="6" width="38" height="34" rx="3" class="t-m"/><rect x="58" y="24" width="26" height="24" rx="3" class="t-mm"/><rect x="86" y="42" width="22" height="16" rx="3" class="t-m"/></svg><span class="badge new">Nuevo</span>Collage de fotos</button>
+              <button type="button" class="lopt" role="radio" aria-checked="true"><svg aria-hidden="true" viewBox="0 0 120 64" class="thumb" fill="none"><rect x="1" y="1" width="118" height="62" rx="4" class="t-bg"/><rect x="4" y="4" width="112" height="56" rx="3" class="t-dark"/><rect x="33" y="18" width="54" height="5" rx="1.5" class="t-w"/><rect x="30" y="29" width="60" height="3" rx="1.5" class="t-w2"/><rect x="46" y="38" width="28" height="8" rx="3" class="t-w"/><path d="M98 48l6 4-6 4z" class="t-w"/></svg><span class="badge new">Nuevo</span>Fondo en movimiento</button>
+            </div>
+          </div>
+          <div class="style-box" aria-labelledby="sty-t">
+            <h3 id="sty-t">Estilo de sección <span class="badge new">Nuevo</span></h3>
+            <p>Opciones curadas: siempre respetan tu paleta y el contraste.</p>
+            <div class="ctl">
+              <span class="cl" id="c-bg">Fondo</span>
+              <div class="bgopts" role="radiogroup" aria-labelledby="c-bg" data-radio="bg">
+                <button type="button" role="radio" aria-checked="false" data-v="normal" tabindex="-1"><span class="sw n" aria-hidden="true"></span>Normal</button>
+                <button type="button" role="radio" aria-checked="false" data-v="tint" tabindex="-1"><span class="sw t" aria-hidden="true"></span>Tinte suave</button>
+                <button type="button" role="radio" aria-checked="false" data-v="brand" tabindex="-1"><span class="sw b" aria-hidden="true"></span>Color de marca</button>
+                <button type="button" role="radio" aria-checked="true" data-v="image"><span class="sw i" aria-hidden="true"></span>Imagen o video</button>
+              </div>
+            </div>
+            <div class="ctl" id="veil-ctl">
+              <span class="cl" id="c-veil">Intensidad del velo</span>
+              <div class="seg" role="radiogroup" aria-labelledby="c-veil" aria-describedby="veil-hint" data-radio="veil">
+                <button type="button" role="radio" aria-checked="false" data-v="suave" tabindex="-1">Suave</button>
+                <button type="button" role="radio" aria-checked="true" data-v="media">Medio</button>
+                <button type="button" role="radio" aria-checked="false" data-v="fuerte" tabindex="-1">Fuerte</button>
+              </div>
+              <p class="contrast" id="veil-hint" aria-live="polite"><span class="badge ok" id="veil-badge">AA</span><span id="veil-text">Contraste 7.4:1 en la zona más clara del video.</span></p>
+            </div>
+            <div class="ctl">
+              <span class="cl" id="c-sp">Espaciado</span>
+              <div class="seg" role="radiogroup" aria-labelledby="c-sp" data-radio="space">
+                <button type="button" role="radio" aria-checked="false" data-v="compact" tabindex="-1">Compacto</button>
+                <button type="button" role="radio" aria-checked="true" data-v="airy">Amplio</button>
+              </div>
+            </div>
+            <div class="ctl">
+              <span class="cl" id="c-al">Alineación</span>
+              <div class="seg" role="radiogroup" aria-labelledby="c-al" data-radio="align">
+                <button type="button" role="radio" aria-checked="false" data-v="left" tabindex="-1"><svg aria-hidden="true"><use href="#i-align-left"/></svg>Izquierda</button>
+                <button type="button" role="radio" aria-checked="true" data-v="center"><svg aria-hidden="true"><use href="#i-align-center"/></svg>Centrada</button>
+              </div>
+            </div>
+          </div>
+          <div class="grp">
+            <span class="lbl">Textos de botones</span>
+            <div class="field"><label for="b1">Botón principal · lleva a Vacantes</label><div class="inp"><input id="b1" value="Ver vacantes" maxlength="24" data-mirror="pv-b1"><small data-count-for="b1">12/24</small></div></div>
+            <div class="sw-row"><span id="sw2-l" style="font-weight:500;font-size:13px">Mostrar botón secundario</span><button type="button" class="switch" role="switch" aria-checked="true" aria-labelledby="sw2-l" id="sw2"></button></div>
+            <div class="field" id="b2-field"><label for="b2">Botón secundario</label><div class="inp"><input id="b2" value="Conoce la empresa" maxlength="24" data-mirror="pv-b2"><small data-count-for="b2">17/24</small></div></div>
+            <div class="field" id="b2-target"><label for="b2t">Lleva a</label><select id="b2t" class="sel-input"><option>Historia</option><option>Beneficios</option><option>Áreas de trabajo</option><option>Misión y valores</option></select></div>
+          </div>
+          <div class="grp">
+            <span class="lbl">Video de fondo</span>
+            <div class="media-card"><span class="mthumb" aria-hidden="true"></span><span style="flex:1;min-width:0"><b>oficina-monterrey.mp4</b><small>12 s · sin audio · se repite</small></span><button type="button" class="btn outline">Cambiar</button></div>
+            <p class="guard"><svg aria-hidden="true"><use href="#i-pause"/></svg>Quien visita puede pausarlo, y no se mueve si tiene activado «reducir movimiento»: verá la primera imagen.</p>
+          </div>
+          <p class="guard"><svg aria-hidden="true"><use href="#i-lock"/></svg>Sin posiciones, tamaños ni colores libres: eliges entre diseños y estilos probados, y el texto siempre se lee bien.</p>
+        </div>
+      </div>
+      <p class="foot-note"><svg aria-hidden="true"><use href="#i-lock"/></svg>Tus cambios solo son visibles para tu equipo hasta que publiques.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+(() => {
+  /* Radio groups: roving tabindex, arrows, click (ARIA radiogroup pattern). */
+  const radios = (group, onChange) => {
+    const items = [...group.querySelectorAll('[role="radio"]')];
+    const pick = (item, focus) => {
+      if (item.disabled) return;
+      items.forEach(i => { const on = i === item; i.setAttribute("aria-checked", String(on)); i.tabIndex = on ? 0 : -1; });
+      if (focus) item.focus();
+      onChange?.(item);
+    };
+    items.forEach((item, k) => {
+      item.addEventListener("click", () => pick(item, false));
+      item.addEventListener("keydown", e => {
+        const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+        if (!d) return; e.preventDefault();
+        let n = k; do { n = (n + d + items.length) % items.length; } while (items[n].disabled && n !== k);
+        pick(items[n], true);
+      });
+    });
+  };
+  const hero = document.getElementById("pv-hero");
+  const veilCtl = document.getElementById("veil-ctl");
+  const veil = { suave: [".36", "review", "AA justo", "Contraste 4.6:1 en la zona más clara del video. Sube el velo si tu video es muy claro."], media: [".5", "ok", "AA", "Contraste 7.4:1 en la zona más clara del video."], fuerte: [".68", "ok", "AAA", "Contraste 11.2:1 en la zona más clara del video."] };
+  document.querySelectorAll("[data-radio]").forEach(group => radios(group, item => {
+    const v = item.dataset.v, key = group.dataset.radio;
+    if (key === "bg") { hero.dataset.bg = v; veilCtl.hidden = v !== "image"; }
+    if (key === "veil") { const [a, tone, label, text] = veil[v]; hero.style.setProperty("--veil", a); const b = document.getElementById("veil-badge"); b.className = "badge " + tone; b.textContent = label; document.getElementById("veil-text").textContent = text; }
+    if (key === "space") hero.dataset.space = v;
+    if (key === "align") hero.dataset.align = v;
+  }));
+  document.querySelectorAll(".lgrid, .lays").forEach(g => radios(g));
+
+  /* Library: choosing a section updates its layouts, the insertion ghost and the main action. */
+  const layT = document.getElementById("lay-t"), layD = document.getElementById("lay-d");
+  const lays = [...document.querySelectorAll(".lays .lay")];
+  const descs = { "Áreas de trabajo": "Se arma sola con las áreas de tus vacantes publicadas (hoy 8 áreas, 12 vacantes). Al tocar un área, la lista de vacantes se filtra." };
+  document.querySelectorAll(".type:not(:disabled)").forEach(btn => btn.addEventListener("click", () => {
+    document.querySelectorAll(".type[aria-pressed]").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+    const name = btn.dataset.type, names = btn.dataset.layouts.split("|");
+    layT.textContent = name;
+    layD.textContent = descs[name] || "Elige un diseño; podrás cambiarlo después sin perder el contenido.";
+    lays.forEach((lay, i) => {
+      lay.hidden = i >= names.length;
+      if (i < names.length) {
+        lay.querySelector(".nm span").textContent = names[i];
+        lay.querySelector("small").textContent = i === 0 ? "Recomendado para empezar." : "Alternativa con el mismo contenido.";
+        lay.querySelector("svg.thumb").replaceWith(btn.querySelector("svg.thumb").cloneNode(true));
+      }
+      lay.setAttribute("aria-checked", String(i === 0)); lay.tabIndex = i === 0 ? 0 : -1;
+    });
+    document.getElementById("ghost-label").textContent = "Se insertará aquí · " + name;
+    document.querySelector("#add-btn span").textContent = "Agregar «" + name + "»";
+  }));
+  document.getElementById("ins").addEventListener("change", e => {
+    document.getElementById("ghost-label").textContent = "Se insertará después de " + e.target.value + " · " + layT.textContent;
+  });
+
+  /* Button texts mirror into the preview with a live counter. */
+  document.querySelectorAll("[data-mirror]").forEach(input => input.addEventListener("input", () => {
+    document.getElementById(input.dataset.mirror).textContent = input.value || "—";
+    document.querySelector(`[data-count-for="${input.id}"]`).textContent = [...input.value].length + "/24";
+  }));
+  const sw = document.getElementById("sw2");
+  sw.addEventListener("click", () => {
+    const on = sw.getAttribute("aria-checked") !== "true";
+    sw.setAttribute("aria-checked", String(on));
+    document.getElementById("b2-field").hidden = !on; document.getElementById("b2-target").hidden = !on;
+    document.getElementById("pv-b2").hidden = !on;
+  });
+})();
+
+</script>
+</body>
+</html>

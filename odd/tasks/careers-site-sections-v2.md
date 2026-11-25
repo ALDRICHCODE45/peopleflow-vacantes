@@ -42,3 +42,12 @@ picks a direction, coordinated with the backend session.
 - **L1** (2026-11-25) User, verbatim: «Perfecto hermano, me parece bien, yo hago pus y seguimos con la siguiente fase de
   "sitio de empresa"??» → Phase 3 starts with the design round recommended in the proposal. Branch
   `feat/careers-site-sections-v2` from main `6da82608`. Original request quoted in `odd/tasks/careers-editor-undo-dnd.md` L1.
+- **L2** (2026-11-25) T1 design round written to `design/careers-site-sections-v2/` (gentle-design; `design.json` links
+  this feature): `01-editorial.html`, `02-bento-moderno.html`, `03-humano-fotografico.html` (public site at 1440, light/dark
+  and Grupo Altavista/Terracota palette switch, per-section style notes for S3), `04-editorial-movil.html`,
+  `05-bento-moderno-movil.html`, `06-humano-fotografico-movil.html` (same three at 390) and
+  `07-editor-biblioteca-y-estilo.html` (visual «Agregar sección» library with insertion preview, and the «Estilo de
+  sección» group in Propiedades, S4). Browser review in Chromium: axe wcag2a/aa 0 violations in every artboard and every
+  theme/palette combination, no horizontal overflow at the declared widths, visible keyboard focus, reduced motion
+  shows final figures and stops the loops. Deviations from `design/system.md` are listed in `self-check.md`. No direction
+  is chosen yet; the user picks before T2/T3.
