@@ -195,10 +195,9 @@ export const sectionStyleSchema = z.object({
   overlay: z.enum(SECTION_OVERLAYS).nullable().default(null),
   image: mediaRefSchema.default(null),
 }).strict().superRefine((style, ctx) => {
-  if (style.background === "image") {
-    if (style.image === null) wireIssue(ctx, ["image"], "required");
-    return;
-  }
+  // A missing image is a publish issue (style_image_missing), never a save error: the
+  // person can pick "Imagen" before uploading it.
+  if (style.background === "image") return;
   if (style.overlay !== null) wireIssue(ctx, ["overlay"], "not_allowed");
   if (style.image !== null) wireIssue(ctx, ["image"], "not_allowed");
 }).default(() => ({ ...DEFAULT_SECTION_STYLE }));
@@ -267,7 +266,8 @@ export type BlockTypeV2 = SiteBlockV2["type"];
 const heroTargetInvariant = (draft: { blocks: SiteBlockV2[] }, ctx: z.RefinementCtx) => {
   const ids = new Set(draft.blocks.map(block => block.id));
   draft.blocks.forEach((block, index) => {
-    if (block.type === "hero" && block.content.secondary_target !== null && !ids.has(block.content.secondary_target)) {
+    const target = block.type === "hero" ? block.content.secondary_target : null;
+    if (target !== null && (target === block.id || !ids.has(target))) {
       wireIssue(ctx, ["blocks", index, "content", "secondary_target"], "invalid");
     }
   });
@@ -319,8 +319,8 @@ export function createSiteDraftPayloadSchema(enabled: boolean): z.ZodType<SiteDr
 export const siteDraftPayloadSchema = createSiteDraftPayloadSchema(SECTIONS_V2_ENABLED);
 
 export type PublishIssueV2 = PublishIssue | {
-  /** Provisional codes, pending the backend amendment. */
-  code: "hero_video_missing" | "secondary_target_hidden";
+  /** Codes agreed with the backend session for slice A. */
+  code: "hero_video_missing" | "secondary_target_hidden" | "hero_collage_images_missing" | "style_image_missing";
   field: string;
 };
 /** publishIssues plus the slice A rules; callers pass a parsed v2 draft. */
@@ -330,12 +330,11 @@ export function publishIssuesV2(draft: SiteDraftV2, company: { name: string | nu
   draft.blocks.forEach((block, index) => {
     if (block.hidden) return;
     const field = `blocks[${index}]`;
-    // Dead while the save rule holds; kept so publication never trusts a stale document.
-    if (block.style.background === "image" && block.style.image === null) issues.push({ code: "block_incomplete", field });
+    if (block.style.background === "image" && block.style.image === null) issues.push({ code: "style_image_missing", field: `${field}.style.image` });
     if (block.type !== "hero") return;
     // Background video arrives with slice B; until then this layout cannot go live.
     if (block.variant === "background_loop") issues.push({ code: "hero_video_missing", field });
-    if (block.variant === "collage" && block.content.images.length < HERO_COLLAGE_MIN_TO_PUBLISH) issues.push({ code: "block_incomplete", field });
+    if (block.variant === "collage" && block.content.images.length < HERO_COLLAGE_MIN_TO_PUBLISH) issues.push({ code: "hero_collage_images_missing", field });
     const target = block.content.secondary_target;
     if (block.content.secondary_visible && target !== null && visible.get(target) === false) issues.push({ code: "secondary_target_hidden", field: `${field}.content.secondary_target` });
   });

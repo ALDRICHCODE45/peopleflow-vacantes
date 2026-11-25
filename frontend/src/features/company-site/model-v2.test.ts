@@ -188,7 +188,8 @@ describe("per-block style", () => {
     [{ background: "brand", spacing: "airy", align: "start", overlay: null, image: null }, []],
     [{ background: "image", spacing: "airy", align: "start", overlay: "strong", image: media }, []],
     [{ background: "image", spacing: "airy", align: "start", overlay: null, image: media }, []],
-    [{ background: "image", spacing: "airy", align: "start", overlay: "soft", image: null }, [{ field: "blocks[2]", code: "required" }]],
+    // Saving "Imagen" before uploading it is allowed; publication asks for the image.
+    [{ background: "image", spacing: "airy", align: "start", overlay: "soft", image: null }, []],
     [{ background: "default", spacing: "airy", align: "start", overlay: null, image: media }, [{ field: "blocks[2]", code: "not_allowed" }]],
     [{ background: "tint", spacing: "airy", align: "start", overlay: "medium", image: null }, [{ field: "blocks[2]", code: "not_allowed" }]],
     [{ background: "video", spacing: "airy", align: "start", overlay: null, image: null }, [{ field: "blocks[2]", code: "invalid" }]],
@@ -199,9 +200,18 @@ describe("per-block style", () => {
     expect(errorsOf(draftV2({ ...v2("story"), style }))).toEqual(expected);
   });
   it("cross-field issues point at the offending style key", () => {
-    const parsed = blockSchemaV2.safeParse({ ...v2("story"), style: { ...DEFAULT_SECTION_STYLE, background: "image" } });
+    const parsed = blockSchemaV2.safeParse({ ...v2("story"), style: { ...DEFAULT_SECTION_STYLE, overlay: "soft" } });
     expect(parsed.success).toBe(false);
-    if (!parsed.success) expect(parsed.error.issues[0].path).toEqual(["style", "image"]);
+    if (!parsed.success) expect(parsed.error.issues[0].path).toEqual(["style", "overlay"]);
+  });
+  it("a visible section with background Imagen and no image blocks publication with style_image_missing", () => {
+    const story = v2("story");
+    story.content.body = rich("Historia");
+    const draft = draftV2({ ...story, style: { ...DEFAULT_SECTION_STYLE, background: "image" } });
+    expect(siteDraftSchemaV2.safeParse(draft).success).toBe(true);
+    expect(issuesOf(draft)).toEqual([{ code: "style_image_missing", field: "blocks[2].style.image" }]);
+    draft.blocks[2] = { ...draft.blocks[2], hidden: true };
+    expect(issuesOf(draft).map(issue => issue.code)).not.toContain("style_image_missing");
   });
 });
 
@@ -229,6 +239,9 @@ describe("hero buttons", () => {
     draft.blocks[0] = heroV2({ secondary_target: story.id });
     expect(siteDraftSchemaV2.safeParse(draft).success).toBe(true);
     draft.blocks[0] = heroV2({ secondary_target: crypto.randomUUID() });
+    expect(errorsOf(draft)).toEqual([{ field: "blocks[0].content.secondary_target", code: "invalid" }]);
+    const hero = heroV2();
+    draft.blocks[0] = { ...hero, content: { ...hero.content, secondary_target: hero.id } };
     expect(errorsOf(draft)).toEqual([{ field: "blocks[0].content.secondary_target", code: "invalid" }]);
     draft.blocks[0] = heroV2({ secondary_target: "not-a-uuid" });
     expect(siteDraftSchemaV2.safeParse(draft).success).toBe(false);
@@ -259,7 +272,7 @@ describe("v2 publication rules", () => {
     for (const [images, expected] of [[[], 1], [[media], 1], [[media, media], 0], [[media, media, media], 0]] as const) {
       draft.blocks[0] = { ...heroV2({ images }), variant: "collage" };
       expect(issuesOf(draft)).toHaveLength(expected);
-      if (expected) expect(issuesOf(draft)).toEqual([{ code: "block_incomplete", field: "blocks[0]" }]);
+      if (expected) expect(issuesOf(draft)).toEqual([{ code: "hero_collage_images_missing", field: "blocks[0]" }]);
     }
   });
   it("legacy publication rules still apply through publishIssuesV2", () => {
