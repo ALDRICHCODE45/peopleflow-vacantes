@@ -245,6 +245,12 @@ describe("metrics detail page (artboard 08)", () => {
     expect(within(stages).getByRole("button", { name: "Todas 12" })).toBeInTheDocument();
     const stalled = screen.getByRole("button", { name: "Solo detenidos 2" });
     expect(stalled).toHaveAttribute("aria-pressed", "true");
+    // D17: «Detenido» and the pressed toggle use the status-danger tokens (text-destructive on its tint was 3.98:1).
+    const badge = screen.getAllByText("Detenido").find(node => node.className.includes("rounded-md"))!;
+    for (const node of [badge, stalled]) {
+      expect(node).toHaveClass("text-status-danger", "bg-status-danger/10", "border-status-danger/40");
+      expect(node.className).not.toMatch(/(^|\s)(hover:)?(text|bg|border)-destructive/);
+    }
     await userEvent.click(stalled);
     expect(search()).not.toHaveProperty("stalled");
     await userEvent.click(within(stages).getByRole("button", { name: "Nuevos 2" }));

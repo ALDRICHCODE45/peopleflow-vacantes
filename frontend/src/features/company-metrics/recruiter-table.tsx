@@ -26,8 +26,12 @@ type Props = {
   drill: Drill;
 };
 
-const FIRST_WIDTH = 184;
-const CHEVRON_WIDTH = 44;
+const FIRST_WIDTH = 168;
+const CHEVRON_WIDTH = 40;
+/** What a sort button adds around its label: padding, gap and the 16 px icon (its classes below); the label wraps on spaces only. */
+export const SORT_BUTTON_CHROME = 30;
+/** Width of the table for the visible columns: the card's scroll area is 1092 px at 1440 with the app sidebar open, so the eight fit. */
+export const tableMinWidth = (visible: readonly ColumnId[]) => FIRST_WIDTH + CHEVRON_WIDTH + visible.reduce((sum, id) => sum + COLUMNS[id].width, 0);
 /** Sticky offsets: the group row is `h-10`, so the column row sticks right below it. */
 const GROUP_ROW = "h-10";
 const STICKY_HEAD = "sticky z-20 bg-card";
@@ -52,7 +56,7 @@ const OpenCard = ({ card, href }: { card: RecruiterCard; href: string }) =>
 function SortButton({ id, label, sort, onSort, numeric }: { id: SortKey; label: string; sort: RecruiterSort; onSort: Props["onSort"]; numeric?: boolean }) {
   const Icon = sort.key !== id ? ArrowUpDown : sort.direction === "ascending" ? ArrowUp : ArrowDown;
   return <Button type="button" variant="ghost" size="sm" onClick={() => onSort(id)}
-    className={cn("-mx-2 h-auto min-h-10 max-w-full hyphens-auto py-1 leading-tight whitespace-normal", numeric ? "ml-auto justify-end text-right" : "text-left", sort.key === id ? "text-foreground" : "text-muted-foreground")}>
+    className={cn("-mx-2 h-auto min-h-10 max-w-full gap-1 border-0 px-1.5 py-1 leading-tight hyphens-none whitespace-normal has-data-[icon=inline-end]:pr-1", numeric ? "ml-auto justify-end text-right" : "text-left", sort.key === id ? "text-foreground" : "text-muted-foreground")}>
     {label}<Icon aria-hidden="true" data-icon="inline-end" />
   </Button>;
 }
@@ -60,7 +64,7 @@ const ariaSort = (sort: RecruiterSort, id: SortKey) => sort.key === id ? sort.di
 
 /**
  * The full recruiter table (S2, artboard `recruiter-table-redesign/01`): from `md` a table with grouped headers, the person
- * and both header rows sticky inside one scroll region (the eight columns fit at 1440 without scrolling sideways; cells wrap,
+ * and both header rows sticky inside one scroll region (the eight columns fit at 1440 with the app sidebar open without scrolling sideways; cells wrap,
  * extending the audit-table exception of `design/system.md`); below `md` one card per person with the same groups, no
  * sideways scroll (rule 14).
  */
@@ -69,7 +73,7 @@ export function RecruiterTable({ items, sort, hidden, onSort, href, drill }: Pro
   const visible = COLUMN_IDS.filter(id => !hidden.includes(id));
   const groups = COLUMN_GROUPS.map(group => ({ ...group, columns: group.columns.filter(id => visible.includes(id)) })).filter(group => group.columns.length > 0);
   const starts = new Set(groups.map(group => group.columns[0] as ColumnId));
-  const minWidth = FIRST_WIDTH + CHEVRON_WIDTH + visible.reduce((sum, id) => sum + COLUMNS[id].width, 0);
+  const minWidth = tableMinWidth(visible);
   const open = (event: MouseEvent, card: RecruiterCard) => { if (!(event.target as HTMLElement).closest("a, button")) router.push(href(card)); };
 
   return <>

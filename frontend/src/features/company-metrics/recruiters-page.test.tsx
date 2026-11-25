@@ -9,7 +9,7 @@ vi.mock("next/link", async () => {
   return { default: forwardRef<HTMLAnchorElement, { href: string; replace?: boolean }>(({ href, replace, ...props }, ref) =>
     createElement("a", { ...props, ref, href, "data-replace": replace ? "true" : undefined })) };
 });
-vi.mock("./actions", () => ({ loadMetricsAccessAction: vi.fn(), loadRecruitersAction: vi.fn() }));
+vi.mock("./actions", () => ({ loadMetricsAccessAction: vi.fn(), loadRecruiterListAction: vi.fn() }));
 // Same boundaries as the other metrics tests: the real Base UI popover and sheet cannot run under jsdom.
 vi.mock("@/components/ui/popover", async () => {
   const Context = React.createContext<{ open: boolean; setOpen: (next: boolean) => void }>({ open: false, setOpen: () => {} });
@@ -29,25 +29,27 @@ vi.mock("@/components/ui/popover", async () => {
   };
 });
 vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ open, children }: { open?: boolean; children?: React.ReactNode }) => open ? <div role="dialog" aria-label="Qué mide cada columna">{children}</div> : null,
+  Sheet: ({ open, modal, children }: { open?: boolean; modal?: boolean | "trap-focus"; children?: React.ReactNode }) => open ? <div role="dialog" aria-label="Qué mide cada columna" data-modal={String(modal ?? true)}>{children}</div> : null,
   SheetContent: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   SheetHeader: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   SheetTitle: ({ children }: { children?: React.ReactNode }) => <h2>{children}</h2>,
   SheetDescription: ({ children }: { children?: React.ReactNode }) => <p>{children}</p>,
 }));
-import { loadMetricsAccessAction, loadRecruitersAction } from "./actions";
-import type { MetricsFailure, MetricsResult, RecruiterCard } from "./model";
+import { loadMetricsAccessAction, loadRecruiterListAction } from "./actions";
+import type { MetricsFailure, MetricsResult, RecruiterCard, RecruiterList } from "./model";
 import { RecruitersPage } from "./recruiters-page";
 import { andrea, andreaId, card, carlos, fernanda, marianaId } from "./test-fixtures";
 
-const recruiters = vi.mocked(loadRecruitersAction);
+const recruiters = vi.mocked(loadRecruiterListAction);
 const access = vi.mocked(loadMetricsAccessAction);
 const WINDOW = "from=2026-08-01&to=2026-10-31";
 const at = (search = "") => window.history.replaceState(null, "", `/empresa/metricas/reclutadores${search}`);
 const search = () => new URLSearchParams(window.location.search);
 const people = () => [andrea(), carlos(), fernanda(), card()];
-const show = async (items: RecruiterCard[] = people()) => {
-  recruiters.mockResolvedValue({ ok: true, data: items });
+const AS_OF = "2026-11-07T17:42:00Z";
+const answer = (items: RecruiterCard[], asOf: string | null = AS_OF): MetricsResult<RecruiterList> => ({ ok: true, data: { items, definitions_version: "v1", ...(asOf && { as_of: asOf }) } });
+const show = async (items: RecruiterCard[] = people(), asOf: string | null = AS_OF) => {
+  recruiters.mockResolvedValue(answer(items, asOf));
   render(<RecruitersPage />);
   await screen.findByRole("table");
 };
@@ -104,6 +106,27 @@ describe("the page and its URL state (S2, S4)", () => {
     expect(within(crumb).getByRole("link", { name: "Métricas" })).toHaveAttribute("href", `/empresa/metricas?${WINDOW}&process_kind=original`);
     expect(within(crumb).getByText("Desempeño por reclutador")).toHaveAttribute("aria-current", "page");
     expect(screen.getByText(/personas con tramos en el periodo/).closest("[role=status]")).toHaveTextContent("Orden: nombre (A–Z)");
+  });
+
+  it("says when the numbers were computed, the period and the definitions version, as the Métricas header does (artboard)", async () => {
+    at(`?${WINDOW}&process_kind=original`);
+    await show();
+    const line = screen.getByText(/^Actualizado /);
+    expect(line).toHaveTextContent(/^Actualizado .+ · 1 ago 2026 – 31 oct 2026 · Definiciones v1 · Solo originales$/);
+    cleanup();
+    at(`?${WINDOW}`);
+    await show(people(), null);
+    expect(screen.queryByText(/^Actualizado /)).toBeNull();
+    expect(screen.getByText(/1 ago 2026 – 31 oct 2026 · Definiciones v1$/)).toBeInTheDocument();
+  });
+
+  it("marks the stakeholder's view «Solo lectura» next to the title and gives the owner no badge", async () => {
+    await show();
+    expect(screen.queryByText("Solo lectura")).toBeNull();
+    cleanup();
+    access.mockResolvedValue({ kind: "allowed", role: "stakeholder" });
+    await show();
+    expect(screen.getByText("Solo lectura").closest("header")).toContainElement(screen.getByRole("heading", { name: "Desempeño por reclutador" }));
   });
 
   it("shows the inherited filters as removable chips, with «Limpiar filtros»", async () => {
@@ -201,6 +224,35 @@ describe("the page and its URL state (S2, S4)", () => {
   });
 });
 
+describe("the toolbar on a phone and the definitions sheet", () => {
+  it("is a compact two-column grid (artboard): the period on one line, then Proceso | Columnas and Orden | Qué mide cada columna", async () => {
+    await show();
+    const bar = screen.getByRole("group", { name: "Filtros y vista" });
+    expect(bar).toHaveClass("grid", "grid-cols-2");
+    const period = within(bar).getByRole("group", { name: "Periodo" });
+    expect(period).toHaveClass("flex-nowrap", "col-span-2");
+    expect(period.className).not.toMatch(/(^|\s)flex-wrap/);
+    expect(within(period).getByRole("button", { name: "Personalizado" }).querySelector("svg")).toHaveClass("max-md:hidden");
+    expect(within(bar).getByRole("button", { name: "Qué mide cada columna" })).toHaveClass("max-md:whitespace-normal");
+    expect(within(bar).getByRole("button", { name: "Proceso" })).toHaveClass("max-md:w-full");
+    expect(within(bar).getByRole("combobox", { name: "Orden" }).closest("div")).toHaveClass("md:hidden");
+    // The reset only takes a row on a phone when there is something to reset.
+    expect(within(bar).getByRole("button", { name: "Restablecer vista" })).toHaveClass("max-md:disabled:hidden", "max-md:col-span-2");
+  });
+
+  it("opens the definitions without locking the page scroll (no jump behind the sheet), in a focusable, named scroll region", async () => {
+    await show();
+    await userEvent.click(screen.getByRole("button", { name: "Qué mide cada columna" }));
+    const sheet = screen.getByRole("dialog", { name: "Qué mide cada columna" });
+    expect(sheet).toHaveAttribute("data-modal", "trap-focus");
+    const region = within(sheet).getByRole("region", { name: "Definiciones de las columnas" });
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(region).toHaveClass("overflow-y-auto", "overscroll-contain");
+    expect(region.querySelector("dl")).not.toHaveClass("overflow-y-auto");
+    expect(within(region).getAllByRole("term")).toHaveLength(8);
+  });
+});
+
 describe("states of the table region", () => {
   it("shows real headers over a skeleton while loading, with the toolbar already there", async () => {
     recruiters.mockReturnValue(new Promise(() => {}));
@@ -217,14 +269,14 @@ describe("states of the table region", () => {
     render(<RecruitersPage />);
     expect(await screen.findByText("No pudimos calcular el desempeño por reclutador")).toBeInTheDocument();
     expect(search().get("sort")).toBe("median:ascending");
-    recruiters.mockResolvedValue({ ok: true, data: people() });
+    recruiters.mockResolvedValue(answer(people()));
     await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(await screen.findByRole("table")).toBeInTheDocument();
     expect(headers()).not.toContain("Entregados");
   });
 
   it("explains an empty period without filters", async () => {
-    recruiters.mockResolvedValue({ ok: true, data: [] });
+    recruiters.mockResolvedValue(answer([]));
     render(<RecruitersPage />);
     expect(await screen.findByText("Aún no hay reclutadores con actividad en este periodo")).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
@@ -232,7 +284,7 @@ describe("states of the table region", () => {
 
   it("keeps and names the filters when they leave nobody, and clears them from the message", async () => {
     at(`?${WINDOW}&process_kind=replacement&requester_kind=client`);
-    recruiters.mockResolvedValue({ ok: true, data: [] });
+    recruiters.mockResolvedValue(answer([]));
     render(<RecruitersPage />);
     expect(await screen.findByText("Sin resultados")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Filtros activos" })).toBeInTheDocument();
@@ -242,11 +294,11 @@ describe("states of the table region", () => {
 
   it("dims the previous answer while a new period loads (rule 17)", async () => {
     await show();
-    let resolve!: (value: MetricsResult<RecruiterCard[]>) => void;
+    let resolve!: (value: MetricsResult<RecruiterList>) => void;
     recruiters.mockReturnValue(new Promise(next => { resolve = next; }));
     await userEvent.click(screen.getByRole("button", { name: "30 días" }));
     expect(table().closest(".opacity-60")).not.toBeNull();
-    await act(async () => { resolve({ ok: true, data: people() }); });
+    await act(async () => { resolve(answer(people())); });
     await waitFor(() => expect(table().closest(".opacity-60")).toBeNull());
   });
 });

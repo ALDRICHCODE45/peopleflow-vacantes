@@ -1,19 +1,20 @@
 "use client";
 import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, SearchX, Users, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, SearchX, Users, X } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { SectionEmpty } from "@/components/feedback/state-card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { loadRecruitersAction } from "./actions";
+import { loadRecruiterListAction } from "./actions";
 import { boardPath, drilldownHref } from "./drilldown";
 import { fieldErrors } from "./failure";
 import { audienceChips, type RecruiterOption } from "./metrics-filters";
 import { MetricsAccessGate } from "./metrics-page";
 import { MetricsFailureCard } from "./metrics-workspace";
-import type { RecruiterCard } from "./model";
+import { momentLabel, type RecruiterCard } from "./model";
 import { mexicoToday, periodLabel } from "./period";
 import { ProcessNote } from "./process-kind";
 import { COLUMNS } from "./recruiter-columns";
@@ -48,7 +49,7 @@ function TableSkeleton({ view }: { view: TableView }) {
   return <div role="status" aria-label="Cargando desempeño por reclutador" aria-busy="true">
     <Card aria-hidden="true" className="hidden gap-0 overflow-hidden p-0 md:flex">
       <table className="w-full table-fixed text-sm">
-        <thead><tr className="border-b text-muted-foreground"><th scope="col" className="h-10 w-46 px-4 text-left font-medium">Reclutador</th>
+        <thead><tr className="border-b text-muted-foreground"><th scope="col" className="h-10 w-42 px-4 text-left font-medium">Reclutador</th>
           {columns.map(id => <th key={id} scope="col" className="h-10 px-2 text-right font-medium">{COLUMNS[id].label}</th>)}</tr></thead>
         <tbody>{[0, 1, 2, 3, 4, 5].map(row => <tr key={row} className="h-[86px] border-b last:border-0">
           <td className="px-4"><div className="flex gap-3"><Skeleton className="size-10 rounded-full" /><div className="grid gap-2"><Skeleton className="h-3.5 w-28" /><Skeleton className="h-3 w-20" /></div></div></td>
@@ -59,15 +60,15 @@ function TableSkeleton({ view }: { view: TableView }) {
   </div>;
 }
 
-function RecruitersWorkspace() {
+function RecruitersWorkspace({ role }: { role: "owner" | "stakeholder" }) {
   const { filters, key, search, update, write } = useMetricsUrl(VIEW_PARAMS);
   const [today] = useState(mexicoToday);
   const view = useMemo(() => parseTableView(new URLSearchParams(search)), [search]);
-  const state = useSection(loadRecruitersAction, filters, key);
+  const state = useSection(loadRecruiterListAction, filters, key);
   const period = effectivePeriod(filters, today);
   const scope: MetricsFilters = { ...filters, ...period };
   const known = useRef(new Map<string, RecruiterOption>());
-  for (const card of state.data ?? []) known.current.set(card.user_id, { user_id: card.user_id, name: card.name, former_member: card.former_member });
+  for (const card of state.data?.items ?? []) known.current.set(card.user_id, { user_id: card.user_id, name: card.name, former_member: card.former_member });
   const chips = audienceChips(filters, [...known.current.values()], []);
   const narrowed = chips.length > 0;
 
@@ -82,10 +83,13 @@ function RecruitersWorkspace() {
   const clear = () => update({ from: filters.from, to: filters.to });
 
   const failure = state.status === "failed" ? state.failure : null;
-  const data = failure ? null : state.data;
+  const list = failure ? null : state.data;
+  const data = list?.items ?? null;
   const items: RecruiterCard[] = useMemo(() => sortRecruiters(data ?? [], view.sort), [data, view.sort]);
   const periodError = failure?.reason === "invalid_filter" ? (({ from, to }) => from ?? to)(fieldErrors(failure.fields)) : undefined;
-  const freshness = [periodLabel(period), filters.process_kind && `Solo ${filters.process_kind === "replacement" ? "reemplazos" : "originales"}`].filter(Boolean).join(" · ");
+  // As the Métricas header: when the numbers were computed, the period and the definitions they follow (artboard `.hp`).
+  const freshness = [list?.as_of && `Actualizado ${momentLabel(list.as_of)}`, periodLabel(period), list?.definitions_version && `Definiciones ${list.definitions_version}`,
+    filters.process_kind && `Solo ${filters.process_kind === "replacement" ? "reemplazos" : "originales"}`].filter(Boolean).join(" · ");
   const back = `${boardPath(scope)}`;
 
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
@@ -98,7 +102,10 @@ function RecruitersWorkspace() {
         <span aria-current="page" className="min-w-0 font-medium text-foreground">Desempeño por reclutador</span>
       </nav>
       <header className="flex max-w-3xl min-w-0 flex-col gap-1">
-        <h2 className="font-heading text-2xl font-semibold tracking-tight">Desempeño por reclutador</h2>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h2 className="font-heading text-2xl font-semibold tracking-tight">Desempeño por reclutador</h2>
+          {role === "stakeholder" && <Badge variant="accent"><Eye aria-hidden="true" data-icon="inline-start" />Solo lectura</Badge>}
+        </div>
         <p className="text-sm text-muted-foreground">Sin puntaje ni posición: cada columna se lee por separado y la comparación la haces tú.</p>
         <p className="text-xs text-muted-foreground">{freshness}</p>
       </header>
@@ -129,5 +136,5 @@ function RecruitersWorkspace() {
 
 /** `/empresa/metricas/reclutadores` (S2): the role gate of Métricas first, then the full recruiter table. */
 export function RecruitersPage() {
-  return <MetricsAccessGate label="Cargando la tabla de reclutadores"><RecruitersWorkspace /></MetricsAccessGate>;
+  return <MetricsAccessGate label="Cargando la tabla de reclutadores">{role => <RecruitersWorkspace role={role} />}</MetricsAccessGate>;
 }

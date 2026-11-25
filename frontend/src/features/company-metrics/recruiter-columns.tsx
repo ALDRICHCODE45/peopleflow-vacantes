@@ -14,7 +14,7 @@ import type { ColumnId } from "./recruiter-view";
  */
 export type CellParts = { primary: ReactNode; bar?: ReactNode; secondary?: ReactNode; tertiary?: ReactNode };
 export type CellContext = { card: RecruiterCard; drill: Drill };
-export type ColumnDef = { id: ColumnId; label: string; /** Width in px at 1440: the eight fit without a horizontal scroll. */ width: number; cell: (context: CellContext) => CellParts };
+export type ColumnDef = { id: ColumnId; label: string; /** Width in px: with the person and the chevron the eight add up to at most 1092 (1440 with the app sidebar open); each fits its longest header word. */ width: number; cell: (context: CellContext) => CellParts };
 
 const MISSING = "font-normal text-muted-foreground";
 const missing = <span className={MISSING}>{NO_SAMPLE}</span>;
@@ -30,19 +30,19 @@ const open = (context: CellContext, target: Parameters<Drill>[0], count: number,
   <Figure href={context.drill(target, count)} label={label} className={className}>{text}</Figure>;
 
 export const COLUMNS: Record<ColumnId, ColumnDef> = {
-  assigned: { id: "assigned", label: "Asignadas", width: 104, cell: context => {
+  assigned: { id: "assigned", label: "Asignadas", width: 102, cell: context => {
     const { card } = context; const name = personName(card); const count = card.vacancies.assigned;
     return { primary: open(context, targets(card.user_id).assigned, count, `${see(count, "f", "vacante asignada", "vacantes asignadas")} a ${name}`, number.format(count)), secondary: plural(card.vacancies.started_in_period, "nueva", "nuevas") };
   } },
-  reassignments: { id: "reassignments", label: "Reasignaciones", width: 142, cell: context => {
+  reassignments: { id: "reassignments", label: "Reasignaciones", width: 140, cell: context => {
     const { card } = context; const name = personName(card); const { received, lost } = card.reassignments; const t = targets(card.user_id);
     return {
       primary: open(context, t.received, received, `${see(received, "f", "reasignación recibida", "reasignaciones recibidas")} de ${name}`, plural(received, "recibida", "recibidas")),
       secondary: open(context, t.lost, lost, `${see(lost, "f", "reasignación perdida", "reasignaciones perdidas")} de ${name}`, plural(lost, "perdida", "perdidas")),
     };
   } },
-  business_days: { id: "business_days", label: "Días en tramos", width: 84, cell: ({ card }) => ({ primary: number.format(card.business_days_in_tramos), secondary: "hábiles" }) },
-  on_time: { id: "on_time", label: "Entregas a tiempo", width: 136, cell: context => {
+  business_days: { id: "business_days", label: "Días en tramos", width: 90, cell: ({ card }) => ({ primary: number.format(card.business_days_in_tramos), secondary: "hábiles" }) },
+  on_time: { id: "on_time", label: "Entregas a tiempo", width: 112, cell: context => {
     const { card } = context; const name = personName(card); const rate = onTimeRate(card); const { late, overdue } = card.delivery; const t = targets(card.user_id);
     // S3: the percentage and «N de M», each opening its records; the bar and the line below carry the words and counts.
     if (rate.value === null) return { primary: missing, secondary: "Ninguna vencía en el periodo" };
@@ -57,9 +57,9 @@ export const COLUMNS: Record<ColumnId, ColumnDef> = {
       secondary: late || overdue ? `${plural(late, "tarde", "tarde")} · ${plural(overdue, "vencida", "vencidas")}` : "Ninguna tarde ni vencida",
     };
   } },
-  median: { id: "median", label: "Mediana a la meta", width: 96, cell: ({ card }) => ({ primary: card.delivery.median_business_days_to_target === null ? missing : formatMedian(card.delivery.median_business_days_to_target) }) },
-  delivered: { id: "delivered", label: "Entregados", width: 114, cell: ({ card }) => ({ primary: number.format(card.delivery.delivered_in_tramo), secondary: "en su tramo" }) },
-  placements: { id: "placements", label: "Placements", width: 114, cell: context => {
+  median: { id: "median", label: "Mediana a la meta", width: 92, cell: ({ card }) => ({ primary: card.delivery.median_business_days_to_target === null ? missing : formatMedian(card.delivery.median_business_days_to_target) }) },
+  delivered: { id: "delivered", label: "Entregados", width: 110, cell: ({ card }) => ({ primary: number.format(card.delivery.delivered_in_tramo), secondary: "en su tramo" }) },
+  placements: { id: "placements", label: "Placements", width: 110, cell: context => {
     const { card } = context; const name = personName(card); const { direct, participant, shared, did_not_hold } = card.placements; const total = placementTotal(card.placements);
     const credits = [direct && `${direct} dir.`, participant && `${participant} part.`, shared && `${shared} comp.`].filter(Boolean).join(" · ");
     return {
@@ -68,13 +68,15 @@ export const COLUMNS: Record<ColumnId, ColumnDef> = {
       tertiary: did_not_hold ? `de ellos ${plural(did_not_hold, "no se sostuvo", "no se sostuvieron")}` : undefined,
     };
   } },
-  conversion: { id: "conversion", label: "Conversión", width: 116, cell: context => {
+  conversion: { id: "conversion", label: "Conversión", width: 110, cell: context => {
     const { card } = context; const name = personName(card); const rate = card.placements.conversion; const text = formatRate(rate); const t = targets(card.user_id);
     if (rate.value === null) return { primary: missing, secondary: text.detail };
+    // As the Métricas card: the bold percentage and «N de M», each opening its records; no bar.
     return {
-      primary: open(context, t.closedCredited, rate.numerator, `${text.value} de conversión: ${see(rate.numerator, "f", "vacante cerrada", "vacantes cerradas").toLowerCase()} con placement de ${name}`, text.value, "font-semibold"),
-      bar: <Bar parts={[{ tone: DELIVERY_TONE.on_time, share: rate.value }]} />,
-      secondary: open(context, t.closed, rate.denominator, `${text.detail}: ${see(rate.denominator, "f", "vacante cerrada", "vacantes cerradas").toLowerCase()} de ${name}`, text.detail),
+      primary: <>
+        {open(context, t.closedCredited, rate.numerator, `${text.value} de conversión: ${see(rate.numerator, "f", "vacante cerrada", "vacantes cerradas").toLowerCase()} con placement de ${name}`, text.value, "font-semibold")}{" "}
+        {open(context, t.closed, rate.denominator, `${text.detail}: ${see(rate.denominator, "f", "vacante cerrada", "vacantes cerradas").toLowerCase()} de ${name}`, text.detail, "font-normal text-muted-foreground")}
+      </>,
     };
   } },
 };

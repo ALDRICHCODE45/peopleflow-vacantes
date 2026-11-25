@@ -18,26 +18,28 @@ const PERIODS: { value: Shortcut; label: string }[] = [
 const OPTION = "min-h-10 rounded-lg px-3 text-muted-foreground";
 const SELECTED = "bg-primary/10 font-semibold text-primary-text hover:bg-primary/15 hover:text-primary-text";
 
-export function PeriodControl({ period, today, error, onChange }: { period: Period; today: string; error?: string; onChange: (next: Period) => void }) {
+/** `compact`: on a phone the four options share one full-width line (no icon, tighter padding) instead of wrapping onto a second one. */
+export function PeriodControl({ period, today, error, compact, className, onChange }: { period: Period; today: string; error?: string; compact?: boolean; className?: string; onChange: (next: Period) => void }) {
   const shortcut = matchingShortcut(period, today);
-  // Rule 14: on a narrow screen the options wrap onto a second line, «Personalizado» whole.
-  return <div role="group" aria-label="Periodo" className="flex max-w-full flex-wrap rounded-xl border bg-card p-0.5">
+  const option = cn(OPTION, compact && "max-md:min-w-0 max-md:flex-1 max-md:px-2");
+  // Rule 14: on a narrow screen the options wrap onto a second line, «Personalizado» whole (unless `compact`: one line).
+  return <div role="group" aria-label="Periodo" className={cn("flex max-w-full rounded-xl border bg-card p-0.5", compact ? "flex-nowrap max-md:w-full md:flex-wrap" : "flex-wrap", className)}>
     {PERIODS.map(item => <Button key={item.value} type="button" variant="ghost" aria-pressed={shortcut === item.value}
-      className={cn(OPTION, shortcut === item.value && SELECTED)} onClick={() => onChange(shortcutPeriod(item.value, today))}>{item.label}</Button>)}
-    <CustomPeriod period={period} active={!shortcut} error={error} onApply={onChange} />
+      className={cn(option, shortcut === item.value && SELECTED)} onClick={() => onChange(shortcutPeriod(item.value, today))}>{item.label}</Button>)}
+    <CustomPeriod period={period} active={!shortcut} error={error} compact={compact} onApply={onChange} />
   </div>;
 }
 
 /** «Personalizado»: a draft period applied only when valid; the page keeps the last valid period meanwhile. */
-function CustomPeriod({ period, active, error, onApply }: { period: Period; active: boolean; error?: string; onApply: (next: Period) => void }) {
+function CustomPeriod({ period, active, error, compact, onApply }: { period: Period; active: boolean; error?: string; compact?: boolean; onApply: (next: Period) => void }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(period);
   useEffect(() => { if (open) setDraft(period); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const issues = periodIssues(draft);
   const issue = (field: "from" | "to") => issues.find(item => item.field === field)?.message;
   return <Popover open={open} onOpenChange={setOpen}>
-    <PopoverTrigger render={<Button type="button" variant="ghost" aria-pressed={active} className={cn(OPTION, active && SELECTED)} />}>
-      <CalendarRange aria-hidden="true" data-icon="inline-start" />Personalizado
+    <PopoverTrigger render={<Button type="button" variant="ghost" aria-pressed={active} className={cn(OPTION, compact && "max-md:min-w-0 max-md:flex-1 max-md:px-2", active && SELECTED)} />}>
+      <CalendarRange aria-hidden="true" data-icon="inline-start" className={cn(compact && "max-md:hidden")} />Personalizado
     </PopoverTrigger>
     <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)]">
       <PopoverTitle className="font-semibold">Periodo personalizado</PopoverTitle>

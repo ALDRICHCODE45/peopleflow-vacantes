@@ -124,6 +124,17 @@ describe("recruiter detail (artboard 10)", () => {
     expect(within(placements).getAllByRole("link")).toHaveLength(2);
   });
 
+  it("draws the delivery split as an image with no interactive child; the links to the same records sit in the key below it", async () => {
+    await show();
+    const deliveries = card("Entregas con fecha cumplida");
+    const bar = within(deliveries).getByRole("img", { name: /8 entregas con fecha: 6 a tiempo, 1 tarde, 1 vencidas/ });
+    expect(bar.querySelectorAll("a, button, [tabindex]")).toHaveLength(0);
+    expect(bar.children).toHaveLength(3);
+    for (const name of ["Ver las 6 entregas a tiempo de Mariana Torres", "Ver la 1 entrega tarde de Mariana Torres", "Ver la 1 entrega vencida de Mariana Torres"]) {
+      expect(bar).not.toContainElement(link(deliveries, name));
+    }
+  });
+
   it("opens the delivery split, the credit total and the workload counts, and keeps the figures with no list as plain text", async () => {
     await show();
     const deliveries = card("Entregas con fecha cumplida");

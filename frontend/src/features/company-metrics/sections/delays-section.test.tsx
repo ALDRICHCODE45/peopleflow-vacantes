@@ -76,6 +76,9 @@ describe("Retrasos y reasignaciones (artboard 07)", () => {
     expect(rows[0]).toHaveTextContent("Ejecutivo de cuenta");
     expect(rows[0]).toHaveTextContent("Grupo Bimbo · Mariana Torres");
     expect(rows[0]).toHaveTextContent("Hace 13 días hábiles");
+    // D17: the days badge reads with the status-danger tokens (text-destructive on its tint was 3.98:1).
+    expect(within(rows[0]).getByText("Hace 13 días hábiles")).toHaveClass("text-status-danger", "bg-status-danger/10", "border-status-danger/40");
+    expect(within(rows[0]).getByText("Hace 13 días hábiles").className).not.toMatch(/(^|\s)(text|bg|border)-destructive/);
     expect(rows[0]).toHaveTextContent("Entregó 2 de 5");
     expect(rows[1]).toHaveTextContent("Vacante sin título");
     expect(rows[1]).toHaveTextContent("Hace 8 días hábiles");

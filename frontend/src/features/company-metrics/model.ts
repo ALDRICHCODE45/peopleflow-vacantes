@@ -259,6 +259,8 @@ export type OriginSection = z.infer<typeof originSchema>;
 export type PipelineSection = z.infer<typeof pipelineSchema>;
 export type RecruiterCard = z.infer<typeof recruiterCardSchema>;
 export type RecruiterPage = z.infer<typeof recruiterPageSchema>;
+/** Every card of the period (all pages) with the snapshot instant and the definitions version they were computed with. */
+export type RecruiterList = Pick<RecruiterPage, "items" | "as_of" | "definitions_version">;
 export type RecruiterDetail = z.infer<typeof recruiterDetailSchema>;
 export type VacancyRow = z.infer<typeof vacancyRowSchema>;
 export type VacancyPage = z.infer<typeof vacancyPageSchema>;
