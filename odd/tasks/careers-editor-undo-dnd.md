@@ -46,10 +46,10 @@ draft, keep-my-changes on conflict) and a redesigned section list with drag-and-
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
-| T1 | S1, S2, S5 | History in the editor store + shortcuts/buttons, delete toast, discard draft, keep-mine conflict (writer A) | |
-| T2 | S3, S4, S5 | Section row redesign + sortable drag in the list and in form item lists (writer B) | |
-| T3 | S4 | Preview insertion line while dragging + wiring (inline after T1/T2) | |
-| T4 | S1–S5 | Browser check (Chromium/Firefox, 1440/390), full suite, merge to main | |
+| T1 | S1, S2, S5 | History in the editor store + shortcuts/buttons, delete toast, discard draft, keep-mine conflict (writer A) | `697a5b22` (discard draft blocked on backend) |
+| T2 | S3, S4, S5 | Section row redesign + sortable drag in the list and in form item lists (writer B) | `d1667d04`, `48d0ec24` |
+| T3 | S4 | Preview insertion line while dragging + wiring (inline after T1/T2) | `2a7ab17a` |
+| T4 | S1–S5 | Browser check (Chromium/Firefox, 1440/390), full suite, merge to main | `48d0ec24` + this log + merge |
 
 Shared contract between T1 and T2: `editor-state.ts` gets one action `{ type: "reorder"; id: string; toIndex: number }`
 (T1 owns it; one dispatch = one history step, a no-op when the index doesn't change, rejected when it breaks the Portada /
@@ -97,3 +97,13 @@ Vacantes rules); the list drag (T2) dispatches only that action on drop. No new 
   title); dimmed dragged section (opacity .4) fails axe color-contrast mid-drag. Pre-existing axe items (not this branch):
   aria-required-children on preview groups with separators and on the ⋯ menu with a switch; nested-interactive on toasts.
   Swipe-to-scroll at 390 verified in Chromium only (Firefox can't emulate mobile touch scrolling).
+- **L6** (2026-11-25) Fix round `48d0ec24`: drop zone = the list's scroll container with slack (below the last row lands
+  last, sideways out cancels), auto-scroll capped (~180–285 px/s measured), rows still on a forbidden slot, grip over the
+  left padding + «Fija» chip + titles `line-clamp-2` (no ellipsis; «Vacantes abiertas» wraps to 2 lines at 1440), dragged
+  preview section framed (dashed accent, saturate-50) instead of opacity. :3000 rebuilt (BUILD_ID `FNIgOjK7PVfprxJpa1_ZS`).
+  Browser re-check (Chromium + Firefox, 1440 light/dark, 1440×620, 390 touch): the four fixes and regressions pass; axe 0
+  color-contrast mid-drag; persisted order unchanged. Full suite 652 files / 11996 passed (2 skipped), tsc 0, lint 0 errors
+  (12 warnings). Native review assess unassessable (untracked canvas `design/*/handoffs.json` need a declaration); its plan
+  required no extra verifier. Follow-ups: item-list overlay doesn't say «Suelta dentro de la lista…» when outside (cursor
+  and announcement do); «Descartar borrador» needs the published document from the backend; phases 3–4 backlog.
+
