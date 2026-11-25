@@ -98,14 +98,14 @@ export const DEFINITIONS = {
 } satisfies Record<string, Definition>;
 export type DefinitionKey = keyof typeof DEFINITIONS;
 
-/** «Qué mide cada columna»: the recruiter table's columns in their order, each with its definition. */
+/** «Qué mide cada columna»: the recruiter table's columns in the order of its groups (`recruiter-view.ts`), each with its definition. */
 export const COLUMN_DEFINITIONS: { column: string; key: DefinitionKey }[] = [
   { column: "Asignadas", key: "assigned" },
-  { column: "Entregas", key: "delivery" },
+  { column: "Reasignaciones", key: "reassignments" },
+  { column: "Días en tramos", key: "business_days" },
+  { column: "Entregas a tiempo", key: "delivery" },
   { column: "Mediana a la meta", key: "time_to_target" },
   { column: "Entregados", key: "delivered_in_tramo" },
   { column: "Placements", key: "placements" },
   { column: "Conversión", key: "conversion" },
-  { column: "Reasignaciones", key: "reassignments" },
-  { column: "Días en tramos", key: "business_days" },
 ];

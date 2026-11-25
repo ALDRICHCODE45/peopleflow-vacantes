@@ -126,7 +126,7 @@ function OverdueRow({ row, href }: { row: Overdue; href: Href }) {
       {meta && <span className="truncate text-xs text-muted-foreground">{meta}</span>}
     </div>
     <div className="flex shrink-0 flex-col items-end gap-1">
-      <span className="inline-flex h-[22px] items-center rounded-md border border-destructive/30 bg-destructive/10 px-2 text-xs font-medium whitespace-nowrap text-destructive">
+      <span className="inline-flex h-[22px] items-center rounded-md border border-status-danger/40 bg-status-danger/10 px-2 text-xs font-medium whitespace-nowrap text-status-danger">
         {`Hace ${number.format(days)} ${days === 1 ? "día hábil" : "días hábiles"}`}
       </span>
       <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{`Entregó ${number.format(row.delivered)} de ${number.format(row.target)}`}</span>

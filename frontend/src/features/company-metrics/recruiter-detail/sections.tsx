@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { Drilldown } from "../drilldown";
@@ -136,11 +135,8 @@ function DeliveriesCard({ data, drill, who }: { data: RecruiterDetail; drill: Dr
     {total > 0 && <div role="img" aria-label={`${number.format(total)} ${total === 1 ? "entrega" : "entregas"} con fecha: ${DELIVERY_KEYS.map(({ key, label }) => `${number.format(data.delivery[key])} ${label.toLowerCase()}`).join(", ")}`}
       className="flex h-3 gap-0.5 overflow-hidden rounded-full">
       {parts.map(({ key }) => {
-        const style = { width: `${(data.delivery[key] / total) * 100}%`, background: DELIVERY_TONE[key] };
-        const href = drill(t[key === "on_time" ? "onTime" : key], data.delivery[key]);
-        // The segment repeats the key below it: clickable, but not a second tab stop or announcement.
-        return href ? <Link key={key} href={href} tabIndex={-1} aria-hidden="true" style={style} className="block h-full hover:brightness-110" />
-          : <span key={key} style={style} className="block h-full" />;
+        // An image has no interactive children (axe `nested-interactive`): the links to these records are the counts in the key below.
+        return <span key={key} style={{ width: `${(data.delivery[key] / total) * 100}%`, background: DELIVERY_TONE[key] }} className="block h-full" />;
       })}
     </div>}
     <div className="flex flex-wrap gap-x-5 gap-y-2 text-muted-foreground">

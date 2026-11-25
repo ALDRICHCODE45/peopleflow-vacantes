@@ -10,7 +10,7 @@ import { detailApiQuery, isListKind, parseDetail } from "./detail/query";
 import { toMetricsFailure } from "./failure";
 import {
   metricsAllowed, type ClosuresSection, type ComplianceSection, type DelaysSection, type OriginSection, type PipelineSection, type DeliveriesDetail, type MetricsAccess, type MetricsFailure, type MetricsResult, type MetricsSummary,
-  type DetailPage, type PlacementsDetail, type ReassignmentPage, type RecruiterCard, type RecruiterDetail, type VacancyPage,
+  type DetailPage, type PlacementsDetail, type ReassignmentPage, type RecruiterCard, type RecruiterDetail, type RecruiterList, type RecruiterPage, type VacancyPage,
 } from "./model";
 import { mexicoToday } from "./period";
 import { apiQuery, effectivePeriod, type MetricsFilters } from "./url-state";
@@ -39,17 +39,24 @@ export async function loadMetricsAccessAction(): Promise<MetricsAccess> {
 }
 
 /** Every recruiter card of the period: the table sorts the whole set, so all pages are read. */
-async function readRecruiters(token: string, query: URLSearchParams): Promise<MetricsResult<RecruiterCard[]>> {
+async function readRecruiterList(token: string, query: URLSearchParams): Promise<MetricsResult<RecruiterList>> {
   const items: RecruiterCard[] = [];
+  let first: RecruiterPage | undefined;
   let cursor: string | undefined;
   for (let page = 0; page < MAX_RECRUITER_PAGES; page += 1) {
     const result = await listRecruiters(token, query, cursor);
     if (!result.ok) return toMetricsFailure(result);
+    first ??= result.data;
     items.push(...result.data.items);
     if (!result.data.next_cursor) break;
     cursor = result.data.next_cursor;
   }
-  return { ok: true, data: items };
+  // The pages come from one snapshot, so the first page's `as_of` and version describe the whole list.
+  return { ok: true, data: { items, definitions_version: first?.definitions_version ?? "", ...(first?.as_of && { as_of: first.as_of }) } };
+}
+async function readRecruiters(token: string, query: URLSearchParams): Promise<MetricsResult<RecruiterCard[]>> {
+  const list = await readRecruiterList(token, query);
+  return list.ok ? { ok: true, data: list.data.items } : list;
 }
 
 export type Overview = { summary: MetricsSummary; recruiters: RecruiterCard[] };
@@ -78,6 +85,10 @@ export async function loadDelaysAction(filters: MetricsFilters): Promise<Metrics
 export async function loadOriginAction(filters: MetricsFilters): Promise<MetricsResult<OriginSection>> { return section(getOrigin)(filters); }
 export async function loadRecruitersAction(filters: MetricsFilters): Promise<MetricsResult<RecruiterCard[]>> {
   return withToken(token => readRecruiters(token, apiQuery(filters, mexicoToday())));
+}
+/** The same cards with the snapshot's `as_of` and definitions version, for the full table page's «Actualizado …» line. */
+export async function loadRecruiterListAction(filters: MetricsFilters): Promise<MetricsResult<RecruiterList>> {
+  return withToken(token => readRecruiterList(token, apiQuery(filters, mexicoToday())));
 }
 
 type ListInput = { filters: MetricsFilters; cursor?: string };

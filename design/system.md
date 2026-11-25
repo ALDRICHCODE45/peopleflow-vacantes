@@ -406,6 +406,17 @@ self-check `design/audit-log-redesign/self-check.md`). Implementation: `frontend
 3. **Removable chips with several lines** (`rounded-xl` 14 px, not `rounded-full`): a chip holds the whole value, so it wraps; its «Quitar» button stays 40 × 40 px.
 4. **«Exportar CSV» is always enabled** and opens a panel that requires the range (previously: a disabled button plus a notice). Mono (`font-mono`) is used
    for IPs, event codes, ids and metadata keys only.
+5. **The recruiter table (`/empresa/metricas/reclutadores`) extends exceptions 1 and 3 to itself and nowhere else** (`odd/tasks/recruiter-table-redesign.md`
+   S1–S2; artboard `design/recruiter-table-redesign/01-pagina-propia-de-tabla.html`; implementation `frontend/src/features/company-metrics/recruiter-table.tsx`).
+   Its cells wrap (`whitespace-normal [overflow-wrap:anywhere]`, up to 3–4 lines in «Placements»); nothing is cut with an ellipsis or `title`, so the eight columns
+   fit at 1440 without a horizontal scroll (the region still scrolls and is focusable below that). Headers are grouped (Carga de trabajo · Entrega de candidatos ·
+   Contratación), the person column and both header rows are `sticky`, and the inherited board filters (Reclutador, Cliente o área) show as the same multi-line
+   chips as the audit log. Below `md` each person is one card with the same three groups (rule 14: no sideways scroll); sorting there is a labelled «Orden» selector.
+   Its column headers are `text-xs font-medium` (not the table rule's `text-sm`) so every header word fits its column in ≤ 2 lines; the table's
+   min-width budget is ≤ 1050 px (1440 − 288 sidebar − page padding − a 15 px classic scrollbar), and from that width up the region does not scroll
+   vertically: the page scrolls and the header sticks to the viewport, so a classic-scrollbar browser never shows two scrollbars.
+   «Entregas a tiempo» always shows the percentage and «N de M»; the order uses the percentage, then the count. This is the one recruiter table: the board's
+   «Ver tabla completa» is a link to it (no narrow sheet).
 
 **Recipe: Filter bar with chips** (a table or list filtered by several, sometimes long, values).
 
@@ -479,7 +490,7 @@ above; spacing is in Tailwind steps (4 px). Status: binding; approved with artbo
     (reclutador, cliente o área) in one «Filtros» popover; active filters show as removable chips under the header.
     Never a full form bar above the data.
 12. **Tables in an overview.** ≤ 6 visible columns, one-line cells, avatar + name first, numbers right-aligned, a
-    status or bar column at most once; «Ver todos» leads to the full table. No checkboxes, column menus or pagination
+    status or bar column at most once; «Ver todos» leads to the full table (for recruiters, its own page: audit exception 5). No checkboxes, column menus or pagination
     for ≤ 10 rows.
 13. **Attention list.** When a surface has actionable exceptions (vencidas, por vencer), a card «Necesita atención»
     with ≤ 5 rows, each naming the consequence and a link; empty state «Todo al día».

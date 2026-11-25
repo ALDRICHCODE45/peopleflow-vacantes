@@ -93,7 +93,7 @@ export function FilterChipList({ chips, onRemove }: { chips: FilterChip[]; onRem
 /** «Solo detenidos» (`stalled=true`); its count ignores only this filter. */
 export function StalledToggle({ pressed, count, onChange }: { pressed: boolean; count: number; onChange: (pressed: boolean) => void }) {
   return <Button type="button" variant="outline" aria-pressed={pressed} onClick={() => onChange(!pressed)}
-    className={cn("min-h-10 gap-1 px-3 text-muted-foreground", pressed && "border-destructive/30 bg-destructive/10 font-semibold text-destructive hover:bg-destructive/15 hover:text-destructive")}>
+    className={cn("min-h-10 gap-1 px-3 text-muted-foreground", pressed && "border-status-danger/40 bg-status-danger/10 font-semibold text-status-danger hover:bg-status-danger/15 hover:text-status-danger")}>
     Solo detenidos{" "}<span className="font-medium tabular-nums">{number.format(count)}</span>
   </Button>;
 }

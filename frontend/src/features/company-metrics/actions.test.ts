@@ -6,7 +6,7 @@ vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import {
   listReassignmentsAction, listVacanciesAction, loadAuditedDetailAction, loadMetricsAccessAction, loadOverviewAction, loadRecruiterAction,
-  loadClosuresAction, loadComplianceAction, loadDelaysAction, loadOriginAction, loadPipelineAction, loadRecruitersAction, loadSummaryAction,
+  loadClosuresAction, loadComplianceAction, loadDelaysAction, loadOriginAction, loadPipelineAction, loadRecruiterListAction, loadRecruitersAction, loadSummaryAction,
 } from "./actions";
 import { closures, compliance, delays, origin, pipeline, summaryV2 } from "./test-fixtures";
 import { loadDetailAction } from "./actions";
@@ -155,10 +155,18 @@ it.each([
 
 it("answers every section unauthenticated without a request when there is no session", async () => {
   vi.mocked(getActionAccessToken).mockResolvedValue(null);
-  for (const action of [loadSummaryAction, loadClosuresAction, loadComplianceAction, loadPipelineAction, loadDelaysAction, loadOriginAction, loadRecruitersAction]) {
+  for (const action of [loadSummaryAction, loadClosuresAction, loadComplianceAction, loadPipelineAction, loadDelaysAction, loadOriginAction, loadRecruitersAction, loadRecruiterListAction]) {
     expect(await action({})).toMatchObject({ ok: false, reason: "unauthenticated" });
   }
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("loads the recruiter list with every page's cards and the snapshot's as_of and definitions version", async () => {
+  fetchMock.mockImplementation(async (url: URL | string) => Response.json(new URL(String(url)).searchParams.get("cursor") === "next"
+    ? { ...recruiterPage([carlos()]), as_of: "2026-11-07T18:00:00Z" } : { ...recruiterPage([card()], "next"), as_of: "2026-11-07T17:42:00Z" }));
+  expect(await loadRecruiterListAction({})).toEqual({ ok: true, data: { items: [card(), carlos()], definitions_version: "v1", as_of: "2026-11-07T17:42:00Z" } });
+  fetchMock.mockImplementation(async () => Response.json(recruiterPage([card()])));
+  expect(await loadRecruiterListAction({})).toEqual({ ok: true, data: { items: [card()], definitions_version: "v1" } });
 });
 
 it("loads every recruiter card page for the recruiters section", async () => {

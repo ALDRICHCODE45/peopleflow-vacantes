@@ -259,6 +259,8 @@ export type OriginSection = z.infer<typeof originSchema>;
 export type PipelineSection = z.infer<typeof pipelineSchema>;
 export type RecruiterCard = z.infer<typeof recruiterCardSchema>;
 export type RecruiterPage = z.infer<typeof recruiterPageSchema>;
+/** Every card of the period (all pages) with the snapshot instant and the definitions version they were computed with. */
+export type RecruiterList = Pick<RecruiterPage, "items" | "as_of" | "definitions_version">;
 export type RecruiterDetail = z.infer<typeof recruiterDetailSchema>;
 export type VacancyRow = z.infer<typeof vacancyRowSchema>;
 export type VacancyPage = z.infer<typeof vacancyPageSchema>;
@@ -308,6 +310,11 @@ export const plural = (value: number, singular: string, pluralForm: string) => `
 /** «67%» next to «20 de 30»; a missing value is «Sin datos suficientes», never 0%. */
 export function formatRate(rate: Rate): { value: string; detail: string } {
   return { value: rate.value === null ? NO_SAMPLE : percent.format(rate.value), detail: `${number.format(rate.numerator)} de ${number.format(rate.denominator)}` };
+}
+/** Delivery rate of a card (v1 2.3): on time among the deliveries already judged; no sample without any. */
+export function onTimeRate(card: RecruiterCard): Rate {
+  const denominator = card.delivery.on_time + card.delivery.late + card.delivery.overdue;
+  return { value: denominator > 0 ? card.delivery.on_time / denominator : null, numerator: card.delivery.on_time, denominator };
 }
 export const formatMedian = (value: number | null) => value === null ? NO_SAMPLE : plural(value, "día hábil", "días hábiles");
 /** A share of a count total, or null when the total is 0. */

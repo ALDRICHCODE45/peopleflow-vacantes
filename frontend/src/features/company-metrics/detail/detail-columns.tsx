@@ -83,7 +83,7 @@ export const candidateColumns: Column<CandidateListRow>[] = [
   { id: "stage", header: "Etapa", cell: row => stageName(row.stage) },
   { id: "days", header: "Días hábiles en etapa", sort: "business_days_in_stage", numeric: true, cell: row => number.format(row.business_days_in_stage) },
   { id: "stalled", header: "Detenido", cell: row => row.stalled
-    ? <span className="inline-flex h-[22px] items-center rounded-md border border-destructive/30 bg-destructive/10 px-2 text-xs font-medium text-destructive">Detenido</span>
+    ? <span className="inline-flex h-[22px] items-center rounded-md border border-status-danger/40 bg-status-danger/10 px-2 text-xs font-medium text-status-danger">Detenido</span>
     : <span className="text-muted-foreground" aria-label="No">—</span> },
   { id: "entered", header: "Entró a la etapa", sort: "entered_stage_at", cell: row => instantDay(row.entered_stage_at) },
 ];

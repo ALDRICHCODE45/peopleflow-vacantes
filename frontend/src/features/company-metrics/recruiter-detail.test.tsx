@@ -124,6 +124,17 @@ describe("recruiter detail (artboard 10)", () => {
     expect(within(placements).getAllByRole("link")).toHaveLength(2);
   });
 
+  it("draws the delivery split as an image with no interactive child; the links to the same records sit in the key below it", async () => {
+    await show();
+    const deliveries = card("Entregas con fecha cumplida");
+    const bar = within(deliveries).getByRole("img", { name: /8 entregas con fecha: 6 a tiempo, 1 tarde, 1 vencidas/ });
+    expect(bar.querySelectorAll("a, button, [tabindex]")).toHaveLength(0);
+    expect(bar.children).toHaveLength(3);
+    for (const name of ["Ver las 6 entregas a tiempo de Mariana Torres", "Ver la 1 entrega tarde de Mariana Torres", "Ver la 1 entrega vencida de Mariana Torres"]) {
+      expect(bar).not.toContainElement(link(deliveries, name));
+    }
+  });
+
   it("opens the delivery split, the credit total and the workload counts, and keeps the figures with no list as plain text", async () => {
     await show();
     const deliveries = card("Entregas con fecha cumplida");
@@ -360,5 +371,63 @@ describe("recruiter detail with the process filter (S7)", () => {
     expect(screen.getByText("Proceso: elige todos los procesos, solo originales o solo reemplazos.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Restablecer vista" }));
     expect(window.location.search).toBe("");
+  });
+});
+
+// S4: «volver» returns to the page the person came from; `from` is the period start, so the origin travels as `origin=table`.
+describe("«volver» to where the person came from (S4)", () => {
+  const TABLE = "/empresa/metricas/reclutadores";
+  const FROM_TABLE = `from=2026-08-01&to=2026-10-31&recruiter_id=${carlos().user_id}&process_kind=replacement&sort=on_time%3Adescending&hide=median%2Cdelivered&origin=table`;
+  const TABLE_BACK = `${TABLE}?from=2026-08-01&to=2026-10-31&recruiter_id=${carlos().user_id}&process_kind=replacement&sort=on_time%3Adescending&hide=median%2Cdelivered`;
+  const crumb = () => screen.getByRole("navigation", { name: "Ruta" });
+
+  it("from the table: the breadcrumb returns to it with period, filters, order and columns, and Métricas stays one step up", async () => {
+    at(`?${FROM_TABLE}`);
+    await show();
+    expect(link(crumb(), "Desempeño por reclutador")).toHaveAttribute("href", TABLE_BACK);
+    expect(link(crumb(), "Desempeño por reclutador")).toHaveAttribute("data-replace", "true");
+    expect(link(crumb(), "Métricas")).toHaveAttribute("href", "/empresa/metricas?from=2026-08-01&to=2026-10-31&process_kind=replacement");
+    expect(within(crumb()).getByText("Mariana Torres")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("from the table: a figure's detail page returns to this recruiter, still remembering the table", async () => {
+    at(`?${FROM_TABLE}`);
+    await show();
+    const href = link(card("Placements"), "Ver los 9 placements de Mariana Torres").getAttribute("href")!;
+    const back = new URL(href, "https://app.test").searchParams.get("back")!;
+    expect(back).toBe(`/empresa/metricas/reclutadores/${U}?${FROM_TABLE}`);
+  });
+
+  it("from the table: changing the period keeps the origin, the order, the columns and the table's filters", async () => {
+    at(`?${FROM_TABLE}`);
+    await show();
+    await userEvent.click(within(screen.getByRole("group", { name: "Periodo" })).getByRole("button", { name: "30 días" }));
+    expect(Object.fromEntries(new URLSearchParams(window.location.search))).toEqual({
+      from: "2026-10-09", to: "2026-11-07", recruiter_id: carlos().user_id, process_kind: "replacement", sort: "on_time:descending", hide: "median,delivered", origin: "table",
+    });
+    expect(link(crumb(), "Desempeño por reclutador").getAttribute("href")).toContain("from=2026-10-09&to=2026-11-07");
+    await waitFor(() => expect(recruiter).toHaveBeenLastCalledWith({ userId: U, filters: { from: "2026-10-09", to: "2026-11-07", process_kind: "replacement" } }));
+  });
+
+  it("from the table, not found offers «Volver a la tabla»", async () => {
+    at(`?${FROM_TABLE}`);
+    recruiter.mockResolvedValue({ ok: false, reason: "not_found", reference: { status: 404 } } satisfies MetricsFailure);
+    render(<RecruiterDetailPage userId={U} />);
+    expect(await screen.findByRole("link", { name: "Volver a la tabla" })).toHaveAttribute("href", TABLE_BACK);
+  });
+
+  it.each(["", "&origin=board", "&origin=https://evil.test", "&origin=%2F%2Fevil.test%2Fempresa", "&origin=TABLE"])(
+    "coming from Métricas or visiting directly (%j) returns to Métricas, never to the table or anywhere else", async extra => {
+      at(`?from=2026-08-01&to=2026-10-31&sort=on_time%3Adescending${extra}`);
+      await show();
+      expect(link(crumb(), "Métricas")).toHaveAttribute("href", "/empresa/metricas?from=2026-08-01&to=2026-10-31");
+      expect(within(crumb()).queryByRole("link", { name: "Desempeño por reclutador" })).toBeNull();
+      expect(document.querySelector(`a[href*="evil"]`)).toBeNull();
+    });
+
+  it("a visit with no query at all falls back to Métricas with the default window", async () => {
+    at("");
+    await show();
+    expect(link(crumb(), "Métricas")).toHaveAttribute("href", "/empresa/metricas?from=2026-08-10&to=2026-11-07");
   });
 });
