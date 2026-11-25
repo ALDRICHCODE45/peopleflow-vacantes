@@ -38,6 +38,33 @@ export function rowShift(rows: readonly RowBox[], from: number, to: number, i: n
   return 0;
 }
 
+/** Like `rowShift`, but a forbidden landing slot opens no gap: every row,
+ * the dragged one included, stays at rest while the overlay says why. */
+export function partedShift(rows: readonly RowBox[], from: number, to: number, blocked: string | null, i: number): number {
+  return rowShift(rows, from, blocked ? from : to, i);
+}
+
+export type Point = { x: number; y: number };
+export type Zone = { left: number; top: number; right: number; bottom: number };
+/** Slack around the drop zone: a hand that wobbles past the panel's side or
+ * overshoots after auto-scroll is still dropping in the list. */
+const OUTSIDE_SLACK = { x: 24, y: 96 };
+/** The drop zone is the list's whole scroll container (rows, the space below
+ * them, the list's add button): the landing index is clamped to the ends, so
+ * only a pointer that leaves it sideways or goes far away cancels. */
+export function pointerOutside(point: Point, zone: Zone): boolean {
+  return point.x < zone.left - OUTSIDE_SLACK.x || point.x > zone.right + OUTSIDE_SLACK.x || point.y < zone.top - OUTSIDE_SLACK.y || point.y > zone.bottom + OUTSIDE_SLACK.y;
+}
+
+/** dnd-kit auto-scroll: a narrow band at the container's top and bottom edge,
+ * at most `acceleration` px every `interval` ms (≤ 500 px/s). */
+export const AUTO_SCROLL = { threshold: { x: 0, y: 0.1 }, acceleration: 4, interval: 10 } as const;
+/** dnd-kit's speed grows without limit as the pointer moves past a container's
+ * edge; scrolling only while the pointer is inside it keeps the speed bounded. */
+export function canAutoScroll(point: Point | null, zone: Zone): boolean {
+  return !point || (point.x >= zone.left && point.x <= zone.right && point.y >= zone.top && point.y <= zone.bottom);
+}
+
 export const clampIndex = (index: number, count: number) => Math.max(0, Math.min(count - 1, index));
 
 /** Reason a section can't land at `to`, or null when the move is allowed: the

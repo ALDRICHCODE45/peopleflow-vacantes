@@ -72,7 +72,8 @@ it("keeps a long section name from running under its indicators", async () => {
   render(<CareersSiteEditor {...fixture()} />); await screen.findByRole("heading", { name: "Tu página" });
   const row = screen.getByRole("button", { name: "Seleccionar Vacantes abiertas" }).closest('[role="listitem"]') as HTMLElement;
   const name = within(row).getByText("Vacantes abiertas");
-  expect(name).toHaveClass("truncate", "max-w-full");
+  expect(name).toHaveClass("line-clamp-2", "whitespace-normal");
+  expect(name).not.toHaveClass("truncate");
   expect(name.closest("[data-slot='item-content']")).toHaveClass("overflow-hidden", "min-w-0");
 });
 it("shows only the selected section heading and description in the mobile properties Sheet", async () => {

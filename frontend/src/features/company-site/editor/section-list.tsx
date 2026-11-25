@@ -65,7 +65,7 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
   const selected = editor.selectedId === block.id;
   const blocked = drag.session?.id === block.id ? drag.session.blocked : null;
   return <Item role="listitem" size="xs" ref={node => { draggable.setNodeRef(node); rowRef(node); }} {...rowAttrs} data-selected={selected || undefined}
-    className={cn("relative flex-nowrap", DRAG_ROW_MOTION, selected && "bg-card shadow-sm ring-1 ring-primary/40 dark:shadow-none dark:ring-primary-text/50",
+    className={cn("relative flex-nowrap pl-3.5", DRAG_ROW_MOTION, selected && "bg-card shadow-sm ring-1 ring-primary/40 dark:shadow-none dark:ring-primary-text/50",
       // Pointer drag: the row stays as a dashed placeholder at its landing slot; the overlay carries the copy.
       "data-[drag=placeholder]:border-dashed data-[drag=placeholder]:border-primary/50 data-[drag=placeholder]:bg-primary/5 data-[drag=placeholder]:shadow-none data-[drag=placeholder]:ring-0 data-[drag=placeholder]:*:opacity-0",
       // Keyboard drag: the row itself is lifted and travels to its landing slot.
@@ -76,24 +76,24 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
     <Button variant="ghost" className="absolute inset-0 size-full" aria-label={`Seleccionar ${label}`} aria-pressed={selected} onClick={() => onSelect(block.id)} onKeyDown={event => {
       if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) { event.preventDefault(); step(event.key === "ArrowUp" ? -1 : 1); }
     }} />
-    <div className="flex w-full min-w-0 items-center gap-1.5">
-      {/* Quiet handle: shown on hover, focus, selection, while dragging and always
-          on coarse pointers; it stays a real, named, focusable control. */}
-      <ItemMedia className="relative -ml-1 h-10 w-6 shrink-0">
-        <Button variant="ghost" size="icon" ref={node => { draggable.setActivatorNodeRef(node); gripRef(node); }} {...draggable.listeners} {...draggable.attributes} {...grip} aria-label={`Arrastrar ${label}`}
-          className={cn("absolute inset-0 h-10 w-6 cursor-grab touch-manipulation rounded-lg text-muted-foreground opacity-0 select-none [-webkit-touch-callout:none] transition-opacity duration-150 group-hover/item:opacity-100 group-focus-within/item:opacity-100 focus-visible:opacity-100 active:cursor-grabbing motion-reduce:transition-none pointer-coarse:opacity-100", (selected || grip["aria-pressed"]) && "opacity-100")}>
-          <GripVertical aria-hidden="true" />
-        </Button>
-      </ItemMedia>
+    {/* Quiet handle laid over the row's left padding, so it never takes width
+        from the title: shown on hover, focus, selection, while dragging and always
+        on coarse pointers; it stays a real, named, focusable 24 × 40 control. */}
+    <Button variant="ghost" size="icon" ref={node => { draggable.setActivatorNodeRef(node); gripRef(node); }} {...draggable.listeners} {...draggable.attributes} {...grip} aria-label={`Arrastrar ${label}`}
+      className={cn("absolute inset-y-0 -left-1 z-10 my-auto h-10 w-6 cursor-grab touch-manipulation rounded-lg text-muted-foreground opacity-0 select-none [-webkit-touch-callout:none] transition-opacity duration-150 group-hover/item:opacity-100 group-focus-within/item:opacity-100 hover:bg-transparent hover:text-foreground focus-visible:opacity-100 active:cursor-grabbing motion-reduce:transition-none pointer-coarse:opacity-100", (selected || grip["aria-pressed"]) && "opacity-100")}>
+      <GripVertical aria-hidden="true" />
+    </Button>
+    <div className="flex w-full min-w-0 items-center gap-2">
       <ItemContent className="pointer-events-none relative min-w-0 overflow-hidden">
-        <div data-section-identity="" className="flex min-w-0 flex-row items-center gap-2.5">
+        <div data-section-identity="" className="flex min-w-0 flex-row items-center gap-2">
           <SectionTile type={block.type} selected={selected} />
           <div data-section-copy="" className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <ItemTitle title={label} className="line-clamp-none block max-w-full truncate whitespace-nowrap">{label}</ItemTitle>
-            {blocked ? <BlockedHint reason={blocked} /> : <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            {/* Wraps to a second line rather than cutting «Misión y valores» short. */}
+            <ItemTitle title={label} className="line-clamp-2 w-auto whitespace-normal">{label}</ItemTitle>
+            {blocked ? <BlockedHint reason={blocked} /> : <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
               <span className="min-w-0 truncate">{VARIANT_LABELS[block.variant]}</span>
               <span data-section-indicators="" className="flex shrink-0 items-center gap-1">
-                {required && <span title="Fija: siempre forma parte de tu sitio" className="flex items-center"><Lock className="size-3.5" aria-label="Sección obligatoria" /></span>}
+                {required && <Badge variant="neutral" title="Fija: siempre forma parte de tu sitio" className="h-[18px] px-1.5"><Lock role="img" aria-label="Sección obligatoria" /><span aria-hidden="true">Fija</span></Badge>}
                 {block.hidden && <Badge variant="neutral" className="h-[18px] px-1.5"><EyeOff aria-hidden="true" />Oculta</Badge>}
                 {incomplete && <Badge variant="review" dot className="h-[18px] px-1.5">Incompleta</Badge>}
               </span>
@@ -101,7 +101,7 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
           </div>
         </div>
       </ItemContent>
-      <ItemActions className="relative"><DropdownMenu><div className="relative h-10 w-9"><DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="absolute top-0 left-0 size-10" />} aria-label={`Acciones de ${label}`}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger></div>
+      <ItemActions className="relative"><DropdownMenu><div className="relative h-10 w-8"><DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="absolute top-0 left-0 size-10" />} aria-label={`Acciones de ${label}`}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger></div>
         <DropdownMenuContent align="end" className="min-w-56">
           <DropdownMenuGroup>
             <DropdownMenuItem className="min-h-10" disabled={!canUp} aria-describedby={upReason ? reasonId : undefined} onClick={() => step(-1)}><ArrowUp aria-hidden="true" />Subir</DropdownMenuItem>
@@ -122,10 +122,10 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
 /** Floating copy that follows the pointer; it names a forbidden or outside drop. */
 function SectionOverlay({ block, session }: { block: SiteBlock; session: DragSession }) {
   const label = BLOCK_LIBRARY[block.type].label; const refused = session.blocked ?? (session.outside ? "Suelta dentro de la lista para moverla." : null);
-  return <div data-drag-overlay="" className={cn("flex size-full cursor-grabbing items-center gap-1.5 rounded-2xl border border-transparent bg-card px-2.5 py-2 text-sm shadow-lg ring-1 ring-border motion-safe:scale-[1.02] dark:ring-foreground/15", refused && "cursor-not-allowed ring-2 ring-destructive/60")}>
-    <span className="-ml-1 flex h-10 w-6 shrink-0 items-center justify-center text-muted-foreground"><GripVertical className="size-4" aria-hidden="true" /></span>
+  return <div data-drag-overlay="" className={cn("relative flex size-full cursor-grabbing items-center gap-2 rounded-2xl border border-transparent bg-card py-2 pr-2.5 pl-3.5 text-sm shadow-lg ring-1 ring-border motion-safe:scale-[1.02] dark:ring-foreground/15", refused && "cursor-not-allowed ring-2 ring-destructive/60")}>
+    <span className="absolute inset-y-0 -left-1 my-auto flex h-10 w-6 items-center justify-center text-muted-foreground"><GripVertical className="size-4" aria-hidden="true" /></span>
     <SectionTile type={block.type} />
-    <span className="ml-1 flex min-w-0 flex-1 flex-col gap-0.5"><span className="truncate font-medium">{label}</span>{refused ? <BlockedHint reason={refused} /> : <span className="truncate text-xs text-muted-foreground">{VARIANT_LABELS[block.variant]}</span>}</span>
+    <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="line-clamp-2 font-medium leading-snug">{label}</span>{refused ? <BlockedHint reason={refused} /> : <span className="truncate text-xs text-muted-foreground">{VARIANT_LABELS[block.variant]}</span>}</span>
   </div>;
 }
 export function SectionList(props: ListProps) {

@@ -218,7 +218,7 @@ it.each([["process", "Proceso de selección"], ["faq", "Preguntas frecuentes"]] 
   const identity = name.closest("[data-section-identity]");
   expect(identity).toHaveClass("flex", "flex-row", "items-center");
   expect(identity?.querySelector("[data-section-type-icon]")?.parentElement).toBe(identity);
-  expect(name).toHaveClass("whitespace-nowrap");
+  expect(name).toHaveClass("whitespace-normal");
   expect(identity).not.toHaveClass("line-clamp-none");
   expect(select).toHaveClass("absolute", "inset-0", "size-full");
   // jsdom cannot measure text; this fixes the actual CSS regression (line-clamp

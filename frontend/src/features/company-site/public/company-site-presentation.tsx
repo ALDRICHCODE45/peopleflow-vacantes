@@ -66,6 +66,11 @@ function DropLine({ id }: { id: string }) {
   </div>;
 }
 
+/** The section being dragged keeps its full text contrast: a dashed editor-accent
+ * frame (counter-scaled like the selection outline) and a softer saturation mark
+ * it, never a lower opacity. */
+const dragMark = "motion-safe:transition-[filter] motion-safe:duration-150 data-editor-dragging:saturate-50 data-editor-dragging:after:pointer-events-none data-editor-dragging:after:absolute data-editor-dragging:after:inset-0 data-editor-dragging:after:z-10 data-editor-dragging:after:border-dashed data-editor-dragging:after:border-(--editor-primary) data-editor-dragging:after:border-[length:calc(2px*var(--editor-inverse-scale,1))]";
+
 /** No reads, server imports or alternate rendering tree: the editor uses this exact page.
  * Editor affordances are opt-in; without onSelectBlock public markup is unchanged. */
 export function CompanySitePresentation({ site, company, jobs, jobsAvailable = true, officeLabels, selectedBlockId, onSelectBlock, dragPreview = null }: CompanySitePresentationProps & { dragPreview?: DragPreview }) {
@@ -101,7 +106,7 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
         onClickCapture: (event: React.MouseEvent) => { event.preventDefault(); event.stopPropagation(); onSelectBlock(block.id); },
         onKeyDown: (event: React.KeyboardEvent) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelectBlock(block.id); } },
       } : {})}
-      className={cn("scroll-mt-6", (block.type === "story" || block.type === "jobs" || block.type === "stats" && block.variant === "row" || block.type === "benefits" && block.variant === "grid" || block.type === "video" && block.variant === "split") && "bg-(--site-band)", onSelectBlock && editorStyles.section, onSelectBlock && "motion-safe:transition-opacity motion-safe:duration-150 data-editor-dragging:opacity-40")}>
+      className={cn("scroll-mt-6", (block.type === "story" || block.type === "jobs" || block.type === "stats" && block.variant === "row" || block.type === "benefits" && block.variant === "grid" || block.type === "video" && block.variant === "split") && "bg-(--site-band)", onSelectBlock && editorStyles.section, onSelectBlock && dragMark)}>
       {onSelectBlock && selectedBlockId === block.id && <Badge data-editor-label="" className={editorStyles.label}>{BLOCK_LIBRARY[block.type].label}</Badge>}
       <div className="mx-auto max-w-7xl px-6 py-10 sm:px-10 sm:py-14 lg:px-16 lg:py-16">{!hasSiteBlockContent(block) ? <BlankSection block={block} onSelect={onSelectBlock} /> : block.type === "jobs" && !jobsAvailable ? <StateCard icon={Briefcase} tone="error" title={<span id={`${anchor(block)}-title`}>No pudimos cargar las vacantes</span>} description="La vista previa de las vacantes no está disponible. El contenido del sitio no cambió." /> : <SiteBlockContent block={block} company={company} jobs={jobs} offices={officeLabels} jobsHref={jobsBlock ? `#${anchor(jobsBlock)}` : undefined} storyHref={storyBlock ? `#${anchor(storyBlock)}` : undefined} />}</div>
     </section></Fragment>)}

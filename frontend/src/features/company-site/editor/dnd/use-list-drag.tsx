@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { DndContext, DragOverlay, PointerSensor, TouchSensor, pointerWithin, useDroppable, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type DropAnimation, type PointerSensorOptions } from "@dnd-kit/core";
-import { clampIndex, dragMessages, insertionIndex, rowShift, type DragOutcome, type RowBox } from "./reorder";
+import { AUTO_SCROLL, canAutoScroll, clampIndex, dragMessages, insertionIndex, partedShift, pointerOutside, type DragOutcome, type Point, type RowBox, type Zone } from "./reorder";
 
 export type DragSession = { id: string; from: number; to: number; mode: "pointer" | "keyboard"; outside: boolean; blocked: string | null };
 type Options = {
@@ -31,6 +31,20 @@ const LIST_ID = "pf-sortable-list";
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 const DROP: DropAnimation = { duration: 180, easing: "cubic-bezier(0.22, 1, 0.36, 1)" };
 const silent = { onDragStart: () => undefined, onDragOver: () => undefined, onDragEnd: () => undefined, onDragCancel: () => undefined };
+const viewport = (): Zone => ({ left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight });
+/** The list's nearest scrolling ancestor (the editor panel), else the viewport. */
+function scrollZone(node: HTMLElement | null): Zone {
+  for (let element = node?.parentElement; element && element !== document.body; element = element.parentElement) {
+    if (/(auto|scroll|overlay)/.test(getComputedStyle(element).overflowY)) { const rect = element.getBoundingClientRect(); if (rect.height > 0) return rect; }
+  }
+  return viewport();
+}
+const zoneOf = (element: Element): Zone => element === document.scrollingElement || element === document.documentElement ? viewport() : element.getBoundingClientRect();
+function pointOf(event: Event | null | undefined): Point | null {
+  if (!event) return null;
+  if ("touches" in event) { const touch = (event as TouchEvent).touches[0] ?? (event as TouchEvent).changedTouches[0]; return touch ? { x: touch.clientX, y: touch.clientY } : null; }
+  return "clientX" in event ? { x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY } : null;
+}
 const sameSession = (a: DragSession | null, b: DragSession | null) => a === b || (!!a && !!b && a.id === b.id && a.to === b.to && a.outside === b.outside && a.blocked === b.blocked && a.mode === b.mode);
 
 /** Sortable feedback on top of @dnd-kit/core: rows part around a placeholder at
@@ -47,6 +61,10 @@ export function useListDrag({ ids, label, blockedReason, onMove, onSessionChange
   const rows = useRef(new Map<string, HTMLElement>());
   const grips = useRef(new Map<string, HTMLElement>());
   const refocus = useRef<{ id: string; order: string } | null>(null);
+  // Pointer drags: the live pointer (viewport coordinates) and the drop zone it may leave.
+  const pointer = useRef<Point | null>(null);
+  const zone = useRef<Zone | null>(null);
+  const stopTracking = useRef<(() => void) | null>(null);
   const order = ids.join("|");
   const sensors = useSensors(useSensor(FinePointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }));
 
@@ -65,9 +83,20 @@ export function useListDrag({ ids, label, blockedReason, onMove, onSessionChange
     const row = layout.current[ids.indexOf(active)];
     anchor.current = handle && handle.height ? handle.top - top + handle.height / 2 : row ? row.top + row.height / 2 : 0;
   }
-  function begin(id: string, mode: DragSession["mode"]) {
+  function track(start: Event | null | undefined) {
+    stopTracking.current?.();
+    pointer.current = pointOf(start); zone.current = scrollZone(list.current);
+    // Capture on window runs before dnd-kit's document listeners, so a move sees the fresh pointer.
+    const follow = (event: Event) => { pointer.current = pointOf(event) ?? pointer.current; };
+    const options = { capture: true, passive: true };
+    window.addEventListener("pointermove", follow, options); window.addEventListener("touchmove", follow, options);
+    stopTracking.current = () => { window.removeEventListener("pointermove", follow, options); window.removeEventListener("touchmove", follow, options); stopTracking.current = null; };
+  }
+  const outsideNow = () => !!pointer.current && !!zone.current && pointerOutside(pointer.current, zone.current);
+  function begin(id: string, mode: DragSession["mode"], start?: Event) {
     const from = ids.indexOf(id); if (from < 0) return;
     refocus.current = null; startOrder.current = order; measure(id);
+    if (mode === "pointer") track(start);
     setSession({ id, from, to: from, mode, outside: false, blocked: null });
     announce(dragMessages.start(label(id), from, ids.length));
   }
@@ -82,6 +111,7 @@ export function useListDrag({ ids, label, blockedReason, onMove, onSessionChange
   }
   function finish(cancelled: boolean) {
     const current = sessionRef.current; if (!current) return;
+    stopTracking.current?.(); pointer.current = null;
     setSession(null);
     const outcome: DragOutcome = cancelled ? "cancelled" : current.outside ? "outside" : current.to === current.from ? "same" : current.blocked ? "blocked" : "moved";
     if (current.mode === "keyboard") refocus.current = { id: current.id, order };
@@ -99,6 +129,7 @@ export function useListDrag({ ids, label, blockedReason, onMove, onSessionChange
     if (grip && document.activeElement !== grip) grip.focus();
     if (pending.order !== order) refocus.current = null;
   }, [order, session]);
+  useEffect(() => () => stopTracking.current?.(), []);
   // Pointer drags show grabbing / not-allowed wherever the pointer is.
   const cursor = session?.mode === "pointer" ? (session.blocked || session.outside ? "not-allowed" : "grabbing") : null;
   useEffect(() => {
@@ -109,14 +140,20 @@ export function useListDrag({ ids, label, blockedReason, onMove, onSessionChange
 
   const contextProps = {
     sensors, collisionDetection: pointerWithin,
-    autoScroll: { threshold: { x: 0, y: 0.18 }, acceleration: 12 },
+    autoScroll: { ...AUTO_SCROLL, canScroll: (element: Element) => canAutoScroll(pointer.current, zoneOf(element)) },
     accessibility: { announcements: silent, screenReaderInstructions: { draggable: instructions } },
-    onDragStart: ({ active }: DragStartEvent) => begin(String(active.id), "pointer"),
-    onDragMove: ({ delta, over }: DragMoveEvent) => {
+    onDragStart: ({ active, activatorEvent }: DragStartEvent) => begin(String(active.id), "pointer", activatorEvent ?? undefined),
+    // `delta` includes auto-scroll; the index is clamped to the ends, so a pointer
+    // below the last row lands last and above the first lands first.
+    onDragMove: ({ delta }: DragMoveEvent) => {
       const current = sessionRef.current; if (!current) return;
-      update(insertionIndex(layout.current, current.from, anchor.current + delta.y), !over);
+      update(insertionIndex(layout.current, current.from, anchor.current + delta.y), outsideNow());
     },
-    onDragEnd: ({ over }: DragEndEvent) => { if (sessionRef.current && !over) update(sessionRef.current.from, true); finish(false); },
+    onDragEnd: ({ delta }: DragEndEvent) => {
+      const current = sessionRef.current;
+      if (current) update(insertionIndex(layout.current, current.from, anchor.current + delta.y), outsideNow());
+      finish(false);
+    },
     onDragCancel: () => finish(true),
   };
 
@@ -145,7 +182,7 @@ export function useListDrag({ ids, label, blockedReason, onMove, onSessionChange
     const ref = (node: HTMLElement | null) => { if (node) rows.current.set(id, node); else rows.current.delete(id); };
     if (!session) return { ref };
     const index = ids.indexOf(id);
-    const shift = rowShift(layout.current, session.from, session.to, index);
+    const shift = partedShift(layout.current, session.from, session.to, session.blocked, index);
     const active = session.id === id;
     return {
       ref, style: shift ? { transform: `translate3d(0, ${shift}px, 0)` } : undefined, "data-dragging-list": "",
@@ -162,7 +199,7 @@ export function useListDrag({ ids, label, blockedReason, onMove, onSessionChange
  * renders in place instead of sliding back from the parted positions. */
 export const DRAG_ROW_MOTION = "motion-safe:data-dragging-list:transition-transform motion-safe:data-dragging-list:duration-200 motion-safe:data-dragging-list:ease-[cubic-bezier(0.22,1,0.36,1)]";
 
-/** The DndContext, a list-wide droppable (outside = cancel) and the floating
+/** The DndContext, a list-wide droppable and the floating
  * overlay, portaled so transformed ancestors can't offset it. */
 export function SortableList({ drag, overlay, children }: { drag: ReturnType<typeof useListDrag>; overlay: (session: DragSession) => ReactNode; children: ReactNode }) {
   return <DndContext {...drag.contextProps}>

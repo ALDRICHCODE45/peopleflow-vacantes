@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arrayMove, clampIndex, dragMessages, insertionIndex, PORTADA_FIRST, rowShift, sectionPlacementError, type RowBox } from "./reorder";
+import { arrayMove, AUTO_SCROLL, canAutoScroll, clampIndex, dragMessages, insertionIndex, partedShift, pointerOutside, PORTADA_FIRST, rowShift, sectionPlacementError, type RowBox } from "./reorder";
 import { canReorder } from "../../editor-state";
 import { defaultBlock } from "../../defaults";
 import type { BlockType } from "../../model";
@@ -44,6 +44,59 @@ describe("rowShift", () => {
     const mixed: RowBox[] = [{ top: 0, height: 40 }, { top: 48, height: 100 }];
     expect(rowShift(mixed, 0, 1, 0)).toBe(108);
     expect(rowShift(mixed, 0, 1, 1)).toBe(-48);
+  });
+});
+
+describe("partedShift", () => {
+  const all = [0, 1, 2, 3, 4];
+  it("parts the rows exactly like rowShift while the landing slot is allowed", () => {
+    expect(all.map(i => partedShift(rows, 3, 1, null, i))).toEqual(all.map(i => rowShift(rows, 3, 1, i)));
+  });
+  it("keeps every row at rest, the dragged one included, while the prospective slot is forbidden", () => {
+    expect(all.map(i => partedShift(rows, 2, 0, PORTADA_FIRST, i))).toEqual([0, 0, 0, 0, 0]);
+    expect(all.map(i => partedShift(rows, 0, 3, PORTADA_FIRST, i))).toEqual([0, 0, 0, 0, 0]);
+  });
+});
+
+describe("drop zone", () => {
+  // The list's scroll container (the panel): rows, the space below them and «Agregar sección» all live inside it.
+  const zone = { left: 0, top: 100, right: 280, bottom: 900 };
+  it("counts the whole scroll container as inside, below the last row and over the add button included", () => {
+    expect(pointerOutside({ x: 140, y: 880 }, zone)).toBe(false);
+    expect(pointerOutside({ x: 140, y: 120 }, zone)).toBe(false);
+    expect(pointerOutside({ x: 279, y: 500 }, zone)).toBe(false);
+  });
+  it("forgives a pointer a little past the panel's edges (auto-scroll overshoot, a shaky hand)", () => {
+    expect(pointerOutside({ x: 140, y: 960 }, zone)).toBe(false);
+    expect(pointerOutside({ x: 140, y: 50 }, zone)).toBe(false);
+    expect(pointerOutside({ x: 295, y: 500 }, zone)).toBe(false);
+  });
+  it("only calls it outside once the pointer leaves the container sideways or goes far away", () => {
+    expect(pointerOutside({ x: 340, y: 500 }, zone)).toBe(true);
+    expect(pointerOutside({ x: -40, y: 500 }, zone)).toBe(true);
+    expect(pointerOutside({ x: 140, y: 1100 }, zone)).toBe(true);
+    expect(pointerOutside({ x: 140, y: -100 }, zone)).toBe(true);
+  });
+  it("lands below the last row at the last position and above the first at the first", () => {
+    expect(insertionIndex(rows, 1, 260)).toBe(4);
+    expect(insertionIndex(rows, 3, -20)).toBe(0);
+  });
+});
+
+describe("auto-scroll", () => {
+  const zone = { left: 0, top: 100, right: 280, bottom: 900 };
+  it("is gentle: a narrow edge band and at most 500 px per second", () => {
+    expect(AUTO_SCROLL.threshold.y).toBeLessThanOrEqual(0.12);
+    expect(AUTO_SCROLL.threshold.x).toBe(0);
+    expect(AUTO_SCROLL.acceleration * (1000 / AUTO_SCROLL.interval)).toBeLessThanOrEqual(500);
+  });
+  it("is bounded: it only scrolls a container while the pointer is inside it, never racing from beyond its edge", () => {
+    expect(canAutoScroll({ x: 140, y: 890 }, zone)).toBe(true);
+    expect(canAutoScroll({ x: 140, y: 105 }, zone)).toBe(true);
+    expect(canAutoScroll({ x: 140, y: 920 }, zone)).toBe(false);
+    expect(canAutoScroll({ x: 140, y: 80 }, zone)).toBe(false);
+    expect(canAutoScroll({ x: 300, y: 500 }, zone)).toBe(false);
+    expect(canAutoScroll(null, zone)).toBe(true);
   });
 });
 

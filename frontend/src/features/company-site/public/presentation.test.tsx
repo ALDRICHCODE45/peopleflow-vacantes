@@ -102,6 +102,14 @@ describe("drag insertion line (S4)", () => {
     expect(container.querySelector(`[id="bloque-${dragged.id}"]`)).toHaveAttribute("data-editor-dragging", "true");
     expect(container.querySelectorAll("[data-editor-dragging]")).toHaveLength(1);
   });
+  it("marks the dragged section without dimming its text (axe color-contrast mid-drag)", () => {
+    const data = site(); const story = data.site.blocks[1];
+    const container = draw(data, { activeId: story.id, toIndex: 3, allowed: true });
+    const dragged = container.querySelector(`[id="bloque-${story.id}"]`) as HTMLElement;
+    expect(dragged.className).not.toMatch(/opacity/);
+    expect(dragged).toHaveClass("data-editor-dragging:after:border-dashed", "data-editor-dragging:after:border-(--editor-primary)");
+    for (const section of container.querySelectorAll<HTMLElement>("section")) expect(section.className).not.toMatch(/opacity-\d/);
+  });
   it("skips hidden sections when finding the gap", () => {
     const data = site(blocks => { blocks[1] = { ...blocks[1], hidden: true }; });
     const closing = data.site.blocks[4];
