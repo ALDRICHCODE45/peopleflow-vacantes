@@ -1,11 +1,14 @@
 import { z } from "zod";
-import { siteDraftReadSchema } from "../model";
+import { siteDraftReadSchemaV2 } from "../model";
 
 const version = z.number().int().positive().safe();
 const timestamp = z.string().datetime({ offset: true });
 export const mediaSchema = z.object({ id: z.string().uuid(), kind: z.enum(["cover", "gallery", "portrait", "story", "logo"]), url: z.string().min(1), width: z.number().int().positive(), height: z.number().int().positive() });
 export const siteStateSchema = z.object({
-  draft: siteDraftReadSchema, draft_version: version,
+  // The editor always holds a v2 draft: legacy documents normalize to the slice A
+  // defaults, and a backend that already returns slice A keys still decodes with the
+  // flag off (the PUT gate, not the read, keeps today's body).
+  draft: siteDraftReadSchemaV2, draft_version: version,
   published: z.object({ version, slug: z.string().min(1), published_at: timestamp }).nullable(),
   has_unpublished_changes: z.boolean(), media: z.array(mediaSchema), updated_at: timestamp,
 });
@@ -18,7 +21,7 @@ export const errorSchema = z.discriminatedUnion("code", [
   z.object({ ...base, code: z.literal("validation_error"), fields: z.array(fieldErrorSchema) }),
   z.object({ ...base, code: z.literal("slug_taken"), field: z.literal("slug") }),
   z.object({ ...base, code: z.literal("slug_reserved"), field: z.literal("slug") }),
-  z.object({ ...base, code: z.literal("publish_blocked"), issues: z.array(z.object({ code: z.enum(["slug_missing", "hero_title_missing", "no_content_block", "block_incomplete", "company_logo_missing", "company_name_missing"]), field: z.string().nullable() })) }),
+  z.object({ ...base, code: z.literal("publish_blocked"), issues: z.array(z.object({ code: z.enum(["slug_missing", "hero_title_missing", "no_content_block", "block_incomplete", "company_logo_missing", "company_name_missing", "hero_video_missing", "secondary_target_hidden", "hero_collage_images_missing", "style_image_missing"]), field: z.string().nullable() })) }),
   ...(["invalid_request", "forbidden", "company_inactive", "precondition_required", "payload_too_large", "unsupported_media_type", "image_too_small", "image_too_large", "media_limit_reached"] as const).map(code => z.object({ ...base, code: z.literal(code) })),
 ]);
 export type SiteError = z.infer<typeof errorSchema>;

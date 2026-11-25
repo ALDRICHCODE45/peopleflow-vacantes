@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { useState } from "react";
-import { defaultBlock, defaultSiteDraft } from "../defaults";
+import { defaultBlockV2 as defaultBlock, defaultSiteDraft } from "../defaults";
 import { createEditorState, type EditorState } from "../editor-state";
 import type { AutosaveController } from "../autosave";
 import type { BlockType } from "../model";

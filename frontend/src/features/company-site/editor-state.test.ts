@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { defaultBlock, defaultSiteDraft } from "./defaults";
+import { defaultBlockV2 as defaultBlock, defaultSiteDraft } from "./defaults";
+import { v2Draft } from "./editor/site-state.test-support";
 import { createEditorState, editorReducer, addBlockAction, duplicateBlockAction, mapFieldErrors, canReorder, type EditorState } from "./editor-state";
 import { canPublish, RECRUITER_PUBLISH_REASON } from "./permissions";
 import type { SiteState } from "./api/model";
-export const serverState = (): SiteState => ({ draft: defaultSiteDraft(), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" });
+export const serverState = (): SiteState => ({ draft: v2Draft(defaultSiteDraft()), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" });
 describe("editor reducer", () => {
   it("loads the server snapshot, version and ETag without dirtying selection", () => {
     const state = createEditorState(serverState(), '"1"');
@@ -38,7 +39,8 @@ describe("editor reducer", () => {
   });
   it("edits content, variants, visibility, theme, SEO and slug; undoing edits clears dirty", () => {
     let state = createEditorState(serverState(), '"1"'); const original = state.draft; const id = original.blocks[0].id;
-    state = editorReducer(state, { type: "content", id, content: { title: "Hola", subtitle: null, cover: null } });
+    const hero = original.blocks[0]; if (hero.type !== "hero") throw new Error("fixture");
+    state = editorReducer(state, { type: "content", id, content: { ...hero.content, title: "Hola" } });
     state = editorReducer(state, { type: "variant", id, variant: "centered" });
     expect(state.draft.blocks[0]).toMatchObject({ variant: "centered", content: { title: "Hola" } });
     expect(editorReducer(state, { type: "variant", id, variant: "mosaic" })).toEqual(state);
@@ -51,7 +53,7 @@ describe("editor reducer", () => {
     state = editorReducer(state, { type: "delete", id: faq.id }); expect(state.dirty).toBe(false);
   });
   it("maps submitted block indices to stable ids, including nested fields", () => {
-    const draft = defaultSiteDraft(); draft.blocks.push(defaultBlock("faq"));
+    const draft = v2Draft(defaultSiteDraft()); draft.blocks.push(defaultBlock("faq"));
     expect(mapFieldErrors([{ field: "blocks[2].content.items[0].question", code: "too_long" }, { field: "slug", code: "invalid" }], draft)).toEqual([
       { field: "content.items[0].question", code: "too_long", blockId: draft.blocks[2].id }, { field: "slug", code: "invalid" },
     ]);
@@ -114,4 +116,26 @@ describe("editor reducer", () => {
 it("only owner publishes and recruiter gets the agreed explanation", () => {
   expect(canPublish("owner")).toBe(true); for (const role of ["recruiter", "admin", "", null]) expect(canPublish(role)).toBe(false);
   expect(RECRUITER_PUBLISH_REASON).toBe("Solo la persona dueña de la empresa puede publicar. Tus cambios quedan guardados en el borrador.");
+});
+describe("sections v2 switched off (today's editor)", () => {
+  it("ignores style edits and refuses slice A layouts", () => {
+    const state = createEditorState(serverState(), '"1"'); const jobs = state.draft.blocks[1];
+    expect(editorReducer(state, { type: "style", id: jobs.id, style: { ...jobs.style, background: "tint" } })).toBe(state);
+    expect(editorReducer(state, { type: "variant", id: state.draft.blocks[0].id, variant: "collage" })).toBe(state);
+    expect(editorReducer(state, addBlockAction("benefits", { variant: "bento" })).draft.blocks[2]).toMatchObject({ type: "benefits", variant: "grid" });
+  });
+  it("normalizes a legacy server draft to the v2 shape without dirtying it", () => {
+    const state = createEditorState(serverState(), '"1"');
+    expect(state.dirty).toBe(false);
+    expect(state.draft.blocks[0]).toMatchObject({ style: { background: "default", spacing: "airy", align: "start", overlay: null, image: null }, content: { primary_label: "Ver vacantes", secondary_visible: true, secondary_target: null, images: [] } });
+  });
+  it("still clears a dangling Portada target on delete (any stored v2 document)", () => {
+    const data = serverState(); const story = defaultBlock("story"); data.draft.blocks.splice(1, 0, story);
+    const hero = data.draft.blocks[0]; if (hero.type !== "hero") throw new Error("fixture");
+    hero.content.secondary_target = story.id;
+    const deleted = editorReducer(createEditorState(data, '"1"'), { type: "delete", id: story.id });
+    expect(deleted.draft.blocks[0]).toMatchObject({ content: { secondary_target: null } });
+    const restored = editorReducer(deleted, { type: "insert", block: story, index: 1, heroTarget: true });
+    expect(restored.draft.blocks[0]).toMatchObject({ content: { secondary_target: story.id } });
+  });
 });

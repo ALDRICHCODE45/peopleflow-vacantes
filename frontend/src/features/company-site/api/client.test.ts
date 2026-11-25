@@ -2,14 +2,15 @@ import { afterEach, expect, it, vi } from "vitest";
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8080", apiTimeoutMs: 8000 } }));
 import { getSite, putDraft, publishSite, unpublishSite, slugAvailability } from "./client";
 import { decodeMediaError } from "./model";
-import { defaultBlock, defaultSiteDraft } from "../defaults";
+import { defaultBlock, defaultBlockV2, defaultSiteDraft } from "../defaults";
+import { v2Draft } from "../editor/site-state.test-support";
 import { createAutosave } from "../autosave";
 import { fieldMessage, TextField } from "../editor/forms/fields";
 import { createElement } from "react";
 import { render, screen } from "@testing-library/react";
 it("marks invalid emoji locally without HTTP and autosaves its correction", async () => {
   const initial = state();
-  const benefit = defaultBlock("benefits");
+  const benefit = defaultBlockV2("benefits");
   if (benefit.type !== "benefits") throw new Error("fixture");
   benefit.content.items = [{ icon: null, emoji: "😀😀", title: "Bienestar", description: null }];
   const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
@@ -26,7 +27,7 @@ it("marks invalid emoji locally without HTTP and autosaves its correction", asyn
   c.dispose();
 });
 it("marks a locally invalid benefit without HTTP, then saves the corrected draft for publication", async () => {
-  const initial = state(); const benefit = defaultBlock("benefits");
+  const initial = state(); const benefit = defaultBlockV2("benefits");
   if (benefit.type !== "benefits") throw new Error("fixture");
   benefit.content.items = [{ icon: "heart", emoji: null, title: "😀".repeat(61), description: null }];
   const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
@@ -52,7 +53,7 @@ it("marks a locally invalid benefit without HTTP, then saves the corrected draft
   expect(await publishSite("token", '"7"')).toMatchObject({ kind: "success" });
   c.dispose();
 });
-const state = () => ({ draft: defaultSiteDraft(), draft_version: 7, published: null, has_unpublished_changes: true, media: [], updated_at: "2026-10-27T00:00:00Z" });
+const state = () => ({ draft: v2Draft(defaultSiteDraft()), draft_version: 7, published: null, has_unpublished_changes: true, media: [], updated_at: "2026-10-27T00:00:00Z" });
 const respond = (body: unknown, status = 200, etag = '"7"') => vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status, headers: { etag } })));
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 it.each([
@@ -81,8 +82,17 @@ it("GET decodes state and authenticated no-store transport", async () => {
   expect(new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers).get("authorization")).toBe("Bearer token");
 });
 it("PUT sends complete document with If-Match; identical 200 keeps version", async () => {
-  const data = state(); respond(data); expect(await putDraft("token", { body: data.draft, ifMatch: '"7"' })).toMatchObject({ kind: "success", data: { draft_version: 7 } });
-  const init = vi.mocked(fetch).mock.calls[0][1]!; expect(init.method).toBe("PUT"); expect(new Headers(init.headers).get("if-match")).toBe('"7"'); expect(JSON.parse(init.body as string)).toEqual(data.draft);
+  // The editor holds the v2 draft; with sections v2 off the body is exactly today's v1 document.
+  const legacy = defaultSiteDraft(); const data = { ...state(), draft: v2Draft(legacy) };
+  respond(data); expect(await putDraft("token", { body: data.draft, ifMatch: '"7"' })).toMatchObject({ kind: "success", data: { draft_version: 7 } });
+  const init = vi.mocked(fetch).mock.calls[0][1]!; expect(init.method).toBe("PUT"); expect(new Headers(init.headers).get("if-match")).toBe('"7"'); expect(JSON.parse(init.body as string)).toEqual(legacy);
+  expect(init.body as string).not.toMatch(/"style"|primary_label|secondary_target|"images"/);
+});
+it("refuses, with the flag off, a v2 value today's backend cannot store, without any request", async () => {
+  const data = state(); vi.stubGlobal("fetch", vi.fn());
+  const draft = { ...data.draft, blocks: data.draft.blocks.map(block => block.type === "jobs" ? { ...block, style: { ...block.style, background: "tint" } } : block) };
+  expect(await putDraft("token", { body: draft, ifMatch: '"7"' })).toEqual({ kind: "invalid", fields: [{ field: "blocks[1].style", code: "not_allowed" }] });
+  expect(fetch).not.toHaveBeenCalled();
 });
 it("publish uses If-Match and unpublish does not", async () => {
   respond(state()); await publishSite("token", '"7"'); expect(new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers).get("if-match")).toBe('"7"');

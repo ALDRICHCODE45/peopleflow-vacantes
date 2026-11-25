@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { useEffect, useReducer } from "react";
 import { SectionForm } from "../forms/section-form";
-import { defaultBlock, defaultSiteDraft } from "../../defaults";
+import { defaultBlockV2 as defaultBlock, defaultSiteDraft } from "../../defaults";
 import { createEditorState, editorReducer } from "../../editor-state";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,6 +10,7 @@ import { ImageField } from "./index";
 import { uploadMedia } from "../../upload";
 import { cropImage } from "./crop-image";
 import type { ImageFieldProps } from "./contract";
+import { v2Draft } from "../site-state.test-support";
 
 // Keep both collection items mounted while editing another item's text.
 vi.mock("@/components/ui/accordion", async original => {
@@ -162,7 +163,7 @@ describe("ImageField", () => {
     if (block.type === "gallery") block.content.items = [
       { image: null, alt: "First", caption: null }, { image: null, alt: "Second", caption: null },
     ];
-    const draft = defaultSiteDraft();
+    const draft = v2Draft(defaultSiteDraft());
     draft.blocks = [block];
     const initial = createEditorState({ draft, draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-01-01T00:00:00Z" }, '"1"');
     function Harness() {

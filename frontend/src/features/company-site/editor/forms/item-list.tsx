@@ -52,7 +52,7 @@ function ItemOverlay({ title }: { title: string }) {
 }
 /** Wire items have no ids. Local identities travel with the item on moves and
  * removals so disclosure, focus, and buffered fields don't attach to another item. */
-export function ItemList<T>({ items, onChange, create, summary, children, min, max, error, empty }: { empty?: { title: string; description: string; action: string; icon: ComponentType<SVGProps<SVGSVGElement>> };  items: T[]; onChange: (items: T[]) => void; create: () => T; summary: (item: T, index: number) => string; children: (item: T, index: number) => ReactNode; min: number; max: number; error?: string }) {
+export function ItemList<T>({ items, onChange, create, summary, children, min, max, error, empty, countHint }: { countHint?: string; empty?: { title: string; description: string; action: string; icon: ComponentType<SVGProps<SVGSVGElement>> };  items: T[]; onChange: (items: T[]) => void; create: () => T; summary: (item: T, index: number) => string; children: (item: T, index: number) => ReactNode; min: number; max: number; error?: string }) {
   const prefix = useId(); const serial = useRef(items.length);
   const [keys, setKeys] = useState(() => items.map((_, i) => `${prefix}-${i}`));
   const [open, setOpen] = useState<string[]>(() => keys.slice(0, 1));
@@ -82,7 +82,7 @@ export function ItemList<T>({ items, onChange, create, summary, children, min, m
     setKeys([...ids, key]); setOpen([key]); onChange([...items, create()]);
   }
   return <div className="flex min-w-0 flex-col gap-3">
-    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Para publicar: de {min} a {max} elementos.</p><Badge variant="secondary">{items.length}/{max}</Badge></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-muted-foreground">{countHint ?? `Para publicar: de ${min} a ${max} elementos.`}</p><Badge variant="secondary">{items.length}/{max}</Badge></div>
     {error && <FieldError>{error}</FieldError>}
     {items.length === 0 && empty ? <SectionEmpty icon={empty.icon} tone="info" title={empty.title} description={empty.description} primaryAction={{ label: empty.action, onClick: add, disabled: items.length >= max, "aria-describedby": `${prefix}-limit` }} /> :
       <SortableList drag={drag} overlay={session => <ItemOverlay title={titleOf(session.id)} />}>

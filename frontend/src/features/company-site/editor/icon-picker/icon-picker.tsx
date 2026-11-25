@@ -34,7 +34,8 @@ function ChoiceGroup({ label, choices }: { label: string; choices: Choice[] }) {
     </div>
   </section>;
 }
-export function IconPicker({ value, onChange, error }: { value: Decoration; onChange: (value: Decoration) => void; error?: string }) {
+/** `allowEmoji={false}` (area overrides) offers icons only. */
+export function IconPicker({ value, onChange, error, allowEmoji = true, label: fieldLabel = "Ícono o emoji" }: { value: Decoration; onChange: (value: Decoration) => void; error?: string; allowEmoji?: boolean; label?: string }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<string>(value.emoji ? "emojis" : "icons");
@@ -50,15 +51,15 @@ export function IconPicker({ value, onChange, error }: { value: Decoration; onCh
   const iconGroups = ICON_GROUPS.map(group => ({ ...group, icons: group.icons.filter(icon => searchText(`${ICON_LABELS[icon]} ${group.label}`).includes(searchText(iconsQuery))) }));
   const emojiGroups = EMOJI_GROUPS.map(group => ({ ...group, items: group.items.filter(item => searchText(item.keywords).includes(searchText(emojisQuery))) }));
   return <Field data-invalid={!!error}>
-    <FieldLabel htmlFor={id}>Ícono o emoji</FieldLabel>
+    <FieldLabel htmlFor={id}>{fieldLabel}</FieldLabel>
     <Popover open={open} onOpenChange={next => { setOpen(next); if (next) { setTab(value.emoji ? "emojis" : "icons"); setPaste(""); setIconsQuery(""); setEmojisQuery(""); } }}>
       <PopoverTrigger id={id} render={<Button type="button" variant="outline" className="min-h-10 w-full justify-start" />} aria-invalid={!!error} aria-describedby={`${id}-help${error ? ` ${id}-error` : ""}`}>
         {value.emoji ? <span aria-hidden="true" className="inline-flex size-4 items-center justify-center text-base leading-none">{value.emoji}</span> : Current && <Current aria-hidden="true" data-icon="inline-start" />}<span className="truncate">{label}</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-[min(36rem,80dvh)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain motion-reduce:animate-none motion-reduce:transition-none">
-        <PopoverHeader><PopoverTitle>Ícono o emoji</PopoverTitle></PopoverHeader>
+        <PopoverHeader><PopoverTitle>{fieldLabel}</PopoverTitle></PopoverHeader>
         <TooltipProvider><Tabs value={tab} onValueChange={next => setTab(String(next))} className="flex-col">
-          <TabsList className="w-full"><TabsTrigger value="icons">Íconos</TabsTrigger><TabsTrigger value="emojis">Emojis</TabsTrigger></TabsList>
+          {allowEmoji && <TabsList className="w-full"><TabsTrigger value="icons">Íconos</TabsTrigger><TabsTrigger value="emojis">Emojis</TabsTrigger></TabsList>}
           <TabsContent value="icons" className="flex flex-col gap-4">
             <Field><FieldLabel htmlFor={`${id}-icons`}>Buscar íconos</FieldLabel><InputGroup><InputGroupInput id={`${id}-icons`} value={iconsQuery} onChange={event => setIconsQuery(event.target.value)} /><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon></InputGroup></Field>
             {iconGroups.every(group => !group.icons.length) && <p role="status">No encontramos íconos. Prueba con otra palabra.</p>}
@@ -67,18 +68,18 @@ export function IconPicker({ value, onChange, error }: { value: Decoration; onCh
               return { key: icon, label: ICON_LABELS[icon], glyph: <Icon aria-hidden="true" />, selected: value.icon === icon, choose: () => choose({ icon, emoji: null }) };
             })} />)}
           </TabsContent>
-          <TabsContent value="emojis" className="flex flex-col gap-4">
+          {allowEmoji && <TabsContent value="emojis" className="flex flex-col gap-4">
             <FieldGroup>
               <Field><FieldLabel htmlFor={`${id}-emojis`}>Buscar emojis</FieldLabel><InputGroup><InputGroupInput id={`${id}-emojis`} value={emojisQuery} onChange={event => setEmojisQuery(event.target.value)} /><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon></InputGroup></Field>
               <Field data-invalid={!!pasteError}><FieldLabel htmlFor={`${id}-paste`}>Pega tu emoji</FieldLabel><InputGroup><InputGroupInput id={`${id}-paste`} value={paste} onChange={event => setPaste(event.target.value)} aria-invalid={!!pasteError} aria-describedby={pasteMessage ? `${id}-paste-error` : undefined} /></InputGroup>{pasteMessage && <FieldError id={`${id}-paste-error`}>{pasteMessage}</FieldError>}<Button type="button" variant="outline" disabled={!paste || !!pasteError} onClick={() => choose({ icon: null, emoji: paste })}>Usar emoji</Button></Field>
             </FieldGroup>
             {emojiGroups.every(group => !group.items.length) && <p role="status">No encontramos emojis. Pega el que tú prefieras.</p>}
             {emojiGroups.map(group => <ChoiceGroup key={group.label} label={group.label} choices={group.items.map(item => ({ key: item.emoji, label: item.label, glyph: <span aria-hidden="true" className="text-xl leading-none">{item.emoji}</span>, selected: value.emoji === item.emoji, choose: () => choose({ icon: null, emoji: item.emoji }) }))} />)}
-          </TabsContent>
+          </TabsContent>}
         </Tabs></TooltipProvider>
       </PopoverContent>
     </Popover>
-    <FieldDescription id={`${id}-help`}>Elige un ícono o un emoji para representar esta idea.</FieldDescription>
+    <FieldDescription id={`${id}-help`}>{allowEmoji ? "Elige un ícono o un emoji para representar esta idea." : "Elige un ícono para representar esta área."}</FieldDescription>
     {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
   </Field>;
 }

@@ -92,7 +92,7 @@ export function BrandSettings({ theme, onChange }: { theme: SiteDraft["theme"]; 
 
 type Availability = "empty" | "checking" | "available" | "taken" | "reserved" | "invalid" | "error";
 const AVAILABILITY_LABELS: Record<Availability, string> = { empty: "Elige una dirección para tu sitio", checking: "Verificando…", available: "Disponible", taken: "En uso", reserved: "Reservada", invalid: "Inválida", error: "No pudimos verificar. Vuelve a editar la dirección para reintentar." };
-export function SiteSettings({ draft, company, onSlug, onSeo, savedSlug = null, slugError }: { draft: SiteDraft; company: PublicSite["company"]; onSlug: (slug: string | null) => void; onSeo: (seo: SiteDraft["seo"]) => void; savedSlug?: string | null; slugError?: SiteFieldError }) {
+export function SiteSettings({ draft, company, onSlug, onSeo, savedSlug = null, slugError }: { draft: Pick<SiteDraft, "slug" | "seo">; company: PublicSite["company"]; onSlug: (slug: string | null) => void; onSeo: (seo: SiteDraft["seo"]) => void; savedSlug?: string | null; slugError?: SiteFieldError }) {
   const [slugInput, setSlugInput] = useState(draft.slug ?? "");
   const [availability, setAvailability] = useState<Availability>("empty");
   const acceptSlug = useRef(onSlug);

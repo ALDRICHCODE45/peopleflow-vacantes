@@ -10,8 +10,11 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Spinner } from "@/components/ui/spinner";
-import { MEDIA_MAX_BYTES, MEDIA_TYPES, MEDIA_UNCERTAIN } from "../../media";
+import { LOGO_MEDIA_TYPES, LOGO_MIN_PX, MEDIA_MAX_BYTES, MEDIA_TYPES, MEDIA_UNCERTAIN, type MediaKindV2 } from "../../media";
 import { uploadMedia } from "../../upload";
+
+/** Logos keep their transparency: PNG/WebP only (the upload route enforces the same). */
+const mediaTypesFor = (kind: MediaKindV2): readonly string[] => kind === "logo" ? LOGO_MEDIA_TYPES : MEDIA_TYPES;
 import { cropAspects, type ImageFieldProps } from "./contract";
 import { cropImage, type CropArea } from "./crop-image";
 
@@ -20,6 +23,7 @@ const recommendations = {
   gallery: "Recomendado: 1200 × 900 px",
   portrait: "Recomendado: 800 × 800 px",
   story: "Recomendado: al menos 1200 px de ancho",
+  logo: "Recomendado: fondo transparente, al menos 256 px de ancho",
 };
 type Source = { url: string; image: HTMLImageElement; file: File };
 
@@ -73,8 +77,8 @@ function ImageFieldSlot({ kind, label, description, value, onChange, previewUrl,
     setLocalError(null);
     setAnnouncement("");
     setPending(null);
-    if (!(MEDIA_TYPES as readonly string[]).includes(file.type)) {
-      setLocalError("Usa una imagen JPG, PNG o WebP."); return;
+    if (!mediaTypesFor(kind).includes(file.type)) {
+      setLocalError(kind === "logo" ? "Usa un logo PNG o WebP." : "Usa una imagen JPG, PNG o WebP."); return;
     }
     if (file.size > MEDIA_MAX_BYTES) {
       setLocalError("La imagen pesa más de 5 MB."); return;
@@ -86,8 +90,9 @@ function ImageFieldSlot({ kind, label, description, value, onChange, previewUrl,
     try {
       const image = await readImage(url);
       if (!alive.current) return;
-      if (image.naturalWidth < 200 || image.naturalHeight < 200) {
-        throw new Error("La imagen debe medir al menos 200 px por lado.");
+      const minimum = kind === "logo" ? LOGO_MIN_PX : 200;
+      if (image.naturalWidth < minimum || image.naturalHeight < minimum) {
+        throw new Error(`La imagen debe medir al menos ${minimum} px por lado.`);
       }
       if (image.naturalWidth > 6000 || image.naturalHeight > 6000) {
         throw new Error("La imagen debe medir como máximo 6000 px por lado.");
@@ -154,7 +159,7 @@ function ImageFieldSlot({ kind, label, description, value, onChange, previewUrl,
     <Field data-disabled={blocked || undefined} data-invalid={!!message || undefined} aria-labelledby={`${id}-label`}>
       <FieldLabel id={`${id}-label`} htmlFor={id}>{label}</FieldLabel>
       {description && <FieldDescription>{description}</FieldDescription>}
-      <Input ref={inputRef} id={id} type="file" accept={MEDIA_TYPES.join(",")} className="sr-only" tabIndex={-1}
+      <Input ref={inputRef} id={id} type="file" accept={mediaTypesFor(kind).join(",")} className="sr-only" tabIndex={-1}
         aria-label={`Archivo de ${label}`} aria-invalid={!!message} aria-describedby={`${id}-help${message ? ` ${id}-error` : ""}`}
         disabled={blocked} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void choose(file); }} />
       {value ? (
@@ -186,7 +191,7 @@ function ImageFieldSlot({ kind, label, description, value, onChange, previewUrl,
           </EmptyHeader>
         </Empty>
       )}
-      <FieldDescription id={`${id}-help`}>JPG, PNG o WebP · hasta 5 MB<br />{recommendations[kind]}</FieldDescription>
+      <FieldDescription id={`${id}-help`}>{kind === "logo" ? "PNG o WebP" : "JPG, PNG o WebP"} · hasta 5 MB<br />{recommendations[kind]}</FieldDescription>
       <div role="status" aria-live="polite" className="flex min-h-5 items-center gap-2 text-sm text-muted-foreground">
         {busy && <Spinner aria-hidden="true" />}
         {busy === "uploading" ? "Subiendo imagen…" : busy === "reading" ? "Leyendo imagen…" : busy === "cropping" ? "Preparando imagen…" : announcement}

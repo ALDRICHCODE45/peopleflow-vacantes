@@ -1,9 +1,9 @@
 import "server-only";
 import { boundedJson } from "@/features/candidate-cvs/bounded-body";
-import { mediaErrorStatuses, uploadedMediaSchema, type MediaKind, type UploadedMedia } from "../media";
+import { mediaErrorStatuses, uploadedMediaSchema, type MediaKindV2, type UploadedMedia } from "../media";
 export type MediaBackendResult = { ok: true; data: UploadedMedia } | { ok: false; status: number; code: string };
 /** Only a fresh server-session authorization header crosses this boundary. */
-export async function uploadMediaFile(token: string, body: FormData, kind: MediaKind): Promise<MediaBackendResult> {
+export async function uploadMediaFile(token: string, body: FormData, kind: MediaKindV2): Promise<MediaBackendResult> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {

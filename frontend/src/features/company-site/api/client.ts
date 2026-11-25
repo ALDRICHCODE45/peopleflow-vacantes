@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { requestJson } from "@/lib/api/server";
-import { siteDraftSchema } from "../model";
+import { siteDraftPayloadSchema } from "../model";
 import { companyProfileSchema, type CompanyProfileResult } from "./company-profile";
 import { availabilitySchema, decodeFailure, errorSchema, siteStateSchema, type AvailabilityResult, type Failure, type SiteResult } from "./model";
 
@@ -53,7 +53,9 @@ export async function getCompanyProfile(companyId: string): Promise<CompanyProfi
 }
 export function getSite(token: string): Promise<SiteResult> { return siteRequest(token, ""); }
 export async function putDraft(token: string, input: SaveInput): Promise<SiteResult> {
-  const body = siteDraftSchema.safeParse(input?.body);
+  // The editor holds a v2 draft; with sections v2 off this gate emits exactly
+  // today's v1 document and refuses (not_allowed) anything v1 cannot express.
+  const body = siteDraftPayloadSchema.safeParse(input?.body);
   if (!body.success) return { kind: "invalid", fields: draftFieldErrors(body.error.issues) };
   if (!validTag(input?.ifMatch)) return diagnostic({ kind: "invalid_request" });
   return siteRequest(token, "/draft", "PUT", body.data, input.ifMatch);

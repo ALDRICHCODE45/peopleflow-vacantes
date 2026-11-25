@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutosave, autosaveLabel } from "./autosave";
-import { defaultBlock, defaultSiteDraft } from "./defaults";
+import { defaultBlockV2 as defaultBlock, defaultSiteDraft } from "./defaults";
+import { v2Draft } from "./editor/site-state.test-support";
 import type { SiteResult, SiteState } from "./api/model";
-const data = (): SiteState => ({ draft: defaultSiteDraft(), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" });
+const data = (): SiteState => ({ draft: v2Draft(defaultSiteDraft()), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" });
 const deferred = () => { let resolve!: (result: SiteResult) => void; const promise = new Promise<SiteResult>(r => { resolve = r; }); return { promise, resolve }; };
 beforeEach(() => vi.useFakeTimers()); afterEach(() => vi.useRealTimers());
 it("explicit retry saves the current draft even after reverting an unrecognized write", async () => {
@@ -218,7 +219,7 @@ describe("undo/redo history", () => {
   });
   it("coalesces a typing burst in one field into one step; a pause, blur or another field starts a new one", () => {
     const initial = data(); const hero = initial.draft.blocks[0]; const c = createAutosave(initial, '"1"', echo(initial));
-    const type = (title: string, subtitle: string | null = null) => c.dispatch({ type: "content", id: hero.id, content: { title, subtitle, cover: null } });
+    const type = (title: string, subtitle: string | null = null) => c.dispatch({ type: "content", id: hero.id, content: { ...(hero.type === "hero" ? hero.content : {}), title, subtitle, cover: null } as typeof hero.content });
     type("H"); vi.advanceTimersByTime(300); type("Ho"); vi.advanceTimersByTime(300); type("Hol");
     vi.advanceTimersByTime(1000); type("Hola");
     c.checkpoint(); type("Hola!");

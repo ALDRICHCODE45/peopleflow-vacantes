@@ -6,10 +6,11 @@ import "@testing-library/jest-dom/vitest";
 import { EDITOR_LAYOUT_KEY } from "./editor-layout";
 import { CareersSiteEditor, CareersSiteEditorLoading, CareersSiteEditorError } from "./index";
 import { publishedFixture } from "../public/fixtures.test-support";
-import { defaultBlock } from "../defaults";
+import { defaultBlockV2 as defaultBlock } from "../defaults";
 import type { SiteState, SiteResult } from "../api/model";
 import { saveDraftAction } from "../api/actions";
 import { RECRUITER_PUBLISH_REASON } from "../permissions";
+import { v2Draft } from "./site-state.test-support";
 vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
 vi.mock("../api/actions", () => ({ saveDraftAction: vi.fn(), slugAvailabilityAction: vi.fn().mockResolvedValue({ kind: "uncertain" }), publishSiteAction: vi.fn(), unpublishSiteAction: vi.fn() }));
 // Base UI menu portals cannot be positioned by jsdom; keep its actual controller,
@@ -20,7 +21,7 @@ vi.mock("@/components/ui/dropdown-menu", async original => {
 });
 function fixture() {
   const data = publishedFixture();
-  const initialSite: SiteState = { draft: { ...data.site, slug: data.slug }, draft_version: 7, published: null, has_unpublished_changes: false, media: data.media, updated_at: data.published_at };
+  const initialSite: SiteState = { draft: v2Draft({ ...data.site, slug: data.slug }), draft_version: 7, published: null, has_unpublished_changes: false, media: data.media, updated_at: data.published_at };
   return { initialSite, role: "owner", preview: { company: data.company, jobs: [], officeLabels: new Map<string, string>() } };
 }
 async function mount(role = "owner") {

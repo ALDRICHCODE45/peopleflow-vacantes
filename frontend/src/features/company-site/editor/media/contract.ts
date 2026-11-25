@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { MediaKind, UploadedMedia } from "../../media";
+import type { MediaKindV2, UploadedMedia } from "../../media";
 import type { mediaRefSchema } from "../../model";
 
 /** A block's reference to uploaded media (`{ media_id }` or null), as stored in the draft. */
@@ -14,8 +14,8 @@ export type MediaRef = z.infer<typeof mediaRefSchema>;
  * draft directly.
  */
 export type ImageFieldProps = {
-  /** Upload kind; fixes the crop aspect: cover 16:9, gallery 4:3, portrait 1:1, story free. */
-  kind: MediaKind;
+  /** Upload kind; fixes the crop aspect: cover 16:9, gallery 4:3, portrait 1:1, story and logo free. */
+  kind: MediaKindV2;
   /** Visible field label, e.g. «Imagen de portada». */
   label: string;
   /** Optional helper text under the label. */
@@ -31,9 +31,10 @@ export type ImageFieldProps = {
   disabled?: boolean;
 };
 
-export const cropAspects: Record<MediaKind, number | null> = {
+export const cropAspects: Record<MediaKindV2, number | null> = {
   cover: 16 / 9,
   gallery: 4 / 3,
   portrait: 1,
   story: null,
+  logo: null,
 };

@@ -12,13 +12,17 @@ const COLLECTION_EMPTY = {
   testimonials: { noun: "testimonios", action: "Agregar testimonio", description: "Comparte la experiencia de tu equipo. Necesitas su permiso para publicarla." },
   offices: { noun: "oficinas", action: "Agregar oficina", description: "Ayuda a las personas a conocer tus sedes. Agrega una oficina para empezar." },
   faq: { noun: "preguntas frecuentes", action: "Agregar pregunta", description: "Resuelve dudas sobre tu empresa. Agrega una pregunta y su respuesta." },
+  team: { noun: "personas", action: "Agregar persona", description: "Presenta a quienes lideran tu equipo. Necesitas su permiso para publicar su nombre y foto." },
+  logos: { noun: "logos", action: "Agregar logo", description: "Muestra premios, certificaciones o aliados. Agrega un logo con su nombre." },
 } as const;
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { LocationField } from "@/features/geo/location-field";
 import { locationValueToWrite } from "@/features/geo/model";
 import type { ReactNode } from "react";
-import type { SiteBlock } from "../../model";
+import type { SiteBlockV2 } from "../../model";
+import { parseVideoUrl } from "../../video";
+import { SECTIONS_V2_ENABLED } from "../../sections-v2";
 import { mediaUrl } from "../../public/media";
 import { ImageField } from "../media";
 import { fieldMessage, TextField } from "./fields";
@@ -26,15 +30,15 @@ import { IconPicker } from "../icon-picker/icon-picker";
 import { ItemList } from "./item-list";
 import type { FormProps } from "./section-form";
 
-function ConsentField({ value, onChange, error }: { value: boolean; onChange: (value: boolean) => void; error?: string }) {
+function ConsentField({ value, onChange, error, label = "Tengo permiso para publicar este testimonio", description = "Confirma que la persona autorizó publicar su nombre, testimonio y foto. Es necesario para publicar." }: { value: boolean; onChange: (value: boolean) => void; error?: string; label?: string; description?: string }) {
   const id = useId();
-  return <Field data-invalid={!!error} orientation="horizontal"><FieldContent><FieldLabel htmlFor={id}>Tengo permiso para publicar este testimonio</FieldLabel><FieldDescription id={`${id}-help`}>Confirma que la persona autorizó publicar su nombre, testimonio y foto. Es necesario para publicar.</FieldDescription>{error && <FieldError id={`${id}-error`}>{error}</FieldError>}</FieldContent><Switch id={id} checked={value} onCheckedChange={onChange} aria-invalid={!!error} aria-describedby={`${id}-help${error ? ` ${id}-error` : ""}`} /></Field>;
+  return <Field data-invalid={!!error} orientation="horizontal"><FieldContent><FieldLabel htmlFor={id}>{label}</FieldLabel><FieldDescription id={`${id}-help`}>{description}</FieldDescription>{error && <FieldError id={`${id}-error`}>{error}</FieldError>}</FieldContent><Switch id={id} checked={value} onCheckedChange={onChange} aria-invalid={!!error} aria-describedby={`${id}-help${error ? ` ${id}-error` : ""}`} /></Field>;
 }
 export function CollectionForm({ block, dispatch, fieldErrors }: FormProps) {
   const error = (path: string) => fieldMessage(fieldErrors, block.id, `content.${path}`);
   function list<T>(items: T[], blank: () => T, min: number, max: number, summary: (item: T) => string | null, fields: (item: T, index: number, update: (patch: Partial<T>) => void) => ReactNode) {
     // Each switch branch supplies its own item type and complete blank template.
-    const set = (next: T[]) => dispatch({ type: "content", id: block.id, content: { ...block.content, items: next } as SiteBlock["content"] });
+    const set = (next: T[]) => dispatch({ type: "content", id: block.id, content: { ...block.content, items: next } as SiteBlockV2["content"] });
     const copy = COLLECTION_EMPTY[block.type as keyof typeof COLLECTION_EMPTY];
     return <ItemList empty={{ title: `Todavía no hay ${copy.noun}`, description: copy.description, action: copy.action, icon: SECTION_ICONS[block.type] }} items={items} create={blank} min={min} max={max} onChange={set} error={error("items")} summary={(item, i) => summary(item)?.trim() || `Elemento ${i + 1}`}>
       {(item, i) => fields(item, i, patch => set(items.map((entry, j) => j === i ? { ...entry, ...patch } : entry)))}
@@ -69,13 +73,32 @@ export function CollectionForm({ block, dispatch, fieldErrors }: FormProps) {
       <TextField label="Texto alternativo" value={item.alt} onChange={alt => update({ alt })} max={160} description="Describe lo que aparece para quienes no pueden ver la imagen. Es necesario para publicar." error={itemError(i, "alt")} />
       <TextField label="Pie de foto" value={item.caption} onChange={caption => update({ caption })} max={120} description="Agrega contexto a la foto. Es opcional." error={itemError(i, "caption")} />
     </>);
-    case "testimonials": return list(block.content.items, () => ({ quote: null, name: null, role: null, photo: null, consent: false }), 1, 6, item => item.name, (item, i, update) => <>
+    case "testimonials": return list(block.content.items, () => ({ quote: null, name: null, role: null, photo: null, consent: false, video_url: null }), 1, 6, item => item.name, (item, i, update) => <>
       <TextField label="Testimonio" value={item.quote} onChange={quote => update({ quote })} max={400} description="Comparte las palabras de esta persona. Es necesario para publicar." error={itemError(i, "quote")} multiline />
       <TextField label="Nombre" value={item.name} onChange={name => update({ name })} max={80} description="Indica quién comparte el testimonio. Es necesario para publicar." error={itemError(i, "name")} />
       <TextField label="Puesto" value={item.role} onChange={role => update({ role })} max={80} description="Agrega su puesto o área. Es opcional." error={itemError(i, "role")} />
       <ImageField kind="portrait" label="Foto" description="Agrega un retrato autorizado. Es opcional." value={item.photo} onChange={photo => update({ photo })} previewUrl={mediaUrl} error={itemError(i, "photo")} />
+      {SECTIONS_V2_ENABLED && <TextField label="Video del testimonio" value={item.video_url} onChange={video_url => update({ video_url })} max={500} description="Pega un enlace de YouTube o Vimeo. Es opcional." error={itemError(i, "video_url") ?? (item.video_url && !parseVideoUrl(item.video_url) ? "Pega un enlace de YouTube o Vimeo." : undefined)} url />}
       <ConsentField value={item.consent} onChange={consent => update({ consent })} error={itemError(i, "consent")} />
     </>);
+    case "team": return <>
+      <TextField label="Título" value={block.content.title} onChange={title => dispatch({ type: "content", id: block.id, content: { ...block.content, title } })} max={80} description="Dale un título breve a esta sección. Es opcional." error={error("title")} />
+      <TextField label="Introducción" value={block.content.intro} onChange={intro => dispatch({ type: "content", id: block.id, content: { ...block.content, intro } })} max={200} description="Cuenta quiénes son y qué hacen. Es opcional." error={error("intro")} multiline />
+      {list(block.content.items, () => ({ name: null, role: null, photo: null, consent: false }), 1, 12, item => item.name, (item, i, update) => <>
+        <TextField label="Nombre" value={item.name} onChange={name => update({ name })} max={80} description="Indica el nombre de la persona. Es necesario para publicar." error={itemError(i, "name")} />
+        <TextField label="Puesto" value={item.role} onChange={role => update({ role })} max={80} description="Agrega su puesto o área. Es opcional." error={itemError(i, "role")} />
+        <ImageField kind="portrait" label="Foto" description="Agrega un retrato autorizado. Es opcional." value={item.photo} onChange={photo => update({ photo })} previewUrl={mediaUrl} error={itemError(i, "photo")} />
+        <ConsentField label="Tengo permiso para publicar a esta persona" description="Confirma que la persona autorizó publicar su nombre, puesto y foto. Es necesario para publicar." value={item.consent} onChange={consent => update({ consent })} error={itemError(i, "consent")} />
+      </>)}
+    </>;
+    case "logos": return <>
+      <TextField label="Título" value={block.content.title} onChange={title => dispatch({ type: "content", id: block.id, content: { ...block.content, title } })} max={80} description="Por ejemplo, «Reconocimientos». Es opcional." error={error("title")} />
+      {list(block.content.items, () => ({ name: null, image: null, caption: null }), 1, 12, item => item.name, (item, i, update) => <>
+        <TextField label="Nombre" value={item.name} onChange={name => update({ name })} max={80} description="Nombra el premio, la certificación o el aliado; también describe el logo. Es necesario para publicar." error={itemError(i, "name")} />
+        <ImageField kind="logo" label="Logo" description="Usa un PNG o WebP, de preferencia con fondo transparente. Es necesario para publicar." value={item.image} onChange={image => update({ image })} previewUrl={mediaUrl} error={itemError(i, "image")} />
+        <TextField label="Detalle" value={item.caption} onChange={caption => update({ caption })} max={80} description="Por ejemplo, el año o la categoría. Es opcional." error={itemError(i, "caption")} />
+      </>)}
+    </>;
     case "offices": return list(block.content.items, () => ({ name: null, location: null, address: null, map_url: null }), 1, 20, item => item.name, (item, i, update) => <>
       <TextField label="Nombre de la oficina" value={item.name} onChange={name => update({ name })} max={80} description="Identifica esta sede. Es necesario para publicar." error={itemError(i, "name")} />
       <LocationField label="Ubicación" depth="municipality" postalCode defaultCountry={null} value={{ country: item.location?.country ?? null, state: item.location?.state ?? null, municipality: item.location?.municipality ?? null, postal_code: item.location?.postal_code ?? null }} onChange={value => update({ location: locationValueToWrite(value) })} required={["country"]} description="Elige el país para publicar esta oficina. En México puedes detallar estado y municipio." errors={(["country", "state", "municipality", "postal_code"] as const).flatMap(field => { const message = itemError(i, `location.${field}`) ?? (field === "country" ? itemError(i, "location") : undefined); return message ? [{ field, reason: "unknown" as const, message }] : []; })} />
