@@ -87,3 +87,13 @@ Vacantes rules); the list drag (T2) dispatches only that action on drop. No new 
   `published: {version, slug, published_at}`, not the published document — needs the backend to expose it (backlog,
   coordinate with the backend session). `697a5b22` alone doesn't typecheck (passes `onReorder` before `d1667d04` declares
   it); the pair does. T3 launched (writer C): one placement rule, Subir/Bajar via reorder, preview insertion line.
+- **L5** (2026-11-25) T3 `2a7ab17a` (writer C: single placement rule `placementError`, Subir/Bajar/Alt+arrows via
+  reorder with disabled reason, preview «Soltar aquí» line + dimmed dragged section + reveal scroll; related 610/610).
+  :3000 was serving a 00:36 production build (pre-branch); rebuilt from `2a7ab17a` and restarted `pnpm start --port 3000`
+  (BUILD_ID `EUparV4qBN8zVXiBrRJti`). Independent browser check (Chromium + Firefox, 1440 light/dark, 390 touch; saves
+  aborted, persisted order unchanged): S1, S3, S4, S5 pass, S2 delete/undo passes (conflict flow not reachable without the
+  server; discard draft not built). Defects for a fix round: auto-scroll overshoot makes a drop near the bottom count as
+  outside (cancel); a forbidden slot still parts the rows; «Misión y valores» / «Vacantes abiertas» truncated (~92 px
+  title); dimmed dragged section (opacity .4) fails axe color-contrast mid-drag. Pre-existing axe items (not this branch):
+  aria-required-children on preview groups with separators and on the ⋯ menu with a switch; nested-interactive on toasts.
+  Swipe-to-scroll at 390 verified in Chromium only (Firefox can't emulate mobile touch scrolling).
