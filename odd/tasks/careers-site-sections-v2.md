@@ -69,3 +69,5 @@ picks a direction, coordinated with the backend session.
 - **L6** (2026-11-25) User answers: order «Sí, A primero (recomendado)» (slice A shipped and merged first; B and C as
   next deliveries, each with its own review); duplicates «Crear y marcar duplicado»; team notice, verbatim: «contador y
   correo» (counter in Base de talento + email to the owner). Slice A goes to the backend session first.
+- **L7** (2026-11-25) Backend session took slice A with six adjustments (recorded at the end of the contract file).
+  Frontend slice A starts: T3a model/schema first, then editor and presentation in parallel.

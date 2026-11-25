@@ -60,3 +60,16 @@ Three slices, ordered by risk; each one is independently shippable.
 - Decided (user, L6): duplicates → create a new candidate and flag it «posible duplicado» (matched on normalized email
   or E.164 phone) for the team to resolve; notification → a «Nuevos desde el sitio» counter + origin filter in Base de
   talento AND an email to the owner. Still open: retention period, email cadence (each CV vs daily digest).
+
+## Backend session adjustments to slice A (2026-11-25, accepted)
+
+1. `secondary_target` must be the id of a block that exists in the document, else 400 `validation_error`; pointing to a
+   hidden block is a publish issue; missing → null (= first block after the hero).
+2. `team` items follow exactly the testimonials consent rule (same publish issue when consent is false).
+3. `areas` overrides: key must be one of the professional-area catalog keys the backend validates vacancies with; duplicate
+   keys rejected; each override has exactly one of icon / photo.
+4. `style.overlay` and `style.image` must be null unless `background = "image"`; `image` required when it is.
+5. Slice A needs a small migration (00066) relaxing the media kind CHECK for `logo` (guarded Down).
+6. Every new key is optional on read with the proposed defaults; stored documents stay valid.
+Backend branch `feat/careers-site-sections-v2-backend` (worktree ../peopleflow-vacantes-careersv2). Exact amendment and
+error codes will come when committed; the frontend doesn't merge or emit new keys until slice A is in main.
