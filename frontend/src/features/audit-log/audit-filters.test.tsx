@@ -152,6 +152,58 @@ describe("single-choice panels: arrow keys move, Enter / click / «Aplicar» com
   });
 });
 
+describe("single-choice panels: keyboard from the search", () => {
+  const radio = (panel: HTMLElement, name: string) => within(panel).getByRole("radio", { name });
+
+  it("ArrowDown from the person search moves into the list: onto the chosen row, or the first match once the search narrows it", async () => {
+    const user = setup();
+    const panel = await open(user, /^Persona(?!lizado)/);
+    const search = within(panel).getByRole("searchbox", { name: "Buscar persona" });
+    search.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(radio(panel, "Todas las personas")).toHaveFocus();
+    expect(onChange).not.toHaveBeenCalled();
+    search.focus();
+    await user.type(search, "luis");
+    await user.keyboard("{ArrowDown}");
+    expect(radio(panel, "Luis Soto")).toHaveFocus();
+    expect(onChange).not.toHaveBeenCalled();
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({ actor_id: luisId });
+  });
+
+  it("Enter in the person search commits the first match and closes the panel", async () => {
+    const user = setup();
+    const panel = await open(user, /^Persona(?!lizado)/);
+    await user.type(within(panel).getByRole("searchbox", { name: "Buscar persona" }), "carlos{Enter}");
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({ actor_id: carlosId });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("Enter in the vacancy search commits the first match, and does nothing when nothing matches", async () => {
+    const user = setup();
+    const panel = await open(user, /^Vacante/);
+    const search = within(panel).getByRole("searchbox", { name: "Buscar vacante" });
+    await user.type(search, "zzz{Enter}");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, "apodaca{Enter}");
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({ vacancy_id: longVacancyId });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("shows an initials avatar on every person row, and the users icon on «Todas las personas»", async () => {
+    const user = setup();
+    const panel = await open(user, /^Persona(?!lizado)/);
+    expect(within(panel).getByText("AL")).toHaveAttribute("data-slot", "avatar-fallback");
+    expect(within(panel).getByText("LS")).toHaveAttribute("data-slot", "avatar-fallback");
+    expect(within(panel).getByText("CE")).toBeInTheDocument();
+    expect(within(radio(panel, "Todas las personas")).queryByText(/^[A-Z]{2}$/)).toBeNull();
+    expect(radio(panel, "Todas las personas").querySelector("[data-slot=avatar] svg")).not.toBeNull();
+  });
+});
+
 describe("action panel", () => {
   it("groups the actions by category, searches them and counts how many are chosen per group", async () => {
     const user = setup({ initial: { event_type: ["SessionEnded"] } });
@@ -182,17 +234,68 @@ describe("action panel", () => {
     expect(onChange).toHaveBeenLastCalledWith({ event_type: undefined });
   });
 
-  it("chooses a whole category with its «Seleccionar todo» row and shows it as one category chip", async () => {
+  it("chooses a whole category from a compact «Elegir todas» link in the group heading and shows it as one category chip", async () => {
     const user = setup();
     const panel = await open(user, /^Acción/);
     const sessions = within(panel).getByRole("group", { name: /^Sesiones/ });
-    await user.click(within(sessions).getByRole("checkbox", { name: "Seleccionar todo" }));
+    // No full-width «Seleccionar todo» row any more: the link sits in the heading (artboard audit-log-redesign/01).
+    expect(within(panel).queryByRole("checkbox", { name: "Seleccionar todo" })).toBeNull();
+    const link = within(panel).getByRole("button", { name: "Elegir todas las acciones de Sesiones" });
+    expect(link).toHaveTextContent("Elegir todas");
+    expect(link.closest("[data-audit-group-heading]")).toHaveTextContent("Sesiones");
+    expect(link.closest("[data-audit-group-heading]")).toHaveTextContent("0 de 2");
+    await user.click(link);
     expect(onChange).toHaveBeenLastCalledWith({ event_type: ["SessionStarted", "SessionEnded"] });
+    expect(within(sessions).getAllByRole("checkbox").every(box => box.getAttribute("aria-checked") === "true")).toBe(true);
     const chips = screen.getByRole("group", { name: "Filtros activos" });
     expect(within(chips).getByText("Sesiones (2 acciones)")).toBeInTheDocument();
-    await user.click(within(chips).getByRole("button", { name: "Quitar filtro Categoría: Sesiones (2 acciones)" }));
-    expect(onChange).toHaveBeenLastCalledWith({ event_type: [] });
+    const undo = within(panel).getByRole("button", { name: "Quitar todas las acciones de Sesiones" });
+    expect(undo).toHaveTextContent("Quitar todas");
+    await user.click(undo);
+    expect(onChange).toHaveBeenLastCalledWith({ event_type: undefined });
     expect(screen.queryByRole("group", { name: "Filtros activos" })).toBeNull();
+  });
+
+  it("«Elegir todas» completes a partly chosen category and keeps the other categories as they were", async () => {
+    const user = setup({ initial: { event_type: ["SessionEnded", "AuditLogExported"] } });
+    const panel = await open(user, /^Acción/);
+    await user.click(within(panel).getByRole("button", { name: "Elegir todas las acciones de Sesiones" }));
+    expect(onChange).toHaveBeenLastCalledWith({ event_type: ["AuditLogExported", "SessionStarted", "SessionEnded"] });
+  });
+
+  it("has one tab stop for the whole list: the arrow keys move between options across groups, Home and End jump, Space toggles", async () => {
+    const user = setup();
+    const panel = await open(user, /^Acción/);
+    const boxes = within(panel).getAllByRole("checkbox");
+    expect(boxes).toHaveLength(5);
+    expect(boxes.filter(box => box.tabIndex === 0)).toHaveLength(1);
+    boxes[0].focus();
+    await user.keyboard("{ArrowDown}");
+    expect(boxes[1]).toHaveFocus();
+    expect(boxes.map(box => box.tabIndex)).toEqual([-1, 0, -1, -1, -1]);
+    await user.keyboard("{ArrowDown}");
+    expect(boxes[2]).toHaveFocus(); // first option of the next group
+    await user.keyboard("{ArrowUp}{ArrowUp}");
+    expect(boxes[0]).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(boxes[4]).toHaveFocus();
+    await user.keyboard("{Home}");
+    expect(boxes[0]).toHaveFocus();
+    await user.keyboard("{ArrowDown}{ArrowDown} ");
+    expect(onChange).toHaveBeenLastCalledWith({ event_type: ["CompanyCandidateCVDownloaded"] });
+    expect(boxes[2]).toHaveAttribute("aria-checked", "true");
+    await user.keyboard(" ");
+    expect(onChange).toHaveBeenLastCalledWith({ event_type: undefined });
+    // The tab stop follows the focus, so Shift+Tab / Tab do not walk 75 rows.
+    expect(boxes.filter(box => box.tabIndex === 0)).toEqual([boxes[2]]);
+  });
+
+  it("moves from the search into the list with ArrowDown", async () => {
+    const user = setup();
+    const panel = await open(user, /^Acción/);
+    within(panel).getByRole("searchbox", { name: "Buscar acción" }).focus();
+    await user.keyboard("{ArrowDown}");
+    expect(within(panel).getAllByRole("checkbox")[0]).toHaveFocus();
   });
 
   it("labels a type it does not know generically, with its code, under «Otras acciones»", async () => {
@@ -258,6 +361,38 @@ describe("chips", () => {
   });
 });
 
+describe("focus after removing chips", () => {
+  const all: AuditFilters = { actor_id: luisId, event_type: ["SessionEnded"], vacancy_id: vacancyId, from: "2026-11-01", to: "2026-11-15" };
+  const remove = (name: string) => screen.getByRole("button", { name: `Quitar filtro ${name}` });
+
+  it("moves to the next chip when one is removed", async () => {
+    const user = setup({ initial: all });
+    await user.click(remove("Acción: Cerró sesión"));
+    expect(remove("Vacante: Ejecutivo de ventas")).toHaveFocus();
+  });
+
+  it("moves to the last remaining chip when the final one is removed", async () => {
+    const user = setup({ initial: all });
+    await user.click(remove("Fecha: Del 1 de noviembre de 2026 al 15 de noviembre de 2026"));
+    expect(remove("Vacante: Ejecutivo de ventas")).toHaveFocus();
+  });
+
+  it("moves to the filter bar's first control when no chip remains, never to the body", async () => {
+    const user = setup({ initial: { vacancy_id: vacancyId } });
+    await user.click(remove("Vacante: Ejecutivo de ventas"));
+    expect(screen.queryByRole("group", { name: "Filtros activos" })).toBeNull();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(screen.getByRole("button", { name: /^Persona(?!lizado)/ })).toHaveFocus();
+  });
+
+  it("«Limpiar filtros» also lands on the first control", async () => {
+    const user = setup({ initial: all });
+    await user.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+    expect(document.activeElement).not.toBe(document.body);
+    expect(screen.getByRole("button", { name: /^Persona(?!lizado)/ })).toHaveFocus();
+  });
+});
+
 describe("date range (Mexico City days)", () => {
   const pressed = (name: string) => screen.getByRole("button", { name });
 
@@ -288,8 +423,10 @@ describe("date range (Mexico City days)", () => {
     expect(pressed("Personalizado")).toHaveAttribute("aria-pressed", "true");
     const panel = await open(user, /^Personalizado/);
     expect(panel).toHaveAttribute("aria-label", "Rango personalizado");
-    expect(within(panel).getByLabelText("Desde")).toHaveTextContent("1 de noviembre de 2026");
-    expect(within(panel).getByLabelText("Hasta")).toHaveTextContent("15 de noviembre de 2026");
+    // The fields use the short day of the artboard, so nothing is cut off in a 360 px panel.
+    expect(within(panel).getByLabelText("Desde")).toHaveTextContent("1 nov 2026");
+    expect(within(panel).getByLabelText("Hasta")).toHaveTextContent("15 nov 2026");
+    expect(within(panel).getByLabelText("Desde")).not.toHaveTextContent("noviembre");
     expect(within(panel).getByText("Las fechas se cuentan en hora de la Ciudad de México.")).toBeInTheDocument();
     expect(document.querySelector('input[type="date"]')).toBeNull();
     await user.click(within(panel).getByRole("button", { name: "Quitar rango" }));

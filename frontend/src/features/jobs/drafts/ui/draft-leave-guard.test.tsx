@@ -118,3 +118,28 @@ it("removes an owned current entry on unmount but never double-traverses a confi
   await act(async () => {});
   expect(go).toHaveBeenCalledExactlyOnceWith(-2);
 });
+it("keeps the default wording and the destructive button for the vacancy editor", () => {
+  render(<DraftLeaveGuard dirty />);
+  back();
+  const dialog = screen.getByRole("alertdialog");
+  expect(dialog.querySelector("[data-slot='alert-dialog-media']")).not.toBeNull();
+  expect(screen.getByRole("alertdialog")).toHaveTextContent("Tienes cambios sin guardar");
+});
+const SHEET_PROMPT = { title: "¿Salir sin guardar los cambios?", description: "Cambiaste algo y todavía no lo guardas.", cancelLabel: "Seguir editando", confirmLabel: "Descartar cambios" } as const;
+it("uses a caller's wording with no icon and a plain status-danger text button (contrast ≥ 4.5:1 incl. hover)", () => {
+  render(<DraftLeaveGuard dirty prompt={SHEET_PROMPT} />);
+  back();
+  const dialog = screen.getByRole("alertdialog", { name: SHEET_PROMPT.title });
+  expect(dialog).toHaveTextContent(SHEET_PROMPT.description);
+  expect(dialog.querySelector("svg, [data-slot='alert-dialog-media']")).toBeNull();
+  const discard = screen.getByRole("button", { name: "Descartar cambios" });
+  expect(discard).toHaveClass("text-status-danger", "hover:text-status-danger", "hover:bg-status-danger/10");
+  expect(discard.className).not.toMatch(/(^|\s)(dark:)?(hover:)?bg-destructive|(^|\s)text-destructive/);
+  expect(screen.getByRole("button", { name: "Seguir editando" })).toHaveFocus();
+});
+it("the caller's wording confirms Back exactly like the default one", () => {
+  render(<DraftLeaveGuard dirty prompt={SHEET_PROMPT} />);
+  back();
+  fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
+  expect(go).toHaveBeenCalledExactlyOnceWith(-2);
+});

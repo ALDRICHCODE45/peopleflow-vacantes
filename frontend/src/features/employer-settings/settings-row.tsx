@@ -46,7 +46,8 @@ export function SettingsRow({ id, icon: Icon, title, description, value, note, s
         </ItemMedia>
         <ItemContent className="min-w-44">
           <ItemTitle id={id} className={soon ? "text-muted-foreground" : undefined}>{title}</ItemTitle>
-          <ItemDescription>{description}</ItemDescription>
+          {/* Phones show the whole text (artboard); the two-line clamp stays from the tablet up. */}
+          <ItemDescription className="max-md:line-clamp-none">{description}</ItemDescription>
           {note}
         </ItemContent>
         {hasActions && <ItemActions className="w-full justify-between gap-3 max-md:pl-13 md:ml-auto md:w-auto md:justify-end [&>[data-slot=button]]:max-md:min-h-11 [&>[data-slot=button]]:max-md:flex-1">

@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -64,6 +64,8 @@ export function PhoneFilters({ filters, options, optionsFailed, onRetryOptions, 
   const valuesOf = (matches: (id: string) => boolean) => chips.filter(({ key: id }) => matches(id)).map(({ value }) => value);
   const openDrawer = (next: View, wantsCustom = false) => { if (wantsCustom) setCustom(true); setView(next); };
   const back = () => setView("main");
+  const bar = useRef<HTMLElement>(null);
+  const focusFirstControl = useCallback(() => bar.current?.querySelector<HTMLElement>("[data-audit-toolbar] button:not([disabled])")?.focus(), []);
   const done = (patch: AuditFilters) => { onChange(patch); back(); };
 
   const presets = (className: string) => <ToggleGroup aria-label="Rango de fechas" variant="segmented" className={className} value={pressed ? [pressed] : []}
@@ -74,8 +76,9 @@ export function PhoneFilters({ filters, options, optionsFailed, onRetryOptions, 
       setCustom(false);
       onChange(choice ? presetRange(choice, today) : { from: undefined, to: undefined });
     }}>
-    {PRESETS.map(preset => <ToggleGroupItem key={preset.key} value={preset.key} className="min-h-10 flex-1 px-1.5">{preset.label}</ToggleGroupItem>)}
-    <ToggleGroupItem value="custom" className="min-h-10 flex-1 px-1.5" aria-haspopup="dialog" onClick={() => openDrawer("main", true)}>Personalizado</ToggleGroupItem>
+    {/* flex-auto: each choice is as wide as its text, so «Personalizado» stays inside the pill on a 390 px phone. */}
+    {PRESETS.map(preset => <ToggleGroupItem key={preset.key} value={preset.key} className="min-h-10 flex-auto px-1.5">{preset.label}</ToggleGroupItem>)}
+    <ToggleGroupItem value="custom" className="min-h-10 flex-auto px-1.5" aria-haspopup="dialog" onClick={() => openDrawer("main", true)}>Personalizado</ToggleGroupItem>
   </ToggleGroup>;
 
   const main = <>
@@ -100,7 +103,7 @@ export function PhoneFilters({ filters, options, optionsFailed, onRetryOptions, 
     </DrawerFooter>
   </>;
 
-  return <section aria-label="Filtros de la auditoría" className="flex min-w-0 flex-col gap-3">
+  return <section ref={bar} aria-label="Filtros de la auditoría" className="flex min-w-0 flex-col gap-3">
     <div data-audit-toolbar className="grid min-w-0 gap-2.5">
       <Button type="button" variant="outline" className={cn("min-h-11 w-full gap-2", count > 0 && "border-primary/35 bg-primary/7")} aria-haspopup="dialog" onClick={() => openDrawer("main")}>
         <SlidersHorizontal aria-hidden="true" />Filtros
@@ -109,8 +112,13 @@ export function PhoneFilters({ filters, options, optionsFailed, onRetryOptions, 
       {presets("h-12! w-full")}
     </div>
     <OptionsNotice failed={optionsFailed} onRetry={onRetryOptions} />
-    <ActiveChips chips={chips} onChange={onChange} onClear={onClear} />
-    <Drawer open={view !== null} onOpenChange={open => { if (!open) { setView(null); setCustom(false); } }}>
+    <ActiveChips chips={chips} onChange={onChange} onClear={onClear} onEmpty={focusFirstControl} />
+    {/* Escape inside a sub-panel goes back one step (to the main view); on the main view, and for any other way of closing, it closes. */}
+    <Drawer open={view !== null} onOpenChange={(open, details) => {
+      if (open) return;
+      if (details.reason === "escape-key" && view !== null && view !== "main") { details.cancel(); setView("main"); return; }
+      setView(null); setCustom(false);
+    }}>
       <DrawerContent>
         {shown === "actor" ? <SubView title="Persona" onBack={back}><PersonPanel actors={options?.actors ?? []} selectedId={filters.actor_id} onPick={id => done({ actor_id: id })} /></SubView>
           : shown === "action" ? <SubView title="Acción" onBack={back} footer={<Button type="button" className="min-h-11" onClick={back}>Listo</Button>}>

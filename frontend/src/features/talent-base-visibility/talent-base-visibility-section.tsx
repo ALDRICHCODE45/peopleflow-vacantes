@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Library, Trash2, TriangleAlert, X } from "lucide-react";
+import { Library, TriangleAlert, X } from "lucide-react";
 import { notifyActionResult } from "@/components/feedback/notify";
-import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import { ChoiceList } from "@/components/ui/choice-list";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { DraftLeaveGuard } from "@/features/jobs/drafts/ui/draft-leave-guard";
+import { DraftLeaveGuard, LeaveConfirmDialog, type LeavePrompt } from "@/features/jobs/drafts/ui/draft-leave-guard";
 import { SettingsRow } from "@/features/employer-settings/settings-row";
 import { listTeamMembersAction } from "@/features/employer-team/actions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -39,6 +38,15 @@ const EMPTY_WARNING = "Solo el dueño verá la Base de talento. Ningún reclutad
 const LOAD_FAILED = "No pudimos cargar quién ve la Base de talento. Puedes volver a intentarlo.";
 const SHEET_DESCRIPTION = "Define quién puede usar la búsqueda global, el detalle de candidatos fuera de una vacante, los CV de la base y la exportación de contactos.";
 const ROW_DESCRIPTION = "Quién puede usar la búsqueda global, los CV de la base y la exportación de contactos.";
+/** One wording for closing the sheet, following a link and the browser's Back with unsaved choices. */
+const LEAVE_PROMPT: LeavePrompt = {
+  title: "¿Salir sin guardar los cambios?",
+  description: "Cambiaste quién ve la Base de talento y todavía no lo guardas. Si sales ahora, se pierden.",
+  cancelLabel: "Seguir editando",
+  confirmLabel: "Descartar cambios",
+};
+/** The shared list stacks «Seleccionar todo» over its count; here the count sits on the same line, at the end (artboard `settings-redesign/02`). */
+const SELECT_ALL_LINE = "[&_[aria-labelledby$='-all']>span:first-child]:flex-row [&_[aria-labelledby$='-all']>span:first-child]:items-center [&_[aria-labelledby$='-all']>span:first-child]:justify-between [&_[aria-labelledby$='-all']>span:first-child]:gap-3";
 const UNCONFIRMED = "No pudimos confirmar si el cambio se guardó. Inténtalo de nuevo; si ya estaba guardado te avisaremos.";
 
 /** Viewers that are no longer selectable recruiters (offboarded or promoted) drop out of the draft. */
@@ -186,7 +194,7 @@ export function TalentBaseVisibilityRow() {
       {ready && <Sheet open={open} onOpenChange={next => { if (!next) requestClose(); }}>
         <SheetContent side={isMobile ? "bottom" : "right"} showCloseButton={false} className="gap-0 data-[side=right]:w-full">
           {/* Unsaved choices: the browser warns on reload/close and in-app links and Back ask first. Nested here so its dialog stacks above the sheet. */}
-          <DraftLeaveGuard dirty={dirty} />
+          <DraftLeaveGuard dirty={dirty} prompt={LEAVE_PROMPT} />
           <SheetHeader className="border-b pr-16">
             <SheetTitle>Base de talento visible para</SheetTitle>
             <SheetDescription>{SHEET_DESCRIPTION}</SheetDescription>
@@ -198,7 +206,7 @@ export function TalentBaseVisibilityRow() {
               options={TALENT_BASE_MODES.map(item => ({ value: item, title: MODE_COPY[item].title, description: MODE_COPY[item].description }))} />
             {mode === "selected_users" && (ready.recruiters.length === 0
               ? <p className="text-sm text-muted-foreground">Todavía no hay reclutadores en tu empresa. Invítalos desde Equipo.</p>
-              : <ChoiceList multiple legend="Reclutadores con acceso" disabled={disabled} value={selected} onValueChange={choose}
+              : <ChoiceList multiple legend="Reclutadores con acceso" className={SELECT_ALL_LINE} disabled={disabled} value={selected} onValueChange={choose}
                 options={ready.recruiters.map(recruiter => ({
                   value: recruiter.id, title: recruiter.name, description: recruiter.email, error: rowErrors[recruiter.id],
                   leading: isMobile ? <Avatar><AvatarFallback className="text-xs font-medium text-foreground">{initials(recruiter.name)}</AvatarFallback></Avatar> : undefined,
@@ -223,9 +231,7 @@ export function TalentBaseVisibilityRow() {
               {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Guardando…" : "Guardar cambios"}
             </Button>
           </SheetFooter>
-          <ConfirmActionDialog open={confirmDiscard} onOpenChange={setConfirmDiscard} icon={Trash2} tone="destructive"
-            title="¿Salir sin guardar los cambios?" description="Cambiaste quién ve la Base de talento y todavía no lo guardas. Si sales ahora, se pierden."
-            cancelLabel="Seguir editando" confirmLabel="Descartar cambios"
+          <LeaveConfirmDialog open={confirmDiscard} onOpenChange={setConfirmDiscard} prompt={LEAVE_PROMPT}
             onConfirm={() => { setConfirmDiscard(false); resetDraft(); setOpen(false); }} />
         </SheetContent>
       </Sheet>}

@@ -25,15 +25,19 @@ import { PAGE_SIZES, useAuditEvents, useAuditOptions } from "./use-audit-events"
 const SESSION_NOTE = "«Cerró sesión» significa que la persona hizo clic en cerrar sesión. Las sesiones que terminan por expiración o al cerrar la pestaña no se registran.";
 const number = new Intl.NumberFormat("es-MX");
 
-/** Page heading (artboard `audit-log-redesign/01`): title with «Solo el dueño» beside it, one description line and the export at the end; the shell header owns the H1. */
-function AuditHeading({ export: exportButton }: { export: ReactNode }) {
+/**
+ * Page heading (artboard `audit-log-redesign/01`): title with «Solo el dueño» beside it, one description line, the summary line and the
+ * export at the end; the shell header owns the H1. The summary keeps its line while loading, so nothing shifts.
+ */
+function AuditHeading({ export: exportButton, summary }: { export: ReactNode; summary: ReactNode }) {
   return <header data-audit-header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
     <div className="flex min-w-0 flex-col gap-1.5">
       <div data-audit-title-row className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h2 className="font-heading text-2xl font-semibold tracking-tight text-balance">Registro de actividad</h2>
         <Badge variant="neutral"><ShieldCheck aria-hidden="true" data-icon="inline-start" />Solo el dueño</Badge>
       </div>
-      <p className="max-w-prose text-sm text-muted-foreground max-sm:hidden">Quién hizo qué en tu empresa, cuándo y desde dónde. Los registros no se pueden editar.</p>
+      <p className="max-w-2xl text-sm text-muted-foreground max-sm:hidden">Quién hizo qué en tu empresa, cuándo y desde dónde. Los registros no se pueden editar.</p>
+      <p data-audit-summary className="min-h-5 text-sm text-muted-foreground">{summary}</p>
     </div>
     {exportButton}
   </header>;
@@ -43,7 +47,7 @@ function AuditHeading({ export: exportButton }: { export: ReactNode }) {
 function RecordedHelp() {
   const [open, setOpen] = useState(false);
   return <Popover open={open} onOpenChange={setOpen}>
-    <PopoverTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label="¿Qué se registra?"><Info aria-hidden="true" /></Button>} />
+    <PopoverTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10 shrink-0" aria-label="¿Qué se registra?"><Info aria-hidden="true" /></Button>} />
     <PopoverContent align="end" aria-label="Qué se registra" className="w-[min(320px,calc(100vw-2rem))]">
       <p data-testid="audit-session-note" className="text-sm text-muted-foreground">{SESSION_NOTE}</p>
       <p className="text-sm text-muted-foreground">Los registros no se pueden editar. Las fechas y horas son de la Ciudad de México.</p>
@@ -103,14 +107,18 @@ export function AuditWorkspace() {
 
   const ready = options.status === "ready" ? options.options : null;
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
-    <AuditHeading export={<ExportAuditButton filters={filters} options={ready} phone={phone} />} />
+    <AuditHeading export={<ExportAuditButton filters={filters} options={ready} phone={phone} />}
+      summary={initial ? <Skeleton aria-hidden="true" className="mt-0.5 h-4 w-72 max-w-full" />
+        // The API gives no first-event date (the list is newest first and has no ascending order or minimum), so there is no «desde …» part.
+        : loaded && loaded.total > 0 ? <><strong className="font-medium text-foreground">{number.format(loaded.total)}</strong> {noun}{filtered ? " con estos filtros" : ""} <span aria-hidden="true">·</span> hora de la Ciudad de México</> : null} />
     <Card role="region" aria-label="Registro de actividad" aria-busy={initial || paging} className="min-w-0">
       <CardHeader className="gap-3">
         <CardTitle className="sr-only"><h3>Eventos registrados</h3></CardTitle>
         <AuditFiltersBar filters={filters} options={ready} optionsFailed={options.status === "error"} onRetryOptions={options.retry} onChange={patch => audit.update({ ...filters, ...patch })} onClear={clear}
           phone={phone} total={loaded?.total} actions={phone ? undefined : <div ref={setTableToolbar} />} />
-        <CardDescription className="-mb-2 flex min-h-10 flex-wrap items-center justify-between gap-2 text-xs">
-          <span role="status" aria-live="polite" aria-label={initial ? "Cargando auditoría" : undefined}>{initial ? <Skeleton aria-hidden="true" className="h-4 w-52" /> : loaded ? <><strong className="font-medium text-foreground">{number.format(loaded.total)}</strong> {noun} {filtered ? "con estos filtros" : "registrados en tu empresa"} <span aria-hidden="true">·</span> Más recientes primero</> : null}</span>
+        <CardDescription className="-mb-2 flex min-h-10 flex-nowrap items-center justify-between gap-2 text-xs">
+          {/* One row on a phone too: the count takes the free width and the ⓘ never wraps below it; the long tail is for wider screens. */}
+          <span role="status" aria-live="polite" aria-label={initial ? "Cargando auditoría" : undefined} className="min-w-0 flex-1">{initial ? <Skeleton aria-hidden="true" className="h-4 w-52 max-w-full" /> : loaded ? <><strong className="font-medium text-foreground">{number.format(loaded.total)}</strong> {noun}{filtered ? " con estos filtros" : <span className="max-sm:hidden"> registrados en tu empresa</span>} <span aria-hidden="true">·</span> Más recientes primero</> : null}</span>
           <RecordedHelp />
         </CardDescription>
       </CardHeader>

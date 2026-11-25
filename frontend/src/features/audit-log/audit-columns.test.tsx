@@ -30,3 +30,17 @@ it("a person who shares the vacancy's title is still shown, and an event without
   entityCell(auditEvent({ vacancy: null, entity: { type: "vacancy", id: vacancyId, label: "Ejecutivo de ventas" } }));
   expect(screen.getByText("Ejecutivo de ventas")).toBeVisible();
 });
+
+it("fits a 1440 px page without sideways scrolling: the fixed column widths add up to less than the card's content width", () => {
+  // 1440 − 288 sidebar − 2 × 24 page padding − 2 × 24 card padding ≈ 1056; the table lives edge to edge in the card, so 1092 is the ceiling.
+  const total = auditColumns.reduce((sum, column) => sum + column.size, 0);
+  expect(total).toBeLessThanOrEqual(1092);
+});
+it("orders the columns as the artboard: Cuándo, Quién, Acción, Sobre, Vacante, IP y navegador", () => {
+  expect(auditColumns.map(column => column.meta.label)).toEqual(["Cuándo", "Quién", "Acción", "Sobre", "Vacante", "IP y navegador"]);
+});
+it("«Sobre» is a dash when the entity has no label (not «Sin etiqueta»)", () => {
+  const view = entityCell(auditEvent({ entity: { type: "company_candidate", id: "x", label: null } }));
+  expect(view.container).toHaveTextContent("—");
+  expect(screen.queryByText("Sin etiqueta")).toBeNull();
+});

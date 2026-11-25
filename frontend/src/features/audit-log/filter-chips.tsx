@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Chip } from "./filter-model";
@@ -11,12 +12,27 @@ export function FilterChip({ chip, onRemove }: { chip: Chip; onRemove: () => voi
   </span>;
 }
 
-/** Every active value as a removable chip with its full text; wraps on any width and stays above the results. */
-export function ActiveChips({ chips, onChange, onClear }: { chips: Chip[]; onChange: (patch: AuditFilters) => void; onClear: () => void }) {
+/**
+ * Every active value as a removable chip with its full text; wraps on any width and stays above the results. Removing a chip hands the
+ * focus to the next chip (the last one when it was the final chip), and to the filter bar's first control once none remain
+ * (`onEmpty`), so the keyboard never falls back to the page.
+ */
+export function ActiveChips({ chips, onChange, onClear, onEmpty }: { chips: Chip[]; onChange: (patch: AuditFilters) => void; onClear: () => void; onEmpty: () => void }) {
+  const group = useRef<HTMLDivElement>(null);
+  // Index of the chip that took the focus before it was removed, or -1 after «Limpiar filtros».
+  const removed = useRef<number | null>(null);
+  useEffect(() => {
+    const index = removed.current;
+    if (index === null) return;
+    removed.current = null;
+    const buttons = group.current?.querySelectorAll<HTMLElement>("[data-slot=audit-chip] button");
+    if (index >= 0 && buttons?.length) buttons[Math.min(index, buttons.length - 1)].focus();
+    else onEmpty();
+  }, [chips, onEmpty]);
   if (chips.length === 0) return null;
-  return <div role="group" aria-label="Filtros activos" className="flex min-w-0 flex-wrap items-center gap-2">
-    {chips.map(chip => <FilterChip key={chip.key} chip={chip} onRemove={() => onChange(chip.remove)} />)}
-    <Button type="button" variant="ghost" className="min-h-10" onClick={onClear}>Limpiar filtros</Button>
+  return <div ref={group} role="group" aria-label="Filtros activos" className="flex min-w-0 flex-wrap items-center gap-2">
+    {chips.map((chip, index) => <FilterChip key={chip.key} chip={chip} onRemove={() => { removed.current = index; onChange(chip.remove); }} />)}
+    <Button type="button" variant="ghost" className="min-h-10" onClick={() => { removed.current = -1; onClear(); }}>Limpiar filtros</Button>
   </div>;
 }
 

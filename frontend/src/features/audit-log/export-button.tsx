@@ -7,7 +7,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } 
 import { Popover, PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { describeRange, mxToday, PRESETS, presetRange, rangeKeyOf, type RangeKey } from "./date-range";
+import { describeRange, mxToday, PRESETS, presetRange, rangeKeyOf, shortDay, type RangeKey } from "./date-range";
 import { downloadFilename, saveBlob } from "./download";
 import { activeChips } from "./filter-model";
 import { DateInputs } from "./filter-panels";
@@ -70,15 +70,16 @@ function ExportPanel({ filters, options, onClose, phone }: { filters: AuditFilte
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium">Rango de fechas <span className="font-normal text-muted-foreground">· obligatorio, máximo 366 días</span></span>
       <ToggleGroup aria-label="Rango de la exportación" variant="segmented" className="h-11! w-full" value={[range.key]} onValueChange={(values: string[]) => choose(values[0] as RangeKey | undefined)}>
-        {PRESETS.map(preset => <ToggleGroupItem key={preset.key} value={preset.key} className="min-h-9 flex-1">{preset.label}</ToggleGroupItem>)}
-        <ToggleGroupItem value="custom" className="min-h-9 flex-1">Personalizado</ToggleGroupItem>
+        {/* flex-auto: each choice is as wide as its text, so «Personalizado» never spills out of its pill. */}
+        {PRESETS.map(preset => <ToggleGroupItem key={preset.key} value={preset.key} className="min-h-9 flex-auto px-2">{preset.label}</ToggleGroupItem>)}
+        <ToggleGroupItem value="custom" className="min-h-9 flex-auto px-2">Personalizado</ToggleGroupItem>
       </ToggleGroup>
     </div>
     {range.key === "custom" && <DateInputs idPrefix="audit-export" from={range.from} to={range.to} onChange={next => { setMessage(null); setRange({ key: "custom", ...next }); }} />}
     {issue ? <p role="alert" className="flex items-start gap-2 text-sm text-status-danger"><CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{EXPORT_RANGE_MESSAGES[issue]}</p>
       : message?.tone === "error" ? <p role="alert" className="flex items-start gap-2 text-sm text-status-danger"><CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{message.text}</p>
         : done ? <ActionStatus id="audit-export-status" tone="success" text={message.text} />
-          : <p role="status" className="flex items-start gap-2 text-sm text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{describeRange(range, today)}</p>}
+          : <p role="status" className="flex items-start gap-2 text-sm text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{describeRange(range, today, shortDay)}</p>}
     <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium" id="audit-export-applied">Filtros que se aplican</span>
       {applied.length ? <ul aria-labelledby="audit-export-applied" className="flex flex-col gap-1 text-sm [overflow-wrap:anywhere]">{applied.map(chip => <li key={chip.key}><span className="text-muted-foreground">{`${chip.name}:`}</span> {chip.value}</li>)}</ul>
@@ -101,7 +102,10 @@ function ExportPanel({ filters, options, onClose, phone }: { filters: AuditFilte
  */
 export function ExportAuditButton({ filters, options, phone = false }: { filters: AuditFilters; options: AuditOptions | null; phone?: boolean }) {
   const [open, setOpen] = useState(false);
-  const range = filters.from || filters.to ? describeRange(filters, mxToday()) : null;
+  const today = mxToday();
+  const hint = filters.from || filters.to ? `Exportación: ${describeRange(filters, today, shortDay)}` : "Requiere un rango de fechas · máx. 366 días";
+  // The tooltip keeps the full day names that the one-line hint abbreviates.
+  const hintTitle = filters.from || filters.to ? `Exportación: ${describeRange(filters, today)}` : undefined;
   const trigger = <Button type="button" variant="outline" className={phone ? "min-h-11 max-sm:w-full" : "min-h-10 max-sm:w-full"} aria-haspopup="dialog"><Download data-icon="inline-start" aria-hidden="true" />Exportar CSV</Button>;
   return <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end max-sm:w-full">
     {phone
@@ -116,8 +120,9 @@ export function ExportAuditButton({ filters, options, phone = false }: { filters
           <ExportPanel filters={filters} options={options} onClose={() => setOpen(false)} phone={false} />
         </PopoverContent>
       </Popover>}
-    <div data-pf-audit-export-slot="" className="flex min-h-4 max-w-md items-start sm:justify-end">
-      <p className="flex items-start gap-1 text-xs leading-4 text-muted-foreground sm:text-right"><Info aria-hidden="true" className="mt-0.5 size-3 shrink-0" />{range ? `Exportación: ${range}` : "Requiere un rango de fechas · máx. 366 días"}</p>
+    {/* A fixed one-line slot (h-4): a hint that wraps would push the button out of line with the title row. */}
+    <div data-pf-audit-export-slot="" className="flex h-4 max-w-md min-w-0 items-start overflow-hidden max-sm:w-full sm:justify-end">
+      <p className="flex min-w-0 items-start gap-1 text-xs leading-4 text-muted-foreground sm:text-right"><Info aria-hidden="true" className="mt-0.5 size-3 shrink-0" /><span className="truncate" title={hintTitle}>{hint}</span></p>
     </div>
   </div>;
 }

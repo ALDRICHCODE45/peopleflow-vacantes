@@ -28,11 +28,19 @@ export function dayName(value: string): string {
   return new Date(year, month - 1, day).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" });
 }
 
-export function describeRange(range: DayRange, today: string): string {
+const MONTHS_SHORT = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+/** `2026-10-26` → «26 oct 2026»: the artboard's short day for fields, hints and tooltips where «26 de octubre de 2026» is cut off. Fixed list, so «sep» never turns into «sept.». */
+export function shortDay(value: string): string {
+  const [year, month, day] = value.split("-").map(Number);
+  return `${day} ${MONTHS_SHORT[month - 1]} ${year}`;
+}
+
+/** The range in words; chips keep the long day names, fields and hints pass `shortDay`. */
+export function describeRange(range: DayRange, today: string, name: (day: string) => string = dayName): string {
   const { from, to } = range;
   const key = rangeKeyOf(range, today);
-  if (key === "today") return `Hoy (${dayName(to!)})`;
-  if (key === "7" || key === "30") return `Últimos ${key} días (${dayName(from!)} – ${dayName(to!)})`;
-  if (from && to) return `Del ${dayName(from)} al ${dayName(to)}`;
-  return from ? `Desde el ${dayName(from)}` : `Hasta el ${dayName(to!)}`;
+  if (key === "today") return `Hoy (${name(to!)})`;
+  if (key === "7" || key === "30") return `Últimos ${key} días (${name(from!)} – ${name(to!)})`;
+  if (from && to) return `Del ${name(from)} al ${name(to)}`;
+  return from ? `Desde el ${name(from)}` : `Hasta el ${name(to!)}`;
 }

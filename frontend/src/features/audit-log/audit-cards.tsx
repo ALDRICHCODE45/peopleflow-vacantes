@@ -35,7 +35,7 @@ function EventCard({ event, onOpen }: { event: AuditEvent; onOpen?: (event: Audi
           <span className={cn("min-w-0 [overflow-wrap:anywhere]", who.name === "Usuario eliminado" && "text-muted-foreground")}>{who.name}</span>
           {who.former && <Badge variant="neutral">Ex miembro</Badge>}
         </span>
-        {!isTheVacancy(event) && <Labeled label="Sobre ·">{about ? <Clamp text={about} className="font-medium text-foreground" /> : <span className="text-muted-foreground">Sin etiqueta</span>}</Labeled>}
+        {!isTheVacancy(event) && <Labeled label="Sobre ·">{about ? <Clamp text={about} className="font-medium text-foreground" /> : <span className="text-muted-foreground">—</span>}</Labeled>}
         {vacancy && <Labeled label="Vacante ·"><Clamp text={vacancy.label} className={cn("font-medium", vacancy.missing ? "text-muted-foreground" : "text-foreground")} /></Labeled>}
         {valid
           ? <time dateTime={event.occurred_at} title="Hora de la Ciudad de México" className="text-xs text-muted-foreground">{`${dayFormat.format(date)} · ${timeFormat.format(date)}`}</time>

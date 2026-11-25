@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ComponentProps, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Briefcase, ChevronDown, ScrollText, User, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -54,8 +54,11 @@ function DesktopFilters({ filters, options, optionsFailed, onRetryOptions, onCha
   const pick = (patch: AuditFilters) => { onChange(patch); setOpen(null); };
   const rangeKey = rangeKeyOf(filters, today);
   const pressed: RangeKey | null = open === "range" ? "custom" : rangeKey;
+  const bar = useRef<HTMLElement>(null);
+  // The first control of the bar takes the focus when the last chip goes away.
+  const focusFirstControl = useCallback(() => bar.current?.querySelector<HTMLElement>("[data-audit-toolbar] button:not([disabled])")?.focus(), []);
 
-  return <section aria-label="Filtros de la auditoría" className="flex min-w-0 flex-col gap-3">
+  return <section ref={bar} aria-label="Filtros de la auditoría" className="flex min-w-0 flex-col gap-3">
     <div data-audit-toolbar className="flex min-w-0 flex-wrap items-center gap-2.5">
       <Popover {...panel("actor")}>
         <PopoverTrigger render={<SelectorButton icon={User} label="Persona" count={filters.actor_id ? 1 : 0} active={open === "actor"} />} />
@@ -89,6 +92,6 @@ function DesktopFilters({ filters, options, optionsFailed, onRetryOptions, onCha
       {actions && <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
     <OptionsNotice failed={optionsFailed} onRetry={onRetryOptions} />
-    <ActiveChips chips={chips} onChange={onChange} onClear={onClear} />
+    <ActiveChips chips={chips} onChange={onChange} onClear={onClear} onEmpty={focusFirstControl} />
   </section>;
 }

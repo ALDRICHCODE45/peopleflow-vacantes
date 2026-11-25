@@ -244,6 +244,57 @@ describe("location dialog from the strip (owner only)", () => {
   });
 });
 
+describe("browser-check fixes (S1, S2, S4, S5)", () => {
+  const phone = () => {
+    vi.stubGlobal("innerWidth", 390);
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
+  };
+  it("keeps the location editor a dialog on desktop and reserves room for the ✕ in its header", async () => {
+    await renderOwner();
+    await userEvent.click(within(strip()).getByRole("button", { name: "Editar ubicación" }));
+    const dialog = screen.getByRole("dialog", { name: "Ubicación de la empresa" });
+    expect(dialog).toHaveAttribute("data-slot", "dialog-content");
+    expect(dialog.querySelector("[data-slot='dialog-header']")).toHaveClass("pr-12");
+  });
+
+  it("opens the location editor as a bottom sheet on phones, with the same fields, save and cancel", async () => {
+    phone();
+    const next = { id: company.id, name: company.name, location: null, updated_at: "2026-10-20T13:00:00.987654321Z" };
+    vi.mocked(updateCompanyLocationAction).mockResolvedValue({ kind: "updated", company: next });
+    await renderOwner();
+    await userEvent.click(within(strip()).getByRole("button", { name: "Editar ubicación" }));
+    const sheet = screen.getByRole("dialog", { name: "Ubicación de la empresa" });
+    expect(sheet).toHaveAttribute("data-slot", "sheet-content");
+    expect(sheet).toHaveAttribute("data-side", "bottom");
+    expect(within(sheet).getByText("Elige dónde se encuentra tu empresa. Puedes dejarla sin ubicación.")).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Cerrar" })).toBeVisible();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Quitar ubicación" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Guardar ubicación" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(updateCompanyLocationAction).toHaveBeenCalledWith({ location: null, updatedAt: company.updated_at });
+  });
+
+  it("closes the phone sheet with ✕ without saving", async () => {
+    phone();
+    await renderOwner();
+    await userEvent.click(within(strip()).getByRole("button", { name: "Editar ubicación" }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cerrar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(updateCompanyLocationAction).not.toHaveBeenCalled();
+  });
+
+  it("aligns «Editar ubicación» with the strip's other facts (no inline-start padding on the link)", async () => {
+    await renderOwner();
+    expect(within(strip()).getByRole("button", { name: "Editar ubicación" })).toHaveClass("px-0", "has-data-[icon=inline-start]:pl-0");
+  });
+
+  it("shows the whole row description on phones and keeps two lines from the tablet up", async () => {
+    await renderOwner();
+    const description = screen.getByText("Consulta las personas y los roles de tu equipo de reclutamiento.");
+    expect(description).toHaveClass("line-clamp-2", "max-md:line-clamp-none");
+  });
+});
+
 describe("states", () => {
   it("shows a skeleton with the shape of the strip and the rows while the company loads", async () => {
     const pending = deferred<CompanyState>();

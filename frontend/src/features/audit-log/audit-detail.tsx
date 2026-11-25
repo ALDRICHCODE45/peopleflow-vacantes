@@ -33,7 +33,9 @@ function Detail({ event }: { event: AuditEvent }) {
       <SheetTitle className="pr-12 [overflow-wrap:anywhere]">{eventLabel(event.event_type)}</SheetTitle>
       <SheetDescription><time dateTime={event.occurred_at}>{Number.isNaN(date.getTime()) ? "—" : momentFormat.format(date)}</time> · hora de la Ciudad de México</SheetDescription>
     </SheetHeader>
-    <dl className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-2">
+    {/* The scrolling box is a focusable, named region (axe scrollable-region-focusable): a keyboard user can scroll the fields. */}
+    <div role="region" aria-label="Detalle del evento" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-2 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-text">
+    <dl className="flex flex-col">
       <Row label="Quién">{who.system ? <b className="font-medium">Sistema</b> : <div className="flex items-start gap-3">
         <Avatar className="size-10 shrink-0"><AvatarFallback className={accentAvatar}>{initials(who.name)}</AvatarFallback></Avatar>
         <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
@@ -65,6 +67,7 @@ function Detail({ event }: { event: AuditEvent }) {
         : <span className={MUTED}>Este evento no guarda metadatos.</span>}</Row>
       <Row label="ID del evento"><span className="font-mono text-xs">{event.id}</span></Row>
     </dl>
+    </div>
     <SheetFooter className="flex-row flex-wrap items-center justify-end gap-2 border-t">
       {copied && <span role="status" className="mr-auto text-xs text-muted-foreground">ID copiado</span>}
       <Button type="button" variant="outline" className="min-h-10" onClick={() => void copy()}><Copy aria-hidden="true" data-icon="inline-start" />Copiar ID</Button>

@@ -36,18 +36,33 @@ describe("the button and its hint", () => {
     setup();
     expect(trigger()).toBeEnabled();
     const hint = screen.getByText("Requiere un rango de fechas · máx. 366 días");
-    expect(hint.closest("[data-pf-audit-export-slot]")).toHaveClass("min-h-4");
+    // A fixed one-line slot: a hint that wraps would push the button out of alignment with the title row.
+    expect(hint.closest("[data-pf-audit-export-slot]")).toHaveClass("h-4", "overflow-hidden");
+    expect(hint).toHaveClass("truncate");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("says which range will be exported when the filters carry one", () => {
     setup({ from: "2026-11-01", to: "2026-11-04" });
-    expect(screen.getByText("Exportación: Del 1 de noviembre de 2026 al 4 de noviembre de 2026")).toBeInTheDocument();
-    expect(screen.getByText(/^Exportación:/).closest("[data-pf-audit-export-slot]")).toHaveClass("min-h-4");
+    const hint = screen.getByText("Exportación: Del 1 nov 2026 al 4 nov 2026");
+    expect(hint).toHaveAttribute("title", "Exportación: Del 1 de noviembre de 2026 al 4 de noviembre de 2026");
+    expect(hint.closest("[data-pf-audit-export-slot]")).toHaveClass("h-4", "overflow-hidden");
+    expect(hint).toHaveClass("truncate");
   });
 });
 
 describe("the panel", () => {
+  it("sizes the four range choices by their text so «Personalizado» never spills out of its pill, and states the range in short days", async () => {
+    const user = setup({ from: "2026-10-26", to: "2026-11-24" });
+    const panel = await openPanel(user);
+    const range = within(panel).getByRole("group", { name: "Rango de la exportación" });
+    for (const label of ["Hoy", "7 días", "30 días", "Personalizado"]) {
+      expect(within(range).getByRole("button", { name: label })).toHaveClass("flex-auto");
+      expect(within(range).getByRole("button", { name: label })).not.toHaveClass("flex-1");
+    }
+    expect(within(panel).getByRole("status")).toHaveTextContent("Últimos 30 días (26 oct 2026 – 24 nov 2026)");
+  });
+
   it("opens with the explanation, the 366 day requirement, the four range choices and the filters that apply", async () => {
     const user = setup({ actor_id: anaId, event_type: ["SessionEnded"], from: "2026-11-01", to: "2026-11-04" });
     const panel = await openPanel(user);
@@ -56,7 +71,8 @@ describe("the panel", () => {
     const range = within(panel).getByRole("group", { name: "Rango de la exportación" });
     for (const label of ["Hoy", "7 días", "30 días", "Personalizado"]) expect(within(range).getByRole("button", { name: label })).toBeInTheDocument();
     expect(within(range).getByRole("button", { name: "Personalizado" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(panel).getByLabelText("Desde")).toHaveTextContent("1 de noviembre de 2026");
+    expect(within(panel).getByLabelText("Desde")).toHaveTextContent("1 nov 2026");
+    expect(within(panel).getByLabelText("Desde")).not.toHaveTextContent("noviembre");
     const applied = within(panel).getByRole("list", { name: "Filtros que se aplican" });
     expect(applied).toHaveTextContent("Persona: Ana López");
     expect(applied).toHaveTextContent("Acción: Cerró sesión");
@@ -112,8 +128,8 @@ describe("the panel", () => {
     const user = setup();
     const panel = await openPanel(user);
     await user.click(within(panel).getByRole("button", { name: "Personalizado" }));
-    expect(within(panel).getByLabelText("Desde")).toHaveTextContent("26 de octubre de 2026");
-    expect(within(panel).getByLabelText("Hasta")).toHaveTextContent("24 de noviembre de 2026");
+    expect(within(panel).getByLabelText("Desde")).toHaveTextContent("26 oct 2026");
+    expect(within(panel).getByLabelText("Hasta")).toHaveTextContent("24 nov 2026");
     expect(download(panel)).toBeEnabled();
   });
 

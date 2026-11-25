@@ -346,8 +346,11 @@ it("asks before following an in-app link away with unsaved changes, and lets the
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   await user.click(radio("Usuarios seleccionados"));
   fireEvent.click(outside);
-  const dialog = await screen.findByRole("alertdialog", { name: "Tienes cambios sin guardar" });
-  await user.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
+  // The Back and link guards use the sheet's own wording (S2 browser check).
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Salir sin guardar los cambios?" });
+  expect(dialog).toHaveTextContent("Cambiaste quién ve la Base de talento y todavía no lo guardas. Si sales ahora, se pierden.");
+  expect(within(dialog).queryByRole("button", { name: "Continuar editando" })).toBeNull();
+  await user.click(within(dialog).getByRole("button", { name: "Seguir editando" }));
   await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
   expect(radio("Usuarios seleccionados")).toBeChecked();
   outside.remove();
@@ -435,4 +438,40 @@ it("discarding closes the sheet, keeps the saved value in the row and reopens on
   await openSheet(user);
   expect(radio("Todos los reclutadores")).toBeChecked();
   expect(save()).toBeDisabled();
+});
+
+// Browser check: the confirm follows the artboard (no icon, plain destructive text button on the status-danger token, text left).
+it("the leave confirm has no icon and its «Descartar cambios» is a plain text button on the status-danger token, hover included", async () => {
+  const user = await renderOwner();
+  await user.click(radio("Usuarios seleccionados"));
+  await user.click(screen.getByRole("button", { name: "Cancelar" }));
+  const ask = await screen.findByRole("alertdialog", { name: "¿Salir sin guardar los cambios?" });
+  expect(ask.querySelector("svg, [data-slot='alert-dialog-media']")).toBeNull();
+  const discard = within(ask).getByRole("button", { name: "Descartar cambios" });
+  expect(discard).toHaveClass("text-status-danger", "hover:text-status-danger", "hover:bg-status-danger/10");
+  expect(discard.className).not.toMatch(/(^|\s)(dark:)?(hover:)?bg-destructive|(^|\s)text-destructive/);
+  expect(within(ask).getByRole("button", { name: "Seguir editando" })).toHaveFocus();
+  expect(ask.querySelector("[data-slot='alert-dialog-header']")).toHaveClass("text-left");
+});
+
+it("the Back guard asks with the same wording as closing the sheet", async () => {
+  const user = await renderOwner();
+  await user.click(radio("Usuarios seleccionados"));
+  fireEvent.popState(window, { state: null });
+  const ask = await screen.findByRole("alertdialog", { name: "¿Salir sin guardar los cambios?" });
+  expect(within(ask).getByRole("button", { name: "Seguir editando" })).toBeInTheDocument();
+  expect(within(ask).getByRole("button", { name: "Descartar cambios" })).toBeInTheDocument();
+});
+
+it("shows «N de M elegidas» on the «Seleccionar todo» line, to its right", async () => {
+  const user = await renderOwner();
+  await openPicker(user);
+  const all = box("Seleccionar todo");
+  expect(within(all).getByText("Ninguna elegida")).toBeInTheDocument();
+  await user.click(box("Ana Pérez"));
+  expect(within(all).getByText("1 de 3 elegidas")).toBeInTheDocument();
+  // The label and the count share one line: the shared list stacks them, so the sheet lays the label wrapper out as a row with the count at the end.
+  const list = all.closest("[data-slot='choice-list']")!.parentElement!;
+  expect(list.className).toContain("flex-row");
+  expect(list.className).toContain("justify-between");
 });

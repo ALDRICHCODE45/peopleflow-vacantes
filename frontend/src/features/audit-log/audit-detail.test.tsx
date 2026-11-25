@@ -75,6 +75,17 @@ describe("event detail sheet", () => {
     expect(within(row("Metadatos")).getByText("Este evento no guarda metadatos.")).toBeInTheDocument();
   });
 
+  it.each([false, true])("scrolls in a focusable, named region instead of a bare list (axe scrollable-region-focusable), phone=%s", phone => {
+    render(<AuditEventSheet event={auditEvent()} onClose={vi.fn()} phone={phone} />);
+    const dialog = screen.getByRole("dialog");
+    const region = within(dialog).getByRole("region", { name: "Detalle del evento" });
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(region).toHaveClass("overflow-y-auto", "min-h-0", "flex-1");
+    const list = region.querySelector("dl") as HTMLElement;
+    expect(list).not.toBeNull();
+    expect(list.className).not.toMatch(/overflow/);
+  });
+
   it("closes with «Cerrar»", async () => {
     const { user, onClose } = show(auditEvent());
     await user.click(screen.getAllByRole("button", { name: "Cerrar" })[0]);

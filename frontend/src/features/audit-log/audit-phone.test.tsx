@@ -62,7 +62,9 @@ describe("phone: events as cards", () => {
     expect(within(first).getByText("Ejecutivo de ventas")).toBeInTheDocument();
     expect(within(first).getByText("Vacante ·")).toBeInTheDocument();
     expect(within(former).getByText("Ex miembro")).toBeInTheDocument();
-    expect(within(former).getByText("Sin etiqueta")).toBeInTheDocument();
+    // No label: the artboard shows a dash, as the table does.
+    expect(within(former).getByText("—")).toBeInTheDocument();
+    expect(within(former).queryByText("Sin etiqueta")).toBeNull();
     expect(within(former).queryByText("Vacante ·")).toBeNull();
     // «Sobre» repeats «Vacante» when the event is about the vacancy itself: only the vacancy line is shown.
     expect(within(vacancyItself).queryByText("Sobre ·")).toBeNull();
@@ -181,6 +183,69 @@ describe("phone: «Filtros (n)» and the date presets", () => {
     await user.click(within(chips).getByRole("button", { name: "Quitar filtro Acción: Cerró sesión" }));
     expect(new URLSearchParams(window.location.search).get("event_type")).toBeNull();
     expect(new URLSearchParams(window.location.search).get("actor_id")).toBe(luisId);
+  });
+});
+
+describe("phone: result count, date pill and Escape", () => {
+  it("keeps the result count and the ⓘ help on one row: the text takes the free width and the help never wraps below it", async () => {
+    render(<AuditWorkspace />);
+    await screen.findByRole("list", { name: "Eventos registrados" });
+    const count = screen.getByText(/registrados en tu empresa/).closest("[role=status]") as HTMLElement;
+    expect(count).toHaveClass("min-w-0", "flex-1");
+    const row = count.parentElement as HTMLElement;
+    expect(row).toHaveClass("flex-nowrap");
+    expect(within(row).getByRole("button", { name: "¿Qué se registra?" })).toHaveClass("shrink-0");
+    // The long tail goes on a phone; the artboard reads «N eventos · Más recientes primero».
+    expect(screen.getByText(/registrados en tu empresa/)).toHaveClass("max-sm:hidden");
+  });
+
+  it("sizes the date presets by their text so «Personalizado» stays inside its pill, on the bar and in the drawer", async () => {
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    await screen.findByRole("list", { name: "Eventos registrados" });
+    for (const label of ["Hoy", "7 días", "30 días", "Personalizado"]) {
+      expect(screen.getByRole("button", { name: label })).toHaveClass("flex-auto");
+      expect(screen.getByRole("button", { name: label })).not.toHaveClass("flex-1");
+    }
+    await user.click(filtersButton());
+    const drawer = await sheet("Filtros");
+    expect(within(within(drawer).getByRole("group", { name: "Rango de fechas" })).getByRole("button", { name: "Personalizado" })).toHaveClass("flex-auto");
+  });
+
+  it("Escape inside a sub-panel goes back to the drawer's main view; Escape there closes the drawer", async () => {
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    await screen.findByRole("list", { name: "Eventos registrados" });
+    await user.click(filtersButton());
+    await user.click(within(await sheet("Filtros")).getByRole("button", { name: /^Persona(?!lizado)/ }));
+    await sheet("Persona");
+    await user.keyboard("{Escape}");
+    expect(await sheet("Filtros")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Persona" })).toBeNull();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("Escape in the «Acción» sub-panel also returns to the main view and keeps what was chosen", async () => {
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    await screen.findByRole("list", { name: "Eventos registrados" });
+    await user.click(filtersButton());
+    await user.click(within(await sheet("Filtros")).getByRole("button", { name: /^Acción/ }));
+    const drawer = await sheet("Acción");
+    await user.click(within(drawer).getByRole("checkbox", { name: "Cerró sesión" }));
+    await user.keyboard("{Escape}");
+    expect(within(await sheet("Filtros")).getByRole("button", { name: /^Acción/ })).toHaveTextContent("Cerró sesión");
+  });
+
+  it("returns focus to the filters button after removing the last chip, never to the body", async () => {
+    at(`?event_type=SessionEnded`);
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    await screen.findByRole("list", { name: "Eventos registrados" });
+    await user.click(screen.getByRole("button", { name: "Quitar filtro Acción: Cerró sesión" }));
+    expect(document.activeElement).not.toBe(document.body);
+    expect(filtersButton()).toHaveFocus();
   });
 });
 

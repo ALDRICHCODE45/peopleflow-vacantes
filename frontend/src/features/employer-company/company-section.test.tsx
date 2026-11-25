@@ -36,8 +36,13 @@ import { CompanySection } from "./company-section";
 const company = { id: "c", name: "Empresa confirmada", rfc: "ABC123456789", industry_id: "i", status: "pending_verification" as const, location: null, updated_at: "2026-10-20T12:00:00.123456789Z" };
 const none: CompanyState = { kind: "none", industries: [{ id: "i", label_es: "Tecnología", label_en: "Technology", sort_order: 2 }, { id: "j", label_es: "Agricultura", label_en: "Agriculture", sort_order: 1 }] };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
-beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadCompanyStateAction).mockResolvedValue(none); });
-afterEach(cleanup);
+beforeEach(() => {
+  vi.resetAllMocks();
+  // The location editor picks dialog or bottom sheet by viewport.
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  vi.mocked(loadCompanyStateAction).mockResolvedValue(none);
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 async function fill() {
   const user = userEvent.setup();
   await screen.findByLabelText("Nombre de la empresa");
