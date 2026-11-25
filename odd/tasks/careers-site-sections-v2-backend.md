@@ -62,3 +62,27 @@ Branch `feat/careers-site-sections-v2-backend` (worktree `../peopleflow-vacantes
   contract change is needed [...] Questions: (a) can you take slice A? (b) does the shape work for you or would you
   adjust anything (names, limits, defaults-on-read)?»
 - **L2** 2026-11-25, backend: accepted with the S2 adjustments (sent to the frontend).
+- **L4** 2026-11-25, frontend assumptions (its zod model) and backend answers — these OVERRIDE S2 where they differ:
+  1. `style` default `{background:"default", spacing:"airy", align:"start", overlay:null, image:null}`; each missing
+     key → its default; `overlay` may be null even with `background:"image"` (S2 «overlay must be null unless image»
+     stays: overlay non-null only allowed with background image).
+  2. Collage: hero content `images: [{media_id}]` max 3, default []; publishing `collage` needs ≥ 2 images.
+  3. Hero labels nullable (blank → null; public falls back to «Ver vacantes» / «Conoce la empresa»).
+     `secondary_target` may NOT point to the hero itself (validation_error). A hidden target blocks publish only when
+     `secondary_visible` is true.
+  4. Testimonial `video_url`: URL string ≤ 500 validated exactly like the video block.
+  5. areas `overrides: [{key, icon|null, photo|null}]` max 16, icon from the existing ICONS set, exactly one of
+     icon/photo, unique keys.
+  6. Limits: team/areas title 80, intro 200; logos title 80; talent_cta title 80, text 240, button_label 24 (default
+     «Dejar mi CV»).
+  7. Publish: team ≥ 1 item, every item with name + consent (photo optional); logos ≥ 1 item, every item with name +
+     image; areas/talent_cta title only. Issue codes: `hero_video_missing` (field `blocks[i]`),
+     `secondary_target_hidden` (field `blocks[i].content.secondary_target`), `hero_collage_images_missing`,
+     `style_image_missing` (field `blocks[i].style.image`), plus the existing consent/title code names reused for team
+     and logos (document them).
+  8. Missing style image with `background:"image"` is a PUBLISH ISSUE (`style_image_missing`), not a 400 on save
+     (overrides S2).
+  9. Deployment order (overrides «defaults on read» in S1/S2 for the WIRE): GET must NOT add new keys to a stored
+     document that does not contain them (old strict frontend readers reject unknown keys). Absent new keys stay absent
+     in responses; the frontend applies the defaults. New keys appear only once a client saved them. Validation and
+     publish logic treat absent keys as their defaults.
