@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import Link from "next/link";
 import { PreviewFrame } from "./preview-frame";
 import { useSitePortalContainer } from "../public/site-portal";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -95,5 +96,55 @@ describe("drop line reveal (S4)", () => {
     const visible = setup(600);
     visible.rerender(frameWith("story:2"));
     expect(visible.scrollTo).not.toHaveBeenCalled();
+  });
+});
+describe("links and forms inside the preview never navigate the frame", () => {
+  // An about:blank iframe resolves relative and fragment URLs against the editor
+  // page, so following any of them loaded the editor inside its own preview.
+  function siteWithLinks(onSelect = vi.fn()) {
+    const view = render(<div data-test-viewport="" data-slot="scroll-area-viewport" style={{ overflowY: "auto" }}>
+      <PreviewFrame title="Visible preview" viewportWidth={1280}>
+        <div onClick={onSelect}>
+          <a href="#vacantes">Ver vacantes</a>
+          <Link href="/empresas/grupo-altavista/vacantes/1">Analista</Link>
+          <a href="https://peopleflow.mx/">PeopleFlow</a>
+          <form><button type="submit">Buscar</button></form>
+        </div>
+        <section id="vacantes">Vacantes abiertas</section>
+      </PreviewFrame>
+    </div>);
+    const viewport = view.container.querySelector<HTMLElement>("[data-test-viewport]")!;
+    const scrollTo = vi.fn(); viewport.scrollTo = scrollTo as typeof viewport.scrollTo;
+    const doc = (screen.getByTitle("Visible preview") as HTMLIFrameElement).contentDocument!;
+    vi.spyOn(doc.getElementById("vacantes")!, "getBoundingClientRect").mockReturnValue(rect(3000, 1280, 400));
+    return { doc, scrollTo, onSelect };
+  }
+  const click = (target: Element, init: MouseEventInit = {}) => {
+    const event = new (target.ownerDocument.defaultView!.MouseEvent)("click", { bubbles: true, cancelable: true, ...init });
+    target.dispatchEvent(event); return event;
+  };
+  it("cancels in-site, app and external links while the click still reaches the section", () => {
+    const { doc, onSelect } = siteWithLinks();
+    for (const name of ["Analista", "PeopleFlow"]) {
+      const link = Array.from(doc.querySelectorAll("a")).find(node => node.textContent === name)!;
+      expect(click(link).defaultPrevented).toBe(true);
+      expect(click(link, { ctrlKey: true }).defaultPrevented).toBe(true);
+    }
+    const aux = new (doc.defaultView!.MouseEvent)("auxclick", { bubbles: true, cancelable: true, button: 1 });
+    doc.querySelector('a[href^="/empresas"]')!.dispatchEvent(aux);
+    expect(aux.defaultPrevented).toBe(true);
+    expect(onSelect).toHaveBeenCalledTimes(4);
+  });
+  it("scrolls the preview to the section a fragment link names instead of navigating", () => {
+    const { doc, scrollTo } = siteWithLinks();
+    expect(click(doc.querySelector('a[href="#vacantes"]')!).defaultPrevented).toBe(true);
+    // Scale 0.5: the section at 3000 px sits 1500 px below the 100 px frame top.
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 1600 - 100, behavior: "smooth" });
+  });
+  it("cancels form submissions inside the preview", () => {
+    const { doc } = siteWithLinks();
+    const submit = new (doc.defaultView!.Event)("submit", { bubbles: true, cancelable: true });
+    doc.querySelector("form")!.dispatchEvent(submit);
+    expect(submit.defaultPrevented).toBe(true);
   });
 });

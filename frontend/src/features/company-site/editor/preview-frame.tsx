@@ -18,6 +18,7 @@ export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, 
   const fit = useRef<HTMLDivElement>(null);
   const iframe = useRef<HTMLIFrameElement>(null);
   const previousSelection = useRef(selectedBlockId);
+  const revealRef = useRef<(target: Element | null, behavior: ScrollBehavior, margin?: (height: number) => number, align?: "nearest" | "start") => void>(() => {});
   const [document, setDocument] = useState<Document | null>(null);
   const [height, setHeight] = useState(720);
   const [available, setAvailable] = useState(viewportWidth ?? 1280);
@@ -62,7 +63,29 @@ export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, 
     mutation.observe(host.documentElement, { attributes: true, attributeFilter: ["class"] });
     const measure = () => { const next = Math.ceil(content.getBoundingClientRect().height); if (next > 0) setHeight(next); };
     const resize = new ResizeObserver(measure); resize.observe(content); measure();
-    return () => { mutation.disconnect(); resize.disconnect(); for (const node of styles) node.parentNode?.removeChild(node); content.remove(); overlayViewport.remove(); };
+    // The frame is about:blank, so relative and fragment URLs resolve against the
+    // editor page: following one would load the editor inside its own preview.
+    // Nothing in the preview navigates; a fragment link scrolls to its section.
+    // Capture runs before React's listeners, which still receive the click, so
+    // selecting the section keeps working (Next's Link skips prevented clicks).
+    const holdLink = (event: MouseEvent) => {
+      const link = (event.target as Element | null)?.closest?.("a[href]");
+      if (!link) return;
+      event.preventDefault();
+      const href = link.getAttribute("href") ?? "";
+      if (event.type === "click" && href.startsWith("#") && href.length > 1) {
+        revealRef.current(document.getElementById(decodeURIComponent(href.slice(1))), reducedMotion() ? "instant" : "smooth", undefined, "start");
+      }
+    };
+    const holdSubmit = (event: Event) => event.preventDefault();
+    document.addEventListener("click", holdLink, true);
+    document.addEventListener("auxclick", holdLink, true);
+    document.addEventListener("submit", holdSubmit, true);
+    return () => {
+      document.removeEventListener("click", holdLink, true);
+      document.removeEventListener("auxclick", holdLink, true);
+      document.removeEventListener("submit", holdSubmit, true);
+      mutation.disconnect(); resize.disconnect(); for (const node of styles) node.parentNode?.removeChild(node); content.remove(); overlayViewport.remove(); };
   }, [document]);
   useEffect(() => {
     if (!portalViewport || !iframe.current || !fit.current) return;
@@ -108,7 +131,7 @@ export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, 
   /** Scroll the preview pane (never scrollIntoView: it walks every ancestor,
    * including the host document) so `target` shows with `margin` px around it.
    * On mobile there is no preview ScrollArea, so the page never moves. */
-  const reveal = useCallback((target: Element | null, behavior: ScrollBehavior, margin: (height: number) => number = () => 0) => {
+  const reveal = useCallback((target: Element | null, behavior: ScrollBehavior, margin: (height: number) => number = () => 0, align: "nearest" | "start" = "nearest") => {
     const viewport = fit.current?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
     if (!target || !viewport || !iframe.current) return;
     const bounds = viewport.getBoundingClientRect(); const box = target.getBoundingClientRect();
@@ -116,9 +139,10 @@ export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, 
     const top = iframe.current.getBoundingClientRect().top + box.top * scale;
     const bottom = top + box.height * scale;
     const [upper, lower] = [bounds.top + space, bounds.bottom - space];
-    const delta = top < upper ? top - upper : bottom > lower ? Math.min(top - upper, bottom - lower) : 0;
+    const delta = align === "start" ? top - upper : top < upper ? top - upper : bottom > lower ? Math.min(top - upper, bottom - lower) : 0;
     if (delta) viewport.scrollTo({ top: Math.max(0, viewport.scrollTop + delta), behavior });
   }, [scale]);
+  useEffect(() => { revealRef.current = reveal; }, [reveal]);
   useEffect(() => {
     if (!document || previousSelection.current === selectedBlockId) return;
     previousSelection.current = selectedBlockId;
