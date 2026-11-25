@@ -79,3 +79,11 @@ Vacantes rules); the list drag (T2) dispatches only that action on drop. No new 
   layouts, per-section style — backend contract change) and 4 (brand, templates, version history) stay as backlog.
 - **L3** (2026-11-25) User chose «Fases 1 y 2 (recomendado)» → S1–S5. Branch `feat/careers-editor-undo-dnd` from main
   `d1caab57`.
+- **L4** (2026-11-25) T1 `697a5b22` (writer A: history module, reorder/insert actions, shortcuts, header buttons, delete
+  toast with «Deshacer», «Conservar mis cambios» behind a confirmation; related 350/350, tsc 0, lint 0 errors) and T2
+  `d1667d04` (writer B: icon tiles + status chips, drag overlay/parting rows/placeholder/forbidden state/keyboard/
+  announcements in the section list and item lists; related 234/234). Deviations: icons stay lucide (components.json
+  library and existing tests), not Tabler. «Descartar borrador» (S2) **not done**: GET `/v2/me/company/site` returns only
+  `published: {version, slug, published_at}`, not the published document — needs the backend to expose it (backlog,
+  coordinate with the backend session). `697a5b22` alone doesn't typecheck (passes `onReorder` before `d1667d04` declares
+  it); the pair does. T3 launched (writer C): one placement rule, Subir/Bajar via reorder, preview insertion line.
