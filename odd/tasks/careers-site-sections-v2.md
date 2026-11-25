@@ -66,3 +66,6 @@ picks a direction, coordinated with the backend session.
   variants from 02/03, sections team/logos/areas/talent_cta, per-block `style`, hero button texts; additive v1 amendment,
   no document migration, backend first), slice B hero video upload (media migration, Range serving, proxy), slice C public
   «Dejar mi CV» (anonymous endpoint, talent-base schema, consent, rate limit). B and C are high risk (data/security).
+- **L6** (2026-11-25) User answers: order «Sí, A primero (recomendado)» (slice A shipped and merged first; B and C as
+  next deliveries, each with its own review); duplicates «Crear y marcar duplicado»; team notice, verbatim: «contador y
+  correo» (counter in Base de talento + email to the owner). Slice A goes to the backend session first.

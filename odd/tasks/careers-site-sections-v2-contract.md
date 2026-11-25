@@ -57,5 +57,6 @@ Three slices, ordered by risk; each one is independently shippable.
   as «Sitio de empleo»), `consent_at`, `consent_text_version`; CV attached to the company candidate without a
   participation + a pool CV route that doesn't require one. Audit event `TalentSubmittedFromCareersSite` (system actor).
 - Response never reveals whether the person already existed (always the same «Recibimos tu CV» answer).
-- Open product decisions: duplicate policy (merge into the existing candidate vs create and flag «posible duplicado»),
-  notification to the team (none exists today: badge in Base de talento?), retention period.
+- Decided (user, L6): duplicates → create a new candidate and flag it «posible duplicado» (matched on normalized email
+  or E.164 phone) for the team to resolve; notification → a «Nuevos desde el sitio» counter + origin filter in Base de
+  talento AND an email to the owner. Still open: retention period, email cadence (each CV vs daily digest).
