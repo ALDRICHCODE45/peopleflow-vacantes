@@ -40,19 +40,9 @@ export function rowShift(rows: readonly RowBox[], from: number, to: number, i: n
 
 export const clampIndex = (index: number, count: number) => Math.max(0, Math.min(count - 1, index));
 
-type Placeable = { id: string; type: string };
-export const PORTADA_FIRST = "Portada siempre va primero.";
-/** Reason a section can't land at `to`, or null when the move is allowed.
- * Portada (hero) keeps its place at the top: no move may push it down, so
- * nothing (Vacantes included) can be placed above it. */
-export function sectionPlacementError(blocks: readonly Placeable[], id: string, to: number): string | null {
-  const from = blocks.findIndex(block => block.id === id);
-  if (from < 0 || to < 0 || to >= blocks.length || from === to) return null;
-  const heroBefore = blocks.findIndex(block => block.type === "hero");
-  if (heroBefore < 0) return null;
-  const heroAfter = arrayMove(blocks, from, to).findIndex(block => block.type === "hero");
-  return heroAfter > heroBefore || (heroBefore === 0 && heroAfter !== 0) ? PORTADA_FIRST : null;
-}
+/** Reason a section can't land at `to`, or null when the move is allowed: the
+ * reducer's own rule (`placementError`), so the list can never disagree with it. */
+export { placementError as sectionPlacementError, PORTADA_FIRST } from "../../editor-state";
 
 export const positionText = (label: string, index: number, count: number) => `${label}, posición ${index + 1} de ${count}.`;
 const stays = (label: string, index: number, count: number) => `${label} se queda en la posición ${index + 1} de ${count}.`;

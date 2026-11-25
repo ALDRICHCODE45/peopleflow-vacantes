@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { arrayMove, clampIndex, dragMessages, insertionIndex, PORTADA_FIRST, rowShift, sectionPlacementError, type RowBox } from "./reorder";
+import { canReorder } from "../../editor-state";
+import { defaultBlock } from "../../defaults";
+import type { BlockType } from "../../model";
 
 // Five 40 px rows with an 8 px gap: tops 0, 48, 96, 144, 192; midpoints +20.
 const rows: RowBox[] = [0, 48, 96, 144, 192].map(top => ({ top, height: 40 }));
@@ -68,6 +71,27 @@ describe("sectionPlacementError", () => {
     expect(sectionPlacementError(legacy, "jobs", 0)).toBe(PORTADA_FIRST);
     expect(sectionPlacementError(legacy, "hero", 0)).toBeNull();
     expect(sectionPlacementError(legacy, "story", 2)).toBeNull();
+  });
+});
+
+describe("one placement rule", () => {
+  const draft = (types: BlockType[]) => types.map(type => defaultBlock(type));
+  it.each<[string, BlockType[]]>([
+    ["a regular draft", ["hero", "story", "faq", "jobs", "closing"]],
+    ["Vacantes right after Portada", ["hero", "jobs", "values", "gallery"]],
+    ["a legacy order with Portada not first", ["story", "hero", "faq", "jobs"]],
+    ["a legacy order with Vacantes above Portada", ["jobs", "story", "hero", "closing"]],
+  ])("the list drag and the reducer agree on every (section, index) for %s", (_name, types) => {
+    const blocks = draft(types);
+    for (const block of blocks) for (let to = -1; to <= blocks.length; to++) {
+      const inRange = to >= 0 && to < blocks.length;
+      expect({ type: block.type, to, allowed: canReorder(blocks, block.id, to) }).toEqual({ type: block.type, to, allowed: inRange && sectionPlacementError(blocks, block.id, to) === null });
+    }
+  });
+  it("forbids pushing a legacy, non-first Portada further down even without Vacantes involved", () => {
+    const blocks = draft(["story", "hero", "faq"]);
+    expect(canReorder(blocks, blocks[2].id, 0)).toBe(false);
+    expect(sectionPlacementError(blocks, blocks[2].id, 0)).toBe(PORTADA_FIRST);
   });
 });
 

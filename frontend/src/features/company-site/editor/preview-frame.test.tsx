@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { PreviewFrame } from "./preview-frame";
@@ -65,4 +65,35 @@ it("updates the box on parent resize and scroll without adding to measured site 
   viewport.scrollTop = 450; fireEvent.scroll(viewport);
   expect(box).toHaveStyle({ top: "1800px" });
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+});
+describe("drop line reveal (S4)", () => {
+  function frameWith(revealKey: string | null) {
+    return <div data-test-viewport="" data-slot="scroll-area-viewport" style={{ overflowY: "auto" }}><PreviewFrame title="Visible preview" viewportWidth={1280} revealKey={revealKey}><div data-editor-drop-line="" /></PreviewFrame></div>;
+  }
+  function setup(lineTop: number, reduced = false) {
+    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({ matches: reduced && query.includes("reduce"), addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    const view = render(frameWith(null));
+    const viewport = view.container.querySelector<HTMLElement>("[data-test-viewport]")!;
+    const scrollTo = vi.fn(); viewport.scrollTo = scrollTo as typeof viewport.scrollTo;
+    const doc = (screen.getByTitle("Visible preview") as HTMLIFrameElement).contentDocument!;
+    // Nodes constructed by contentDocument use a separate jsdom prototype.
+    vi.spyOn(doc.querySelector("[data-editor-drop-line]")!, "getBoundingClientRect").mockReturnValue(rect(lineTop, 1280, 4));
+    return { ...view, scrollTo };
+  }
+  it("scrolls the preview smoothly so an off-screen insertion line is visible", () => {
+    // Scale 0.5: a line at 3000 px in the site sits 1500 px below the 100 px frame top.
+    const { rerender, scrollTo } = setup(3000);
+    expect(scrollTo).not.toHaveBeenCalled();
+    rerender(frameWith("story:3"));
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 1600 + 2 - 700 + 150, behavior: "smooth" });
+  });
+  it("jumps instantly with reduced motion and leaves a visible line alone", () => {
+    const { rerender, scrollTo } = setup(3000, true);
+    rerender(frameWith("story:3"));
+    expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ behavior: "instant" }));
+    cleanup();
+    const visible = setup(600);
+    visible.rerender(frameWith("story:2"));
+    expect(visible.scrollTo).not.toHaveBeenCalled();
+  });
 });

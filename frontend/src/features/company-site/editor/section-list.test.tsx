@@ -170,10 +170,27 @@ describe("keyboard drag (S4/S5)", () => {
     expect(onReorder).not.toHaveBeenCalled();
     press(grip("Cierre"), "Escape");
   });
-  it("keeps Alt+arrows on a selected row dispatching the existing move action", () => {
-    const { editor, dispatch } = setup();
+  it("moves a row one step with Alt+arrows through the same reorder as a drag", () => {
+    const { editor, dispatch, onReorder } = setup();
     fireEvent.keyDown(screen.getByRole("button", { name: "Seleccionar Historia" }), { key: "ArrowDown", altKey: true });
-    expect(dispatch).toHaveBeenCalledWith({ type: "move", id: id(editor, "story"), direction: 1 });
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith(id(editor, "story"), 2);
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(announcer()).toHaveTextContent("Historia, posición 3 de 5.");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Seleccionar Cierre" }), { key: "ArrowUp", altKey: true });
+    expect(onReorder).toHaveBeenLastCalledWith(id(editor, "closing"), 3);
+  });
+  it("does nothing with Alt+arrows at a forbidden spot or an end, and says why", () => {
+    const { dispatch, onReorder } = setup();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Seleccionar Historia" }), { key: "ArrowUp", altKey: true });
+    expect(announcer()).toHaveTextContent("No se puede mover ahí: Portada siempre va primero. Historia se queda en la posición 2 de 5.");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Seleccionar Portada" }), { key: "ArrowDown", altKey: true });
+    expect(announcer()).toHaveTextContent("No se puede mover ahí: Portada siempre va primero. Portada se queda en la posición 1 de 5.");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Seleccionar Cierre" }), { key: "ArrowDown", altKey: true });
+    expect(announcer()).toHaveTextContent("Cierre ya es la última sección.");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Seleccionar Portada" }), { key: "ArrowUp", altKey: true });
+    expect(announcer()).toHaveTextContent("Portada ya es la primera sección.");
+    expect(onReorder).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 });
 

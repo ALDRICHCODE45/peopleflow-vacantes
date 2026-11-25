@@ -154,7 +154,8 @@ export function useListDrag({ ids, label, blockedReason, onMove, onSessionChange
   }
   const listRef = (node: HTMLElement | null) => { list.current = node; };
   const region = <div data-drag-announcer="" role="status" aria-live="assertive" aria-atomic="true" className="sr-only">{announcement}</div>;
-  return { session, contextProps, gripProps, rowProps, listRef, region };
+  /** Speak through the list's live region (e.g. Subir/Bajar shortcuts outside a drag). */
+  return { session, contextProps, gripProps, rowProps, listRef, region, announce };
 }
 
 /** Moving rows only animate while a drag is live, so the committed reorder

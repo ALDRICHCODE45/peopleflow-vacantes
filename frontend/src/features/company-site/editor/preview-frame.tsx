@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { SitePortalContext } from "../public/site-portal";
 
 type PreviewFrameProps = {
   title: string; children: ReactNode; viewportWidth?: number;
   selectedBlockId?: string | null;
+  /** Changes whenever the drag insertion line moves; the line is then scrolled into view. */
+  revealKey?: string | null;
   onScaleChange?: (scale: number) => void;
 };
+const reducedMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 /** The site always sees the real device viewport. Only the frame is scaled;
  * its measured content height is scaled too, so the parent owns all scrolling. */
-export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, onScaleChange }: PreviewFrameProps) {
+export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, revealKey, onScaleChange }: PreviewFrameProps) {
   const fit = useRef<HTMLDivElement>(null);
   const iframe = useRef<HTMLIFrameElement>(null);
   const previousSelection = useRef(selectedBlockId);
@@ -102,20 +105,31 @@ export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, 
     mount?.style.setProperty("--editor-inverse-scale", String(1 / scale));
     onScaleChange?.(scale);
   }, [mount, scale, onScaleChange]);
+  /** Scroll the preview pane (never scrollIntoView: it walks every ancestor,
+   * including the host document) so `target` shows with `margin` px around it.
+   * On mobile there is no preview ScrollArea, so the page never moves. */
+  const reveal = useCallback((target: Element | null, behavior: ScrollBehavior, margin: (height: number) => number = () => 0) => {
+    const viewport = fit.current?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+    if (!target || !viewport || !iframe.current) return;
+    const bounds = viewport.getBoundingClientRect(); const box = target.getBoundingClientRect();
+    const space = margin(bounds.height);
+    const top = iframe.current.getBoundingClientRect().top + box.top * scale;
+    const bottom = top + box.height * scale;
+    const [upper, lower] = [bounds.top + space, bounds.bottom - space];
+    const delta = top < upper ? top - upper : bottom > lower ? Math.min(top - upper, bottom - lower) : 0;
+    if (delta) viewport.scrollTo({ top: Math.max(0, viewport.scrollTop + delta), behavior });
+  }, [scale]);
   useEffect(() => {
     if (!document || previousSelection.current === selectedBlockId) return;
     previousSelection.current = selectedBlockId;
-    const block = selectedBlockId && document.getElementById(`bloque-${selectedBlockId}`);
-    // Never scrollIntoView: it walks every ancestor, including the host document.
-    // On mobile there is no preview ScrollArea, so selection does not move the page.
-    const viewport = fit.current?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
-    if (!block || !viewport || !iframe.current) return;
-    const bounds = viewport.getBoundingClientRect(); const section = block.getBoundingClientRect();
-    const top = iframe.current.getBoundingClientRect().top + section.top * scale;
-    const bottom = top + section.height * scale;
-    const delta = top < bounds.top ? top - bounds.top : bottom > bounds.bottom ? Math.min(top - bounds.top, bottom - bounds.bottom) : 0;
-    if (delta) viewport.scrollTo({ top: Math.max(0, viewport.scrollTop + delta), behavior: "instant" });
-  }, [document, selectedBlockId, scale]);
+    reveal(selectedBlockId ? document.getElementById(`bloque-${selectedBlockId}`) : null, "instant");
+  }, [document, selectedBlockId, reveal]);
+  useEffect(() => {
+    // The insertion line follows the drag: glide to it (instant with reduced
+    // motion), keeping some context around it rather than pinning it to an edge.
+    if (!document || !revealKey) return;
+    reveal(document.querySelector("[data-editor-drop-line]"), reducedMotion() ? "instant" : "smooth", height => Math.min(150, height / 4));
+  }, [document, revealKey, reveal]);
   return <div ref={fit} data-preview-fit="" className="min-w-0 w-full">
     {mount && createPortal(<SitePortalContext value={portalViewport}>{children}</SitePortalContext>, mount)}
     <div data-preview-stage="" className="relative mx-auto overflow-hidden" style={{ width: width * scale, height: height * scale }}>

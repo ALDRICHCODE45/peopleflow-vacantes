@@ -34,16 +34,25 @@ const required = (block: SiteBlock) => block.type === "hero" || block.type === "
 /** Generate identities before dispatch: replaying the reducer is deterministic. */
 export const addBlockAction = (type: BlockType): EditorAction => ({ type: "add", block: defaultBlock(type) });
 export const duplicateBlockAction = (_state: EditorState, id: string): EditorAction => ({ type: "duplicate", id, newId: crypto.randomUUID() });
-/** Portada stays first and Vacantes never goes above Portada; legacy orders only may not get worse. */
-export function canReorder(blocks: readonly SiteBlock[], id: string, toIndex: number): boolean {
+type Placeable = { id: string; type: string };
+export const PORTADA_FIRST = "Portada siempre va primero.";
+/** The one placement rule (reducer, list drag, Subir/Bajar, Alt+arrows): Portada
+ * (hero) never moves down. So it stays first, nothing (Vacantes included) can land
+ * above it, and a legacy order with Portada lower may only improve. Returns the
+ * reason a move is refused, or null when it is allowed or isn't a move at all. */
+export function placementError(blocks: readonly Placeable[], id: string, toIndex: number): string | null {
+  const from = blocks.findIndex(b => b.id === id);
+  if (from < 0 || from === toIndex || !Number.isInteger(toIndex) || toIndex < 0 || toIndex >= blocks.length) return null;
+  const hero = blocks.findIndex(b => b.type === "hero");
+  if (hero < 0) return null;
+  const heroAfter = from === hero ? toIndex : from > hero && toIndex <= hero ? hero + 1 : from < hero && toIndex >= hero ? hero - 1 : hero;
+  return heroAfter > hero ? PORTADA_FIRST : null;
+}
+/** True for an in-range index the placement rule allows (the current index included). */
+export function canReorder(blocks: readonly Placeable[], id: string, toIndex: number): boolean {
   const from = blocks.findIndex(b => b.id === id);
   if (from < 0 || !Number.isInteger(toIndex) || toIndex < 0 || toIndex >= blocks.length) return false;
-  const next = [...blocks]; const [block] = next.splice(from, 1); next.splice(toIndex, 0, block);
-  const at = (list: readonly SiteBlock[], type: BlockType) => list.findIndex(b => b.type === type);
-  const [heroBefore, heroAfter] = [at(blocks, "hero"), at(next, "hero")];
-  if (heroBefore === 0 && heroAfter !== 0) return false;
-  const [jobsBefore, jobsAfter] = [at(blocks, "jobs"), at(next, "jobs")];
-  return !(heroAfter >= 0 && jobsAfter >= 0 && jobsAfter < heroAfter && !(jobsBefore < heroBefore));
+  return placementError(blocks, id, toIndex) === null;
 }
 export function createEditorState(data: SiteState, etag: string): EditorState {
   const server = structuredClone(data);
@@ -110,6 +119,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "reorder":
       if (action.toIndex === index || !canReorder(blocks, action.id, action.toIndex)) return state;
       blocks.splice(index, 1); blocks.splice(action.toIndex, 0, block); break;
+    // Low-level swap without the placement rule; the UI moves through "reorder".
     case "move": {
       const next = index + action.direction;
       if (next < 0 || next >= blocks.length) return state;

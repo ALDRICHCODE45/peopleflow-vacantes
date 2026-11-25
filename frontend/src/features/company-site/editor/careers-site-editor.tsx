@@ -38,6 +38,8 @@ import { useWorkspaceHeight } from "./use-workspace-height";
 import { BrandSettings, SiteSettings } from "./site-settings";
 import { SitePublication, type PublicationTarget } from "./publication";
 import { HistoryControls, useHistoryShortcuts } from "./editor-history";
+import { SectionDragPreviewProvider, useSectionDragPreview } from "./dnd/section-drag-preview";
+import type { EditorState } from "../editor-state";
 
 const DELETED_TOAST = "company-site-section-deleted";
 
@@ -145,6 +147,15 @@ function DesktopPanels({ sections, properties, children, focused }: { sections: 
 function EditorSurface({ desktop, sections, properties, focused, children }: { desktop: boolean; sections: ReactNode; properties: ReactNode; focused: boolean; children: PreviewContent }) {
   return desktop ? <DesktopPanels sections={sections} properties={properties} focused={focused}>{children}</DesktopPanels> : children({});
 }
+/** The live preview follows a section drag from the list: an insertion line at
+ * the landing gap (scrolled into view) and the dragged section dimmed. Kept
+ * apart so each drag step re-renders only the preview, not the whole editor. */
+function LivePreview({ editor, preview, viewportWidth, onSelect, onScaleChange }: { editor: EditorState; preview: CompanySitePreviewData; viewportWidth: number; onSelect: (id: string) => void; onScaleChange: (scale: number) => void }) {
+  const drag = useSectionDragPreview();
+  return <PreviewFrame title="Vista previa del sitio" viewportWidth={viewportWidth} selectedBlockId={editor.selectedId} revealKey={drag?.allowed ? `${drag.activeId}:${drag.toIndex}` : null} onScaleChange={onScaleChange}>
+    <CompanySitePresentation site={editor.draft} {...preview} selectedBlockId={editor.selectedId} onSelectBlock={onSelect} dragPreview={drag} />
+  </PreviewFrame>;
+}
 function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<CareersSiteEditorProps, "initialSite"> & { controller: AutosaveController; onLoadSite: (site: SiteState) => void }) {
   const { editor, status, history } = useAutosave(controller);
   const [tab, setTab] = useState("sections");
@@ -217,7 +228,7 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
     <TabsContent value="brand"><BrandSettings theme={editor.draft.theme} onChange={theme => controller.dispatch({ type: "theme", theme })} /></TabsContent>
     <TabsContent value="settings" className="px-1 py-1 pr-3"><SiteSettings draft={editor.draft} savedSlug={editor.lastSaved.slug} slugError={editor.fieldErrors.find(error => error.field === "slug" && !error.blockId)} company={preview.company} onSlug={slug => controller.dispatch({ type: "slug", slug })} onSeo={seo => controller.dispatch({ type: "seo", seo })} /></TabsContent>
   </Tabs>;
-  return <TooltipProvider><div ref={workspace.ref} data-editor-workspace="" onBlur={() => controller.checkpoint()} style={{ height: workspace.height }} className="flex min-h-0 min-w-0 flex-col gap-4 lg:overflow-hidden">
+  return <TooltipProvider><SectionDragPreviewProvider><div ref={workspace.ref} data-editor-workspace="" onBlur={() => controller.checkpoint()} style={{ height: workspace.height }} className="flex min-h-0 min-w-0 flex-col gap-4 lg:overflow-hidden">
     <header data-editor-region="toolbar" className="flex shrink-0 flex-wrap items-center justify-between gap-4">
       <div className="flex min-w-0 flex-col gap-2"><div className="flex flex-wrap items-center gap-3"><h2 className="text-xl font-semibold">{preview.company.name}</h2><Badge variant={published ? unpublishedChanges ? "review" : "success" : "neutral"} dot>{published ? unpublishedChanges ? "Cambios sin publicar" : "Publicado" : "Sin publicar"}</Badge>{published && <a href={`/empresas/${encodeURIComponent(published.slug)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center text-sm underline underline-offset-4">Ver sitio</a>}</div>{editor.draft.slug ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground underline underline-offset-4">{url}</a> : <p className="text-sm text-muted-foreground">{url}</p>}</div>
       <div className="flex flex-wrap items-center gap-3"><HistoryControls canUndo={history.canUndo} canRedo={history.canRedo} onUndo={undo} onRedo={redo} /><SaveStatus status={status} dirty={editor.dirty} onLoadLatest={() => setReload(true)} onRetry={() => { void controller.retry(); }} />{status.kind === "conflict" && <Button variant="link" className="min-h-10" onClick={() => setKeepMine(true)}>Conservar mis cambios</Button>}<Button variant="outline" className="min-h-10" ref={visitorTrigger} onClick={() => setVisitor(true)}><Eye aria-hidden="true" data-icon="inline-start" />Ver como visitante</Button>
@@ -246,7 +257,7 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
         <PreviewScroll desktop={desktop}>
           <Card className="mx-auto w-full overflow-hidden [--card-spacing:--spacing(2)]" style={{ maxWidth: deviceWidth }} data-device={device}>
             <CardHeader className="border-b"><CardTitle className="flex items-center gap-2"><Lock className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate text-xs text-muted-foreground">{url}</span></CardTitle><CardDescription className="sr-only">Vista privada del borrador</CardDescription></CardHeader>
-            <CardContent className="-mx-(--card-spacing) -mb-(--card-spacing)"><PreviewFrame title="Vista previa del sitio" viewportWidth={deviceWidth} selectedBlockId={editor.selectedId} onScaleChange={setZoom}><CompanySitePresentation site={editor.draft} {...preview} selectedBlockId={editor.selectedId} onSelectBlock={select} /></PreviewFrame></CardContent>
+            <CardContent className="-mx-(--card-spacing) -mb-(--card-spacing)"><LivePreview editor={editor} preview={preview} viewportWidth={deviceWidth} onSelect={select} onScaleChange={setZoom} /></CardContent>
           </Card>
           <p className="mt-4 text-center text-xs text-muted-foreground">Haz clic en una sección para seleccionarla.</p>
         </PreviewScroll>
@@ -266,5 +277,5 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
       setPublishConflict(null); setPublication(undefined); setReload(false);
     }} />
     <Dialog open={visitor} onOpenChange={setVisitor}><DialogContent finalFocus={visitorTrigger} className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-6xl"><DialogHeader><DialogTitle>Vista previa pública</DialogTitle><DialogDescription>{!published ? "Solo tu equipo puede ver este borrador. Aún no está publicado." : unpublishedChanges ? "Solo tu equipo puede ver este borrador. Tu sitio publicado todavía no incluye estos cambios." : "Así se ve tu sitio publicado."}</DialogDescription></DialogHeader><div className="min-h-0 overflow-y-auto"><PreviewFrame title="Vista del visitante"><CompanySitePresentation site={editor.draft} {...preview} /></PreviewFrame></div><DialogFooter><DialogClose render={<Button variant="outline" className="min-h-10" />}>Volver al editor</DialogClose></DialogFooter></DialogContent></Dialog>
-  </div></TooltipProvider>;
+  </div></SectionDragPreviewProvider></TooltipProvider>;
 }

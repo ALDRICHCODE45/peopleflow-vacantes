@@ -18,7 +18,7 @@ import type { AutosaveController } from "../autosave";
 import { publishIssues, type BlockType, type SiteBlock } from "../model";
 import { VARIANT_LABELS } from "./variant-picker";
 import { SECTION_ICONS } from "./section-icons";
-import { sectionPlacementError } from "./dnd/reorder";
+import { dragMessages, positionText, sectionPlacementError } from "./dnd/reorder";
 import { useReportSectionDragPreview } from "./dnd/section-drag-preview";
 import { DRAG_ROW_MOTION, SortableList, useListDrag, type DragSession } from "./dnd/use-list-drag";
 
@@ -42,9 +42,22 @@ function SectionTile({ type, selected }: { type: BlockType; selected?: boolean }
 function BlockedHint({ reason }: { reason: string }) {
   return <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-destructive"><Ban className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{reason}</span></span>;
 }
-function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps, "onAdd" | "onReorder"> & { block: SiteBlock; index: number; incomplete: boolean; drag: Drag }) {
-  const { editor, controller, onSelect, onDelete } = props;
+function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps, "onAdd"> & { block: SiteBlock; index: number; incomplete: boolean; drag: Drag }) {
+  const { editor, controller, onSelect, onDelete, onReorder } = props;
   const label = BLOCK_LIBRARY[block.type].label;
+  const blocks = editor.draft.blocks; const count = blocks.length;
+  // Subir/Bajar and Alt+arrows: one step through the same rule and reorder as a drag.
+  const stepReason = (to: number) => to < 0 || to >= count ? null : sectionPlacementError(blocks, block.id, to);
+  const [upReason, downReason] = [stepReason(index - 1), stepReason(index + 1)];
+  const canUp = index > 0 && !upReason; const canDown = index < count - 1 && !downReason;
+  const ruleReason = upReason ?? downReason; const reasonId = useId();
+  function step(direction: -1 | 1) {
+    const to = index + direction;
+    if (to < 0 || to >= count) return drag.announce(`${label} ya es la ${direction < 0 ? "primera" : "última"} sección.`);
+    const reason = stepReason(to);
+    if (reason) return drag.announce(dragMessages.end("blocked", label, index, to, count, reason));
+    onReorder(block.id, to); drag.announce(positionText(label, to, count));
+  }
   const draggable = useDraggable({ id: block.id, attributes: { roleDescription: "manija de arrastre" } });
   const { ref: rowRef, ...rowAttrs } = drag.rowProps(block.id);
   const { ref: gripRef, ...grip } = drag.gripProps(block.id);
@@ -61,7 +74,7 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
     {/* Stretched native hit area: hover and focus-visible belong to the whole
         Item, with no inner pill. Drag/menu remain independent sibling controls. */}
     <Button variant="ghost" className="absolute inset-0 size-full" aria-label={`Seleccionar ${label}`} aria-pressed={selected} onClick={() => onSelect(block.id)} onKeyDown={event => {
-      if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) { event.preventDefault(); controller.dispatch({ type: "move", id: block.id, direction: event.key === "ArrowUp" ? -1 : 1 }); }
+      if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) { event.preventDefault(); step(event.key === "ArrowUp" ? -1 : 1); }
     }} />
     <div className="flex w-full min-w-0 items-center gap-1.5">
       {/* Quiet handle: shown on hover, focus, selection, while dragging and always
@@ -91,8 +104,9 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
       <ItemActions className="relative"><DropdownMenu><div className="relative h-10 w-9"><DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="absolute top-0 left-0 size-10" />} aria-label={`Acciones de ${label}`}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger></div>
         <DropdownMenuContent align="end" className="min-w-56">
           <DropdownMenuGroup>
-            <DropdownMenuItem className="min-h-10" disabled={index === 0} onClick={() => controller.dispatch({ type: "move", id: block.id, direction: -1 })}><ArrowUp aria-hidden="true" />Subir</DropdownMenuItem>
-            <DropdownMenuItem className="min-h-10" disabled={index === editor.draft.blocks.length - 1} onClick={() => controller.dispatch({ type: "move", id: block.id, direction: 1 })}><ArrowDown aria-hidden="true" />Bajar</DropdownMenuItem>
+            <DropdownMenuItem className="min-h-10" disabled={!canUp} aria-describedby={upReason ? reasonId : undefined} onClick={() => step(-1)}><ArrowUp aria-hidden="true" />Subir</DropdownMenuItem>
+            <DropdownMenuItem className="min-h-10" disabled={!canDown} aria-describedby={downReason ? reasonId : undefined} onClick={() => step(1)}><ArrowDown aria-hidden="true" />Bajar</DropdownMenuItem>
+            {ruleReason && <p id={reasonId} className="px-2 pb-1 text-xs text-muted-foreground">{ruleReason}</p>}
             <DropdownMenuItem className="min-h-10" disabled={required || editor.draft.blocks.length >= 30} onClick={() => { const action = duplicateBlockAction(editor, block.id); if (action.type === "duplicate") controller.dispatch(action); }}><Copy aria-hidden="true" />Duplicar</DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
@@ -115,7 +129,7 @@ function SectionOverlay({ block, session }: { block: SiteBlock; session: DragSes
   </div>;
 }
 export function SectionList(props: ListProps) {
-  const { editor, onAdd, onReorder, ...rowProps } = props;
+  const { editor, onAdd, ...rowProps } = props; const { onReorder } = props;
   const blocks = editor.draft.blocks;
   const report = useReportSectionDragPreview();
   const drag = useListDrag({
