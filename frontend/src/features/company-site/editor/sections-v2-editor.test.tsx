@@ -142,6 +142,9 @@ describe("visual section library", () => {
     expect(types()).toEqual(["hero", "story", "values", "stats", "video", "benefits", "gallery", "testimonials", "team", "logos", "jobs", "areas", "process", "offices", "faq", "closing"]);
     expect(within(library).getByRole("button", { name: "Portada" })).toBeDisabled();
     expect(within(library).getByRole("button", { name: "Portada" })).toHaveAccessibleDescription("Ya está en tu sitio; solo puede haber una.");
+    expect(within(library).getByRole("button", { name: "Vacantes abiertas" })).toHaveAccessibleDescription("Ya está en tu sitio; solo puede haber una.");
+    const ids = Array.from(library.querySelectorAll("[id]"), node => node.id);
+    expect(new Set(ids).size).toBe(ids.length);
     fireEvent.click(within(library).getByRole("button", { name: "Nuevas · 3" }));
     expect(types()).toEqual(["team", "logos", "areas"]);
     fireEvent.click(within(library).getByRole("button", { name: "Todas" }));
@@ -182,6 +185,10 @@ describe("visual section library", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Agregar sección" }));
     const sheet = await screen.findByRole("dialog", { name: "Agregar sección" });
     expect(within(sheet).getByLabelText("Insertar después de")).toBeInTheDocument();
+    // The chosen section's name is never truncated in the narrow Sheet: the trigger takes the full row and wraps.
+    const trigger = within(sheet).getByRole("combobox", { name: "Insertar después de" });
+    expect(trigger).toHaveClass("w-full", "h-auto");
+    expect(trigger.closest("[data-slot=field]")).toHaveAttribute("data-orientation", "vertical");
     expect(within(sheet).getByRole("button", { name: "Agregar sección" })).toBeDisabled();
   });
 });
@@ -228,6 +235,23 @@ describe("properties panel", () => {
     expect((await saved()).blocks.find(block => block.type === "jobs")!.style).toEqual({ background: "image", spacing: "compact", align: "center", overlay: "strong", image: null });
     fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
     expect((await saved()).blocks.find(block => block.type === "jobs")!.style.align).toBe("start");
+  });
+  it("offers alignment only where the layout honours it; fixed layouts say how they render", async () => {
+    await mount([defaultBlockV2("closing")]);
+    select("Cierre");
+    let style = within(properties().querySelector("[data-section-style]") as HTMLElement);
+    expect(style.queryByRole("button", { name: "Izquierda" })).toBeNull();
+    expect(style.queryByRole("button", { name: "Centrado" })).toBeNull();
+    expect(style.getByText("Alineación")).toBeInTheDocument();
+    expect(style.getByText("Este diseño siempre va centrado.")).toBeInTheDocument();
+    select("Portada");
+    style = within(properties().querySelector("[data-section-style]") as HTMLElement);
+    expect(style.getByText("Este diseño siempre va centrado.")).toBeInTheDocument();
+    // Every offered Portada layout has a fixed alignment; Vacantes follows the style.
+    select("Vacantes abiertas");
+    style = within(properties().querySelector("[data-section-style]") as HTMLElement);
+    expect(style.getByRole("button", { name: "Izquierda" })).toHaveAttribute("aria-pressed", "true");
+    expect(style.queryByText(/Este diseño siempre va/)).toBeNull();
   });
   it("edits the Portada buttons: texts, show/hide the secondary one and where it leads", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });

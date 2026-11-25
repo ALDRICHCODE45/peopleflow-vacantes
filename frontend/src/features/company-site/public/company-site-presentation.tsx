@@ -13,7 +13,7 @@ import type { PublicJobItem } from "@/features/jobs/types";
 import { cn } from "@/lib/utils";
 import { BLOCK_LIBRARY_V2 } from "../defaults";
 import { DEFAULT_SECTION_STYLE, HERO_BUTTON_DEFAULTS, type SiteBlock, type SiteBlockV2 } from "../model";
-import { siteBrandTokens } from "./theme-tokens";
+import { siteBrandTokens, siteTintTokens } from "./theme-tokens";
 import { editorial, modern } from "./fonts";
 import { SiteNavigation } from "./site-navigation";
 import { ShareMenu } from "@/features/jobs/components/share-menu";
@@ -22,8 +22,8 @@ import type { CompanySitePresentationProps } from "./presentation-types";
 import { SitePortalContext } from "./site-portal";
 import { SiteAreaFilterContext, type SiteAreaFilter } from "./site-area-filter";
 import { deriveSiteAreas } from "./site-areas";
-import { scrimColor, sectionInnerClass, sectionSurface } from "./section-style";
-import { SectionAlignContext } from "./site-heading";
+import { scrimColor, sectionAlign, sectionInnerClass, sectionSurface } from "./section-style";
+import { SectionAlignContext, SiteEditingContext } from "./site-heading";
 import { mediaUrl } from "./media";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
 import styles from "./site-theme.module.css";
@@ -116,6 +116,9 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
   const all = useMemo(() => site.blocks.map(toSiteBlockV2), [site.blocks]);
   const blocks = all.filter(block => !block.hidden && (onSelectBlock || hasSiteBlockContent(block, jobs)));
   const style = siteBrandTokens(site.theme.brand_color, site.theme.accent_color, site.theme.background_color) as CSSProperties;
+  // Only tinted sections carry the tint tokens, so pages without one keep their exact markup.
+  const tinted = all.some(block => block.style.background === "tint");
+  const tintStyle = useMemo(() => tinted ? siteTintTokens(site.theme.brand_color, site.theme.accent_color, site.theme.background_color) as CSSProperties : undefined, [tinted, site.theme.brand_color, site.theme.accent_color, site.theme.background_color]);
   const jobsBlock = blocks.find(block => block.type === "jobs");
   const jobsHref = jobsBlock ? `#${anchor(jobsBlock)}` : undefined;
   const areaFilter: SiteAreaFilter = {
@@ -135,7 +138,7 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
     style,
     className: cn(styles.site, editorial.variable, modern.variable, "min-w-0 bg-background text-foreground [overflow-wrap:anywhere]"),
   };
-  return <SitePortalContext value={previewContainer === undefined ? portalRoot : previewRoot}><SiteAreaFilterContext value={areaFilter}><div ref={setPortalRoot} {...themeProps}>
+  return <SitePortalContext value={previewContainer === undefined ? portalRoot : previewRoot}><SiteEditingContext value={Boolean(onSelectBlock)}><SiteAreaFilterContext value={areaFilter}><div ref={setPortalRoot} {...themeProps}>
     <Link href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:rounded-xl focus:bg-background focus:px-4 focus:py-3 focus:text-foreground focus:outline-2 focus:outline-ring">Saltar al contenido</Link>
     <header className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-6 sm:px-10 lg:px-16">
       <div className="flex min-w-0 shrink-0 items-center gap-3"><Avatar className="size-10"><AvatarImage src={company.logo_url ?? undefined} alt={`Logo de ${company.name}`} /><AvatarFallback>{company.name.slice(0, 1)}</AvatarFallback></Avatar><p className="max-w-[16ch] text-lg font-semibold tracking-tight [overflow-wrap:anywhere]">{company.name}</p></div>
@@ -150,7 +153,8 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
       const surface = sectionSurface(block);
       const image = block.style.background === "image" ? block.style.image : null;
       return <Fragment key={block.id}>{drop === block.id && <DropLine id={dragPreview!.activeId} />}<section id={anchor(block)} aria-labelledby={`${anchor(block)}-title`} data-block-type={block.type} data-variant={block.variant}
-      {...(surface === "brand" || surface === "scrim" ? { "data-site-surface": surface } : {})}
+      {...(surface === "brand" || surface === "scrim" || surface === "tint" ? { "data-site-surface": surface } : {})}
+      {...(surface === "tint" ? { style: tintStyle } : {})}
       {...(onSelectBlock ? {
         tabIndex: 0, "data-editor-selected": selectedBlockId === block.id, ...(dragging === block.id ? { "data-editor-dragging": true } : {}),
         onClickCapture: (event: React.MouseEvent) => { event.preventDefault(); event.stopPropagation(); onSelectBlock(block.id); },
@@ -163,7 +167,7 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
         <div data-scrim="" className="absolute inset-0" style={{ backgroundColor: scrimColor(block.style.overlay) }} />
       </div>}
       {onSelectBlock && selectedBlockId === block.id && <Badge data-editor-label="" className={editorStyles.label}>{BLOCK_LIBRARY_V2[block.type].label}</Badge>}
-      <SectionAlignContext value={block.style.align}><div className={sectionInnerClass(block.style.spacing)}>{!hasSiteBlockContent(block, jobs) ? <BlankSection block={block} onSelect={onSelectBlock} /> : block.type === "jobs" && !jobsAvailable ? <StateCard icon={Briefcase} tone="error" title={<span id={`${anchor(block)}-title`}>No pudimos cargar las vacantes</span>} description="La vista previa de las vacantes no está disponible. El contenido del sitio no cambió." /> : <SiteBlockContent block={block} company={company} jobs={jobs} offices={officeLabels} jobsHref={jobsHref} secondaryHref={block.type === "hero" ? heroSecondaryHref(block, blocks) : undefined} />}</div></SectionAlignContext>
+      <SectionAlignContext value={sectionAlign(block)}><div className={sectionInnerClass(block.style.spacing)}>{!hasSiteBlockContent(block, jobs) ? <BlankSection block={block} onSelect={onSelectBlock} /> : block.type === "jobs" && !jobsAvailable ? <StateCard icon={Briefcase} tone="error" title={<span id={`${anchor(block)}-title`}>No pudimos cargar las vacantes</span>} description="La vista previa de las vacantes no está disponible. El contenido del sitio no cambió." /> : <SiteBlockContent block={block} company={company} jobs={jobs} offices={officeLabels} jobsHref={jobsHref} secondaryHref={block.type === "hero" ? heroSecondaryHref(block, blocks) : undefined} />}</div></SectionAlignContext>
     </section></Fragment>;
     })}
     {drop === "" && <DropLine id={dragPreview!.activeId} />}
@@ -178,5 +182,5 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
     {/* The preview viewport is a body sibling, not a descendant of the page.
         Repeat only its theme scope, never the page content or landmarks. */}
     {previewContainer && createPortal(<div ref={setPreviewRoot} {...themeProps} data-site-overlay-root="" className={cn(themeProps.className, "pointer-events-none [&>*]:pointer-events-auto")} />, previewContainer)}
-  </SiteAreaFilterContext></SitePortalContext>;
+  </SiteAreaFilterContext></SiteEditingContext></SitePortalContext>;
 }

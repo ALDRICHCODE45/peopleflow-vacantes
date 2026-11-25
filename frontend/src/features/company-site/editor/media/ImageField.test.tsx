@@ -62,6 +62,12 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("ImageField", () => {
+  it("keeps the file input visually hidden without sizing classes that escape the panel", () => {
+    mount();
+    const input = screen.getByLabelText("Archivo de Imagen de portada");
+    expect(input).toHaveClass("sr-only");
+    for (const sizing of ["w-full", "h-8", "min-w-0", "px-2.5"]) expect(input).not.toHaveClass(sizing);
+  });
   it("renders an accessible empty slot, guidance and draft error", () => {
     mount({ description: "Tu equipo", error: "Falta la portada" });
     expect(screen.getByRole("button", { name: /Subir.*Imagen de portada/ })).toHaveClass("border-dashed");

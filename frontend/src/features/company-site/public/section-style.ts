@@ -8,8 +8,10 @@ export const SITE_SCRIM = "#140F1F";
 export const SCRIM_ALPHA = { soft: 0.6, medium: 0.7, strong: 0.8 } as const satisfies Record<NonNullable<SectionStyle["overlay"]>, number>;
 export const scrimColor = (overlay: SectionStyle["overlay"]) => `rgb(20 15 31 / ${SCRIM_ALPHA[overlay ?? "medium"]})`;
 
-/** The surface a section paints: the soft band, the brand fill, the dark photo scrim, or the page. */
-export type SectionSurface = "band" | "brand" | "scrim" | null;
+/** The surface a section paints: the legacy alternating band, the stronger brand tint, the
+ * brand fill, the dark photo scrim, or the page. «Tinte suave» never reuses the band, so it
+ * stays distinct from «Normal» on sections that sit on the band by default. */
+export type SectionSurface = "band" | "tint" | "brand" | "scrim" | null;
 
 /** Bands the legacy presentation hard-coded per type/layout; kept for the default style. */
 function legacyBand(block: SiteBlock | SiteBlockV2): boolean {
@@ -19,12 +21,25 @@ function legacyBand(block: SiteBlock | SiteBlockV2): boolean {
 
 export function sectionSurface(block: SiteBlockV2): SectionSurface {
   switch (block.style.background) {
-    case "tint": return "band";
+    case "tint": return "tint";
     case "brand": return "brand";
     case "image": return "scrim";
     default: return legacyBand(block) ? "band" : block.type === "stats" && block.variant === "brand_band" ? "brand" : null;
   }
 }
+
+/** Alignment a layout always renders with, whatever the style says (null: it follows the
+ * section's «Alineación»). The editor shows these as fixed instead of offering a choice that
+ * would change nothing, and the page renders headings with the same value. */
+export function fixedSectionAlign(block: SiteBlockV2): SectionStyle["align"] | null {
+  if (block.type === "closing") return "center";
+  // Designed centred in 02: the brand band of figures and the large-icon cards.
+  if (block.type === "stats" && block.variant === "brand_band" || (block.type === "benefits" || block.type === "values") && block.variant === "big_icons") return "center";
+  if (block.type === "hero") return block.variant === "photo" || block.variant === "centered" ? "center" : block.variant === "background_loop" ? null : "start";
+  return null;
+}
+/** The alignment a section actually renders with. */
+export const sectionAlign = (block: SiteBlockV2): SectionStyle["align"] => fixedSectionAlign(block) ?? block.style.align;
 
 /** Compact trims the vertical rhythm; airy is the legacy spacing. */
 export const sectionInnerClass = (spacing: SectionStyle["spacing"]) => spacing === "compact"

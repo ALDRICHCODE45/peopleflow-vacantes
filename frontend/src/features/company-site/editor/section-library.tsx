@@ -88,18 +88,18 @@ function Types({ library }: { library: Library }) {
   if (!library.groups.length) return <p role="status" className="text-sm text-muted-foreground">No encontramos secciones con ese nombre.</p>;
   return <div className="flex min-w-0 flex-col gap-4">
     <h3 className="sr-only">Secciones disponibles</h3>
-    {library.groups.map(group => <section key={group.id} aria-labelledby={`${id}-${group.id}`} className="flex min-w-0 flex-col gap-2">
-      <h4 id={`${id}-${group.id}`} className="text-xs font-medium text-muted-foreground">{group.title}</h4>
-      <ToggleGroup aria-labelledby={`${id}-${group.id}`} variant="outline" className="grid w-full grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] items-stretch" value={library.type ? [library.type] : []}
+    {library.groups.map(group => <section key={group.id} aria-labelledby={`${id}-group-${group.id}`} className="flex min-w-0 flex-col gap-2">
+      <h4 id={`${id}-group-${group.id}`} className="text-xs font-medium text-muted-foreground">{group.title}</h4>
+      <ToggleGroup aria-labelledby={`${id}-group-${group.id}`} variant="outline" className="grid w-full grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] items-stretch" value={library.type ? [library.type] : []}
         onValueChange={values => { if (values[0]) { library.setType(values[0] as BlockTypeV2); library.setVariant(null); } }}>
         {group.types.map(type => {
           const why = reason(type, library.full);
           const layouts = offeredVariants(type).length;
-          return <ToggleGroupItem key={type} value={type} disabled={why !== null} aria-label={BLOCK_LIBRARY_V2[type].label} aria-describedby={`${id}-${type}`} data-library-type={type}
+          return <ToggleGroupItem key={type} value={type} disabled={why !== null} aria-label={BLOCK_LIBRARY_V2[type].label} aria-describedby={`${id}-type-${type}`} data-library-type={type}
             className="h-auto min-w-0 flex-col items-stretch gap-2 p-2 text-left whitespace-normal aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground">
             <span className="pointer-events-none block h-16 w-full"><VariantThumbnail variant={offeredVariants(type)[0]} /></span>
             <span className="flex min-w-0 flex-wrap items-center gap-1 text-sm font-medium">{BLOCK_LIBRARY_V2[type].label}{isNew(type) && <Badge variant="secondary">Nueva</Badge>}</span>
-            <span id={`${id}-${type}`} className="text-xs font-normal text-muted-foreground">{why ?? plural(layouts, "diseño", "diseños")}</span>
+            <span id={`${id}-type-${type}`} className="text-xs font-normal text-muted-foreground">{why ?? plural(layouts, "diseño", "diseños")}</span>
           </ToggleGroupItem>;
         })}
       </ToggleGroup>
@@ -126,10 +126,10 @@ function Placement({ library }: { library: Library }) {
   const options = sectionOptions(library.blocks);
   const label = options[library.afterIndex]?.label;
   return <div className="flex min-w-0 flex-col gap-2">
-    <Field orientation="horizontal" className="flex-wrap">
-      <FieldLabel htmlFor={`${id}-after`} className="shrink-0">Insertar después de</FieldLabel>
+    <Field>
+      <FieldLabel htmlFor={`${id}-after`}>Insertar después de</FieldLabel>
       <Select items={options} value={library.after} onValueChange={value => { if (value) library.setAfter(String(value)); }}>
-        <SelectTrigger id={`${id}-after`} className="min-h-10 min-w-0 flex-1" aria-describedby={`${id}-hint`}><SelectValue /></SelectTrigger>
+        <SelectTrigger id={`${id}-after`} className="h-auto min-h-10 w-full min-w-0 whitespace-normal data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none" aria-describedby={`${id}-hint`}><SelectValue /></SelectTrigger>
         <SelectContent><SelectGroup>{options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
     </Field>

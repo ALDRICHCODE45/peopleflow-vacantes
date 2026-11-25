@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 /** Fits below the existing app header without taking ownership of the route's
  * padding or scroll. A short viewport shrinks the columns, never the document. */
-export function useWorkspaceHeight(desktop: boolean) {
-  const ref = useRef<HTMLDivElement>(null);
+export function useWorkspaceHeight(desktop: boolean, shared?: RefObject<HTMLDivElement | null>) {
+  const own = useRef<HTMLDivElement>(null);
+  const ref = shared ?? own;
   const [height, setHeight] = useState<number>();
   useEffect(() => {
     if (!desktop || !ref.current) { setHeight(undefined); return; }
@@ -26,6 +27,6 @@ export function useWorkspaceHeight(desktop: boolean) {
     ancestors.forEach(element => observer.observe(element));
     measure(); window.addEventListener("resize", measure);
     return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
-  }, [desktop]);
+  }, [desktop, ref]);
   return { ref, height: desktop ? height : undefined };
 }

@@ -3,7 +3,7 @@
 import { useId, type ReactNode } from "react";
 import { AlignCenter, AlignLeft, ImageIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { contrastRatio } from "../../brand";
 import { SECTION_STYLE_LABELS } from "../../defaults";
@@ -11,7 +11,7 @@ import type { MappedFieldError } from "../../editor-state";
 import { SECTION_ALIGNS, SECTION_BACKGROUNDS, SECTION_OVERLAYS, SECTION_SPACINGS, type SectionStyle } from "../../model";
 import { SCRIM_ALPHA, SITE_SCRIM } from "../../public/section-style";
 import { mediaUrl } from "../../public/media";
-import { siteBrandTokens } from "../../public/theme-tokens";
+import { siteBrandTokens, siteTintTokens } from "../../public/theme-tokens";
 import { ImageField } from "../media";
 import { fieldMessage } from "./fields";
 
@@ -49,14 +49,25 @@ function Swatch({ color, children }: { color?: string; children?: ReactNode }) {
   return <span aria-hidden="true" data-style-swatch="" className="flex h-6 w-full items-center justify-center rounded-lg border border-border bg-background text-muted-foreground" style={color ? { backgroundColor: color } : undefined}>{children}</span>;
 }
 
+/** The layout decides the alignment: say how it renders instead of offering a dead choice. */
+function FixedAlign({ align }: { align: SectionStyle["align"] }) {
+  const Icon = align === "center" ? AlignCenter : AlignLeft;
+  return <Field>
+    <FieldTitle>Alineación</FieldTitle>
+    <FieldDescription className="flex items-center gap-2"><Icon className="size-4 shrink-0" aria-hidden="true" />{align === "center" ? "Este diseño siempre va centrado." : "Este diseño siempre va alineado a la izquierda."}</FieldDescription>
+  </Field>;
+}
 export type SectionStyleControlsProps = {
-  blockId: string; style: SectionStyle; theme: { brand_color: string; accent_color: string | null; background_color: string | null }; fieldErrors: MappedFieldError[];
+  blockId: string; style: SectionStyle;
+  /** Set when the chosen layout always renders with this alignment (`fixedSectionAlign`). */
+  fixedAlign?: SectionStyle["align"] | null; theme: { brand_color: string; accent_color: string | null; background_color: string | null }; fieldErrors: MappedFieldError[];
   onChange: (style: SectionStyle) => void;
 };
 /** «Estilo de sección» (S3): curated background, veil, spacing and alignment. */
-export function SectionStyleControls({ blockId, style, theme, fieldErrors, onChange }: SectionStyleControlsProps) {
+export function SectionStyleControls({ blockId, style, theme, fieldErrors, onChange, fixedAlign = null }: SectionStyleControlsProps) {
   // The same tokens the public page paints with, so the swatches match the site.
   const tokens = /^#[\da-f]{6}$/i.test(theme.brand_color) ? siteBrandTokens(theme.brand_color, theme.accent_color, theme.background_color) : null;
+  const tint = tokens ? siteTintTokens(theme.brand_color, theme.accent_color, theme.background_color) : null;
   const set = (patch: Partial<SectionStyle>) => onChange({ ...style, ...patch });
   const error = (path: string) => fieldMessage(fieldErrors, blockId, path);
   const contrast = style.overlay ? veilContrast(style.overlay) : null;
@@ -64,7 +75,7 @@ export function SectionStyleControls({ blockId, style, theme, fieldErrors, onCha
     <FieldDescription>Opciones curadas: siempre respetan tu paleta y el contraste.</FieldDescription>
     {error("style") && <FieldError>{error("style")}</FieldError>}
     <Choice label="Fondo" columns options={SECTION_BACKGROUNDS} value={style.background} labels={SECTION_STYLE_LABELS.background} onChange={background => set({ background })} icons={{
-      default: <Swatch />, tint: <Swatch color={tokens?.["--site-band-light"]} />, brand: <Swatch color={tokens?.["--site-brand-light"]} />,
+      default: <Swatch />, tint: <Swatch color={tint?.["--site-tint-light"]} />, brand: <Swatch color={tokens?.["--site-brand-light"]} />,
       image: <Swatch><ImageIcon className="size-4" aria-hidden="true" /></Swatch>,
     }} />
     {style.background === "image" && <>
@@ -74,7 +85,7 @@ export function SectionStyleControls({ blockId, style, theme, fieldErrors, onCha
       {error("style.overlay") && <FieldError>{error("style.overlay")}</FieldError>}
     </>}
     <Choice label="Espaciado" options={SECTION_SPACINGS} value={style.spacing} labels={SECTION_STYLE_LABELS.spacing} onChange={spacing => set({ spacing })} />
-    <Choice label="Alineación" options={[...SECTION_ALIGNS].reverse() as typeof SECTION_ALIGNS[number][]} value={style.align} labels={SECTION_STYLE_LABELS.align} onChange={align => set({ align })}
-      icons={{ start: <AlignLeft className="size-4" aria-hidden="true" />, center: <AlignCenter className="size-4" aria-hidden="true" /> }} />
+    {fixedAlign ? <FixedAlign align={fixedAlign} /> : <Choice label="Alineación" options={[...SECTION_ALIGNS].reverse() as typeof SECTION_ALIGNS[number][]} value={style.align} labels={SECTION_STYLE_LABELS.align} onChange={align => set({ align })}
+      icons={{ start: <AlignLeft className="size-4" aria-hidden="true" />, center: <AlignCenter className="size-4" aria-hidden="true" /> }} />}
   </FieldGroup>;
 }

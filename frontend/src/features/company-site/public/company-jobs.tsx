@@ -1,10 +1,9 @@
 "use client";
-import { Fragment, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Briefcase, Search, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { StateCard } from "@/components/feedback/state-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,7 +69,8 @@ function JobEntry({ job, cards }: { job: PublicJobItem; cards: boolean }) {
 }
 function JobResults({ jobs, cards }: { jobs: PublicJobItem[]; cards: boolean }) {
   if (cards) return <ul className="grid auto-rows-fr gap-5 sm:grid-cols-2">{jobs.map(job => <li key={job.id} className="min-w-0"><JobEntry job={job} cards /></li>)}</ul>;
-  return <ItemGroup className="gap-0">{jobs.map((job, index) => <Fragment key={job.id}><div role="listitem"><JobEntry job={job} cards={false} /></div>{index < jobs.length - 1 && <Separator />}</Fragment>)}</ItemGroup>;
+  // The divider is the item's own border: a separator can't be a child of role=list (axe aria-required-children).
+  return <ItemGroup className="gap-0">{jobs.map(job => <div key={job.id} role="listitem" className="border-b border-border last:border-b-0"><JobEntry job={job} cards={false} /></div>)}</ItemGroup>;
 }
 /** Official multiple combobox composition; labels come from the loaded public projection. */
 function Dimension({ label, help, options, values, onChange }: { label: string; help?: string; options: Option[]; values: string[]; onChange: (values: string[]) => void }) {

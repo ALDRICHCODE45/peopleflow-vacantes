@@ -174,6 +174,27 @@
   background-color: #140F1F;
   color: var(--foreground);
 }
+/* «Tinte suave»: a stronger brand tint than the alternating band (`siteTintTokens`), with inks
+   measured on it and on cards; the tokens travel inline on the tinted section only. */
+.site [data-site-surface="tint"] {
+  --site-tint: var(--site-tint-light);
+  --foreground: var(--site-tint-foreground-light);
+  --card-foreground: var(--site-tint-foreground-light);
+  --muted-foreground: var(--site-tint-secondary-light);
+  --site-brand-text: var(--site-tint-brand-text-light);
+  --ring: var(--site-tint-ring-light);
+  --site-band: var(--card);
+  background-color: var(--site-tint);
+  color: var(--foreground);
+}
+:global(.dark) .site [data-site-surface="tint"] {
+  --site-tint: var(--site-tint-dark);
+  --foreground: var(--site-tint-foreground-dark);
+  --card-foreground: var(--site-tint-foreground-dark);
+  --muted-foreground: var(--site-tint-secondary-dark);
+  --site-brand-text: var(--site-tint-brand-text-dark);
+  --ring: var(--site-tint-ring-dark);
+}
 .site[data-site-palette="true"] [data-site-surface] [data-slot="badge"] {
   --secondary: var(--primary);
   --secondary-foreground: var(--primary-foreground);

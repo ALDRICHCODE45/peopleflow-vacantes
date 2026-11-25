@@ -10,7 +10,10 @@ vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" })
 
 /* Golden pin (captured from the pre-sections-v2 presentation, 616b3934): a legacy
  * document — and the same document normalized by the v2 read, whose style is the
- * default — must keep producing byte-identical public and editor markup. */
+ * default — must keep producing byte-identical public and editor markup.
+ * Re-pinned once (2026-11-25, T4): the list-variant job dividers moved from a <Separator> inside
+ * role=list to each item's border (axe aria-required-children) — hero/photo (full page), jobs/list
+ * and jobs/by_area. Headings are untouched: the v2 display weight applies to v2 layouts only. */
 const image = { media_id: mediaId };
 const content: Record<BlockType, unknown> = {
   hero: { title: "Nuestro siguiente capítulo", subtitle: "Creamos juntos", cover: image },

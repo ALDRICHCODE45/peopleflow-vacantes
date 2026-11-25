@@ -18,7 +18,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useGroupRef, usePanelRef, type Layout } from "react-resizable-panels";
-import { defaultEditorLayout, EDITOR_PANEL_SIZES, readEditorLayout, saveEditorLayout } from "./editor-layout";
+import { arrangeSidePanels, defaultEditorLayout, EDITOR_PANEL_SIZES, previewMinSize, readEditorLayout, saveEditorLayout, sidePanelLayout, type EditorPanelMode, type SidePanel, type SidePanelState } from "./editor-layout";
+import { useEditorPanelMode } from "./use-panel-mode";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { saveDraftAction } from "../api/actions";
 import type { SiteState } from "../api/model";
@@ -30,6 +31,7 @@ import { SECTIONS_V2_ENABLED } from "../sections-v2";
 import { cn } from "@/lib/utils";
 import { canPublish, RECRUITER_PUBLISH_REASON } from "../permissions";
 import { CompanySitePresentation } from "../public/company-site-presentation";
+import { fixedSectionAlign } from "../public/section-style";
 import type { CompanySitePreviewData } from "../public/presentation-types";
 import { CareersSiteEditorLoading, SaveStatus } from "./editor-feedback";
 import { PreviewFrame } from "./preview-frame";
@@ -89,7 +91,7 @@ function PreviewScroll({ desktop, children }: { desktop: boolean; children: Reac
 }
 type PanelControls = { sectionsToggle?: ReactNode; propertiesToggle?: ReactNode };
 type PreviewContent = (controls: PanelControls) => ReactNode;
-function DesktopPanels({ sections, properties, children, focused: previewFocused, library }: { sections: ReactNode; properties: ReactNode; children: PreviewContent; focused: boolean; library?: ReactNode }) {
+function DesktopPanels({ sections, properties, children, focused: previewFocused, library, mode }: { sections: ReactNode; properties: ReactNode; children: PreviewContent; focused: boolean; library?: ReactNode; mode: EditorPanelMode }) {
   // The docked library (sections v2) borrows the focus mechanics: side panes fold away
   // while it is open and come back exactly as they were, never persisted.
   const focused = previewFocused || Boolean(library);
@@ -101,17 +103,48 @@ function DesktopPanels({ sections, properties, children, focused: previewFocused
   const left = usePanelRef();
   const right = usePanelRef();
   const root = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (initial) return;
+  const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  /** The engine allocates the group's inner width minus its two separators (0 when unmeasured). */
+  const measure = useCallback(() => {
     const element = root.current?.querySelector<HTMLElement>('[data-group]');
-    if (!element) return;
-    // The engine allocates the group's inner width minus its two separators.
-    const width = element.getBoundingClientRect().width - Array.from(element.querySelectorAll<HTMLElement>('[data-separator]')).reduce((sum, handle) => sum + handle.getBoundingClientRect().width, 0);
-    if (width > 0) group.current?.setLayout(defaultEditorLayout(width, parseFloat(getComputedStyle(document.documentElement).fontSize) || 16));
-  }, [initial, group]);
+    if (!element) return 0;
+    return element.getBoundingClientRect().width - Array.from(element.querySelectorAll<HTMLElement>('[data-separator]')).reduce((sum, handle) => sum + handle.getBoundingClientRect().width, 0);
+  }, []);
   const previous = useRef<Layout | null>(null);
   const toggling = useRef(false);
   const focusing = useRef(focused);
+  // Which side panel was folded to make room for the other (L3), and each panel's last open width.
+  const remembered = useRef<SidePanel | null>(null);
+  const lastSizes = useRef<Partial<Record<SidePanel, number>>>({});
+  const apply = useCallback((next: SidePanelState, persist: boolean) => {
+    remembered.current = next.remembered;
+    const width = measure();
+    toggling.current = persist;
+    if (width > 0) { group.current?.setLayout(sidePanelLayout(width, rem(), next.shown, lastSizes.current)); return; }
+    // Unmeasured (no layout engine): plain collapse/expand, folding before expanding.
+    for (const [id, panel] of [["sections", left], ["properties", right]] as const) if (!next.shown[id]) panel.current?.collapse();
+    for (const [id, panel] of [["sections", left], ["properties", right]] as const) if (next.shown[id] && panel.current?.isCollapsed()) panel.current.expand();
+  }, [group, left, right, measure]);
+  /** Fold or restore side panels so the current layout fits the space (never persisted). */
+  const fit = useCallback(() => {
+    const layout = group.current?.getLayout();
+    if (!layout) return;
+    const shown = { sections: layout.sections > 0, properties: layout.properties > 0 };
+    const next = arrangeSidePanels(mode, { shown, remembered: remembered.current }, { type: "fit" });
+    if (next.shown.sections !== shown.sections || next.shown.properties !== shown.properties) apply(next, false);
+    else remembered.current = next.remembered;
+  }, [mode, group, apply]);
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    const first = !mounted.current;
+    mounted.current = true;
+    if (first && !initial) {
+      const width = measure();
+      if (width > 0) group.current?.setLayout(defaultEditorLayout(width, rem()));
+      return;
+    }
+    if (!focusing.current) fit();
+  }, [initial, group, measure, fit]);
   useLayoutEffect(() => {
     focusing.current = focused;
     if (focused) {
@@ -120,8 +153,9 @@ function DesktopPanels({ sections, properties, children, focused: previewFocused
     } else if (previous.current) {
       group.current?.setLayout(previous.current);
       previous.current = null;
+      fit();
     }
-  }, [focused, group]);
+  }, [focused, group]); // eslint-disable-line react-hooks/exhaustive-deps -- `fit` follows the mode; only focus changes restore
   function persistReset() {
     // The registry's native double-click reset uses the imperative API, so it
     // isn't tagged as user interaction by the library's persistence callback.
@@ -130,6 +164,8 @@ function DesktopPanels({ sections, properties, children, focused: previewFocused
   }
   function track(layout: Layout) {
     if (focusing.current) return;
+    const width = measure();
+    if (width > 0) for (const id of ["sections", "properties"] as const) if (layout[id] > 0) lastSizes.current[id] = layout[id] / 100 * width;
     setCollapsed(current => current.sections === (layout.sections === 0) && current.properties === (layout.properties === 0) ? current : { sections: layout.sections === 0, properties: layout.properties === 0 });
   }
   function toggle(id: 'sections' | 'properties') {
@@ -137,7 +173,11 @@ function DesktopPanels({ sections, properties, children, focused: previewFocused
     const action = `${expanded ? 'Ocultar' : 'Mostrar'} ${id === 'sections' ? 'secciones' : 'propiedades'}`;
     const panel = id === 'sections' ? left : right;
     const Icon = id === 'sections' ? PanelLeft : PanelRight;
-    return <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon" className="size-10" disabled={focused} aria-label={action} aria-expanded={expanded} aria-controls={`editor-${id}`} onClick={() => { toggling.current = true; if (panel.current?.isCollapsed()) panel.current.expand(); else panel.current?.collapse(); }} />}><Icon aria-hidden="true" /></TooltipTrigger><TooltipContent>{library ? 'Cierra la biblioteca para mostrar los paneles' : focused ? 'Sal de la vista enfocada para mostrar los paneles' : action}</TooltipContent></Tooltip>;
+    return <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon" className="size-10" disabled={focused} aria-label={action} aria-expanded={expanded} aria-controls={`editor-${id}`} onClick={() => {
+      const layout = group.current?.getLayout();
+      const shown = layout ? { sections: layout.sections > 0, properties: layout.properties > 0 } : { sections: !collapsed.sections, properties: !collapsed.properties };
+      apply(arrangeSidePanels(mode, { shown, remembered: remembered.current }, { type: panel.current?.isCollapsed() ? "show" : "hide", panel: id }), true);
+    }} />}><Icon aria-hidden="true" /></TooltipTrigger><TooltipContent>{library ? 'Cierra la biblioteca para mostrar los paneles' : focused ? 'Sal de la vista enfocada para mostrar los paneles' : action}</TooltipContent></Tooltip>;
   }
   return <div ref={root} className={cn("flex min-h-0 min-w-0 flex-1", library ? "flex-row gap-3" : "flex-col")}>
     {library && <div data-editor-region="library" className="flex min-h-0 w-[clamp(22rem,46%,44rem)] shrink-0 flex-col">{library}</div>}
@@ -146,7 +186,7 @@ function DesktopPanels({ sections, properties, children, focused: previewFocused
         <aside id="editor-sections" hidden={focused || collapsed.sections} data-editor-region="sections" aria-label="Organizar sitio" className="h-full min-h-0 min-w-0"><ScrollArea className="h-full min-w-0"><div className="p-1 pr-3">{sections}</div></ScrollArea></aside>
       </ResizablePanel>
       <ResizableHandle withHandle disabled={focused} aria-label="Ajustar secciones" onDoubleClick={persistReset} />
-      <ResizablePanel id="preview" minSize={EDITOR_PANEL_SIZES.preview.min} className="flex h-full min-h-0 min-w-0 flex-col">{children({ sectionsToggle: toggle('sections'), propertiesToggle: toggle('properties') })}</ResizablePanel>
+      <ResizablePanel id="preview" minSize={previewMinSize(mode)} className="flex h-full min-h-0 min-w-0 flex-col">{children({ sectionsToggle: toggle('sections'), propertiesToggle: toggle('properties') })}</ResizablePanel>
       <ResizableHandle withHandle disabled={focused} aria-label="Ajustar propiedades" onDoubleClick={persistReset} />
       <ResizablePanel id="properties" panelRef={right} defaultSize={EDITOR_PANEL_SIZES.properties.default} minSize={EDITOR_PANEL_SIZES.properties.min} maxSize={EDITOR_PANEL_SIZES.properties.max} collapsible collapsedSize={0} groupResizeBehavior="preserve-pixel-size" className="h-full min-w-0">
         <aside id="editor-properties" hidden={focused || collapsed.properties} data-editor-region="properties" aria-label="Propiedades de la sección" className="h-full min-h-0 min-w-0">
@@ -158,8 +198,8 @@ function DesktopPanels({ sections, properties, children, focused: previewFocused
     </ResizablePanelGroup>
   </div>;
 }
-function EditorSurface({ desktop, sections, properties, focused, library, children }: { desktop: boolean; sections: ReactNode; properties: ReactNode; focused: boolean; library?: ReactNode; children: PreviewContent }) {
-  return desktop ? <DesktopPanels sections={sections} properties={properties} focused={focused} library={library}>{children}</DesktopPanels> : children({});
+function EditorSurface({ desktop, mode, sections, properties, focused, library, children }: { desktop: boolean; mode: EditorPanelMode; sections: ReactNode; properties: ReactNode; focused: boolean; library?: ReactNode; children: PreviewContent }) {
+  return desktop ? <DesktopPanels sections={sections} properties={properties} focused={focused} library={library} mode={mode}>{children}</DesktopPanels> : children({});
 }
 /** The live preview follows a section drag from the list: an insertion line at
  * the landing gap (scrolled into view) and the dragged section dimmed. Kept
@@ -200,8 +240,13 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
   const visitorTrigger = useRef<HTMLButtonElement>(null);
   const [sectionsOpen, setSectionsOpen] = useState(false); const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [reload, setReload] = useState(false); const [keepMine, setKeepMine] = useState(false);
-  const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
-  const workspace = useWorkspaceHeight(desktop);
+  const [wideViewport, setWideViewport] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const panelMode = useEditorPanelMode(workspaceRef, wideViewport);
+  // Docked panels need at least one side panel beside the compact preview; otherwise the
+  // narrow desktop uses the phone layout's Sheets, so no panel is ever unreachable (L3).
+  const desktop = wideViewport && panelMode !== "overlay";
+  const workspace = useWorkspaceHeight(desktop, workspaceRef);
   const libraryDocked = SECTIONS_V2_ENABLED && desktop && library;
   const insertion = libraryDocked && ghost && libraryPreview ? { block: ghost, index: libraryPreview.index } : null;
   const closeLibrary = useCallback(() => { setLibrary(false); setLibraryPreview(null); requestAnimationFrame(() => addTrigger.current?.focus()); }, []);
@@ -212,9 +257,10 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
   }, [controller]);
   useEffect(() => {
     const query = window.matchMedia("(min-width: 1024px)");
-    const update = () => { setDesktop(query.matches); if (query.matches) { setSectionsOpen(false); setPropertiesOpen(false); } };
+    const update = () => setWideViewport(query.matches);
     update(); query.addEventListener("change", update); return () => query.removeEventListener("change", update);
   }, []);
+  useEffect(() => { if (desktop) { setSectionsOpen(false); setPropertiesOpen(false); } }, [desktop]);
   useEffect(() => {
     if (!editor.dirty && status.kind !== "offline" && status.kind !== "saving") return;
     const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -256,7 +302,7 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
     {desktop && <div className="flex flex-col gap-2"><h2 className="text-base font-semibold">Propiedades de {BLOCK_LIBRARY_V2[selected.type].label}</h2><p className="text-sm text-muted-foreground">Cambia la composición sin perder contenido.</p></div>}
     {SECTIONS_V2_ENABLED ? <PropertyGroups groups={[
       { id: "layout", title: "Diseño de sección", content: <><VariantPicker block={selected} labelHidden onChange={variant => controller.dispatch({ type: "variant", id: selected.id, variant })} />{visibility}</> },
-      { id: "style", title: "Estilo de sección", content: <SectionStyleControls blockId={selected.id} style={selected.style} theme={editor.draft.theme} fieldErrors={editor.fieldErrors} onChange={style => controller.dispatch({ type: "style", id: selected.id, style })} /> },
+      { id: "style", title: "Estilo de sección", content: <SectionStyleControls blockId={selected.id} style={selected.style} fixedAlign={fixedSectionAlign(selected)} theme={editor.draft.theme} fieldErrors={editor.fieldErrors} onChange={style => controller.dispatch({ type: "style", id: selected.id, style })} /> },
       { id: "content", title: "Contenido", content: <SectionForm block={selected} dispatch={controller.dispatch} fieldErrors={editor.fieldErrors} /> },
       ...(selected.type === "hero" ? [{ id: "buttons" as const, title: "Botones", content: <HeroButtons block={selected} blocks={editor.draft.blocks} fieldErrors={editor.fieldErrors} onChange={content => controller.dispatch({ type: "content", id: selected.id, content })} /> }] : []),
     ]} /> : <>
@@ -287,7 +333,7 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
     </div>}
     {/* A single editor surface. Sidebars own independent desktop scroll; mobile
         uses the page, with only the currently open Sheet owning a scroll area. */}
-    <EditorSurface desktop={desktop} sections={sections} properties={properties} focused={previewFocused} library={libraryDocked ? <SectionLibraryPanel editor={editor} onAdd={addFromLibrary} onClose={closeLibrary} onPreview={setLibraryPreview} /> : undefined}>
+    <EditorSurface desktop={desktop} mode={panelMode} sections={sections} properties={properties} focused={previewFocused} library={libraryDocked ? <SectionLibraryPanel editor={editor} onAdd={addFromLibrary} onClose={closeLibrary} onPreview={setLibraryPreview} /> : undefined}>
       {({ sectionsToggle, propertiesToggle }) => <div data-editor-region="preview" className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted">
         <div role="group" aria-label="Herramientas de vista previa" className="flex items-center gap-2 border-b border-border p-2 xl:p-3">{sectionsToggle}<p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Vista previa en vivo</p>
           <div className="flex flex-wrap items-center gap-2"><span aria-label="Zoom de la vista previa" className="text-xs text-muted-foreground tabular-nums">{Math.round(zoom * 100)} %</span>

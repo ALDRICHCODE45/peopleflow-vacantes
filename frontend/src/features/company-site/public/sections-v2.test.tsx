@@ -56,8 +56,24 @@ describe("per-block style (S3)", () => {
     expect(element).not.toHaveAttribute("data-site-surface");
     expect(element.firstElementChild).toHaveClass("py-10", "lg:py-16");
   });
-  it("tint paints the soft brand band; brand re-themes the section for on-brand ink", () => {
-    expect(section(draw(site(values({ background: "tint" }))))).toHaveClass("bg-(--site-band)");
+  it("tint paints its own brand-tinted surface, apart from the band even on banded sections; brand re-themes the section for on-brand ink", () => {
+    const tinted = section(draw(site(values({ background: "tint" }))));
+    expect(tinted).toHaveAttribute("data-site-surface", "tint");
+    expect(tinted.className).not.toContain("bg-(--site-band)");
+    expect(tinted.style.getPropertyValue("--site-tint-light")).toMatch(/^#[\dA-F]{6}$/);
+    expect(tinted.style.getPropertyValue("--site-tint-dark")).toMatch(/^#[\dA-F]{6}$/);
+    cleanup();
+    // Historia sits on the alternating band by default: «Normal» and «Tinte suave» must still differ.
+    // Editor preview: the empty Historia still draws its surface.
+    const story = (style: Partial<SectionStyle>) => draw(site(block("story", { style })), [job(1)], true);
+    const normal = section(story({}));
+    expect(normal).toHaveClass("bg-(--site-band)");
+    expect(normal).not.toHaveAttribute("data-site-surface");
+    expect(normal.style.getPropertyValue("--site-tint-light")).toBe("");
+    cleanup();
+    const tintedStory = section(story({ background: "tint" }));
+    expect(tintedStory).toHaveAttribute("data-site-surface", "tint");
+    expect(tintedStory.className).not.toContain("bg-(--site-band)");
     cleanup();
     const element = section(draw(site(values({ background: "brand" }))));
     expect(element).toHaveAttribute("data-site-surface", "brand");
@@ -335,4 +351,62 @@ it("the public page decodes and renders a v2 document", async () => {
   const document = site(block("talent_cta", { variant: "banner", content: { title: "Únete a la base de talento" }, style: { background: "brand" } }));
   const { container } = render(await CompanySitePage({ data: { ...data, site: document }, jobs: [] }));
   expect(section(container)).toHaveAttribute("data-site-surface", "brand");
+});
+
+describe("visual polish against 02/03 (T4 browser check)", () => {
+  const team = (title = "Quienes lideran") => block("team", { content: { title, items: [{ name: "Mariana López", role: "Directora", photo: null, consent: true }] } });
+  it("v2 section titles use the bold display weight; the eyebrow drops the slash alternative", () => {
+    let element = section(draw(site(team())));
+    const heading = within(element).getByRole("heading", { level: 2, name: "Quienes lideran" });
+    expect(heading).toHaveClass("font-semibold");
+    expect(heading).not.toHaveClass("font-medium");
+    expect(within(element).getByText("Equipo")).toBeVisible();
+    expect(within(element).queryByText(/Equipo \/ Líderes/)).toBeNull();
+    cleanup();
+    element = section(draw(site(block("logos", { content: { title: "Empresas que confían", items: [{ name: "Sierra", image, caption: null }] } }))));
+    expect(within(element).getByText("Logos")).toBeVisible();
+  });
+  it("«Banda de marca»: eyebrow, centred headline and the figures centred in one row", () => {
+    const element = section(draw(site(block("stats", { variant: "brand_band", content: { items: [{ value: "+15", label: "años" }, { value: "300+", label: "colaboradores" }] } }))));
+    const heading = within(element).getByRole("heading", { level: 2 });
+    expect(heading).toHaveTextContent(`${publishedFixture().company.name} en cifras`);
+    expect(heading.parentElement).toHaveClass("mx-auto", "items-center", "text-center");
+    expect(within(element).getByText("Cifras")).toBeVisible();
+    expect(element.querySelector("dl")).toHaveClass("flex", "flex-wrap", "justify-center", "text-center");
+  });
+  it("«Íconos grandes» centres cards, icons and text without leaving an empty column", () => {
+    const element = section(draw(site(block("benefits", { variant: "big_icons", content: { items: benefits(2) } }))));
+    const list = element.querySelector('[data-layout="benefits-big_icons"] ul')!;
+    expect(list).toHaveClass("flex", "flex-wrap", "justify-center");
+    expect(list).not.toHaveClass("lg:grid-cols-3");
+    for (const card of element.querySelectorAll('[data-slot="card"]')) expect(card).toHaveClass("text-center");
+    for (const icon of element.querySelectorAll('[data-slot="card-header"] > span[aria-hidden]')) expect(icon).toHaveClass("mx-auto");
+    expect(within(element).getByRole("heading", { level: 2 }).parentElement).toHaveClass("mx-auto", "text-center");
+  });
+  it("empty photos use a light branded placeholder (icon or initials), and the editor asks for a photo", () => {
+    const jobs = [job(1, { professional_area: "logistics_transport" }), job(2, { professional_area: "human_resources" })];
+    const areas = block("areas", { variant: "photo_cards", content: { title: "Encuentra tu lugar", overrides: [{ key: "human_resources", icon: null, photo: image }] } });
+    let element = section(draw(site(areas), jobs));
+    const empty = within(element).getByRole("button", { name: /Logística y transporte/ });
+    expect(empty).not.toHaveAttribute("data-site-surface");
+    expect(empty.querySelector("[data-photo-placeholder]")).not.toBeNull();
+    expect(empty.className).not.toContain("heroGradient");
+    expect(within(element).getByRole("button", { name: /Recursos humanos/ })).toHaveAttribute("data-site-surface", "scrim");
+    expect(within(element).queryByText("Agrega una foto")).toBeNull();
+    cleanup();
+    const testimonial = block("testimonials", { variant: "carousel", content: { items: [{ quote: "Aquí crecí", name: "Laura Méndez", role: null, photo: null, consent: true, video_url: null }] } });
+    element = section(draw(site(testimonial)));
+    const placeholder = element.querySelector("[data-photo-placeholder]")!;
+    expect(placeholder).toHaveTextContent("LM");
+    cleanup();
+    element = section(draw(site(testimonial), [job(1)], true));
+    expect(within(element).getByText("Agrega una foto")).toBeVisible();
+  });
+  it("the bento lead tile is brand-tinted with its icon, never a blank band", () => {
+    const element = section(draw(site(block("values", { variant: "bento", content: { items: benefits(3) } }))));
+    const lead = element.querySelector("[data-bento-lead]")!;
+    expect(lead).not.toBeNull();
+    expect(lead.className).not.toContain("bg-(--site-band)");
+    expect(lead.querySelector("[data-bento-watermark]")).toHaveAttribute("aria-hidden", "true");
+  });
 });

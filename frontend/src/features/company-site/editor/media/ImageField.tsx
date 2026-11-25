@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Spinner } from "@/components/ui/spinner";
 import { LOGO_MEDIA_TYPES, LOGO_MIN_PX, MEDIA_MAX_BYTES, MEDIA_TYPES, MEDIA_UNCERTAIN, type MediaKindV2 } from "../../media";
@@ -159,7 +158,7 @@ function ImageFieldSlot({ kind, label, description, value, onChange, previewUrl,
     <Field data-disabled={blocked || undefined} data-invalid={!!message || undefined} aria-labelledby={`${id}-label`}>
       <FieldLabel id={`${id}-label`} htmlFor={id}>{label}</FieldLabel>
       {description && <FieldDescription>{description}</FieldDescription>}
-      <Input ref={inputRef} id={id} type="file" accept={mediaTypesFor(kind).join(",")} className="sr-only" tabIndex={-1}
+      <input ref={inputRef} id={id} type="file" accept={mediaTypesFor(kind).join(",")} className="sr-only" tabIndex={-1}
         aria-label={`Archivo de ${label}`} aria-invalid={!!message} aria-describedby={`${id}-help${message ? ` ${id}-error` : ""}`}
         disabled={blocked} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void choose(file); }} />
       {value ? (

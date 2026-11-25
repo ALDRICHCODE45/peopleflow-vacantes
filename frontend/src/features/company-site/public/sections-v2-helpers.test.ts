@@ -5,7 +5,9 @@ import type { PublicJobItem } from "@/features/jobs/types";
 import { PROFESSIONAL_AREAS } from "@/features/jobs/drafts/scalars";
 import { ICONS } from "../model";
 import { bentoLayout } from "./bento";
-import { SCRIM_ALPHA, SITE_SCRIM } from "./section-style";
+import { fixedSectionAlign, SCRIM_ALPHA, SITE_SCRIM } from "./section-style";
+import { defaultBlockV2 } from "../defaults";
+import type { BlockTypeV2, SiteBlockV2 } from "../model";
 import { DEFAULT_AREA_ICONS, deriveSiteAreas } from "./site-areas";
 import { parseCountValue } from "./count-up";
 import { newestJobs } from "./site-blocks-v2";
@@ -106,4 +108,22 @@ it("newest vacancies are the most recently published first", () => {
   const at = (id: number, date: string): PublicJobItem => ({ ...listItem(vacancyDetail), id: `0198f5a2-7c1b-7ddd-9c2e-${String(id).padStart(12, "0")}`, published_at: date });
   const jobs = [at(1, "2026-10-01T00:00:00Z"), at(2, "2026-11-20T00:00:00Z"), at(3, "2026-11-01T00:00:00Z"), at(4, "2026-11-24T00:00:00Z")];
   expect(newestJobs(jobs, 3).map(job => job.id.slice(-1))).toEqual(["4", "2", "3"]);
+});
+
+describe("alignment each layout can honour (S3: the selected value matches what renders)", () => {
+  const of = (type: BlockTypeV2, variant?: string) => ({ ...defaultBlockV2(type), ...(variant ? { variant } : {}) }) as SiteBlockV2;
+  it.each([
+    ["closing", "banner", "center"], ["closing", "simple", "center"],
+    ["hero", "photo", "center"], ["hero", "centered", "center"], ["hero", "split", "start"], ["hero", "photo_jobs", "start"], ["hero", "collage", "start"],
+  ] as const)("%s «%s» always renders %s, so the style can't move it", (type, variant, align) => {
+    expect(fixedSectionAlign(of(type, variant))).toBe(align);
+  });
+  it.each([["hero", "background_loop"], ["values", "bento"], ["talent_cta", "banner"], ["team", "grid"], ["story", "text"], ["jobs", "list"]] as const)("%s «%s» follows the section alignment", (type, variant) => {
+    expect(fixedSectionAlign(of(type, variant))).toBeNull();
+  });
+});
+describe("layouts designed centred", () => {
+  it.each([["stats", "brand_band"], ["benefits", "big_icons"], ["values", "big_icons"]] as const)("%s «%s» always renders centred", (type, variant) => {
+    expect(fixedSectionAlign({ ...defaultBlockV2(type), variant } as SiteBlockV2)).toBe("center");
+  });
 });

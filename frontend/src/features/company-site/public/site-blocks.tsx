@@ -69,7 +69,7 @@ export function SiteBlockContent({ block, company, jobs, offices, jobsHref, seco
         })}</ItemGroup>}
       </div>;
     }
-    case "stats": if (block.variant === "brand_band") return <StatsBand block={block} />;
+    case "stats": if (block.variant === "brand_band") return <StatsBand block={block} company={company} />;
       return <div data-layout={marker} className={cn("grid gap-8", block.variant === "cards" && "lg:grid-cols-[1fr_1.5fr] lg:gap-12")}>
       <Heading block={block} />
       {/* Auto-fit prevents the approved reference's three narrow columns breaking Monterrey. */}

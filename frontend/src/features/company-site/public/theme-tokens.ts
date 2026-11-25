@@ -6,11 +6,13 @@ export const SITE_THEME_SURFACES = {
   dark: { page: "#0C0912", card: "#15121F" },
 } as const;
 
-/** Materialize the 7% sRGB tint so CSS and contrast checks use identical pixels. */
-function brandBand(fill: string, page: string): string {
+/** Materialize an sRGB brand tint so CSS and contrast checks use identical pixels. */
+function brandMix(fill: string, page: string, amount: number): string {
   const channel = (hex: string, offset: number) => parseInt(hex.slice(offset, offset + 2), 16);
-  return `#${[1, 3, 5].map(offset => Math.round(channel(fill, offset) * .07 + channel(page, offset) * .93).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+  return `#${[1, 3, 5].map(offset => Math.round(channel(fill, offset) * amount + channel(page, offset) * (1 - amount)).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
 }
+/** The 7% band the legacy presentation alternates sections with. */
+const brandBand = (fill: string, page: string) => brandMix(fill, page, .07);
 
 /** Separate brand-as-fill from small-text ink; never change the saved brand. */
 export function siteBrandTokens(brand: string, accent: string | null = null, background: string | null = null): Record<string, string> {
@@ -55,4 +57,30 @@ export function siteBrandTokens(brand: string, accent: string | null = null, bac
     for (const [role, value] of Object.entries(values)) tokens[`--site-${role}-${theme}`] = value;
   }
   return tokens;
+}
+
+const SITE_DEFAULT_INK = { light: { foreground: "#1A1626", secondary: "#6B6480" }, dark: { foreground: "#F6F2FF", secondary: "#A79FBF" } } as const;
+/** «Tinte suave» (S3): a stronger brand tint than the alternating band, so the four section
+ * backgrounds (normal, tint, brand, image) never look alike — even on sections whose normal
+ * surface is already the band. Kept out of `siteBrandTokens` (legacy object stays byte-identical):
+ * only tinted sections carry these, with their own AA inks (also AA on cards, same pole). */
+export function siteTintTokens(brand: string, accent: string | null = null, background: string | null = null): Record<string, string> {
+  const tokens = siteBrandTokens(brand, accent, background);
+  const result: Record<string, string> = {};
+  for (const theme of ["light", "dark"] as const) {
+    const get = (role: string) => tokens[`--site-${role}-${theme}`];
+    const page = get("page") ?? SITE_THEME_SURFACES[theme].page;
+    const card = get("card") ?? SITE_THEME_SURFACES[theme].card;
+    const fill = get("brand");
+    const band = get("band");
+    let tint = brandMix(fill, page, .16);
+    for (let amount = .18; amount <= .6 && (contrastRatio(tint, page) < 1.1 || contrastRatio(tint, band) < 1.06 || contrastRatio(tint, fill) < 1.5); amount += .02) tint = brandMix(fill, page, amount);
+    const on = (ink: string, minimum = 4.5) => adjustedColorOn(ink, [tint, card], minimum).color;
+    result[`--site-tint-${theme}`] = tint;
+    result[`--site-tint-foreground-${theme}`] = on(get("foreground") ?? SITE_DEFAULT_INK[theme].foreground);
+    result[`--site-tint-secondary-${theme}`] = on(get("secondary") ?? SITE_DEFAULT_INK[theme].secondary);
+    result[`--site-tint-brand-text-${theme}`] = on(get("brand-text"));
+    result[`--site-tint-ring-${theme}`] = adjustedColorOn(get("ring") ?? fill, [tint], 3).color;
+  }
+  return result;
 }

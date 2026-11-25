@@ -2,7 +2,7 @@
 "use client";
 import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUpRight, Briefcase, ChevronLeft, ChevronRight, FileUser, MapPin, Pause, Play, Quote } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Briefcase, ChevronLeft, ChevronRight, FileUser, ImagePlus, MapPin, Pause, Play, type LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +19,7 @@ import { mediaUrl } from "./media";
 import { AREA_PHOTO_SCRIM, scrimColor } from "./section-style";
 import { useSiteAreaFilter } from "./site-area-filter";
 import { DEFAULT_AREA_ICONS, deriveSiteAreas } from "./site-areas";
-import { Heading, JobsLink, siteAnchor, useSectionAlign } from "./site-heading";
+import { Heading, JobsLink, siteAnchor, useSectionAlign, useSiteEditing } from "./site-heading";
 import { SITE_ICONS } from "./site-icons";
 import { SiteMedia } from "./site-media";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
@@ -30,6 +30,16 @@ type Of<T extends SiteBlockV2["type"]> = Extract<SiteBlockV2, { type: T }>;
 type Company = PublicSite["company"];
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(word => [...word][0]).join("").toLocaleUpperCase("es");
+
+/** A missing photo: a light brand tint with the item's icon or initials, intentional on the public
+ * page; the editor preview adds «Agrega una foto» so it reads as a slot to fill. Decorative. */
+function PhotoPlaceholder({ icon: Icon, initials: letters, className }: { icon?: LucideIcon; initials?: string; className?: string }) {
+  const editing = useSiteEditing();
+  return <span data-photo-placeholder="" aria-hidden="true" className={cn("flex size-full flex-col items-center justify-center gap-3 bg-[color-mix(in_srgb,var(--site-brand)_10%,var(--card))] text-(--site-brand-text)", className)}>
+    {letters ? <span className="font-heading text-5xl font-semibold tracking-tight sm:text-6xl">{letters}</span> : Icon && <Icon className="size-10" />}
+    {editing && <span className="inline-flex items-center gap-1.5 rounded-full bg-(--card) px-3 py-1 text-xs font-medium text-foreground shadow-sm"><ImagePlus className="size-3.5" />Agrega una foto</span>}
+  </span>;
+}
 
 /** Newest public vacancies first («Vacantes recientes»). */
 export function newestJobs(jobs: readonly PublicJobItem[], count: number): PublicJobItem[] {
@@ -157,12 +167,14 @@ export function DecoratedBento({ block }: { block: Decorated }) {
   const items = block.content.items.filter(item => item.title);
   const cells = bentoLayout(items.length);
   return <div data-layout={`${block.type}-bento`} className="flex flex-col gap-8">
-    <Heading block={block}><Mission block={block} /></Heading>
+    <Heading block={block} display><Mission block={block} /></Heading>
     <ul data-bento-count={items.length} className="grid gap-4 sm:grid-cols-2 lg:grid-flow-row-dense lg:grid-cols-6">
       {items.map((item, index) => {
         const lead = index === 0 && cells[0].row === 2;
         return <li key={index} className={cn("min-w-0", bentoCellClass(cells[index]))}>
-          <Card className={cn("h-full", lead && "justify-end bg-(--site-band)")}>
+          {/* The tall lead tile: accent-tinted (02 «tint-a») with a large faint mark of its icon, never a blank band. */}
+          <Card data-bento-lead={lead ? "" : undefined} className={cn("h-full", lead && "relative justify-end overflow-hidden bg-[color-mix(in_srgb,var(--site-accent)_9%,var(--card))]")}>
+            {lead && <span data-bento-watermark="" aria-hidden="true" className="pointer-events-none absolute -top-10 -right-10 opacity-10"><Decoration item={item} className="size-64 text-(--site-brand-text)" /></span>}
             <CardHeader className="gap-3">
               <Decoration item={item} className={cn("mb-2 text-(--site-brand-text)", lead ? "size-16 bg-(--card)" : "size-12 bg-(--site-band)")} />
               <CardTitle><h3 className={cn("text-lg", lead && "text-2xl sm:text-3xl")}>{item.title}</h3></CardTitle>
@@ -176,15 +188,15 @@ export function DecoratedBento({ block }: { block: Decorated }) {
 }
 
 /** «Íconos grandes» (02): one card per item with a large accent icon. */
+/** Always centred (02); short lists stay centred instead of leaving an empty column. */
 export function BigIcons({ block }: { block: Decorated }) {
-  const centered = useSectionAlign() === "center";
   const items = block.content.items.filter(item => item.title);
   return <div data-layout={`${block.type}-big_icons`} className="flex flex-col gap-10">
-    <Heading block={block}><Mission block={block} /></Heading>
-    <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{items.map((item, index) => <li key={index} className="min-w-0">
-      <Card className={cn("h-full", centered && "text-center")}>
-        <CardHeader className={cn("gap-3", centered && "justify-items-center")}>
-          <Decoration item={item} className="mb-3 size-14 bg-primary text-primary-foreground" />
+    <Heading block={block} display><Mission block={block} /></Heading>
+    <ul className="flex flex-wrap justify-center gap-5">{items.map((item, index) => <li key={index} className="w-full min-w-0 sm:w-[calc((100%-1.25rem)/2)] lg:w-[calc((100%-2.5rem)/3)]">
+      <Card className="h-full text-center">
+        <CardHeader className="justify-items-center gap-3">
+          <Decoration item={item} className="mx-auto mb-3 size-14 bg-primary text-primary-foreground" />
           <CardTitle><h3 className="text-xl">{item.title}</h3></CardTitle>
         </CardHeader>
         {item.description && <CardContent><p className="leading-relaxed text-muted-foreground">{item.description}</p></CardContent>}
@@ -198,13 +210,13 @@ export function BigIcons({ block }: { block: Decorated }) {
 // ---------------------------------------------------------------------------
 
 /** «Banda de marca»: big figures on the brand band, counting up once on screen. */
-export function StatsBand({ block }: { block: Of<"stats"> }) {
-  const centered = useSectionAlign() === "center";
+/** «Banda de marca» (02): eyebrow and centred headline over the figures centred in one row. */
+export function StatsBand({ block, company }: { block: Of<"stats">; company: Company }) {
   const items = block.content.items.filter(item => item.value && item.label);
-  return <div data-layout="stats-brand_band" className="flex flex-col gap-10">
-    <Heading block={block} />
-    <dl className={cn("grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-x-8 gap-y-10", centered && "text-center")}>
-      {items.map((item, index) => <div key={index} className="flex min-w-0 flex-col gap-3">
+  return <div data-layout="stats-brand_band" className="flex flex-col gap-12">
+    <Heading block={block} display title={`${company.name} en cifras`} />
+    <dl className="flex flex-wrap justify-center gap-x-12 gap-y-10 text-center">
+      {items.map((item, index) => <div key={index} className="flex min-w-0 basis-44 flex-col items-center gap-3">
         <dt className="order-last text-base leading-snug">{item.label}</dt>
         <dd className={cn("leading-none font-semibold tracking-tight tabular-nums [overflow-wrap:normal] [word-break:normal]", [...item.value!].length > 10 ? "text-2xl" : [...item.value!].length > 6 ? "text-4xl" : "text-5xl sm:text-6xl")}><CountUp value={item.value!} /></dd>
       </div>)}
@@ -229,7 +241,7 @@ export function TestimonialsCarousel({ block }: { block: Of<"testimonials"> }) {
   const video = item.video_url ? parseVideoUrl(item.video_url) : null;
   const several = items.length > 1;
   return <div data-layout="testimonials-carousel" className="flex flex-col gap-8">
-    <Heading block={block} />
+    <Heading block={block} display />
     <div role="region" aria-roledescription="carrusel" aria-label="Testimonios" tabIndex={0}
       className="flex min-w-0 flex-col gap-6 rounded-3xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
       onKeyDown={event => {
@@ -237,9 +249,9 @@ export function TestimonialsCarousel({ block }: { block: Of<"testimonials"> }) {
         if (index !== undefined && event.target === event.currentTarget) { event.preventDefault(); move(index); }
       }}>
       <figure key={current} className="grid min-w-0 items-center gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <div className="relative aspect-4/3 min-w-0 overflow-hidden rounded-3xl bg-(--site-band)">
+        <div className="relative aspect-4/3 min-w-0 overflow-hidden rounded-3xl">
           {playing && video ? <VideoFrame video={video} title={`Video de ${item.name}`} className="size-full border-0" /> : <>
-            {item.photo ? <SiteMedia image={item.photo} alt={`Retrato de ${item.name}`} className="size-full rounded-none" /> : <div className="flex size-full items-center justify-center"><Quote aria-hidden="true" className="size-16 text-(--site-brand-text)" /></div>}
+            {item.photo ? <SiteMedia image={item.photo} alt={`Retrato de ${item.name}`} className="size-full rounded-none" /> : <PhotoPlaceholder initials={initials(item.name!)} />}
             {video && <Button type="button" data-brand-surface="" className="absolute top-4 left-4 min-h-10 rounded-full" onClick={() => setPlaying(true)}><Play aria-hidden="true" data-icon="inline-start" />Ver video de {item.name}</Button>}
           </>}
         </div>
@@ -275,7 +287,7 @@ export function PhotoStrip({ block }: { block: Of<"gallery"> }) {
   </li>;
   return <div data-layout="gallery-photo_strip" className="flex flex-col gap-6">
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <Heading block={block} />
+      <Heading block={block} display />
       {!reduced && <Button type="button" variant="outline" className="min-h-10" onClick={() => setPaused(value => !value)}>{paused ? <Play aria-hidden="true" data-icon="inline-start" /> : <Pause aria-hidden="true" data-icon="inline-start" />}{paused ? "Reanudar fotos" : "Pausar fotos"}</Button>}
     </div>
     <div data-photo-strip="" data-paused={String(paused || reduced)} role={reduced ? "region" : undefined} aria-label={reduced ? "Fotos de la empresa" : undefined} tabIndex={reduced ? 0 : undefined}
@@ -301,14 +313,14 @@ export function Team({ block }: { block: Of<"team"> }) {
     <AvatarFallback className={fallback}>{initials(item.name!)}</AvatarFallback>
   </Avatar>;
   if (block.variant === "portraits") return <div data-layout="team-portraits" className="flex flex-col gap-10">
-    <Heading block={block}>{intro}</Heading>
+    <Heading block={block} display>{intro}</Heading>
     <ul className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">{items.map((item, index) => <li key={index} className="flex min-w-0 flex-col items-center gap-4 text-center">
       {avatar(item, "size-28 ring-4 ring-(--card) sm:size-40", "text-2xl font-medium")}
       <div className="flex flex-col gap-1"><h3 className="text-lg font-medium">{item.name}</h3>{item.role && <p className="text-sm text-muted-foreground">{item.role}</p>}</div>
     </li>)}</ul>
   </div>;
   return <div data-layout="team-grid" className="flex flex-col gap-8">
-    <Heading block={block}>{intro}</Heading>
+    <Heading block={block} display>{intro}</Heading>
     <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{items.map((item, index) => <li key={index} className="min-w-0"><Card className="h-full">
       <CardHeader className="gap-3">{avatar(item, "mb-2 size-16", "text-lg font-medium")}<CardTitle><h3 className="text-lg">{item.name}</h3></CardTitle>{item.role && <CardDescription>{item.role}</CardDescription>}</CardHeader>
     </Card></li>)}</ul>
@@ -320,7 +332,7 @@ export function Logos({ block }: { block: Of<"logos"> }) {
   const centered = useSectionAlign() === "center";
   const items = block.content.items.filter(item => item.name && item.image);
   if (block.variant === "grid") return <div data-layout="logos-grid" className="flex flex-col gap-8">
-    <Heading block={block} />
+    <Heading block={block} display />
     <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">{items.map((item, index) => <li key={index} className="min-w-0"><Card className="h-full">
       <CardContent><figure className="flex flex-col items-center gap-3 text-center">
         <span className="flex h-20 w-full items-center justify-center rounded-2xl bg-white p-3"><img src={mediaUrl(item.image!.media_id)} alt="" loading="lazy" className="max-h-14 w-auto max-w-full object-contain" /></span>
@@ -329,7 +341,7 @@ export function Logos({ block }: { block: Of<"logos"> }) {
     </Card></li>)}</ul>
   </div>;
   return <div data-layout="logos-strip" className="flex flex-col gap-8">
-    <Heading block={block} />
+    <Heading block={block} display />
     <ul className={cn("flex flex-wrap items-center gap-4", centered && "justify-center")}>{items.map((item, index) => <li key={index} title={item.caption ?? undefined} className="inline-flex h-16 items-center rounded-2xl bg-white px-5 ring-1 ring-foreground/10">
       <img src={mediaUrl(item.image!.media_id)} alt={item.name!} loading="lazy" className="h-9 w-auto max-w-36 object-contain" />
     </li>)}</ul>
@@ -344,7 +356,7 @@ export function Areas({ block, jobs }: { block: Of<"areas">; jobs: PublicJobItem
   const overrides = new Map(block.content.overrides.map(override => [override.key, override]));
   const photos = block.variant === "photo_cards";
   return <div data-layout={`areas-${block.variant}`} className="flex flex-col gap-8">
-    <Heading block={block}>{block.content.intro && <p className="text-base leading-relaxed text-muted-foreground">{block.content.intro}</p>}</Heading>
+    <Heading block={block} display>{block.content.intro && <p className="text-base leading-relaxed text-muted-foreground">{block.content.intro}</p>}</Heading>
     <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{areas.map(area => {
       const override = overrides.get(area.key);
       const Icon = SITE_ICONS[override?.icon ?? DEFAULT_AREA_ICONS[area.key]];
@@ -352,11 +364,11 @@ export function Areas({ block, jobs }: { block: Of<"areas">; jobs: PublicJobItem
       const count = <span className="text-sm">{plural(area.count, "vacante", "vacantes")}</span>;
       const label = <span className="font-heading text-lg leading-snug font-medium">{area.label}</span>;
       return <li key={area.key} className="min-w-0">
-        {photos ? <button type="button" aria-pressed={pressed} onClick={() => filter?.showArea(area.key)} data-site-surface="scrim"
-          className="relative isolate flex aspect-4/3 w-full flex-col items-start justify-end gap-1 overflow-hidden rounded-3xl p-4 text-left outline-none focus-visible:ring-3 focus-visible:ring-(--site-brand-text) focus-visible:ring-offset-2 aria-pressed:ring-3 aria-pressed:ring-(--site-brand-text) aria-pressed:ring-offset-2">
+        {photos ? <button type="button" aria-pressed={pressed} onClick={() => filter?.showArea(area.key)} {...(override?.photo ? { "data-site-surface": "scrim" } : {})}
+          className={cn("relative isolate flex aspect-4/3 w-full flex-col items-start justify-end gap-1 overflow-hidden rounded-3xl p-4 text-left outline-none focus-visible:ring-3 focus-visible:ring-(--site-brand-text) focus-visible:ring-offset-2 aria-pressed:ring-3 aria-pressed:ring-(--site-brand-text) aria-pressed:ring-offset-2", !override?.photo && "text-foreground ring-1 ring-foreground/10")}>
+          {/* Without its photo the card is a light brand tint with the area icon, not a dark scrim. */}
           <span aria-hidden="true" className="absolute inset-0 -z-10">
-            {override?.photo ? <SiteMedia image={override.photo} alt="" className="size-full rounded-none" /> : <span className={cn("absolute inset-0", styles.heroGradient)} />}
-            <span className="absolute inset-0" style={{ backgroundImage: AREA_PHOTO_SCRIM }} />
+            {override?.photo ? <><SiteMedia image={override.photo} alt="" className="size-full rounded-none" /><span className="absolute inset-0" style={{ backgroundImage: AREA_PHOTO_SCRIM }} /></> : <PhotoPlaceholder icon={Icon} className="pb-14" />}
           </span>
           {label}{count}
         </button> : <button type="button" aria-pressed={pressed} onClick={() => filter?.showArea(area.key)}
@@ -376,7 +388,7 @@ export function TalentCta({ block, jobsHref }: { block: Of<"talent_cta">; jobsHr
   const centered = useSectionAlign() === "center";
   const titleId = `${siteAnchor(block)}-title`;
   if (block.variant === "split") return <div data-layout="talent_cta-split" className="grid items-center gap-8 lg:grid-cols-2 lg:gap-12">
-    <Heading block={block}>{block.content.text && <p className="text-base leading-relaxed text-muted-foreground sm:text-lg">{block.content.text}</p>}</Heading>
+    <Heading block={block} display>{block.content.text && <p className="text-base leading-relaxed text-muted-foreground sm:text-lg">{block.content.text}</p>}</Heading>
     <Card className="[--card-spacing:--spacing(8)]">
       <CardHeader className="gap-3"><span aria-hidden="true" className="mb-2 inline-flex size-12 items-center justify-center rounded-2xl bg-(--site-band) text-(--site-brand-text)"><FileUser className="size-6" /></span><CardTitle><p className="text-xl">Revisa las vacantes abiertas</p></CardTitle><CardDescription>Quizá ya hay una oportunidad para ti.</CardDescription></CardHeader>
       <CardContent><JobsLink href={jobsHref} label="Ver vacantes abiertas" /></CardContent>
@@ -385,7 +397,7 @@ export function TalentCta({ block, jobsHref }: { block: Of<"talent_cta">; jobsHr
   return <div data-layout="talent_cta-banner"><Card data-brand-banner="" className={cn("[--card-spacing:--spacing(8)] sm:[--card-spacing:--spacing(12)]", centered && "text-center")}>
     <CardHeader className={cn("gap-4", centered && "justify-items-center")}>
       <span aria-hidden="true" className="mb-2 inline-flex size-12 items-center justify-center rounded-2xl bg-(--muted)"><FileUser className="size-6" /></span>
-      <CardTitle><h2 id={titleId} className="max-w-[22ch] text-3xl leading-tight font-medium tracking-tight text-balance sm:text-5xl">{block.content.title}</h2></CardTitle>
+      <CardTitle><h2 id={titleId} className="max-w-[22ch] text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl">{block.content.title}</h2></CardTitle>
       {block.content.text && <CardDescription className="max-w-prose text-base">{block.content.text}</CardDescription>}
     </CardHeader>
     <CardContent className={cn("flex flex-col gap-6", centered && "items-center")}><JobsLink href={jobsHref} label="Ver vacantes abiertas" onBrand centered={centered} /></CardContent>

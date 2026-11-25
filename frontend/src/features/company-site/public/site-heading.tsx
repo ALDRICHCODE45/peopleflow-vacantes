@@ -14,11 +14,19 @@ export const siteAnchor = (block: SiteBlock | SiteBlockV2) => `bloque-${block.id
 export function siteBlockTitle(block: SiteBlock | SiteBlockV2): string {
   return ("title" in block.content && block.content.title) || BLOCK_LIBRARY_V2[block.type].label;
 }
-export function Heading({ block, children }: { block: SiteBlock | SiteBlockV2; children?: ReactNode }) {
+/** Editor preview (not the public page): placeholders may ask for the missing photo. */
+export const SiteEditingContext = createContext(false);
+export const useSiteEditing = () => useContext(SiteEditingContext);
+/** The eyebrow names the section without its slash alternative («Equipo / Líderes» → «Equipo»). */
+export const sectionEyebrow = (block: SiteBlock | SiteBlockV2) => BLOCK_LIBRARY_V2[block.type].label.split(" / ")[0];
+/** `display`: the bold display heading of the sections v2 layouts (02/03). Legacy layouts keep
+ * their pinned medium weight (legacy markup golden). `title` replaces the derived title. */
+export function Heading({ block, children, display = false, title }: { block: SiteBlock | SiteBlockV2; children?: ReactNode; display?: boolean; title?: string }) {
   const centered = useSectionAlign() === "center";
+  const text = title ?? siteBlockTitle(block);
   return <div className={cn("flex max-w-prose flex-col gap-4", centered && "mx-auto items-center text-center")}>
-    {siteBlockTitle(block) !== BLOCK_LIBRARY_V2[block.type].label && <p className="text-xs font-medium tracking-widest text-(--site-brand-text) uppercase">{BLOCK_LIBRARY_V2[block.type].label}</p>}
-    <h2 id={`${siteAnchor(block)}-title`} className="max-w-[24ch] text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl lg:text-5xl">{siteBlockTitle(block)}</h2>
+    {text !== BLOCK_LIBRARY_V2[block.type].label && <p className={display ? "text-xs font-semibold tracking-widest text-(--site-brand-text) uppercase" : "text-xs font-medium tracking-widest text-(--site-brand-text) uppercase"}>{sectionEyebrow(block)}</p>}
+    <h2 id={`${siteAnchor(block)}-title`} className={display ? "max-w-[24ch] text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl lg:text-5xl" : "max-w-[24ch] text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl lg:text-5xl"}>{text}</h2>
     {children}
   </div>;
 }
