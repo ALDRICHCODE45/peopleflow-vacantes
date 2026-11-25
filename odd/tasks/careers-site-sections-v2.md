@@ -73,3 +73,14 @@ picks a direction, coordinated with the backend session.
   Frontend slice A starts: T3a model/schema first, then editor and presentation in parallel.
 - **L8** (2026-11-25) Backend slice A merged into local main `64e2e379` (migration 00066, dev DB v66, :8080 runs it;
   stored documents read byte-identical). The frontend may switch to the v2 model and enable the flag when ready.
+- **L9** (2026-11-25) Slice A frontend commits: `b9936898` public presentation, `455a71ce` editor (flag
+  `NEXT_PUBLIC_CAREERS_SECTIONS_V2`), `e37a1eb9` §2.3 model reconciliation; main merged `c33b1ee5`. Full suite 662 files /
+  12264 passed, tsc 0, lint 0 errors. :3000 rebuilt with the flag on (BUILD_ID `ggeymYA_PAuFXHVWMuFg4`). Browser check
+  (Chromium + Firefox): S2 and S4 pass; S1/S3 pass with defects; L3 passes at 1440 but fails at 1024/1280 with the app
+  sidebar open (panels can't be shown again: list 224 + preview 448 + properties 288 minimums don't fit). Defects: hidden
+  file input in ImageField makes the properties panel scroll sideways; «Tinte suave» = «Normal» on banded sections; Cierre
+  ignores alignment; library Vacantes card describedby id collision; phone Sheet truncates «Insertar después de»;
+  pre-existing axe aria-required-children (separator in the jobs list). Visual gaps: light headings, heavy empty-photo
+  fallbacks, «Íconos grandes» not centred, plain «Banda de marca», slash eyebrows. Phase B persisted round-trip restored
+  the draft content exactly (draft_version 33 → 35, published 33 untouched; editor now shows «Cambios sin publicar»).
+  Fix round launched.
