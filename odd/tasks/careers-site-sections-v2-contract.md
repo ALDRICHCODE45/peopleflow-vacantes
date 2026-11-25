@@ -83,3 +83,12 @@ publish only when `secondary_visible`; missing style image is a publish issue (`
 `blocks[i].style.image`), not a 400; codes `hero_video_missing`, `secondary_target_hidden`, `hero_collage_images_missing`;
 team/logos reuse existing consent/title codes. GET never adds new keys to stored documents (old documents stay
 byte-identical), so the backend merges first and the frontend switches when ready — no lockstep merge.
+
+## Backend slice A committed (2026-11-25, amendment §2.3 in docs/contracts/company-careers-site-v1.md, migration 00066)
+
+Extra rules to mirror in the frontend: media kinds — style.image `cover`, collage `images` and areas override photos
+`gallery`, team photo `portrait`, logos image `logo`; `style: null` = absent; `images: null` → []; a present style is
+filled to all 5 keys; team/logos absent strings → null, absent lists → []; logo upload JPEG → 415
+`unsupported_media_type`, < 64 px → 422 `image_too_small`; `video_url` rejects explicit ports (even :443); a stored
+`secondary_target` that no longer exists reads as null; save errors reuse existing codes; team/logos/areas/talent_cta
+publish issues use `block_incomplete`. Backend merges to main after its full suite.
