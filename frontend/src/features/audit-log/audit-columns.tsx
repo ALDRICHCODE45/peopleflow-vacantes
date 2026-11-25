@@ -62,10 +62,10 @@ export const auditColumns: RichColumnDef<AuditEvent>[] = [
   { id: "entity", size: 180, meta: { label: "Sobre" }, cell: ({ row }) => isTheVacancy(row.original) || !row.original.entity.label
     ? <TwoLineCell primary="—" missing />
     : <Clamp text={row.original.entity.label} className="text-sm font-medium text-foreground" /> },
-  { id: "vacancy", size: 210, meta: { label: "Vacante", grow: true }, cell: ({ row }) => row.original.vacancy
+  { id: "vacancy", size: 188, meta: { label: "Vacante", grow: true }, cell: ({ row }) => row.original.vacancy
     ? <VacancyTitle title={row.original.vacancy.title} />
     : <TwoLineCell primary="—" missing /> },
-  { id: "origin", size: 150, meta: { label: "IP y navegador" }, cell: ({ row }) => <Origin event={row.original} /> },
+  { id: "origin", size: 172, meta: { label: "IP y navegador" }, cell: ({ row }) => <Origin event={row.original} /> },
 ];
 
 function VacancyTitle({ title }: { title: string | null }) {

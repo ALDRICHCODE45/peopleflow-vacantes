@@ -110,7 +110,7 @@ export function AuditWorkspace() {
     <AuditHeading export={<ExportAuditButton filters={filters} options={ready} phone={phone} />}
       summary={initial ? <Skeleton aria-hidden="true" className="mt-0.5 h-4 w-72 max-w-full" />
         // The API gives no first-event date (the list is newest first and has no ascending order or minimum), so there is no «desde …» part.
-        : loaded && loaded.total > 0 ? <><strong className="font-medium text-foreground">{number.format(loaded.total)}</strong> {noun}{filtered ? " con estos filtros" : ""} <span aria-hidden="true">·</span> hora de la Ciudad de México</> : null} />
+        : loaded ? <><strong className="font-medium text-foreground">{number.format(loaded.total)}</strong> {noun}{filtered ? " con estos filtros" : ""} <span aria-hidden="true">·</span> hora de la Ciudad de México</> : null} />
     <Card role="region" aria-label="Registro de actividad" aria-busy={initial || paging} className="min-w-0">
       <CardHeader className="gap-3">
         <CardTitle className="sr-only"><h3>Eventos registrados</h3></CardTitle>
