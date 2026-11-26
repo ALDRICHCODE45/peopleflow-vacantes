@@ -1,4 +1,4 @@
-import type { NotificationGroup, NotificationLink, NotificationState, NotificationType } from "./model";
+import type { NotificationChannel, NotificationGroup, NotificationLink, NotificationScope, NotificationState, NotificationType, PreferenceItem } from "./model";
 
 /**
  * Wording, icons and links for the company inbox (design 07) and the candidate inbox (design 04), contract
@@ -308,3 +308,66 @@ export const noResultsDescription = (summary: string, tab: NotificationState) =>
 
 /** Status after «Marcar todo como leído»; N = affected notifications. */
 export const markedAllStatus = (n: number) => n === 1 ? "1 marcada como leída" : `${n} marcadas como leídas`;
+
+/* ---------- «Mis preferencias» (T4.2, design 05; contract notifications-v2 E2) ---------- */
+
+/** The personal preferences page of each scope (contract v2 §Path map, `preferences_url`). */
+export const preferencesHref = (scope: NotificationScope) =>
+  scope === "candidate" ? "/candidato/configuracion/notificaciones" : "/empresa/configuracion/notificaciones";
+
+export type PreferenceCopy = { title: string; description: string | null };
+
+/** Row name and one-line explanation per type; wording from design 05 where it has the row. */
+const PREFERENCE_COPY: Readonly<Record<NotificationType, PreferenceCopy>> = {
+  application_received: { title: "Nueva postulación", description: "En las vacantes donde eres responsable o estás en el equipo. Se agrupan por vacante." },
+  delivery_due_soon: { title: "Entrega por vencer", description: "Antes de la fecha de entrega de tus vacantes." },
+  delivery_overdue: { title: "Entrega vencida", description: "Cuando pasa la fecha de entrega sin completar los candidatos." },
+  assignment_deadline_due_soon: { title: "Tu fecha límite se acerca", description: "Antes de que venza tu entrega en una vacante donde participas." },
+  assignment_deadline_overdue: { title: "Venció tu fecha límite", description: "Cuando pasa la fecha de tu entrega en una vacante." },
+  vacancy_assigned: { title: "Te asignan una vacante", description: "Cuando quedas como responsable de una vacante." },
+  vacancy_reassigned: { title: "Te reasignan una vacante", description: "Cuando una vacante pasa de otra persona a ti." },
+  vacancy_unassigned: { title: "Dejas de ser responsable de una vacante", description: "Cuando otra persona queda a cargo de una vacante tuya." },
+  vacancy_team_added: { title: "Te agregan al equipo de una vacante", description: "Desde ese momento recibes sus postulaciones y entregas." },
+  psychometric_completed: { title: "Prueba completada", description: "Cuando un candidato de tus vacantes termina su prueba. Se agrupan por vacante." },
+  psychometric_pending: { title: "Prueba pendiente del candidato", description: "Cuando un candidato de tus vacantes aún no responde su prueba." },
+  candidate_status_changed: { title: "Cambios en tus postulaciones", description: "Cuando una empresa cambia el estado de tu postulación o cierra la vacante." },
+  candidate_message_received: { title: "Mensajes de las empresas", description: "Cuando una empresa te escribe sobre una postulación." },
+  candidate_test_pending: { title: "Pruebas pendientes", description: "Cuando una empresa te envía una prueba psicométrica." },
+};
+const isKnownType = (type: string): type is NotificationType => Object.hasOwn(PREFERENCE_COPY, type);
+
+/** A type this build does not know yet is kept and labelled generically. */
+export const preferenceCopy = (type: string): PreferenceCopy =>
+  isKnownType(type) ? PREFERENCE_COPY[type] : { title: "Otro aviso", description: null };
+
+export const CHANNEL_LABELS: Readonly<Record<NotificationChannel, string>> = { in_app: "En la app", email: "Correo" };
+
+/** Groups of the page: the inbox filter groups for members, one group for candidates (design 05); unknown types last. */
+const CANDIDATE_PREFERENCE_GROUPS = [
+  { key: "applications", label: "Tus postulaciones", types: ["candidate_status_changed", "candidate_message_received", "candidate_test_pending"] },
+] as const;
+export type PreferenceGroup = { key: string; label: string; items: PreferenceItem[] };
+
+export function preferenceGroups(scope: NotificationScope, items: readonly PreferenceItem[]): PreferenceGroup[] {
+  const groups: readonly { key: string; label: string; types: readonly string[] }[] = scope === "candidate" ? CANDIDATE_PREFERENCE_GROUPS : FILTER_GROUPS;
+  const grouped = groups.map(group => ({ key: group.key, label: group.label, items: items.filter(item => group.types.includes(item.type)) }));
+  const others = items.filter(item => !groups.some(group => group.types.includes(item.type)));
+  return [...grouped, { key: "others", label: "Otros avisos", items: others }].filter(group => group.items.length > 0);
+}
+
+export const unsavedChangesLabel = (n: number) => `${n} ${n === 1 ? "cambio sin guardar" : "cambios sin guardar"}`;
+
+/** «Tu ajuste» badge (design 05): which channels differ from the recommended default, and what that default is. */
+export function adjustmentLabel(item: PreferenceItem, value: Readonly<Record<NotificationChannel, boolean>>): string | null {
+  const parts: string[] = [];
+  if (value.in_app !== item.channels.in_app.default) parts.push(`en la app ${item.channels.in_app.default ? "encendido" : "apagado"}`);
+  if (value.email !== item.channels.email.default) parts.push(`correo ${item.channels.email.default ? "encendido" : "apagado"}`);
+  return parts.length ? `Tu ajuste · recomendado: ${parts.join(", ")}` : null;
+}
+
+/** Badge of a row with locked channels: «Obligatoria» when every channel is locked (design 05), else the locked one. */
+export function lockedLabel(locked: readonly NotificationChannel[]): string | null {
+  if (locked.length === 0) return null;
+  if (locked.length > 1) return "Obligatoria";
+  return locked[0] === "email" ? "Obligatoria por correo" : "Obligatoria en la app";
+}

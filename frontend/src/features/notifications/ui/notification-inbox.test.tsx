@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("../actions", () => ({ getUnreadCountAction: vi.fn(), listNotificationsAction: vi.fn() }));
+vi.mock("@/features/employer-company/company-membership-context", () => ({ useCompanyMembershipState: vi.fn(() => null) }));
 vi.mock("next/link", async () => {
   const { forwardRef, createElement } = await import("react");
   type Props = { href: string; onClick?: (event: { preventDefault(): void }) => void };
@@ -11,6 +12,8 @@ vi.mock("next/link", async () => {
     createElement("a", { ...props, ref, href, onClick: (event: { preventDefault(): void }) => { onClick?.(event); event.preventDefault(); } })) };
 });
 import { getUnreadCountAction, listNotificationsAction } from "../actions";
+import type { CompanyState } from "@/features/employer-company/actions";
+import { useCompanyMembershipState } from "@/features/employer-company/company-membership-context";
 import type { NotificationListResult } from "../model";
 import {
   anaParticipation, applicationsGroup, jobId, luisParticipation, notificationPage, otherJobId, overdueGroup, reassignedGroup,
@@ -19,6 +22,7 @@ import { NotificationBell } from "./notification-bell";
 
 const list = vi.mocked(listNotificationsAction);
 const ok = (page = notificationPage()): NotificationListResult => ({ ok: true, data: page });
+const stakeholderState = { kind: "exists", role: "stakeholder" } as CompanyState;
 const failure = (reason: "server_error" | "invalid_cursor"): NotificationListResult => ({ ok: false, reason, reference: {} });
 
 beforeEach(() => {
@@ -208,10 +212,33 @@ it("closes the sheet when a row is followed", async () => {
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });
 
-it("has no «Preferencias» link until the preferences page exists", async () => {
-  const { dialog } = await openInbox();
+it("links «Preferencias» in the footer to the company preferences page and closes the sheet when followed (T4.4)", async () => {
+  list.mockResolvedValue(ok(notificationPage({ attention: [], attention_total: 0, items: [applicationsGroup()], unread_count: 0 })));
+  const { user, dialog } = await openInbox();
   await loaded(dialog);
-  expect(within(dialog).queryByRole("link", { name: /Preferencias/ })).toBeNull();
+  const link = within(dialog).getByRole("link", { name: "Preferencias" });
+  expect(link).toHaveAttribute("href", "/empresa/configuracion/notificaciones");
+  await user.click(link);
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+it("offers «Elegir qué me llega» on the first use, to the same page (design 07)", async () => {
+  list.mockResolvedValue(ok(notificationPage({ attention: [], attention_total: 0, items: [], unread_count: 0 })));
+  const { user, dialog } = await openInbox();
+  await user.click(await within(dialog).findByRole("button", { name: "Ver todas" }));
+  const choose = await within(dialog).findByRole("link", { name: "Elegir qué me llega" });
+  expect(choose).toHaveAttribute("href", "/empresa/configuracion/notificaciones");
+});
+
+it("hides both preference links from a stakeholder (contract Q7)", async () => {
+  vi.mocked(useCompanyMembershipState).mockReturnValue({ userId: "u", state: stakeholderState, reload: vi.fn() });
+  list.mockResolvedValueOnce(ok()).mockResolvedValue(ok(notificationPage({ attention: [], attention_total: 0, items: [], unread_count: 0 })));
+  const { user, dialog } = await openInbox();
+  await loaded(dialog);
+  expect(within(dialog).queryByRole("link", { name: "Preferencias" })).toBeNull();
+  await user.click(within(dialog).getByRole("tab", { name: "Todas" }));
+  expect(await within(dialog).findByRole("heading", { name: "Aún no tienes notificaciones" })).toBeInTheDocument();
+  expect(within(dialog).queryByRole("link", { name: "Elegir qué me llega" })).toBeNull();
 });
 
 it("renders the attention overdue group pinned and not again in the day list", async () => {

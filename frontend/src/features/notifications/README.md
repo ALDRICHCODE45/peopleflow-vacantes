@@ -84,3 +84,49 @@ longer be resolved; absent on member items); actor null, sample `[]`, attention 
 - T4.3: candidate status rows carry the application status badge of design 04 («Enviada» info, «En proceso» review,
   «Cerrada» neutral; same words as `applicationBadge`), shown only when the row has no urgency badge. The pending-test
   due-date badge of design 04 is not built: the payload has no due date.
+
+## «Mis preferencias» (T4.2, T4.4)
+
+Contract: backend `docs/contracts/notifications-v2.md` (agreed 07bd4d5a), E2 usable locally (L21).
+
+- `getPreferencesAction()` / `updatePreferencesAction(entries, catalog?)` on `/v2/me/company/notifications/preferences`
+  (member gate: owner/recruiter/stakeholder) and `getCandidatePreferencesAction()` /
+  `updateCandidatePreferencesAction(entries, catalog?)` on `/v2/me/notifications/preferences`; fixed scope per action as for
+  the inbox. `client.ts` gains `getPreferences` / `updatePreferences` (`call` now takes `method: "PUT"`), so no new client
+  file and no `requestPath` allowlist change.
+- GET `{channels, email_deliverable, items[{type, kind, channels{in_app|email: {default, enabled, mandatory_locked}}}]}`:
+  members 11 types, candidates 3, both channels each. `type` and `kind` stay open strings; an unknown type is kept and
+  shown as «Otro aviso» under «Otros avisos». Mandatory = both channels on and locked; operational = in-app on, email off
+  (candidates: email on); nothing is informative yet.
+- PUT `{preferences[{type, channel, enabled}]}`, 1–28, atomic, idempotent, answers the full catalog. Checked locally in
+  the backend's order and names before any request: `preferences` required|empty|too_many,
+  `preferences[i].type|channel|enabled` required|invalid, `preferences[i]` invalid (not an object) | duplicate
+  (type, channel). Each entry is rebuilt from the three keys only. `catalog` is the GET answer the entries came from
+  (decoded again on the server, ignored if malformed): an entry on a pair it marks `mandatory_locked` is refused as
+  `preference_locked` with `lockedTypes` and nothing is sent.
+- Failures: 422 `notification_preference_locked` (allowlisted) → `preference_locked` with `lockedTypes` = `data.types`
+  (snake_case names only); 400 `validation_error` → `validation_error` with the preference fields above (others dropped;
+  `duplicate` joins the codes); 400 `invalid_request` / 413 → `unrecognized_response`; 401, 403 (`forbidden`,
+  `company_inactive`, `account_required`, `wrong_role`), 5xx and network as for the inbox.
+
+UI (`ui/notification-preferences.tsx`, design 05):
+
+- Pages `/empresa/configuracion/notificaciones` and `/candidato/configuracion/notificaciones` (crumb «Configuración»).
+  Stakeholders: the route is outside `stakeholderRoute`'s allowlist, so the `(empresa)` `EmployerGuard` shows the existing
+  «Sección no disponible» before the page mounts (contract Q7) — no redirect, no request.
+- Groups: the inbox filter groups for members (Postulaciones, Entregas, Vacantes y equipo, Pruebas), «Tus postulaciones»
+  for candidates. Each row: name, one line, switches «En la app» and «Correo» (accessible name «<aviso> <canal>»).
+  Locked pairs render on and disabled with the «Obligatoria» badge (per channel from the response; one locked channel
+  reads «Obligatoria en la app» / «Obligatoria por correo»). A row with every channel off warns «Con esto no te llegará este
+  aviso por ningún medio.»; member rows that differ from the default carry «Tu ajuste · recomendado: …».
+- Save: design 05's save bar — «N cambios sin guardar», «Descartar», «Guardar cambios». Saving sends only the changed
+  unlocked pairs and renders the PUT answer («Preferencias guardadas»). A failed save keeps the choices for a retry and
+  «Descartar» rolls back to the last saved catalog; a 422 lock re-reads the catalog. «Restablecer recomendados» puts every
+  unlocked pair back to its `default` in the draft (then save). `email_deliverable: false` shows «No podemos entregar
+  correos a tu cuenta…» (no address). Not built from design 05: «Resumen diario», the digest hour and the address line
+  (stage 3 / not in the API), the company «Restablecer a lo que define tu empresa» dialog and «Desactivada por tu empresa»
+  (no owner rules until stage 3).
+- T4.4: the inbox footer always shows «Preferencias» (ghost link, closes the sheet) and the first-use state shows design
+  07's «Elegir qué me llega», both to `preferencesHref(scope)`; hidden for a stakeholder (`useCompanyMembershipState`).
+  Configuración links to the page: company «Preferencias › Notificaciones» (not for stakeholders) and the candidate
+  «Notificaciones › Mis preferencias» row, replacing the inert «Próximamente» switches.

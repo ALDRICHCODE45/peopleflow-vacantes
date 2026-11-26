@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
@@ -66,7 +66,7 @@ it("wraps every settings section heading in the native card-title slot", () => {
 it("keeps every switch beside its copy, right-aligned, while the copy takes the remaining width at 390 px", () => {
   render(<SettingsWorkspace />);
   const switches = screen.getAllByRole("switch");
-  expect(switches).toHaveLength(5);
+  expect(switches).toHaveLength(1);
   for (const control of switches) {
     const actions = control.closest('[data-slot="item-actions"]')!;
     // No full-width actions slot, so the wrapping Item row keeps media, copy and switch on one line.
@@ -86,15 +86,10 @@ const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//gu, "
 const IMPLEMENTATION_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda|no se env[ií]a|no se sube)\b/iu;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/iu;
 const SECTIONS = [["notificaciones", "Notificaciones"], ["apariencia", "Apariencia"], ["seguridad", "Seguridad"]] as const;
-const KEYS = ["matching_vacancies", "application_updates", "recruiter_messages", "weekly_summary"] as const;
-const LABELS = ["Alertas de vacantes compatibles", "Cambios en tus postulaciones", "Mensajes de reclutadores", "Resumen semanal"] as const;
 
 const renderWorkspace = () => render(<SettingsWorkspace />);
 const classes = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");
 const slots = (root: Element, name: string) => Array.from(root.querySelectorAll(`[data-slot="${name}"]`));
-const notificationSwitch = (container: HTMLElement, key: string) => container.querySelector(`[data-pf-settings-notification="${key}"]`) as HTMLElement;
-const notificationSwitches = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-pf-settings-notification]")) as HTMLElement[];
-const checkedStates = (nodes: HTMLElement[]) => nodes.map((node) => node.getAttribute("aria-checked"));
 
 /**
  * jsdom has no PointerEvent and no matchMedia/ResizeObserver: the Base UI Switch
@@ -143,7 +138,7 @@ describe("settings workspace boundaries", () => {
     for (const forbidden of [
       "identity", "Avatar", "avatar", "fullName", "email", "userId", "userType", "CANDIDATE_IDENTITY", "prototype-", "toast",
       "fetch(", "XMLHttpRequest", "axios", "sessionStorage", "indexedDB", "document.cookie", "navigator.", "setItem", "removeItem",
-      "Math.random", "Date.now", "setTimeout", "setInterval", "requestAnimationFrame", "crypto.", "randomUUID", "useRouter", "next/navigation", "next/link",
+      "Math.random", "Date.now", "setTimeout", "setInterval", "requestAnimationFrame", "crypto.", "randomUUID", "useRouter", "next/navigation",
     ]) {
       expect(WORKSPACE, `settings-workspace.tsx must not contain ${forbidden}`).not.toContain(forbidden);
     }
@@ -182,36 +177,20 @@ describe("settings workspace boundaries", () => {
   });
 });
 
-describe("settings notification state", () => {
-  it("renders four disabled notification switches (not persisted yet, «Próximamente») plus the disabled 2FA switch with the approved defaults", () => {
+describe("settings notifications (T4.4)", () => {
+  it("replaces the inert «Próximamente» switches with one row linking to the notification preferences page", () => {
     const { container } = renderWorkspace();
-    expect(screen.getAllByRole("switch")).toHaveLength(5);
-    const rows = notificationSwitches(container);
-    expect(rows.map((node) => node.getAttribute("data-pf-settings-notification"))).toEqual([...KEYS]);
-    expect(checkedStates(rows)).toEqual(["true", "true", "true", "false"]);
-    for (const [index, label] of LABELS.entries()) {
-      expect(rows[index]).toBeDisabled();
-      expect(screen.getByRole("switch", { name: label })).toBe(rows[index]);
-      const soon = document.getElementById(`${rows[index].getAttribute("aria-describedby")!.split(" ")[1]}`);
-      expect(soon).toHaveTextContent("Próximamente");
-    }
-    const twoFactor = container.querySelector("[data-pf-settings-2fa]") as HTMLElement;
-    expect(twoFactor).toBeDisabled();
-    expect(twoFactor).toHaveAttribute("aria-checked", "false");
-  });
-
-  it("keeps the notification switches inert: a click or the keyboard changes nothing and nothing is stored", async () => {
-    const user = userEvent.setup();
-    const setItem = vi.spyOn(Storage.prototype, "setItem");
-    const { container } = renderWorkspace();
-    const before = checkedStates(notificationSwitches(container));
-    fireEvent.click(notificationSwitch(container, "weekly_summary"));
-    await user.click(notificationSwitch(container, "recruiter_messages"));
-    notificationSwitch(container, "weekly_summary").focus();
-    await user.keyboard(" ");
-    expect(checkedStates(notificationSwitches(container))).toEqual(before);
-    expect(vi.mocked(applyThemeMode)).not.toHaveBeenCalled();
-    expect([setItem.mock.calls.length, window.localStorage.length]).toEqual([0, 0]);
+    const section = container.querySelector("#notificaciones") as HTMLElement;
+    expect(section.querySelectorAll('[role="switch"]')).toHaveLength(0);
+    expect(section.querySelector("[data-pf-settings-notification]")).toBeNull();
+    expect(section.textContent).not.toContain("Próximamente");
+    expect(screen.getByText("Mis preferencias")).toHaveAttribute("id", "pf-settings-notifications-label");
+    expect(screen.getByText("Elige qué avisos te llegan en la app y por correo.")).toHaveAttribute("id", "pf-settings-notifications-description");
+    const link = screen.getByRole("link", { name: "Elegir qué me llega" });
+    expect(link).toHaveAttribute("href", "/candidato/configuracion/notificaciones");
+    expect(link).toHaveAttribute("aria-describedby", "pf-settings-notifications-description");
+    expect(link.getAttribute("class")).toContain("min-h-10");
+    expect(section.contains(link)).toBe(true);
   });
 });
 
@@ -287,7 +266,7 @@ describe("settings appearance and security", () => {
 describe("settings composition and presentation", () => {
   it("composes the installed Card, ItemGroup, Item, Select, Button and Switch primitives", () => {
     const { container } = renderWorkspace();
-    const counts: Record<string, number> = { card: 3, "card-header": 3, "card-content": 3, "item-group": 3, item: 7, "item-media": 7, "item-content": 7, "item-actions": 7, badge: 0, "select-trigger": 1, button: 1, switch: 5 };
+    const counts: Record<string, number> = { card: 3, "card-header": 3, "card-content": 3, "item-group": 3, item: 4, "item-media": 4, "item-content": 4, "item-actions": 4, badge: 0, "select-trigger": 1, button: 2, switch: 1 };
     for (const [name, count] of Object.entries(counts)) expect(slots(container, name)).toHaveLength(count);
     // Rendered copy must stay product-facing: no implementation-status disclosure.
     expect(IMPLEMENTATION_STATUS_COPY.test(stripComments(WORKSPACE))).toBe(false);

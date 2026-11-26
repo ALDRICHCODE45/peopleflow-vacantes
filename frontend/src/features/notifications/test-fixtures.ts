@@ -1,4 +1,4 @@
-import type { MarkResult, NotificationFacets, NotificationGroup, NotificationPage } from "./model";
+import type { MarkResult, NotificationFacets, NotificationGroup, NotificationPage, NotificationPreferences, PreferenceItem } from "./model";
 
 export const jobId = "40000000-0000-4000-8000-000000000001";
 export const otherJobId = "40000000-0000-4000-8000-000000000002";
@@ -156,6 +156,42 @@ export function candidatePage(overrides: Partial<NotificationPage> = {}): Notifi
     next_cursor: null,
     unread_count: 2,
     unread_notifications: 2,
+    ...overrides,
+  };
+}
+
+/** Member catalog order and kinds of contract notifications-v2 §Preferences (agreed 07bd4d5a). */
+const MEMBER_KINDS: [string, "mandatory" | "operational"][] = [
+  ["application_received", "operational"], ["delivery_due_soon", "operational"], ["delivery_overdue", "mandatory"],
+  ["assignment_deadline_due_soon", "operational"], ["assignment_deadline_overdue", "mandatory"], ["vacancy_assigned", "mandatory"],
+  ["vacancy_reassigned", "mandatory"], ["vacancy_unassigned", "mandatory"], ["vacancy_team_added", "mandatory"],
+  ["psychometric_completed", "operational"], ["psychometric_pending", "operational"],
+];
+const CANDIDATE_TYPES = ["candidate_status_changed", "candidate_message_received", "candidate_test_pending"];
+
+/** One catalog item with its defaults: mandatory = both on and locked; operational = in-app on, email `emailDefault`. */
+export function preferenceItem(type: string, kind: string, emailDefault = false, overrides: { in_app?: boolean; email?: boolean } = {}): PreferenceItem {
+  const locked = kind === "mandatory";
+  const channel = (byDefault: boolean, enabled = byDefault) => ({ default: byDefault, enabled: locked ? true : enabled, mandatory_locked: locked });
+  return { type, kind, channels: { in_app: channel(true, overrides.in_app), email: channel(locked || emailDefault, overrides.email) } };
+}
+
+/** `GET /v2/me/company/notifications/preferences`: the 11 member types with their defaults. */
+export function memberPreferences(overrides: Partial<NotificationPreferences> = {}): NotificationPreferences {
+  return {
+    channels: ["in_app", "email"],
+    email_deliverable: true,
+    items: MEMBER_KINDS.map(([type, kind]) => preferenceItem(type, kind)),
+    ...overrides,
+  };
+}
+
+/** `GET /v2/me/notifications/preferences`: the 3 candidate types, operational, email on by default. */
+export function candidatePreferences(overrides: Partial<NotificationPreferences> = {}): NotificationPreferences {
+  return {
+    channels: ["in_app", "email"],
+    email_deliverable: true,
+    items: CANDIDATE_TYPES.map(type => preferenceItem(type, "operational", true)),
     ...overrides,
   };
 }

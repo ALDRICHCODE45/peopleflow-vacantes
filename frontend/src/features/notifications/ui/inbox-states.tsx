@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { CheckCheck, CircleAlert, FunnelX, Inbox, RefreshCw, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { CheckCheck, CircleAlert, FunnelX, Inbox, RefreshCw, Settings, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** Inbox states of design 07 (`ntSkeleton`, `stEmptyUnread`, `stFirstUse`, `stError`, `stNoResults`). */
@@ -37,12 +38,16 @@ export function InboxUpToDate({ onShowAll }: { onShowAll: () => void }) {
   </State>;
 }
 
-/** No preferences action yet: `/empresa/configuracion/notificaciones` does not exist (stage 2). Candidate wording: design 04. */
-export function InboxFirstUse({ candidate = false }: { candidate?: boolean }) {
+/** First use with design 07's «Elegir qué me llega» (T4.4) to the preferences page; none for a stakeholder. Candidate wording: design 04. */
+export function InboxFirstUse({ candidate = false, preferencesHref = null, onNavigate }: { candidate?: boolean; preferencesHref?: string | null; onNavigate?: () => void }) {
   return <State icon={Inbox} tone="bg-primary/10 text-primary" title="Aún no tienes notificaciones"
     description={candidate
       ? "Aquí te avisaremos cuando una empresa cambie el estado de tu postulación, te escriba o te pida una prueba."
-      : "Aquí llegan las postulaciones nuevas, las entregas por vencer, las vacantes que te asignan y las pruebas de tus candidatos."} />;
+      : "Aquí llegan las postulaciones nuevas, las entregas por vencer, las vacantes que te asignan y las pruebas de tus candidatos."}>
+    {preferencesHref && <Link href={preferencesHref} onClick={onNavigate} className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}>
+      <Settings aria-hidden="true" data-icon="inline-start" />Elegir qué me llega
+    </Link>}
+  </State>;
 }
 
 export function InboxError({ onRetry }: { onRetry: () => void }) {

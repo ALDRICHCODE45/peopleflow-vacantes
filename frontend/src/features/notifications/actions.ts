@@ -2,13 +2,13 @@
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import {
-  getFacets, getUnreadCount, listNotifications, markAllRead, markRead, markUnread,
+  getFacets, getPreferences, getUnreadCount, listNotifications, markAllRead, markRead, markUnread, updatePreferences,
   type NotificationClientFailure, type NotificationQuery,
 } from "./client";
 import { toNotificationFailure } from "./failure";
 import type {
-  FacetsResult, MarkAllInput, MarkResultResult, MarkTarget, NotificationFailure, NotificationListResult, NotificationState,
-  UnmarkTarget, UnreadCountResult,
+  FacetsResult, MarkAllInput, MarkResultResult, MarkTarget, NotificationFailure, NotificationListResult, NotificationPreferences,
+  NotificationState, PreferenceEntry, PreferencesResult, UnmarkTarget, UnreadCountResult,
 } from "./model";
 
 const unauthenticated: NotificationFailure = { ok: false, reason: "unauthenticated", reference: {} };
@@ -90,4 +90,27 @@ export async function markAllCandidateReadAction(input: MarkAllInput = {}): Prom
 
 export async function getCandidateFacetsAction(state: NotificationState = "unread"): Promise<FacetsResult> {
   return withToken(token => getFacets({ token, state, scope: "candidate" }));
+}
+
+/*
+ * Personal preferences (T4.2, contract notifications-v2 E2 / L21), one fixed pair per scope like the inbox: members on
+ * `/v2/me/company/notifications/preferences` (member gate; stakeholders get the catalog but the UI hides the page, Q7),
+ * candidates on `/v2/me/notifications/preferences`. `catalog` is the GET answer the entries were built from, so an entry
+ * on a `mandatory_locked` pair is refused here as `preference_locked` without a request.
+ */
+
+export async function getPreferencesAction(): Promise<PreferencesResult> {
+  return withToken(token => getPreferences({ token, scope: "company" }));
+}
+
+export async function updatePreferencesAction(entries: readonly PreferenceEntry[], catalog?: NotificationPreferences): Promise<PreferencesResult> {
+  return withToken(token => updatePreferences({ token, entries, catalog, scope: "company" }));
+}
+
+export async function getCandidatePreferencesAction(): Promise<PreferencesResult> {
+  return withToken(token => getPreferences({ token, scope: "candidate" }));
+}
+
+export async function updateCandidatePreferencesAction(entries: readonly PreferenceEntry[], catalog?: NotificationPreferences): Promise<PreferencesResult> {
+  return withToken(token => updatePreferences({ token, entries, catalog, scope: "candidate" }));
 }

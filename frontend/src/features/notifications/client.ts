@@ -2,10 +2,11 @@ import "server-only";
 import { z } from "zod";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 import {
-  errorEnvelopeSchema, facetsSchema, isKnownNotificationType, markResultSchema, NOTIFICATION_STATES, NOTIFICATION_TYPES,
-  notificationPageSchema, unreadCountSchema,
+  errorEnvelopeSchema, facetsSchema, isKnownNotificationType, markResultSchema, MAX_PREFERENCE_ENTRIES, NOTIFICATION_CHANNELS,
+  NOTIFICATION_STATES, NOTIFICATION_TYPES, notificationPageSchema, PREFERENCE_TYPE_PATTERN, preferencesSchema, unreadCountSchema,
   type FilterIssue, type MarkAllInput, type MarkResult, type MarkTarget, type NotificationErrorEnvelope, type NotificationFacets,
-  type NotificationPage, type NotificationScope, type NotificationState, type NotificationType, type UnmarkTarget, type UnreadCount,
+  type NotificationPage, type NotificationPreferences, type NotificationScope, type NotificationState, type NotificationType,
+  type PreferenceEntry, type UnmarkTarget, type UnreadCount,
 } from "./model";
 
 /** Fixed base path per scope (L14); anything outside the enum is refused before a request. Default: company. */
@@ -41,10 +42,12 @@ export type NotificationQuery = {
 };
 export type NotificationClientFailure = {
   ok: false;
-  error: { kind: RequestJsonError["kind"] | "missing_token" | "invalid_request" | "invalid_body"; retryable: boolean; status?: number };
+  error: { kind: RequestJsonError["kind"] | "missing_token" | "invalid_request" | "invalid_body" | "preference_locked"; retryable: boolean; status?: number };
   envelope?: NotificationErrorEnvelope;
   /** Local body issues (`invalid_body`), named and coded as the backend's 400 `validation_error` would. */
   fields?: FilterIssue[];
+  /** Local `preference_locked`: types of the entries that target a locked pair of the catalog they were built from. */
+  lockedTypes?: string[];
 };
 type ClientResult<T> = Promise<{ ok: true; data: T } | NotificationClientFailure>;
 const noToken: NotificationClientFailure = { ok: false, error: { kind: "missing_token", retryable: false } };
@@ -54,12 +57,12 @@ const hasToken = (token: unknown): token is string => typeof token === "string" 
 
 async function call<T>(
   path: string, token: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>,
-  { query, body }: { query?: URLSearchParams; body?: object } = {},
+  { query, body, method = "POST" }: { query?: URLSearchParams; body?: object; method?: "POST" | "PUT" } = {},
 ): ClientResult<T> {
   if (!hasToken(token)) return noToken;
   const serverEnv = await loadServerEnv();
   const result = await requestJson(new URL(`${path}${query?.size ? `?${query}` : ""}`, serverEnv.apiBaseUrl).toString(), {
-    ...(body ? { method: "POST", body } : {}),
+    ...(body ? { method, body } : {}),
     headers: { authorization: `Bearer ${token.trim()}` }, redirect: "error", expectedStatus: 200,
     timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
     decoder: value => schema.parse(value), errorDecoder: value => errorEnvelopeSchema.parse(value),
@@ -177,4 +180,70 @@ export async function getFacets(input: Scoped & { token: string; state: Notifica
   const path = basePath(input.scope);
   if (!path || !(NOTIFICATION_STATES as readonly string[]).includes(input.state)) return invalidRequest;
   return call(`${path}/facets`, input.token, facetsSchema, { query: new URLSearchParams({ state: input.state }) });
+}
+
+/*
+ * Personal preferences (contract notifications-v2, E2 / L21): `GET …/preferences` → the caller's full catalog;
+ * `PUT …/preferences` with `{preferences: [{type, channel, enabled}]}` (1–28, atomic, idempotent) → the full catalog.
+ */
+
+/** PUT body checks in the backend's order and names; each entry is rebuilt from the three contract keys only. */
+function toPreferencesBody(entries: unknown): { body: { preferences: PreferenceEntry[] } } | { fields: FilterIssue[] } {
+  if (!Array.isArray(entries)) return { fields: [{ field: "preferences", code: "required" }] };
+  if (entries.length === 0) return { fields: [{ field: "preferences", code: "empty" }] };
+  if (entries.length > MAX_PREFERENCE_ENTRIES) return { fields: [{ field: "preferences", code: "too_many" }] };
+  const issues: FilterIssue[] = [];
+  const seen = new Set<string>();
+  const preferences: PreferenceEntry[] = [];
+  entries.forEach((entry: unknown, index) => {
+    const at = `preferences[${index}]`;
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) { issues.push({ field: at, code: "invalid" }); return; }
+    const { type, channel, enabled } = entry as Record<string, unknown>;
+    const before = issues.length;
+    if (type === undefined) issues.push({ field: `${at}.type`, code: "required" });
+    else if (typeof type !== "string" || !PREFERENCE_TYPE_PATTERN.test(type)) issues.push({ field: `${at}.type`, code: "invalid" });
+    if (channel === undefined) issues.push({ field: `${at}.channel`, code: "required" });
+    else if (!(NOTIFICATION_CHANNELS as readonly unknown[]).includes(channel)) issues.push({ field: `${at}.channel`, code: "invalid" });
+    if (enabled === undefined) issues.push({ field: `${at}.enabled`, code: "required" });
+    else if (typeof enabled !== "boolean") issues.push({ field: `${at}.enabled`, code: "invalid" });
+    if (issues.length > before) return;
+    const pair = `${type}:${channel}`;
+    if (seen.has(pair)) { issues.push({ field: at, code: "duplicate" }); return; }
+    seen.add(pair);
+    preferences.push({ type: type as string, channel: channel as PreferenceEntry["channel"], enabled: enabled as boolean });
+  });
+  return issues.length ? { fields: issues } : { body: { preferences } };
+}
+
+/** Types of the entries whose (type, channel) pair is `mandatory_locked` in the catalog they were built from. */
+function lockedTypesOf(entries: readonly PreferenceEntry[], catalog: unknown): string[] {
+  // The catalog comes back from the browser through a server action: decode it, and ignore it when it is not one.
+  const decoded = catalog === undefined ? null : preferencesSchema.safeParse(catalog);
+  if (!decoded?.success) return [];
+  const { items } = decoded.data;
+  const locked = entries.filter(entry => items.find(item => item.type === entry.type)?.channels[entry.channel].mandatory_locked);
+  return [...new Set(locked.map(entry => entry.type))];
+}
+
+export async function getPreferences(input: Scoped & { token: string }): ClientResult<NotificationPreferences> {
+  if (!hasToken(input.token)) return noToken;
+  const path = basePath(input.scope);
+  return path ? call(`${path}/preferences`, input.token, preferencesSchema) : invalidRequest;
+}
+
+/**
+ * `PUT …/preferences`. `catalog` is the GET answer the entries were built from: an entry on a pair it marks
+ * `mandatory_locked` is refused locally as `preference_locked` (the backend's 422) and nothing is sent.
+ */
+export async function updatePreferences(
+  input: Scoped & { token: string; entries: readonly PreferenceEntry[]; catalog?: NotificationPreferences },
+): ClientResult<NotificationPreferences> {
+  if (!hasToken(input.token)) return noToken;
+  const path = basePath(input.scope);
+  if (!path) return invalidRequest;
+  const built = toPreferencesBody(input.entries);
+  if ("fields" in built) return invalidBody(built.fields);
+  const locked = lockedTypesOf(built.body.preferences, input.catalog);
+  if (locked.length) return { ok: false, error: { kind: "preference_locked", retryable: false }, lockedTypes: locked };
+  return call(`${path}/preferences`, input.token, preferencesSchema, { body: built.body, method: "PUT" });
 }

@@ -112,11 +112,13 @@ it("marks one read, all read and undoes through the candidate writes", async () 
   for (const action of companyActions) expect(action).not.toHaveBeenCalled();
 });
 
-it("first use speaks to the candidate (design 04)", async () => {
+it("first use speaks to the candidate (design 04) and links both preference entries to the candidate page (T4.4)", async () => {
   m.listCandidateNotificationsAction.mockResolvedValue({ ok: true, data: candidatePage({ items: [], unread_count: 0, unread_notifications: 0 }) });
   const { user, dialog } = await openCandidateInbox();
   await user.click(await within(dialog).findByRole("tab", { name: "Todas" }));
   expect(await within(dialog).findByText("Aquí te avisaremos cuando una empresa cambie el estado de tu postulación, te escriba o te pida una prueba.")).toBeInTheDocument();
+  expect(within(dialog).getByRole("link", { name: "Elegir qué me llega" })).toHaveAttribute("href", "/candidato/configuracion/notificaciones");
+  expect(within(dialog).getByRole("link", { name: "Preferencias" })).toHaveAttribute("href", "/candidato/configuracion/notificaciones");
 });
 
 it("an account without candidate access (403 account_required) gets an empty inbox and no polling", async () => {
