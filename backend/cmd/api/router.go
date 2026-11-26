@@ -28,6 +28,7 @@ import (
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	metricshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/infrastructure/http"
 	notificationsinbox "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/inbox"
+	notificationspreferences "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/preferences"
 	profilehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
@@ -66,6 +67,12 @@ type routerDeps struct {
 	// candidateNotificationsHandler serves the candidate notifications API (notifications-v1 N6)
 	// behind requireCandidate; its store scopes every read and mark to the session's candidate rows.
 	candidateNotificationsHandler *notificationsinbox.Handler
+	// notificationPreferencesHandler serves the member preferences (notifications-v2 §Preferences)
+	// behind requireDocumentReader; key = session user + CompanyContext company.
+	notificationPreferencesHandler *notificationspreferences.Handler
+	// candidateNotificationPreferencesHandler serves the candidate preferences behind
+	// requireCandidate; key = the session's candidate account, company NULL.
+	candidateNotificationPreferencesHandler *notificationspreferences.Handler
 	// stakeholderInvitationHandler serves the invitation routes (§1.3).
 	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
 	companyHandler               *companieshttp.CompanyHandler
@@ -307,7 +314,9 @@ func newRouter(d routerDeps) chi.Router {
 
 	// Member notifications (notifications-v1 D18, N4, N5): owners, recruiters and stakeholders
 	// (the documents read gate); grouped list with attention, the bell counter, read / unread /
-	// read-all marks and the filter facets. Reads and marks are not audited (D23).
+	// read-all marks and the filter facets. Reads and marks are not audited (D23). Personal
+	// preferences (notifications-v2 D1–D5, D23): the member catalog for every role of the gate,
+	// keyed by the session user and the CompanyContext company; not audited.
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireDocumentReader)
 		r.Get("/v2/me/company/notifications", d.notificationsHandler.List)
@@ -316,11 +325,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/notifications/unread", d.notificationsHandler.Unread)
 		r.Post("/v2/me/company/notifications/read-all", d.notificationsHandler.ReadAll)
 		r.Get("/v2/me/company/notifications/facets", d.notificationsHandler.Facets)
+		r.Get("/v2/me/company/notifications/preferences", d.notificationPreferencesHandler.Get)
+		r.Put("/v2/me/company/notifications/preferences", d.notificationPreferencesHandler.Put)
 	})
 
 	// Candidate notifications (notifications-v1 D18, N6): the same handlers and shapes behind the
 	// candidate gate of /v2/me/applications; scope = the session's candidate account,
-	// recipient_kind candidate, no company. Not audited (D23).
+	// recipient_kind candidate, no company. Not audited (D23). Preferences (notifications-v2):
+	// the candidate catalog, keyed by the candidate account with company NULL; not audited.
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireCandidate)
 		r.Get("/v2/me/notifications", d.candidateNotificationsHandler.List)
@@ -329,6 +341,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/notifications/unread", d.candidateNotificationsHandler.Unread)
 		r.Post("/v2/me/notifications/read-all", d.candidateNotificationsHandler.ReadAll)
 		r.Get("/v2/me/notifications/facets", d.candidateNotificationsHandler.Facets)
+		r.Get("/v2/me/notifications/preferences", d.candidateNotificationPreferencesHandler.Get)
+		r.Put("/v2/me/notifications/preferences", d.candidateNotificationPreferencesHandler.Put)
 	})
 
 	// The stakeholder's own vacancy list (placement-vacancy-documents-v1, P7c, L20): every vacancy of the company, never-published drafts

@@ -181,6 +181,24 @@ func (q *Queries) GetNotificationCandidateUser(ctx context.Context, cognitoSub s
 	return id, err
 }
 
+const getNotificationEmailDeliverable = `-- name: GetNotificationEmailDeliverable :one
+SELECT (u.deleted_at IS NULL AND btrim(u.email) <> ''
+        AND NOT EXISTS (SELECT 1 FROM email_suppressions s
+                        WHERE s.address = lower(btrim(u.email))))::boolean AS deliverable
+FROM users u
+WHERE u.id = $1::uuid
+`
+
+// email_deliverable of the preferences catalog (§Preferences): the account is
+// live, has a non-empty address and lower(btrim(address)) is not suppressed.
+// Neither the address nor the suppression reason leaves this query.
+func (q *Queries) GetNotificationEmailDeliverable(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, getNotificationEmailDeliverable, userID)
+	var deliverable bool
+	err := row.Scan(&deliverable)
+	return deliverable, err
+}
+
 const getNotificationParticipationCandidate = `-- name: GetNotificationParticipationCandidate :one
 SELECT candidate_id
 FROM process_participations
@@ -984,6 +1002,47 @@ func (q *Queries) ListNotificationJobs(ctx context.Context, arg ListNotification
 	return items, nil
 }
 
+const listNotificationPreferences = `-- name: ListNotificationPreferences :many
+SELECT p.type, p.channel, p.enabled
+FROM notification_preferences p
+WHERE p.user_id = $1::uuid
+  AND p.company_id IS NOT DISTINCT FROM $2::uuid
+`
+
+type ListNotificationPreferencesParams struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+}
+
+type ListNotificationPreferencesRow struct {
+	Type    string `json:"type"`
+	Channel string `json:"channel"`
+	Enabled bool   `json:"enabled"`
+}
+
+// Personal preferences (notifications-v2 D1, D2): the caller's sparse override
+// rows in their scope, member (user, company) or candidate (user, NULL). The
+// catalog and the defaults come from the domain table.
+func (q *Queries) ListNotificationPreferences(ctx context.Context, arg ListNotificationPreferencesParams) ([]ListNotificationPreferencesRow, error) {
+	rows, err := q.db.Query(ctx, listNotificationPreferences, arg.UserID, arg.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNotificationPreferencesRow
+	for rows.Next() {
+		var i ListNotificationPreferencesRow
+		if err := rows.Scan(&i.Type, &i.Channel, &i.Enabled); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNotificationTeamRecipients = `-- name: ListNotificationTeamRecipients :many
 SELECT DISTINCT va.user_id
 FROM vacancy_assignments va
@@ -1441,4 +1500,35 @@ func (q *Queries) ResolveStaleScheduledNotifications(ctx context.Context) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const upsertNotificationPreference = `-- name: UpsertNotificationPreference :exec
+INSERT INTO notification_preferences (user_id, company_id, type, channel, enabled, source, updated_at)
+VALUES ($1::uuid, $2::uuid, $3::text,
+        $4::text, $5::boolean, 'settings', now())
+ON CONFLICT ON CONSTRAINT notification_preferences_key
+DO UPDATE SET enabled = EXCLUDED.enabled, source = EXCLUDED.source, updated_at = EXCLUDED.updated_at
+`
+
+type UpsertNotificationPreferenceParams struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+	Type      string      `json:"type"`
+	Channel   string      `json:"channel"`
+	Enabled   bool        `json:"enabled"`
+}
+
+// PUT …/preferences (D4): one explicit settings row per validated entry, even
+// when equal to the default; the caller runs every entry of a body in one tx
+// (all or nothing). Mandatory types are refused before (and by the table
+// CHECK). Not audited (D5): source + updated_at are the support trace.
+func (q *Queries) UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error {
+	_, err := q.db.Exec(ctx, upsertNotificationPreference,
+		arg.UserID,
+		arg.CompanyID,
+		arg.Type,
+		arg.Channel,
+		arg.Enabled,
+	)
+	return err
 }

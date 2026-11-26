@@ -519,6 +519,36 @@ WHERE vp.id = ANY (sqlc.arg('job_ids')::uuid[])
   AND EXISTS (SELECT 1 FROM process_participations p
               WHERE p.process_id = vp.id AND p.candidate_id = sqlc.arg('user_id')::uuid);
 
+-- name: ListNotificationPreferences :many
+-- Personal preferences (notifications-v2 D1, D2): the caller's sparse override
+-- rows in their scope, member (user, company) or candidate (user, NULL). The
+-- catalog and the defaults come from the domain table.
+SELECT p.type, p.channel, p.enabled
+FROM notification_preferences p
+WHERE p.user_id = sqlc.arg('user_id')::uuid
+  AND p.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid;
+
+-- name: GetNotificationEmailDeliverable :one
+-- email_deliverable of the preferences catalog (§Preferences): the account is
+-- live, has a non-empty address and lower(btrim(address)) is not suppressed.
+-- Neither the address nor the suppression reason leaves this query.
+SELECT (u.deleted_at IS NULL AND btrim(u.email) <> ''
+        AND NOT EXISTS (SELECT 1 FROM email_suppressions s
+                        WHERE s.address = lower(btrim(u.email))))::boolean AS deliverable
+FROM users u
+WHERE u.id = sqlc.arg('user_id')::uuid;
+
+-- name: UpsertNotificationPreference :exec
+-- PUT …/preferences (D4): one explicit settings row per validated entry, even
+-- when equal to the default; the caller runs every entry of a body in one tx
+-- (all or nothing). Mandatory types are refused before (and by the table
+-- CHECK). Not audited (D5): source + updated_at are the support trace.
+INSERT INTO notification_preferences (user_id, company_id, type, channel, enabled, source, updated_at)
+VALUES (sqlc.arg('user_id')::uuid, sqlc.narg('company_id')::uuid, sqlc.arg('type')::text,
+        sqlc.arg('channel')::text, sqlc.arg('enabled')::boolean, 'settings', now())
+ON CONFLICT ON CONSTRAINT notification_preferences_key
+DO UPDATE SET enabled = EXCLUDED.enabled, source = EXCLUDED.source, updated_at = EXCLUDED.updated_at;
+
 -- name: CountExpiredNotifications :one
 -- Retention (notifications-v1 D22): rows older than 180 days, read or not.
 -- The cutoff must stay identical in the four retention queries.

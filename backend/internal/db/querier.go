@@ -210,6 +210,10 @@ type Querier interface {
 	// Candidate scope (notifications-v1 D18): the live candidate account of the
 	// session subject, resolved after the candidate gate passed.
 	GetNotificationCandidateUser(ctx context.Context, cognitoSub string) (uuid.UUID, error)
+	// email_deliverable of the preferences catalog (§Preferences): the account is
+	// live, has a non-empty address and lower(btrim(address)) is not suppressed.
+	// Neither the address nor the suppression reason leaves this query.
+	GetNotificationEmailDeliverable(ctx context.Context, userID uuid.UUID) (bool, error)
 	// Relation candidate: the account behind an organic participation of the job;
 	// NULL for a manual candidate (no account).
 	GetNotificationParticipationCandidate(ctx context.Context, arg GetNotificationParticipationCandidateParams) (pgtype.UUID, error)
@@ -366,6 +370,10 @@ type Querier interface {
 	// an active assignment on it). Jobs of other companies or gone are absent;
 	// has_title is false when the draft has no title.
 	ListNotificationJobs(ctx context.Context, arg ListNotificationJobsParams) ([]ListNotificationJobsRow, error)
+	// Personal preferences (notifications-v2 D1, D2): the caller's sparse override
+	// rows in their scope, member (user, company) or candidate (user, NULL). The
+	// catalog and the defaults come from the domain table.
+	ListNotificationPreferences(ctx context.Context, arg ListNotificationPreferencesParams) ([]ListNotificationPreferencesRow, error)
 	// Relation team (§Recipients): users with an active assignment on the job who
 	// are still non-stakeholder members of the event's company, company not deleted.
 	ListNotificationTeamRecipients(ctx context.Context, arg ListNotificationTeamRecipientsParams) ([]uuid.UUID, error)
@@ -674,6 +682,11 @@ type Querier interface {
 	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
 	// Reserved cv_s3_key and search_vector remain database-owned.
 	UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error)
+	// PUT …/preferences (D4): one explicit settings row per validated entry, even
+	// when equal to the default; the caller runs every entry of a body in one tx
+	// (all or nothing). Mandatory types are refused before (and by the table
+	// CHECK). Not audited (D5): source + updated_at are the support trace.
+	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
 	UpsertVacancyPublicProjection(ctx context.Context, arg UpsertVacancyPublicProjectionParams) error
 	VacancyLocationRead(ctx context.Context, arg VacancyLocationReadParams) ([]byte, error)
 	VacancyRemoteCountriesRead(ctx context.Context, countries []string) ([]byte, error)
