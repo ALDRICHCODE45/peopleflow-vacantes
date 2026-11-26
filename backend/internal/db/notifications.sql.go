@@ -312,18 +312,19 @@ FROM notifications n
 WHERE n.recipient_user_id = $1::uuid
   AND n.recipient_kind = 'member'
   AND n.company_id = $2::uuid
-  AND n.type IN ('delivery_due_soon', 'delivery_overdue', 'assignment_deadline_due_soon', 'assignment_deadline_overdue')
+  AND n.type = ANY ($3::text[])
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL
-  AND (cardinality($3::text[]) = 0 OR n.type = ANY ($3::text[]))
-  AND (cardinality($4::uuid[]) = 0 OR n.job_id = ANY ($4::uuid[]))
+  AND (cardinality($4::text[]) = 0 OR n.type = ANY ($4::text[]))
+  AND (cardinality($5::uuid[]) = 0 OR n.job_id = ANY ($5::uuid[]))
 ORDER BY n.created_at DESC, n.id DESC
-LIMIT $5::integer
+LIMIT $6::integer
 `
 
 type ListMemberNotificationAttentionParams struct {
 	UserID         uuid.UUID   `json:"user_id"`
 	CompanyID      uuid.UUID   `json:"company_id"`
+	AttentionTypes []string    `json:"attention_types"`
 	Types          []string    `json:"types"`
 	JobIds         []uuid.UUID `json:"job_ids"`
 	AttentionLimit int32       `json:"attention_limit"`
@@ -341,13 +342,16 @@ type ListMemberNotificationAttentionRow struct {
 	Total           int64              `json:"total"`
 }
 
-// Attention (notifications-v1 D13): the caller's unread, unresolved deadline
-// items in the member scope, honouring types / job_ids (not state), newest
-// first, capped; total counts every qualifying item.
+// Attention (notifications-v1 D13), the single source of the selection: the
+// caller's unread, unresolved items of the attention types (passed by the
+// caller from the domain type table) in the member scope, honouring types /
+// job_ids (not state), newest first, capped; total counts every qualifying
+// item. Computed on every page: its ids are excluded from the grouped list.
 func (q *Queries) ListMemberNotificationAttention(ctx context.Context, arg ListMemberNotificationAttentionParams) ([]ListMemberNotificationAttentionRow, error) {
 	rows, err := q.db.Query(ctx, listMemberNotificationAttention,
 		arg.UserID,
 		arg.CompanyID,
+		arg.AttentionTypes,
 		arg.Types,
 		arg.JobIds,
 		arg.AttentionLimit,
@@ -380,21 +384,132 @@ func (q *Queries) ListMemberNotificationAttention(ctx context.Context, arg ListM
 	return items, nil
 }
 
+const listMemberNotificationFacetJobs = `-- name: ListMemberNotificationFacetJobs :many
+WITH jobs AS (
+    SELECT g.job_id, count(*) AS count
+    FROM (
+        SELECT n.group_key, n.job_id, bool_or(n.read_at IS NULL AND n.resolved_at IS NULL) AS unread
+        FROM notifications n
+        WHERE n.recipient_user_id = $2::uuid
+          AND n.recipient_kind = 'member'
+          AND n.company_id = $3::uuid
+        GROUP BY n.group_key, n.job_id
+    ) g
+    WHERE NOT $4::boolean OR g.unread
+    GROUP BY g.job_id
+), titled AS (
+    SELECT j.job_id, j.count, convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title' AS title
+    FROM jobs j
+    LEFT JOIN job_drafts d ON d.id = j.job_id AND d.company_id = $3::uuid
+)
+SELECT t.job_id, (t.title IS NOT NULL)::boolean AS has_title, COALESCE(t.title, '')::text AS title,
+       t.count::integer AS count, (count(*) OVER ())::integer AS total
+FROM titled t
+ORDER BY t.count DESC, t.title NULLS LAST, t.job_id
+LIMIT $1::integer
+`
+
+type ListMemberNotificationFacetJobsParams struct {
+	JobsLimit  int32     `json:"jobs_limit"`
+	UserID     uuid.UUID `json:"user_id"`
+	CompanyID  uuid.UUID `json:"company_id"`
+	UnreadOnly bool      `json:"unread_only"`
+}
+
+type ListMemberNotificationFacetJobsRow struct {
+	JobID    uuid.UUID `json:"job_id"`
+	HasTitle bool      `json:"has_title"`
+	Title    string    `json:"title"`
+	Count    int32     `json:"count"`
+	Total    int32     `json:"total"`
+}
+
+// GET B/facets (D17): the same groups per job with the current draft title
+// of the company (has_title false when gone or untitled), ordered by count
+// DESC, title (untitled last), job id; capped at jobs_limit, total = every
+// job with a group in that state.
+func (q *Queries) ListMemberNotificationFacetJobs(ctx context.Context, arg ListMemberNotificationFacetJobsParams) ([]ListMemberNotificationFacetJobsRow, error) {
+	rows, err := q.db.Query(ctx, listMemberNotificationFacetJobs,
+		arg.JobsLimit,
+		arg.UserID,
+		arg.CompanyID,
+		arg.UnreadOnly,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMemberNotificationFacetJobsRow
+	for rows.Next() {
+		var i ListMemberNotificationFacetJobsRow
+		if err := rows.Scan(
+			&i.JobID,
+			&i.HasTitle,
+			&i.Title,
+			&i.Count,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMemberNotificationFacetTypes = `-- name: ListMemberNotificationFacetTypes :many
+SELECT g.type, count(*)::integer AS count
+FROM (
+    SELECT n.group_key, n.type, bool_or(n.read_at IS NULL AND n.resolved_at IS NULL) AS unread
+    FROM notifications n
+    WHERE n.recipient_user_id = $1::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = $2::uuid
+    GROUP BY n.group_key, n.type
+) g
+WHERE NOT $3::boolean OR g.unread
+GROUP BY g.type
+ORDER BY count(*) DESC, g.type
+`
+
+type ListMemberNotificationFacetTypesParams struct {
+	UserID     uuid.UUID `json:"user_id"`
+	CompanyID  uuid.UUID `json:"company_id"`
+	UnreadOnly bool      `json:"unread_only"`
+}
+
+type ListMemberNotificationFacetTypesRow struct {
+	Type  string `json:"type"`
+	Count int32  `json:"count"`
+}
+
+// GET B/facets (D17): groups of the caller's member scope (attention
+// included) per type, only groups with an unread member when unread_only;
+// zero counts are absent.
+func (q *Queries) ListMemberNotificationFacetTypes(ctx context.Context, arg ListMemberNotificationFacetTypesParams) ([]ListMemberNotificationFacetTypesRow, error) {
+	rows, err := q.db.Query(ctx, listMemberNotificationFacetTypes, arg.UserID, arg.CompanyID, arg.UnreadOnly)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMemberNotificationFacetTypesRow
+	for rows.Next() {
+		var i ListMemberNotificationFacetTypesRow
+		if err := rows.Scan(&i.Type, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMemberNotificationGroups = `-- name: ListMemberNotificationGroups :many
-WITH attention AS (
-    SELECT a.id
-    FROM notifications a
-    WHERE a.recipient_user_id = $1::uuid
-      AND a.recipient_kind = 'member'
-      AND a.company_id = $2::uuid
-      AND a.type IN ('delivery_due_soon', 'delivery_overdue', 'assignment_deadline_due_soon', 'assignment_deadline_overdue')
-      AND a.read_at IS NULL
-      AND a.resolved_at IS NULL
-      AND (cardinality($7::text[]) = 0 OR a.type = ANY ($7::text[]))
-      AND (cardinality($8::uuid[]) = 0 OR a.job_id = ANY ($8::uuid[]))
-    ORDER BY a.created_at DESC, a.id DESC
-    LIMIT $9::integer
-), grouped AS (
+WITH grouped AS (
     SELECT n.group_key, n.type, n.job_id,
            count(*) AS total,
            count(*) FILTER (WHERE n.read_at IS NULL AND n.resolved_at IS NULL) AS unread,
@@ -407,7 +522,7 @@ WITH attention AS (
       AND n.company_id = $2::uuid
       AND (cardinality($7::text[]) = 0 OR n.type = ANY ($7::text[]))
       AND (cardinality($8::uuid[]) = 0 OR n.job_id = ANY ($8::uuid[]))
-      AND n.id NOT IN (SELECT id FROM attention)
+      AND NOT (n.id = ANY ($9::uuid[]))
     GROUP BY n.group_key, n.type, n.job_id
 )
 SELECT g.group_key, g.type, g.job_id, g.total, g.unread, g.latest_at, g.first_at, g.resolved,
@@ -432,15 +547,15 @@ LIMIT $6::integer
 `
 
 type ListMemberNotificationGroupsParams struct {
-	UserID         uuid.UUID          `json:"user_id"`
-	CompanyID      uuid.UUID          `json:"company_id"`
-	UnreadOnly     bool               `json:"unread_only"`
-	AfterAt        pgtype.Timestamptz `json:"after_at"`
-	AfterKey       pgtype.Text        `json:"after_key"`
-	PageLimit      int32              `json:"page_limit"`
-	Types          []string           `json:"types"`
-	JobIds         []uuid.UUID        `json:"job_ids"`
-	AttentionLimit int32              `json:"attention_limit"`
+	UserID     uuid.UUID          `json:"user_id"`
+	CompanyID  uuid.UUID          `json:"company_id"`
+	UnreadOnly bool               `json:"unread_only"`
+	AfterAt    pgtype.Timestamptz `json:"after_at"`
+	AfterKey   pgtype.Text        `json:"after_key"`
+	PageLimit  int32              `json:"page_limit"`
+	Types      []string           `json:"types"`
+	JobIds     []uuid.UUID        `json:"job_ids"`
+	ExcludeIds []uuid.UUID        `json:"exclude_ids"`
 }
 
 type ListMemberNotificationGroupsRow struct {
@@ -460,11 +575,11 @@ type ListMemberNotificationGroupsRow struct {
 }
 
 // Grouped list (D11, D13, D27): the caller's member-scope rows matching
-// types / job_ids, minus the top attention_limit attention items (the same
-// selection as ListMemberNotificationAttention, recomputed on every page so
-// only those are excluded), grouped by group_key (one type and job per group),
-// optionally only groups with an unread member, keyset after (at, key) in
-// latest_at DESC, group_key DESC order. latest is the newest row of the group.
+// types / job_ids, minus the attention ids returned by
+// ListMemberNotificationAttention for the same filters (so only those are
+// excluded), grouped by group_key (one type and job per group), optionally
+// only groups with an unread member, keyset after (at, key) in latest_at DESC,
+// group_key DESC order. latest is the newest row of the group.
 func (q *Queries) ListMemberNotificationGroups(ctx context.Context, arg ListMemberNotificationGroupsParams) ([]ListMemberNotificationGroupsRow, error) {
 	rows, err := q.db.Query(ctx, listMemberNotificationGroups,
 		arg.UserID,
@@ -475,7 +590,7 @@ func (q *Queries) ListMemberNotificationGroups(ctx context.Context, arg ListMemb
 		arg.PageLimit,
 		arg.Types,
 		arg.JobIds,
-		arg.AttentionLimit,
+		arg.ExcludeIds,
 	)
 	if err != nil {
 		return nil, err
@@ -522,14 +637,15 @@ FROM (
       AND n.participation_id IS NOT NULL
     GROUP BY n.group_key, n.participation_id
 ) s
-WHERE s.rank <= 3
+WHERE s.rank <= $4::integer
 ORDER BY s.group_key, s.rank
 `
 
 type ListMemberNotificationSamplesParams struct {
-	UserID    uuid.UUID `json:"user_id"`
-	CompanyID uuid.UUID `json:"company_id"`
-	GroupKeys []string  `json:"group_keys"`
+	UserID      uuid.UUID `json:"user_id"`
+	CompanyID   uuid.UUID `json:"company_id"`
+	GroupKeys   []string  `json:"group_keys"`
+	SampleLimit int32     `json:"sample_limit"`
 }
 
 type ListMemberNotificationSamplesRow struct {
@@ -538,9 +654,14 @@ type ListMemberNotificationSamplesRow struct {
 }
 
 // Group sample (§Grouping): per group, the newest distinct participations
-// (at most 3) of the caller's member-scope rows.
+// (at most sample_limit) of the caller's member-scope rows.
 func (q *Queries) ListMemberNotificationSamples(ctx context.Context, arg ListMemberNotificationSamplesParams) ([]ListMemberNotificationSamplesRow, error) {
-	rows, err := q.db.Query(ctx, listMemberNotificationSamples, arg.UserID, arg.CompanyID, arg.GroupKeys)
+	rows, err := q.db.Query(ctx, listMemberNotificationSamples,
+		arg.UserID,
+		arg.CompanyID,
+		arg.GroupKeys,
+		arg.SampleLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -856,6 +977,159 @@ func (q *Queries) ListScheduledDeliveryRecipients(ctx context.Context, until pgt
 		return nil, err
 	}
 	return items, nil
+}
+
+const markAllMemberNotificationsRead = `-- name: MarkAllMemberNotificationsRead :one
+WITH stamp AS (
+    SELECT statement_timestamp() AS at
+), marked AS (
+    UPDATE notifications n
+    SET read_at = (SELECT at FROM stamp)
+    WHERE n.recipient_user_id = $1::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = $2::uuid
+      AND n.read_at IS NULL
+      AND n.resolved_at IS NULL
+      AND (cardinality($3::text[]) = 0 OR n.type = ANY ($3::text[]))
+      AND (cardinality($4::uuid[]) = 0 OR n.job_id = ANY ($4::uuid[]))
+      AND n.created_at <= COALESCE($5::timestamptz, (SELECT at FROM stamp))
+    RETURNING n.group_key
+)
+SELECT (SELECT at FROM stamp)::timestamptz AS marked_at,
+       count(*)::integer AS affected_notifications,
+       count(DISTINCT m.group_key)::integer AS affected_groups
+FROM marked m
+`
+
+type MarkAllMemberNotificationsReadParams struct {
+	UserID    uuid.UUID          `json:"user_id"`
+	CompanyID uuid.UUID          `json:"company_id"`
+	Types     []string           `json:"types"`
+	JobIds    []uuid.UUID        `json:"job_ids"`
+	Before    pgtype.Timestamptz `json:"before"`
+}
+
+type MarkAllMemberNotificationsReadRow struct {
+	MarkedAt              pgtype.Timestamptz `json:"marked_at"`
+	AffectedNotifications int32              `json:"affected_notifications"`
+	AffectedGroups        int32              `json:"affected_groups"`
+}
+
+// POST B/read-all (D16): stamps one statement timestamp on every unread,
+// unresolved member-scope row of the caller matching types / job_ids (empty =
+// all) created at or before `before` (NULL = the stamp), attention included.
+func (q *Queries) MarkAllMemberNotificationsRead(ctx context.Context, arg MarkAllMemberNotificationsReadParams) (MarkAllMemberNotificationsReadRow, error) {
+	row := q.db.QueryRow(ctx, markAllMemberNotificationsRead,
+		arg.UserID,
+		arg.CompanyID,
+		arg.Types,
+		arg.JobIds,
+		arg.Before,
+	)
+	var i MarkAllMemberNotificationsReadRow
+	err := row.Scan(&i.MarkedAt, &i.AffectedNotifications, &i.AffectedGroups)
+	return i, err
+}
+
+const markMemberNotificationsRead = `-- name: MarkMemberNotificationsRead :one
+WITH stamp AS (
+    SELECT statement_timestamp() AS at
+), marked AS (
+    UPDATE notifications n
+    SET read_at = (SELECT at FROM stamp)
+    WHERE n.recipient_user_id = $1::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = $2::uuid
+      AND n.read_at IS NULL
+      AND n.resolved_at IS NULL
+      AND (n.group_key = ANY ($3::text[]) OR n.id = ANY ($4::uuid[]))
+    RETURNING n.group_key
+)
+SELECT (SELECT at FROM stamp)::timestamptz AS marked_at,
+       count(*)::integer AS affected_notifications,
+       count(DISTINCT m.group_key)::integer AS affected_groups
+FROM marked m
+`
+
+type MarkMemberNotificationsReadParams struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	CompanyID uuid.UUID   `json:"company_id"`
+	GroupKeys []string    `json:"group_keys"`
+	Ids       []uuid.UUID `json:"ids"`
+}
+
+type MarkMemberNotificationsReadRow struct {
+	MarkedAt              pgtype.Timestamptz `json:"marked_at"`
+	AffectedNotifications int32              `json:"affected_notifications"`
+	AffectedGroups        int32              `json:"affected_groups"`
+}
+
+// POST B/read (D15, D26): stamps one statement timestamp on the caller's
+// unread, unresolved member-scope rows selected by group key or id (the
+// other array is empty); rows of others are not matched. Returns the stamp
+// and the affected rows / distinct groups.
+func (q *Queries) MarkMemberNotificationsRead(ctx context.Context, arg MarkMemberNotificationsReadParams) (MarkMemberNotificationsReadRow, error) {
+	row := q.db.QueryRow(ctx, markMemberNotificationsRead,
+		arg.UserID,
+		arg.CompanyID,
+		arg.GroupKeys,
+		arg.Ids,
+	)
+	var i MarkMemberNotificationsReadRow
+	err := row.Scan(&i.MarkedAt, &i.AffectedNotifications, &i.AffectedGroups)
+	return i, err
+}
+
+const markMemberNotificationsUnread = `-- name: MarkMemberNotificationsUnread :one
+WITH stamp AS (
+    SELECT statement_timestamp() AS at
+), marked AS (
+    UPDATE notifications n
+    SET read_at = NULL
+    WHERE n.recipient_user_id = $1::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = $2::uuid
+      AND n.read_at IS NOT NULL
+      AND n.resolved_at IS NULL
+      AND (n.group_key = ANY ($3::text[])
+           OR n.id = ANY ($4::uuid[])
+           OR n.read_at = $5::timestamptz)
+    RETURNING n.group_key
+)
+SELECT (SELECT at FROM stamp)::timestamptz AS marked_at,
+       count(*)::integer AS affected_notifications,
+       count(DISTINCT m.group_key)::integer AS affected_groups
+FROM marked m
+`
+
+type MarkMemberNotificationsUnreadParams struct {
+	UserID    uuid.UUID          `json:"user_id"`
+	CompanyID uuid.UUID          `json:"company_id"`
+	GroupKeys []string           `json:"group_keys"`
+	Ids       []uuid.UUID        `json:"ids"`
+	MarkedAt  pgtype.Timestamptz `json:"marked_at"`
+}
+
+type MarkMemberNotificationsUnreadRow struct {
+	MarkedAt              pgtype.Timestamptz `json:"marked_at"`
+	AffectedNotifications int32              `json:"affected_notifications"`
+	AffectedGroups        int32              `json:"affected_groups"`
+}
+
+// POST B/unread (D15, D26): clears read_at on the caller's read, unresolved
+// member-scope rows selected by group key, id or the exact read_at of an
+// earlier mark (undo of exactly that batch); a resolved row stays read.
+func (q *Queries) MarkMemberNotificationsUnread(ctx context.Context, arg MarkMemberNotificationsUnreadParams) (MarkMemberNotificationsUnreadRow, error) {
+	row := q.db.QueryRow(ctx, markMemberNotificationsUnread,
+		arg.UserID,
+		arg.CompanyID,
+		arg.GroupKeys,
+		arg.Ids,
+		arg.MarkedAt,
+	)
+	var i MarkMemberNotificationsUnreadRow
+	err := row.Scan(&i.MarkedAt, &i.AffectedNotifications, &i.AffectedGroups)
+	return i, err
 }
 
 const markNotificationEventProcessed = `-- name: MarkNotificationEventProcessed :exec

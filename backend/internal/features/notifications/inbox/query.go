@@ -1,8 +1,9 @@
-// Package inbox is the member read side of notifications-v1 (N4): the grouped
-// list with the attention section (GET B) and the bell counter
-// (GET B/unread-count) for B = /v2/me/company/notifications. Query parsing,
+// Package inbox is the member side of notifications-v1 for
+// B = /v2/me/company/notifications: the grouped list with the attention
+// section (GET B) and the bell counter (GET B/unread-count) of N4, and the
+// read / unread / read-all marks and facets of N5. Query and body parsing,
 // the keyset cursor (D27), read-time resolution (D19) and the HTTP handler
-// live here; reads are not audited (D23).
+// live here; reads and marks are not audited (D23).
 package inbox
 
 import (

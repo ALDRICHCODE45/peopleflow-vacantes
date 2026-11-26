@@ -287,19 +287,30 @@ type Querier interface {
 	// departure time (the same views as ListStartableCreditDetails). Voided and active credits
 	// are not fallen. Ordered by departure, then hire.
 	ListFallenCreditDetails(ctx context.Context, arg ListFallenCreditDetailsParams) ([]ListFallenCreditDetailsRow, error)
-	// Attention (notifications-v1 D13): the caller's unread, unresolved deadline
-	// items in the member scope, honouring types / job_ids (not state), newest
-	// first, capped; total counts every qualifying item.
+	// Attention (notifications-v1 D13), the single source of the selection: the
+	// caller's unread, unresolved items of the attention types (passed by the
+	// caller from the domain type table) in the member scope, honouring types /
+	// job_ids (not state), newest first, capped; total counts every qualifying
+	// item. Computed on every page: its ids are excluded from the grouped list.
 	ListMemberNotificationAttention(ctx context.Context, arg ListMemberNotificationAttentionParams) ([]ListMemberNotificationAttentionRow, error)
+	// GET B/facets (D17): the same groups per job with the current draft title
+	// of the company (has_title false when gone or untitled), ordered by count
+	// DESC, title (untitled last), job id; capped at jobs_limit, total = every
+	// job with a group in that state.
+	ListMemberNotificationFacetJobs(ctx context.Context, arg ListMemberNotificationFacetJobsParams) ([]ListMemberNotificationFacetJobsRow, error)
+	// GET B/facets (D17): groups of the caller's member scope (attention
+	// included) per type, only groups with an unread member when unread_only;
+	// zero counts are absent.
+	ListMemberNotificationFacetTypes(ctx context.Context, arg ListMemberNotificationFacetTypesParams) ([]ListMemberNotificationFacetTypesRow, error)
 	// Grouped list (D11, D13, D27): the caller's member-scope rows matching
-	// types / job_ids, minus the top attention_limit attention items (the same
-	// selection as ListMemberNotificationAttention, recomputed on every page so
-	// only those are excluded), grouped by group_key (one type and job per group),
-	// optionally only groups with an unread member, keyset after (at, key) in
-	// latest_at DESC, group_key DESC order. latest is the newest row of the group.
+	// types / job_ids, minus the attention ids returned by
+	// ListMemberNotificationAttention for the same filters (so only those are
+	// excluded), grouped by group_key (one type and job per group), optionally
+	// only groups with an unread member, keyset after (at, key) in latest_at DESC,
+	// group_key DESC order. latest is the newest row of the group.
 	ListMemberNotificationGroups(ctx context.Context, arg ListMemberNotificationGroupsParams) ([]ListMemberNotificationGroupsRow, error)
 	// Group sample (§Grouping): per group, the newest distinct participations
-	// (at most 3) of the caller's member-scope rows.
+	// (at most sample_limit) of the caller's member-scope rows.
 	ListMemberNotificationSamples(ctx context.Context, arg ListMemberNotificationSamplesParams) ([]ListMemberNotificationSamplesRow, error)
 	// Candidate's GET /me/applications list. Joins jobs (title) + companies
 	// (id, name) to render the embedded job summary. NOT redacted by
@@ -361,6 +372,19 @@ type Querier interface {
 	LockCompanyForMemberMutation(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// A soft-deleted company accepts no new member.
 	LockLiveCompanyForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// POST B/read-all (D16): stamps one statement timestamp on every unread,
+	// unresolved member-scope row of the caller matching types / job_ids (empty =
+	// all) created at or before `before` (NULL = the stamp), attention included.
+	MarkAllMemberNotificationsRead(ctx context.Context, arg MarkAllMemberNotificationsReadParams) (MarkAllMemberNotificationsReadRow, error)
+	// POST B/read (D15, D26): stamps one statement timestamp on the caller's
+	// unread, unresolved member-scope rows selected by group key or id (the
+	// other array is empty); rows of others are not matched. Returns the stamp
+	// and the affected rows / distinct groups.
+	MarkMemberNotificationsRead(ctx context.Context, arg MarkMemberNotificationsReadParams) (MarkMemberNotificationsReadRow, error)
+	// POST B/unread (D15, D26): clears read_at on the caller's read, unresolved
+	// member-scope rows selected by group key, id or the exact read_at of an
+	// earlier mark (undo of exactly that batch); a resolved row stays read.
+	MarkMemberNotificationsUnread(ctx context.Context, arg MarkMemberNotificationsUnreadParams) (MarkMemberNotificationsUnreadRow, error)
 	MarkNotificationEventProcessed(ctx context.Context, id uuid.UUID) error
 	MarkStakeholderInvitationUsed(ctx context.Context, arg MarkStakeholderInvitationUsedParams) error
 	// D3: the discard's candidate message is never copied; capture records only

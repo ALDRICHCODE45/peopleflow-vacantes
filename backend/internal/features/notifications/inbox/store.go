@@ -93,6 +93,9 @@ func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 var readOnly = pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
 
+// attentionTypes is derived once from the domain type table (D13).
+var attentionTypes = AttentionTypes()
+
 // UnreadCount returns unread groups (attention included) and unread rows.
 func (s *Store) UnreadCount(ctx context.Context, scope Scope) (Counts, error) {
 	row, err := db.New(s.pool).CountMemberUnreadNotifications(ctx, db.CountMemberUnreadNotificationsParams{UserID: scope.UserID, CompanyID: scope.CompanyID})
@@ -128,25 +131,32 @@ func (s *Store) List(ctx context.Context, scope Scope, q Query) (Page, error) {
 		jobs = []uuid.UUID{}
 	}
 
+	// The attention selection runs on every page (single source, D13): its ids
+	// are excluded from the groups, and the section is returned on the first
+	// page only.
+	attentionRows, err := qs.ListMemberNotificationAttention(ctx, db.ListMemberNotificationAttentionParams{
+		UserID: scope.UserID, CompanyID: scope.CompanyID, AttentionTypes: attentionTypes, Types: types, JobIds: jobs, AttentionLimit: AttentionLimit})
+	if err != nil {
+		return Page{}, fmt.Errorf("list notification attention: %w", err)
+	}
 	var page Page
 	var attention []raw
-	if q.After == nil {
-		rows, err := qs.ListMemberNotificationAttention(ctx, db.ListMemberNotificationAttentionParams{
-			UserID: scope.UserID, CompanyID: scope.CompanyID, Types: types, JobIds: jobs, AttentionLimit: AttentionLimit})
-		if err != nil {
-			return Page{}, fmt.Errorf("list notification attention: %w", err)
-		}
-		total := 0
-		for _, r := range rows {
-			total = int(r.Total)
-			at := r.CreatedAt.Time.UTC()
-			attention = append(attention, newRaw(r.GroupKey, r.Type, r.JobID, 1, 1, false, at, at, r.ID, at, r.ActorUserID, r.ParticipationID, r.Payload))
-		}
+	exclude := make([]uuid.UUID, 0, len(attentionRows))
+	total := 0
+	for _, r := range attentionRows {
+		exclude = append(exclude, r.ID)
+		total = int(r.Total)
+		at := r.CreatedAt.Time.UTC()
+		attention = append(attention, newRaw(r.GroupKey, r.Type, r.JobID, 1, 1, false, at, at, r.ID, at, r.ActorUserID, r.ParticipationID, r.Payload))
+	}
+	if q.After != nil {
+		attention = nil
+	} else {
 		page.AttentionTotal = &total
 	}
 
 	params := db.ListMemberNotificationGroupsParams{
-		UserID: scope.UserID, CompanyID: scope.CompanyID, Types: types, JobIds: jobs, AttentionLimit: AttentionLimit,
+		UserID: scope.UserID, CompanyID: scope.CompanyID, Types: types, JobIds: jobs, ExcludeIds: exclude,
 		UnreadOnly: q.State == StateUnread, PageLimit: int32(q.Limit + 1)}
 	if q.After != nil {
 		params.AfterAt = pgtype.Timestamptz{Time: q.After.At, Valid: true}
@@ -261,7 +271,7 @@ func resolve(ctx context.Context, qs *db.Queries, scope Scope, groups []raw, don
 	samples := map[string][]uuid.UUID{}
 	participationIDs := []uuid.UUID{}
 	if len(keys) > 0 {
-		rows, err := qs.ListMemberNotificationSamples(ctx, db.ListMemberNotificationSamplesParams{UserID: scope.UserID, CompanyID: scope.CompanyID, GroupKeys: keys})
+		rows, err := qs.ListMemberNotificationSamples(ctx, db.ListMemberNotificationSamplesParams{UserID: scope.UserID, CompanyID: scope.CompanyID, GroupKeys: keys, SampleLimit: SampleLimit})
 		if err != nil {
 			return fmt.Errorf("list notification samples: %w", err)
 		}

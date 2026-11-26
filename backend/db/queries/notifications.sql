@@ -210,16 +210,18 @@ WHERE n.resolved_at IS NULL
   );
 
 -- name: ListMemberNotificationAttention :many
--- Attention (notifications-v1 D13): the caller's unread, unresolved deadline
--- items in the member scope, honouring types / job_ids (not state), newest
--- first, capped; total counts every qualifying item.
+-- Attention (notifications-v1 D13), the single source of the selection: the
+-- caller's unread, unresolved items of the attention types (passed by the
+-- caller from the domain type table) in the member scope, honouring types /
+-- job_ids (not state), newest first, capped; total counts every qualifying
+-- item. Computed on every page: its ids are excluded from the grouped list.
 SELECT n.id, n.group_key, n.type, n.job_id, n.participation_id, n.actor_user_id, n.payload, n.created_at,
        count(*) OVER () AS total
 FROM notifications n
 WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
   AND n.recipient_kind = 'member'
   AND n.company_id = sqlc.arg('company_id')::uuid
-  AND n.type IN ('delivery_due_soon', 'delivery_overdue', 'assignment_deadline_due_soon', 'assignment_deadline_overdue')
+  AND n.type = ANY (sqlc.arg('attention_types')::text[])
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL
   AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
@@ -229,25 +231,12 @@ LIMIT sqlc.arg('attention_limit')::integer;
 
 -- name: ListMemberNotificationGroups :many
 -- Grouped list (D11, D13, D27): the caller's member-scope rows matching
--- types / job_ids, minus the top attention_limit attention items (the same
--- selection as ListMemberNotificationAttention, recomputed on every page so
--- only those are excluded), grouped by group_key (one type and job per group),
--- optionally only groups with an unread member, keyset after (at, key) in
--- latest_at DESC, group_key DESC order. latest is the newest row of the group.
-WITH attention AS (
-    SELECT a.id
-    FROM notifications a
-    WHERE a.recipient_user_id = sqlc.arg('user_id')::uuid
-      AND a.recipient_kind = 'member'
-      AND a.company_id = sqlc.arg('company_id')::uuid
-      AND a.type IN ('delivery_due_soon', 'delivery_overdue', 'assignment_deadline_due_soon', 'assignment_deadline_overdue')
-      AND a.read_at IS NULL
-      AND a.resolved_at IS NULL
-      AND (cardinality(sqlc.arg('types')::text[]) = 0 OR a.type = ANY (sqlc.arg('types')::text[]))
-      AND (cardinality(sqlc.arg('job_ids')::uuid[]) = 0 OR a.job_id = ANY (sqlc.arg('job_ids')::uuid[]))
-    ORDER BY a.created_at DESC, a.id DESC
-    LIMIT sqlc.arg('attention_limit')::integer
-), grouped AS (
+-- types / job_ids, minus the attention ids returned by
+-- ListMemberNotificationAttention for the same filters (so only those are
+-- excluded), grouped by group_key (one type and job per group), optionally
+-- only groups with an unread member, keyset after (at, key) in latest_at DESC,
+-- group_key DESC order. latest is the newest row of the group.
+WITH grouped AS (
     SELECT n.group_key, n.type, n.job_id,
            count(*) AS total,
            count(*) FILTER (WHERE n.read_at IS NULL AND n.resolved_at IS NULL) AS unread,
@@ -260,7 +249,7 @@ WITH attention AS (
       AND n.company_id = sqlc.arg('company_id')::uuid
       AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
       AND (cardinality(sqlc.arg('job_ids')::uuid[]) = 0 OR n.job_id = ANY (sqlc.arg('job_ids')::uuid[]))
-      AND n.id NOT IN (SELECT id FROM attention)
+      AND NOT (n.id = ANY (sqlc.arg('exclude_ids')::uuid[]))
     GROUP BY n.group_key, n.type, n.job_id
 )
 SELECT g.group_key, g.type, g.job_id, g.total, g.unread, g.latest_at, g.first_at, g.resolved,
@@ -285,7 +274,7 @@ LIMIT sqlc.arg('page_limit')::integer;
 
 -- name: ListMemberNotificationSamples :many
 -- Group sample (§Grouping): per group, the newest distinct participations
--- (at most 3) of the caller's member-scope rows.
+-- (at most sample_limit) of the caller's member-scope rows.
 SELECT s.group_key, s.participation_id::uuid AS participation_id
 FROM (
     SELECT n.group_key, n.participation_id,
@@ -298,7 +287,7 @@ FROM (
       AND n.participation_id IS NOT NULL
     GROUP BY n.group_key, n.participation_id
 ) s
-WHERE s.rank <= 3
+WHERE s.rank <= sqlc.arg('sample_limit')::integer
 ORDER BY s.group_key, s.rank;
 
 -- name: ListNotificationJobs :many
@@ -355,3 +344,119 @@ WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
   AND n.company_id = sqlc.arg('company_id')::uuid
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL;
+
+-- name: MarkMemberNotificationsRead :one
+-- POST B/read (D15, D26): stamps one statement timestamp on the caller's
+-- unread, unresolved member-scope rows selected by group key or id (the
+-- other array is empty); rows of others are not matched. Returns the stamp
+-- and the affected rows / distinct groups.
+WITH stamp AS (
+    SELECT statement_timestamp() AS at
+), marked AS (
+    UPDATE notifications n
+    SET read_at = (SELECT at FROM stamp)
+    WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.read_at IS NULL
+      AND n.resolved_at IS NULL
+      AND (n.group_key = ANY (sqlc.arg('group_keys')::text[]) OR n.id = ANY (sqlc.arg('ids')::uuid[]))
+    RETURNING n.group_key
+)
+SELECT (SELECT at FROM stamp)::timestamptz AS marked_at,
+       count(*)::integer AS affected_notifications,
+       count(DISTINCT m.group_key)::integer AS affected_groups
+FROM marked m;
+
+-- name: MarkMemberNotificationsUnread :one
+-- POST B/unread (D15, D26): clears read_at on the caller's read, unresolved
+-- member-scope rows selected by group key, id or the exact read_at of an
+-- earlier mark (undo of exactly that batch); a resolved row stays read.
+WITH stamp AS (
+    SELECT statement_timestamp() AS at
+), marked AS (
+    UPDATE notifications n
+    SET read_at = NULL
+    WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.read_at IS NOT NULL
+      AND n.resolved_at IS NULL
+      AND (n.group_key = ANY (sqlc.arg('group_keys')::text[])
+           OR n.id = ANY (sqlc.arg('ids')::uuid[])
+           OR n.read_at = sqlc.narg('marked_at')::timestamptz)
+    RETURNING n.group_key
+)
+SELECT (SELECT at FROM stamp)::timestamptz AS marked_at,
+       count(*)::integer AS affected_notifications,
+       count(DISTINCT m.group_key)::integer AS affected_groups
+FROM marked m;
+
+-- name: MarkAllMemberNotificationsRead :one
+-- POST B/read-all (D16): stamps one statement timestamp on every unread,
+-- unresolved member-scope row of the caller matching types / job_ids (empty =
+-- all) created at or before `before` (NULL = the stamp), attention included.
+WITH stamp AS (
+    SELECT statement_timestamp() AS at
+), marked AS (
+    UPDATE notifications n
+    SET read_at = (SELECT at FROM stamp)
+    WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.read_at IS NULL
+      AND n.resolved_at IS NULL
+      AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
+      AND (cardinality(sqlc.arg('job_ids')::uuid[]) = 0 OR n.job_id = ANY (sqlc.arg('job_ids')::uuid[]))
+      AND n.created_at <= COALESCE(sqlc.narg('before')::timestamptz, (SELECT at FROM stamp))
+    RETURNING n.group_key
+)
+SELECT (SELECT at FROM stamp)::timestamptz AS marked_at,
+       count(*)::integer AS affected_notifications,
+       count(DISTINCT m.group_key)::integer AS affected_groups
+FROM marked m;
+
+-- name: ListMemberNotificationFacetTypes :many
+-- GET B/facets (D17): groups of the caller's member scope (attention
+-- included) per type, only groups with an unread member when unread_only;
+-- zero counts are absent.
+SELECT g.type, count(*)::integer AS count
+FROM (
+    SELECT n.group_key, n.type, bool_or(n.read_at IS NULL AND n.resolved_at IS NULL) AS unread
+    FROM notifications n
+    WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = sqlc.arg('company_id')::uuid
+    GROUP BY n.group_key, n.type
+) g
+WHERE NOT sqlc.arg('unread_only')::boolean OR g.unread
+GROUP BY g.type
+ORDER BY count(*) DESC, g.type;
+
+-- name: ListMemberNotificationFacetJobs :many
+-- GET B/facets (D17): the same groups per job with the current draft title
+-- of the company (has_title false when gone or untitled), ordered by count
+-- DESC, title (untitled last), job id; capped at jobs_limit, total = every
+-- job with a group in that state.
+WITH jobs AS (
+    SELECT g.job_id, count(*) AS count
+    FROM (
+        SELECT n.group_key, n.job_id, bool_or(n.read_at IS NULL AND n.resolved_at IS NULL) AS unread
+        FROM notifications n
+        WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
+          AND n.recipient_kind = 'member'
+          AND n.company_id = sqlc.arg('company_id')::uuid
+        GROUP BY n.group_key, n.job_id
+    ) g
+    WHERE NOT sqlc.arg('unread_only')::boolean OR g.unread
+    GROUP BY g.job_id
+), titled AS (
+    SELECT j.job_id, j.count, convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title' AS title
+    FROM jobs j
+    LEFT JOIN job_drafts d ON d.id = j.job_id AND d.company_id = sqlc.arg('company_id')::uuid
+)
+SELECT t.job_id, (t.title IS NOT NULL)::boolean AS has_title, COALESCE(t.title, '')::text AS title,
+       t.count::integer AS count, (count(*) OVER ())::integer AS total
+FROM titled t
+ORDER BY t.count DESC, t.title NULLS LAST, t.job_id
+LIMIT sqlc.arg('jobs_limit')::integer;
