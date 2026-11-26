@@ -1,6 +1,6 @@
 # Notifications v1 (in-app, stage 1; company members and candidates)
 
-Status: **Draft — Q1–Q8 decided by the user, pending frontend review** (2026-11-26). Nothing here is implemented. Source of the requested shape:
+Status: **Agreed — Q1–Q8 decided by the user, reviewed by the frontend; not implemented yet** (2026-11-26). Nothing here is implemented. Source of the requested shape:
 the frontend proposal `peopleflow-vacantes-frontend/odd/tasks/notifications-system-contract.md` and its decisions
 `…/odd/tasks/notifications-system.md` (L1–L9). Backend tracking: `odd/tasks/notifications-backend.md` (S1 request,
 S2 backend counter-proposal, **L4 frontend agreement, which overrides S2 where they differ**). Branch
@@ -12,7 +12,7 @@ S2 backend counter-proposal, **L4 frontend agreement, which overrides S2 where t
 Give company members (owner, recruiter; stakeholder later) and candidates with an account an in-app bell and inbox for
 the stage-1 events: new applications, delivery due soon / overdue, vacancy assignment / reassignment / team addition,
 psychometric test completed / pending, and the candidate's own status changes, closing messages and pending tests. The
-inbox is **grouped server-side**, pins an **attention** section (unread due-soon / overdue deliveries), supports filters
+inbox is **grouped server-side**, pins an **attention** section (unread due-soon / overdue deliveries and recruiter deadlines), supports filters
 by type and vacancy, cursor pagination, read / unread (exact undo) / read-all, an unread counter cheap enough for
 ~30 s polling, and facets for the filter popover (design 07).
 
@@ -352,7 +352,7 @@ All responses are `Cache-Control: no-store`. All ids are UUID strings; all times
 | Param | Values | Default | Notes |
 | --- | --- | --- | --- |
 | `state` | `all` \| `unread` | `all` | `unread` = groups with at least one unread member |
-| `types` | comma list of the 11 types | all | ≤ 11 values; unknown → `invalid_filter`; a member asking for a candidate type (or vice versa) gets an empty result, not an error |
+| `types` | comma list of the 14 types | all | ≤ 14 values; unknown → `invalid_filter`; a member asking for a candidate type (or vice versa) gets an empty result, not an error |
 | `job_ids` | comma list of UUIDs | all | ≤ 20 values; malformed → `invalid_filter` |
 
 ### `GET B`
@@ -361,8 +361,14 @@ Query: common filters + `cursor` (opaque) + `limit` (1–50, default 20).
 
 The list contains groups ordered by `latest_at DESC, group_key DESC`, **excluding** the notifications currently in
 attention (D13). `attention` is returned only on the first page (no `cursor`; with a `cursor` both `attention` and
-`attention_total` are `null`); it holds unread, unresolved `delivery_due_soon` / `delivery_overdue` items honouring `types` and
-`job_ids` (not `state`), newest first, ≤ 20, with `attention_total`.
+`attention_total` are `null`); it holds unread, unresolved deadline items (`delivery_due_soon` / `delivery_overdue` /
+`assignment_deadline_due_soon` / `assignment_deadline_overdue`) honouring `types` and `job_ids` (not `state`), newest
+first (`created_at DESC, id DESC`), ≤ 20, with `attention_total` = all qualifying items.
+
+**Attention overflow**: only the ≤ 20 items in `attention` are excluded from `items`. Qualifying items beyond the
+first 20 appear in `items` in their normal order. Every page recomputes the same top 20 with the same filters, so
+an item is never in both places and never hidden (an item arriving between pages can shift the boundary by one,
+like any new notification).
 
 ```json
 {
@@ -450,7 +456,10 @@ attention (D13). `attention` is returned only on the first page (no `cursor`; wi
 - `sample[].name` and `latest.actor.name` are resolved at read time; candidate names are `null` when the member can no
   longer open the vacancy (D19). Candidate-side items never include actor names (`actor: null`).
 - `payload` per type (ids/enums only): `vacancy_reassigned {from_user_id, reason}`; `vacancy_unassigned
-  {to_user_id, reason}`; assignment deadline `{assignment_id, function, commitment_date}`; `vacancy_team_added {function}`;
+  {to_user_id, reason}`; `reason` ∈ `workload | recruiter_departure | performance | client_request | other` (the
+  reassignment enum, `00054_vacancy_teams.sql`; the free-text `note` of `other` is never included). For these two types
+  the item also carries `from_user` / `to_user` `{user_id, name}` resolved at read time like `actor` (D19; `name` is
+  the current company member name, `null` if the user no longer exists); assignment deadline `{assignment_id, function, commitment_date}`; `vacancy_team_added {function}`;
   `vacancy_assigned {}`; delivery `{commitment_date}`; psychometric `{invitation_id}` (+ `participation_id` in
   `sample`); `candidate_status_changed {status}`; `candidate_message_received {status: "closed"}` (the text is read
   from `/v2/me/applications`); `candidate_test_pending {invitation_id}`.
@@ -458,7 +467,8 @@ attention (D13). `attention` is returned only on the first page (no `cursor`; wi
   (single-member group → `participation {job_id, participation_id}`); `psychometric_pending` → `participation`;
   assignment types → `vacancy {job_id}` (`vacancy_unassigned`: `link: null` when the recipient can no longer open the
   vacancy, D19); delivery and assignment deadline → `vacancy_delivery {job_id}`; `candidate_status_changed` /
-  `candidate_message_received` → `application {job_id, participation_id}`; `candidate_test_pending` → `assessment
+  `candidate_message_received` → `application {job_id, participation_id}` (`participation_id` is the same id as `item.id`
+  of `/v2/me/applications` and of `PUT /v2/me/applications/{id}/message-read`); `candidate_test_pending` → `assessment
   {invitation_id}`. The frontend maps kinds to paths.
 - `unread_count` / `unread_notifications`: the caller's whole scope, not filtered (saves a poll).
 - **Cursor** (D27): base64url of `{v, at: latest_at, gk: group_key, f: hash(state, types, job_ids)}`; the next page
@@ -533,7 +543,7 @@ Types with zero count are omitted.
 
 ### Limits
 
-`limit` ≤ 50 groups; `attention` ≤ 20; `sample` ≤ 3; `types` ≤ 11, `job_ids` ≤ 20; `group_keys` ≤ 100, `ids` ≤ 200 per
+`limit` ≤ 50 groups; `attention` ≤ 20; `sample` ≤ 3; `types` ≤ 14, `job_ids` ≤ 20; `group_keys` ≤ 100, `ids` ≤ 200 per
 request; JSON body through the shared decoder size cap. Polling `unread-count` every 30 s is the expected load; no
 rate limit added in stage 1.
 

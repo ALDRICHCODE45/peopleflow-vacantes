@@ -48,7 +48,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 
 ## Tasks
 
-- T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6); pending frontend review
+- T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6), frontend approved (L7)
 - T2+ — implementation slices from the contract — pending
 
 ## Log
@@ -103,3 +103,8 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   `vacancy_unassigned` (relation `previous_assignee`) and `assignment_deadline_due_soon` / `_overdue` (scheduler over
   active assignments' `recruiter_deadline`, assignee only, in attention); D10/D11/D13/D20, data model, recipients,
   kinds, scheduler, payload/link and N3 adjusted. Next: frontend review of the contract.
+- **L7** 2026-11-26, frontend review of 73355dc3: OK to the shapes with fixes — 14 types in filters/limits; attention
+  in §GET lists the four deadline types; attention overflow: only the ≤ 20 returned are excluded from `items`, the
+  rest appear in normal order; `from_user` / `to_user {user_id, name}` resolved at read time on `vacancy_reassigned` /
+  `vacancy_unassigned`; `participation_id` = `/v2/me/applications` item id (no extra field); reassignment `reason`
+  enum listed. Link routes and the three new texts confirmed by the frontend. Contract approved; next N1.
