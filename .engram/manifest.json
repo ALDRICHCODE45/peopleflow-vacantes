@@ -448,6 +448,14 @@
       "sessions": 28,
       "memories": 5,
       "prompts": 0
+    },
+    {
+      "id": "60880198",
+      "created_by": "aldrich_coder45",
+      "created_at": "2026-11-26T01:38:14.892704346Z",
+      "sessions": 20,
+      "memories": 2,
+      "prompts": 0
     }
   ]
 }
