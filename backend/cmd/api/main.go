@@ -25,6 +25,7 @@ import (
 	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	applicationsv2postgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/v2"
 	auditapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/application/auditlog"
+	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	audithttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/http"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	auditreads "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/reads"
@@ -68,6 +69,7 @@ import (
 	draftstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	publicjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
 	savedjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/savedjobs"
+	notifcapture "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/capture"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
@@ -91,17 +93,17 @@ func companySiteValidator() *sitesapp.Validator {
 }
 
 // newSessionHandler composes the session audit endpoints (audit-log-v1 §3).
-func newSessionHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository) *identityhttp.SessionHandler {
+func newSessionHandler(pool *pgxpool.Pool, events auditrepositories.AuditEventRepository) *identityhttp.SessionHandler {
 	return identityhttp.NewSessionHandler(identityusecases.NewSessions(identitypostgres.NewSessionStore(pool, events)))
 }
 
 // newAuditHandler composes the owner's audit screen API (audit-log-v1 §8): the
 // read store over the pool and the audit port for the export's own record.
-func newAuditHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository) *audithttp.Handler {
+func newAuditHandler(pool *pgxpool.Pool, events auditrepositories.AuditEventRepository) *audithttp.Handler {
 	return audithttp.NewHandler(auditapp.NewService(auditreads.NewStore(pool, events)))
 }
 
-func newCompanySiteHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository, storage sitesapp.Storage) *siteshttp.Handler {
+func newCompanySiteHandler(pool *pgxpool.Pool, events auditrepositories.AuditEventRepository, storage sitesapp.Storage) *siteshttp.Handler {
 	validator := companySiteValidator()
 	store := sitespostgres.New(pool, draftjson.Decode, validator, geopostgres.NewReader(db.New(pool)), events)
 	companies := usecases.NewCompanyService(postgres.NewCompanyRepository(pool, events), geopostgres.NewReader(db.New(pool)))
@@ -234,7 +236,9 @@ func run() error {
 	// before `companyRepo` (it was previously constructed down by
 	// the applications wiring block); the applications wiring block
 	// below now references the hoisted variable.
-	auditRepo := auditpostgres.NewAuditEventRepository()
+	// notifications-v1 D1: the capture decorator writes the notification_events
+	// row in the same tx as every notifiable audit event (fail-closed).
+	auditRepo := notifcapture.New(auditpostgres.NewAuditEventRepository())
 	var identityProvider identityusecases.UserInfoProvider
 	if identityConfig.UserInfoEndpoint != "" {
 		identityProvider = userinfo.NewClient(identityConfig.UserInfoEndpoint, 5*time.Second)
@@ -570,7 +574,7 @@ func mapDocumentAccessError(err error) error {
 // tune adjusts the store before it is shared (tests use it for a small overview cap).
 func newDocumentHandler(pool *pgxpool.Pool, draftStore *draftstore.Store, storage documentsapp.Storage, tune ...func(*documentspostgres.Store)) *documentshttp.Handler {
 	access := documentAccess{drafts: draftStore}
-	store := documentspostgres.NewStore(pool, access, access, auditpostgres.NewAuditEventRepository(), storage).WithStages(documentStages)
+	store := documentspostgres.NewStore(pool, access, access, notifcapture.New(auditpostgres.NewAuditEventRepository()), storage).WithStages(documentStages)
 	for _, adjust := range tune {
 		adjust(store)
 	}

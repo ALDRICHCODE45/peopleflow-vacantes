@@ -207,6 +207,11 @@ type Querier interface {
 	InsertCandidateEducation(ctx context.Context, arg InsertCandidateEducationParams) error
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error
+	// Capture row written by the audit-port decorator inside the caller's tx,
+	// right after the audit event (notifications-v1 D1–D3). occurred_at is the DB
+	// DEFAULT now(), the same transaction clock as the audit row. payload holds
+	// ids/enums only.
+	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
 	// Atomic liveness probe for the RequireCompanyRole middleware
 	// (require-company-role-tombstone-gate slice). Returns `deleted_at IS NULL`
 	// for the exact company id WITHOUT filtering away tombstones:
@@ -294,6 +299,9 @@ type Querier interface {
 	// A soft-deleted company accepts no new member.
 	LockLiveCompanyForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkStakeholderInvitationUsed(ctx context.Context, arg MarkStakeholderInvitationUsedParams) error
+	// D3: the discard's candidate message is never copied; capture records only
+	// whether it exists, read in the same tx after the discard UPDATE.
+	ParticipationHasCandidateMessage(ctx context.Context, id uuid.UUID) (bool, error)
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.
 	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error)
