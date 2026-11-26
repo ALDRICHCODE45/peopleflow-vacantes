@@ -106,7 +106,8 @@ it.each([
   vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: board });
   render(<MovementBoard vacancyId={vacancyId} onLifecycleChange={onLifecycleChange} />);
   await screen.findByRole("heading", { name: "Entrada" });
-  expect(onLifecycleChange).toHaveBeenCalledWith(expect.objectContaining({ publication, process }));
+  // The lifecycle is reported from an effect after the board renders; under a loaded suite it can trail the heading.
+  await waitFor(() => expect(onLifecycleChange).toHaveBeenCalledWith(expect.objectContaining({ publication, process })));
   expect(screen.queryByText(new RegExp(prefix))).not.toBeInTheDocument();
   expect(screen.queryByText(/Motivo de cierre/)).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
