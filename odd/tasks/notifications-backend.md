@@ -53,7 +53,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — done: 31d04365 0d8168e8 76b60256 fc9270a4; review advisories fixed 7fe1e88f a7209e44 706387df; verified (L12)
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — done: bdd85ef9 f2473e79 235982da 9e446230 e3339a54; reviewed and verified (L14)
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — done: a9e48d8a and the 4 commits before it; reviewed and verified (L16)
-- T6 — N5: read/unread/read-all + facets (D15–D17, D26) — pending
+- T6 — N5: read/unread/read-all + facets (D15–D17, D26) — implemented, uncommitted (L17); pending review
 - T7 — N6: candidate route tree (D18) — pending
 - T8 — N7: `cmd/notifications-purge` (D22) — pending
 - Slice boundary: T1 (contract docs, ~720 lines, 5 commits) is its own review slice.
@@ -288,3 +288,40 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   TestNotificationsRead_ 5/5, unit 127 ok, sqlc clean. Accepted: a member demoted to stakeholder keeps seeing their old
   member rows with candidate names hidden; from_user/to_user names come from users.full_name; missing ids omit the field;
   empty `types=` → invalid_filter. Routes added to TestRouteTopology_ExactRegistrations by the parent.
+- **L17** 2026-11-26, N5 (T6) by worker, uncommitted (parent commits). `notifications/inbox`: `ParseMark` (strict body: one JSON
+  object, unknown member / wrong JSON type / trailing data → `invalid_request`; exactly one of `group_keys` | `ids` | (unread only)
+  `marked_at`, `null` = absent; `validation_error` fields: zero → `body: required`, several → `body: invalid`, `marked_at` on read →
+  `marked_at: not_allowed`, `[]` → `empty`, > 100 keys / > 200 ids → `too_many`, malformed → `invalid`; group keys accepted only in
+  the D11 shapes of the type table (`n:<uuid>`, `<grouped prefix>:<uuid>:<YYYY-MM-DD>`), UUIDs lowercased, lists sorted and
+  de-duplicated), `ParseReadAll` (all optional, empty body = `{}`; `types` 14 domain types ≤ 14, `job_ids` ≤ 20, `before` RFC 3339;
+  failures reported together), `ParseFacetsQuery` (`state` all|unread, default unread, other params ignored; `invalid_filter`), body
+  cap 64 KiB (`payload_too_large`). `Store.Read` / `Unread` / `ReadAll`: one UPDATE each (`statement_timestamp()` in a CTE, written
+  to `read_at` by read / read-all and returned as `marked_at` with affected rows and distinct groups) plus the scope counters in the
+  same tx. read and read-all touch only unread rows (`read_at IS NULL AND resolved_at IS NULL`), unread only read unresolved rows
+  (a resolved row stays read), `marked_at` reverts exactly `read_at = marked_at` in the caller's scope; foreign ids / keys never
+  match the scope (D26, 200 with 0). read-all: types / job_ids, `created_at <= COALESCE(before, stamp)`, attention included.
+  `Store.Facets` (read-only RR snapshot): groups (attention included) per type (count DESC, type) and per job (count DESC, current
+  draft title, untitled last, job id; ≤ 50; `jobs_total`), unread = groups with an unread member. Handler `Read`, `Unread`,
+  `ReadAll`, `Facets` routed under the N4 member group (`NoStore, requireAuth, requireDocumentReader`); not audited (D23, asserted).
+  N4 review cleanup: samples use `sqlc.arg('sample_limit')` = `SampleLimit`; the attention selection exists only in
+  `ListMemberNotificationAttention` with `attention_types` = `AttentionTypes()` (types with urgency ≠ normal in the domain table);
+  `Store.List` runs it on every page and passes its ids as `exclude_ids` to `ListMemberNotificationGroups` (the CTE copy is gone;
+  the section is still returned on the first page only). Four routes added to `TestRouteTopology_ExactRegistrations`. sqlc:
+  `MarkMemberNotificationsRead`, `MarkMemberNotificationsUnread`, `MarkAllMemberNotificationsRead`,
+  `ListMemberNotificationFacetTypes`, `ListMemberNotificationFacetJobs`. RED observed: inbox unit tests failed to build (undefined
+  `InvalidBody`, `MarkRequest`, `ParseMark`, …); the new HTTP tests (`cmd/api/notifications_write_integration_test.go`) ran and
+  failed with `404 page not found` on every new route. Tests: read/unread/undo (group read stamps one timestamp; a new row in the
+  group and a second batch by ids, then undo by `marked_at` reverts exactly the first batch; idempotent; resolved rows untouched;
+  attention item marked; colleague's same-key group untouched), validation (22 bodies incl. 413, facets state errors), read-all
+  (filters, `before`, undo, default now excludes a row created after the request), facets per state ignoring filters (gone job →
+  title null, 54 jobs capped at 50 with order), scope isolation (other user, same user in another company, candidate rows, other
+  user's `marked_at`, stakeholder 0, 401, candidate 403 `forbidden`, deleted company 403 `company_inactive`). Mutations of the
+  generated SQL (each restored, sha256 identical): scope dropped in read → undo + scope tests fail; undo `>=` → undo test fails;
+  attention exclusion removed → 3 N4 read tests fail; `before` ignored → read-all test fails; unread touching resolved → undo test
+  fails. Evidence: `DRAFT_TEST_DATABASE_URL=… make test-integration PKG=./internal/features/notifications/...` 58 pass / 0 fail /
+  0 skip (inbox 6 new); `… PKG=./cmd/api/ RUN='^TestNotifications'` 10 pass (5 N4 + 5 N5); `make test
+  PKG='./internal/features/notifications/... ./cmd/api/ ./internal/tools/archguard/'` 7 ok; `go tool sqlc diff` clean. Interpretations
+  for review: the validation `fields[].code` values above (contract names no codes); empty body allowed on read-all only; empty
+  `types` / `job_ids` arrays in read-all → `validation_error empty` (contract «empty array»); `marked_at` serialised RFC 3339 with
+  trailing zeros trimmed (µs precision, round-trips); `unread` by `marked_at` matches the exact µs; facets `types` ordered count
+  DESC, type. Not done: contract status (outside surface), `-race`, cmd/api full suite.

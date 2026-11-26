@@ -1,6 +1,6 @@
 # Notifications v1 (in-app, stage 1; company members and candidates)
 
-Status: **Agreed — Q1–Q8 decided by the user, reviewed by the frontend; in implementation** (2026-11-26): capture (N1), fan-out (N2), scheduler (N3) and member read API (N4) done on `feat/notifications-backend`; member writes/facets, candidate routes and purge pending. Source of the requested shape:
+Status: **Agreed — Q1–Q8 decided by the user, reviewed by the frontend; in implementation** (2026-11-26): capture (N1), fan-out (N2), scheduler (N3), member read API (N4) and member marks/facets (N5) done on `feat/notifications-backend`; candidate routes and purge pending. Source of the requested shape:
 the frontend proposal `peopleflow-vacantes-frontend/odd/tasks/notifications-system-contract.md` and its decisions
 `…/odd/tasks/notifications-system.md` (L1–L9). Backend tracking: `odd/tasks/notifications-backend.md` (S1 request,
 S2 backend counter-proposal, **L4 frontend agreement, which overrides S2 where they differ**). Branch
