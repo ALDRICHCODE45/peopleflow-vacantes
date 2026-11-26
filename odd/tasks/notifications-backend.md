@@ -65,3 +65,17 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   America/Mexico_City. Manual candidates have no user. Next migration 00068; no notifications table exists.
   candidate_message_received exists only as the discard message.
 - **L3** 2026-11-26, backend counter-proposal (S2) sent to the frontend.
+- **L4** 2026-11-26, frontend agreed with S2 plus (verbatim): «1. Server-side grouping: each item in GET
+  /v2/me/notifications is a GROUP (`group_key`, `count`, `latest_at`, `sample` with up to 3 subjects (e.g. candidate
+  ids/names) and the ids of its notifications or a group token). That way cursor pagination and counts are right.
+  Initial keys: application_received → `applications:<job_id>:<local date MX>`; psychometric_completed →
+  `psychometrics:<job_id>:<local date>`; the rest without grouping (group = 1 notification). 2. `unread_count` counts
+  unread GROUPS (that's what the bell shows, «9+»); also return `unread_notifications` if it's cheap. 3. Group
+  read/unread: `POST …/read` and `…/unread` with `{group_keys:[...]}` or `{ids:[...]}` (the «Deshacer» undoes exactly
+  what was marked). Keep `read-all` with filters. 4. Each item with `urgency` (normal|due_soon|overdue) and `kind`
+  (mandatory|operational|informative); the `attention` section = unread due_soon/overdue, outside the paginated list.
+  5. Stakeholders: OK, they receive nothing in stage 1. In stage 3 the owner will be able to enable events for the
+  Stakeholder role (all vacancies, in-app only, never by name): leave the recipient resolver ready for a per-role
+  rule. 6. facets: counts per type and per job (with title) over the current state (unread/all), for the 07 filter.
+  7. Candidate side: same endpoints under the candidate's session (its own scope), only for candidates with an
+  account, as you said.» These override S2 where they differ (urgency enum replaces normal|attention).
