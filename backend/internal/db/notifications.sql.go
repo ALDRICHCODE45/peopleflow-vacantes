@@ -55,6 +55,39 @@ func (q *Queries) ClaimNextNotificationEvent(ctx context.Context, skip []uuid.UU
 	return i, err
 }
 
+const countExpiredNotificationEvents = `-- name: CountExpiredNotificationEvents :one
+SELECT count(*) FROM notification_events e
+WHERE e.processed_at < now() - interval '180 days'
+  AND NOT EXISTS (SELECT 1 FROM notifications n
+                  WHERE n.source_event_id = e.id
+                    AND n.created_at >= now() - interval '180 days')
+`
+
+// Retention (D22): processed (or given-up) events older than 180 days; a
+// pending event (processed_at NULL) is never selected. Dry-run forecast of
+// DeleteExpiredNotificationEvents after the notifications pass: an event still
+// referenced by a notification inside the retention is not counted.
+func (q *Queries) CountExpiredNotificationEvents(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countExpiredNotificationEvents)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countExpiredNotifications = `-- name: CountExpiredNotifications :one
+SELECT count(*) FROM notifications
+WHERE created_at < now() - interval '180 days'
+`
+
+// Retention (notifications-v1 D22): rows older than 180 days, read or not.
+// The cutoff must stay identical in the four retention queries.
+func (q *Queries) CountExpiredNotifications(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countExpiredNotifications)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUnreadNotifications = `-- name: CountUnreadNotifications :one
 SELECT count(DISTINCT n.group_key)::integer AS unread_groups, count(*)::integer AS unread_notifications
 FROM notifications n
@@ -83,6 +116,51 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, arg CountUnreadN
 	var i CountUnreadNotificationsRow
 	err := row.Scan(&i.UnreadGroups, &i.UnreadNotifications)
 	return i, err
+}
+
+const deleteExpiredNotificationEvents = `-- name: DeleteExpiredNotificationEvents :execrows
+DELETE FROM notification_events
+WHERE id IN (
+    SELECT e.id FROM notification_events e
+    WHERE e.processed_at < now() - interval '180 days'
+      AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.source_event_id = e.id)
+    ORDER BY e.processed_at, e.id
+    LIMIT $1::integer
+    FOR UPDATE SKIP LOCKED
+)
+`
+
+// Runs after the notifications pass. An event any notification still
+// references is kept: ON DELETE SET NULL would break the notifications CHECK
+// (immediate rows require source_event_id), failing the batch. It goes on the
+// run after its last notification expires.
+func (q *Queries) DeleteExpiredNotificationEvents(ctx context.Context, batchSize int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredNotificationEvents, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteExpiredNotifications = `-- name: DeleteExpiredNotifications :execrows
+DELETE FROM notifications
+WHERE id IN (
+    SELECT id FROM notifications
+    WHERE created_at < now() - interval '180 days'
+    ORDER BY created_at, id
+    LIMIT $1::integer
+    FOR UPDATE SKIP LOCKED
+)
+`
+
+// One purge batch, oldest first; rows another connection holds are left for
+// the next batch or run.
+func (q *Queries) DeleteExpiredNotifications(ctx context.Context, batchSize int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredNotifications, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getNotificationCandidateUser = `-- name: GetNotificationCandidateUser :one

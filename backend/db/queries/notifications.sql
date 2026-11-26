@@ -502,3 +502,47 @@ LEFT JOIN vacancy_public_projections v ON v.id = vp.id
 WHERE vp.id = ANY (sqlc.arg('job_ids')::uuid[])
   AND EXISTS (SELECT 1 FROM process_participations p
               WHERE p.process_id = vp.id AND p.candidate_id = sqlc.arg('user_id')::uuid);
+
+-- name: CountExpiredNotifications :one
+-- Retention (notifications-v1 D22): rows older than 180 days, read or not.
+-- The cutoff must stay identical in the four retention queries.
+SELECT count(*) FROM notifications
+WHERE created_at < now() - interval '180 days';
+
+-- name: DeleteExpiredNotifications :execrows
+-- One purge batch, oldest first; rows another connection holds are left for
+-- the next batch or run.
+DELETE FROM notifications
+WHERE id IN (
+    SELECT id FROM notifications
+    WHERE created_at < now() - interval '180 days'
+    ORDER BY created_at, id
+    LIMIT sqlc.arg('batch_size')::integer
+    FOR UPDATE SKIP LOCKED
+);
+
+-- name: CountExpiredNotificationEvents :one
+-- Retention (D22): processed (or given-up) events older than 180 days; a
+-- pending event (processed_at NULL) is never selected. Dry-run forecast of
+-- DeleteExpiredNotificationEvents after the notifications pass: an event still
+-- referenced by a notification inside the retention is not counted.
+SELECT count(*) FROM notification_events e
+WHERE e.processed_at < now() - interval '180 days'
+  AND NOT EXISTS (SELECT 1 FROM notifications n
+                  WHERE n.source_event_id = e.id
+                    AND n.created_at >= now() - interval '180 days');
+
+-- name: DeleteExpiredNotificationEvents :execrows
+-- Runs after the notifications pass. An event any notification still
+-- references is kept: ON DELETE SET NULL would break the notifications CHECK
+-- (immediate rows require source_event_id), failing the batch. It goes on the
+-- run after its last notification expires.
+DELETE FROM notification_events
+WHERE id IN (
+    SELECT e.id FROM notification_events e
+    WHERE e.processed_at < now() - interval '180 days'
+      AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.source_event_id = e.id)
+    ORDER BY e.processed_at, e.id
+    LIMIT sqlc.arg('batch_size')::integer
+    FOR UPDATE SKIP LOCKED
+);

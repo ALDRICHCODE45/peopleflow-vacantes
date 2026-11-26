@@ -45,6 +45,14 @@ type Querier interface {
 	// ("this company had no non-closed jobs at delete time").
 	CloseCompanyJobs(ctx context.Context, companyID uuid.UUID) (int64, error)
 	CountCompanyOwners(ctx context.Context, companyID uuid.UUID) (int64, error)
+	// Retention (D22): processed (or given-up) events older than 180 days; a
+	// pending event (processed_at NULL) is never selected. Dry-run forecast of
+	// DeleteExpiredNotificationEvents after the notifications pass: an event still
+	// referenced by a notification inside the retention is not counted.
+	CountExpiredNotificationEvents(ctx context.Context) (int64, error)
+	// Retention (notifications-v1 D22): rows older than 180 days, read or not.
+	// The cutoff must stay identical in the four retention queries.
+	CountExpiredNotifications(ctx context.Context) (int64, error)
 	// Stakeholder invitations (stakeholder-metrics-v1 §1.3). Every write runs in
 	// the adapter's transaction together with its audit event.
 	// Run after LockCompanyForMemberMutation so two creates cannot both pass the limit.
@@ -129,6 +137,14 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteCandidateEducations(ctx context.Context, userID uuid.UUID) error
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
+	// Runs after the notifications pass. An event any notification still
+	// references is kept: ON DELETE SET NULL would break the notifications CHECK
+	// (immediate rows require source_event_id), failing the batch. It goes on the
+	// run after its last notification expires.
+	DeleteExpiredNotificationEvents(ctx context.Context, batchSize int32) (int64, error)
+	// One purge batch, oldest first; rows another connection holds are left for
+	// the next batch or run.
+	DeleteExpiredNotifications(ctx context.Context, batchSize int32) (int64, error)
 	GeoCountries(ctx context.Context) ([]GeoCountriesRow, error)
 	GeoCountryExists(ctx context.Context, code string) (bool, error)
 	GeoLatestImport(ctx context.Context) (int64, error)
