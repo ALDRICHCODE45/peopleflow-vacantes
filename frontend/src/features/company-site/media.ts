@@ -23,13 +23,18 @@ export const HERO_VIDEO_MAX_BYTES = 20 * 1024 * 1024;
 export const HERO_VIDEO_MAX_MS = 30_000;
 /** How long the browser may take to read the file's duration before we give up. */
 export const HERO_VIDEO_METADATA_TIMEOUT_MS = 10_000;
+/** The backend's read/write deadline for a hero video upload is 2 min: the route waits longer for
+ * the backend, and the browser longer than the route, so the backend's answer always arrives. */
+export const HERO_VIDEO_BACKEND_TIMEOUT_MS = 150_000;
+export const HERO_VIDEO_BROWSER_TIMEOUT_MS = 180_000;
 /** Same-origin upload route; the video path streams a raw `video/mp4` body. */
 export const HERO_VIDEO_UPLOAD_PATH = `/api/company/site/media?kind=${HERO_VIDEO_KIND}`;
 export const HERO_VIDEO_MESSAGES = Object.freeze({
   type: "Sube un video MP4.",
   size: "El video pesa más de 20 MB.",
   duration: "El video dura más de 30 segundos.",
-  unreadable: "No pudimos leer el video.",
+  // Also a fragmented MP4 (no faststart moov, zero mvhd duration) → backend 422 video_invalid.
+  unreadable: 'No pudimos leer el video. Expórtalo como MP4 normal con "inicio rápido" (faststart).',
 });
 /** Backend codes for hero_video failures (415 / 413 reuse the image codes; 422 `video_too_long`
  * also carries {max_ms, duration_ms}, `video_invalid` = no moov/mvhd, zero duration, malformed). */

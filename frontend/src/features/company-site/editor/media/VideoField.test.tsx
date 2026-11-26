@@ -29,7 +29,7 @@ describe("VideoField", () => {
     expect(screen.getByRole("button", { name: "Subir Video de fondo" })).toBeEnabled();
     expect(screen.getByText(/MP4 · hasta 20 MB · hasta 30 segundos/)).toBeInTheDocument();
     expect(screen.getByText(/Se reproduce sin sonido y en bucle/)).toBeInTheDocument();
-    expect(screen.getByText(/Para que empiece más rápido, expórtalo con "inicio rápido" \(faststart\)\./)).toBeInTheDocument();
+    expect(screen.getByText(/Expórtalo como MP4 normal con "inicio rápido" \(faststart\) para que empiece más rápido\./)).toBeInTheDocument();
     expect(screen.getByText(/«Imagen de portada» es el póster/)).toBeInTheDocument();
     expect(screen.getByLabelText("Archivo de Video de fondo")).toHaveAttribute("accept", "video/mp4,.mp4");
   });

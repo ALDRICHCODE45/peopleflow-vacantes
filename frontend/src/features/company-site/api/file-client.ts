@@ -1,6 +1,6 @@
 import "server-only";
 import { boundedJson } from "@/features/candidate-cvs/bounded-body";
-import { HERO_VIDEO_ERROR_CODES, HERO_VIDEO_KIND, mediaErrorStatuses, uploadedMediaSchema, type UploadKindV2, type UploadedMedia } from "../media";
+import { HERO_VIDEO_BACKEND_TIMEOUT_MS, HERO_VIDEO_ERROR_CODES, HERO_VIDEO_KIND, mediaErrorStatuses, uploadedMediaSchema, type UploadKindV2, type UploadedMedia } from "../media";
 export type MediaBackendResult = { ok: true; data: UploadedMedia } | { ok: false; status: number; code: string };
 type Body = { body: FormData } | { body: ReadableStream<Uint8Array>; contentType: string };
 /** hero_video limits are new on the backend: a 413/415/422 with a code we don't know yet still
@@ -12,8 +12,8 @@ async function postMedia(token: string, payload: Body, kind: UploadKindV2): Prom
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const { serverEnv } = await import("@/lib/env/server");
-    // A streamed video takes longer than the JSON API timeout to cross the wire.
-    timer = setTimeout(() => controller.abort(), kind === HERO_VIDEO_KIND ? Math.max(serverEnv.apiTimeoutMs, 120_000) : serverEnv.apiTimeoutMs);
+    // A streamed video takes longer than the JSON API timeout to cross the wire; outlast the backend's 2 min deadline.
+    timer = setTimeout(() => controller.abort(), kind === HERO_VIDEO_KIND ? Math.max(serverEnv.apiTimeoutMs, HERO_VIDEO_BACKEND_TIMEOUT_MS) : serverEnv.apiTimeoutMs);
     const base = new URL(serverEnv.apiBaseUrl);
     const endpoint = new URL("/v2/me/company/site/media", base);
     // Only the configured server API origin and this literal endpoint are allowed.

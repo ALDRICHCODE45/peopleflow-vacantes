@@ -117,7 +117,7 @@ export function VideoField({ label, value, onChange, previewUrl, error, disabled
           </EmptyHeader>
         </Empty>
       )}
-      <FieldDescription id={`${id}-help`}>{LIMITS}<br />Se reproduce sin sonido y en bucle.<br />Para que empiece más rápido, expórtalo con &quot;inicio rápido&quot; (faststart).</FieldDescription>
+      <FieldDescription id={`${id}-help`}>{LIMITS}<br />Se reproduce sin sonido y en bucle.<br />Expórtalo como MP4 normal con &quot;inicio rápido&quot; (faststart) para que empiece más rápido.</FieldDescription>
       <FieldDescription id={`${id}-poster`}>La «Imagen de portada» es el póster: se ve mientras el video carga y cuando la persona prefiere menos movimiento.</FieldDescription>
       <div role="status" aria-live="polite" className="flex min-h-5 items-center gap-2 text-sm text-muted-foreground">
         {busy && <Spinner aria-hidden="true" />}

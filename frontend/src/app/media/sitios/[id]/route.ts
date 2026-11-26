@@ -4,10 +4,15 @@ import { serverEnv } from "@/lib/env/server";
 export const runtime = "nodejs";
 // video/mp4: the careers hero background video (slice B), served in byte ranges.
 const safeTypes = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4"]);
-/** One satisfiable-looking byte range only; anything else is dropped (the upstream answers 200). */
+/** One byte range (`N-M`, `N-`, `-K`) is forwarded as is — the upstream decides 206, 200 (e.g. `bytes=-0`,
+ * last < first) or 416. Several ranges, another unit or a malformed spec are dropped: the upstream would
+ * ignore them and answer 200 with the whole file anyway (RFC 9110 §14.2). */
 const RANGE = /^bytes=(?:\d{1,15}-\d{0,15}|-\d{1,15})$/;
 const CONTENT_RANGE = /^bytes (?:\d{1,15}-\d{1,15}|\*)\/(?:\d{1,15}|\*)$/;
 const DIGITS = /^\d{1,15}$/;
+/** apiTimeoutMs bounds the response headers (and image bodies); a hero video body may stream for
+ * minutes (slow links, a 20 MB full-file 200), so it gets a long deadline instead. */
+const VIDEO_BODY_TIMEOUT_MS = 180_000;
 const failure = (status: number, cache: string | null = null) => new Response(null, {
   status, headers: { "X-Content-Type-Options": "nosniff", ...(cache ? { "Cache-Control": cache } : {}) },
 });
@@ -17,7 +22,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) return failure(404);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), serverEnv.apiTimeoutMs);
+  let timer = setTimeout(() => controller.abort(), serverEnv.apiTimeoutMs);
   try {
     const apiOrigin = new URL(serverEnv.apiBaseUrl);
     const url = new URL(`/v2/company-sites/media/${id}`, apiOrigin);
@@ -36,7 +41,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (upstream.status === 416) {
       await upstream.body?.cancel();
       clearTimeout(timer);
-      return new Response(null, { status: 416, headers: { "X-Content-Type-Options": "nosniff", ...(CONTENT_RANGE.test(contentRange) ? { "Content-Range": contentRange } : {}) } });
+      // Never cacheable, whatever the upstream said; empty body.
+      return new Response(null, { status: 416, headers: { "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store", ...(CONTENT_RANGE.test(contentRange) ? { "Content-Range": contentRange } : {}) } });
     }
     if (upstream.status !== 200 && upstream.status !== 206) {
       await upstream.body?.cancel();
@@ -56,6 +62,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (upstream.headers.get("accept-ranges") === "bytes") headers.set("Accept-Ranges", "bytes");
     const length = upstream.headers.get("content-length") ?? "";
     if (DIGITS.test(length)) headers.set("Content-Length", length);
+    if (type === "video/mp4") { clearTimeout(timer); timer = setTimeout(() => controller.abort(), VIDEO_BODY_TIMEOUT_MS); }
     const reader = upstream.body.getReader();
     // Keep the deadline alive through body consumption, not just response headers.
     const body = new ReadableStream<Uint8Array>({

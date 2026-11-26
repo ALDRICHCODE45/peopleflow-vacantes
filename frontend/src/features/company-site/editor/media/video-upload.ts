@@ -1,6 +1,6 @@
 "use client";
 import {
-  HERO_VIDEO_KIND, HERO_VIDEO_MAX_BYTES, HERO_VIDEO_MAX_MS, HERO_VIDEO_MESSAGES, HERO_VIDEO_METADATA_TIMEOUT_MS,
+  HERO_VIDEO_BROWSER_TIMEOUT_MS, HERO_VIDEO_KIND, HERO_VIDEO_MAX_BYTES, HERO_VIDEO_MAX_MS, HERO_VIDEO_MESSAGES, HERO_VIDEO_METADATA_TIMEOUT_MS,
   HERO_VIDEO_TYPE, HERO_VIDEO_UPLOAD_PATH, MEDIA_UNCERTAIN, heroVideoMessage, uploadedMediaSchema, type UploadedMedia,
 } from "../../media";
 
@@ -32,7 +32,8 @@ export function readVideoDuration(file: File, timeoutMs = HERO_VIDEO_METADATA_TI
 
 /** The first limit the file breaks (Spanish copy), or null when it can be uploaded. */
 export async function checkHeroVideo(file: File, { timeoutMs }: { timeoutMs?: number } = {}): Promise<string | null> {
-  if (!isMp4(file)) return HERO_VIDEO_MESSAGES.type;
+  // An empty file can't be an MP4 (the backend answers 415).
+  if (!isMp4(file) || file.size === 0) return HERO_VIDEO_MESSAGES.type;
   if (file.size > HERO_VIDEO_MAX_BYTES) return HERO_VIDEO_MESSAGES.size;
   let seconds: number;
   try { seconds = await readVideoDuration(file, timeoutMs); } catch { return HERO_VIDEO_MESSAGES.unreadable; }
@@ -50,7 +51,7 @@ export function uploadHeroVideo(file: File, { onProgress, signal }: { onProgress
     const cancel = () => xhr.abort();
     xhr.open("POST", HERO_VIDEO_UPLOAD_PATH);
     xhr.setRequestHeader("content-type", HERO_VIDEO_TYPE);
-    xhr.timeout = 180_000;
+    xhr.timeout = HERO_VIDEO_BROWSER_TIMEOUT_MS;
     xhr.upload.onprogress = event => { if (event.lengthComputable && event.total > 0) onProgress?.(event.loaded / event.total); };
     xhr.onload = () => {
       let value: unknown;

@@ -54,6 +54,11 @@ describe("checkHeroVideo (client pre-checks before any upload)", () => {
     expect(await checkHeroVideo(file)).toBe("Sube un video MP4.");
     expect(videos).toHaveLength(0);
   });
+  it("rejects an empty (0-byte) file with «Sube un video MP4.» before reading it", async () => {
+    expect(await checkHeroVideo(mp4(0))).toBe("Sube un video MP4.");
+    expect(await checkHeroVideo(mp4(0, "fondo.mp4", ""))).toBe("Sube un video MP4.");
+    expect(videos).toHaveLength(0);
+  });
   it("rejects more than 20 MB before reading it", async () => {
     expect(await checkHeroVideo(mp4(20 * MB + 1))).toBe("El video pesa más de 20 MB.");
     expect(videos).toHaveLength(0);
@@ -64,7 +69,7 @@ describe("checkHeroVideo (client pre-checks before any upload)", () => {
   });
   it.each([["an error", "error"], ["an unknown duration", "load"]] as const)("reports an unreadable video on %s", async (_label, mode) => {
     metadata = mode; duration = mode === "load" ? Infinity : 0;
-    expect(await checkHeroVideo(mp4())).toBe("No pudimos leer el video.");
+    expect(await checkHeroVideo(mp4())).toBe("No pudimos leer el video. Expórtalo como MP4 normal con \"inicio rápido\" (faststart).");
     expect(URL.revokeObjectURL).toHaveBeenCalled();
   });
   it("gives up after the metadata timeout", async () => {
@@ -72,7 +77,7 @@ describe("checkHeroVideo (client pre-checks before any upload)", () => {
     metadata = "never";
     const result = checkHeroVideo(mp4(), { timeoutMs: 500 });
     await vi.advanceTimersByTimeAsync(500);
-    expect(await result).toBe("No pudimos leer el video.");
+    expect(await result).toBe("No pudimos leer el video. Expórtalo como MP4 normal con \"inicio rápido\" (faststart).");
     expect(videos[0].removeAttribute).toHaveBeenCalledWith("src");
   });
 });
@@ -107,12 +112,16 @@ describe("uploadHeroVideo", () => {
     expect(FakeXhr.last.body).toBe(file);
     expect(progress).toHaveBeenCalledWith(0.5);
   });
+  it("gives the upload at least 180 s (the backend's own read/write deadline is 2 min)", async () => {
+    await uploadHeroVideo(mp4(), {});
+    expect(FakeXhr.last.timeout).toBeGreaterThanOrEqual(180_000);
+  });
   it.each([
     [415, "unsupported_media_type", "Sube un video MP4."],
     [413, "payload_too_large", "El video pesa más de 20 MB."],
     [422, "video_too_long", "El video dura más de 30 segundos."],
     [422, "some_new_code", "El video dura más de 30 segundos."],
-    [422, "video_invalid", "No pudimos leer el video."],
+    [422, "video_invalid", "No pudimos leer el video. Expórtalo como MP4 normal con \"inicio rápido\" (faststart)."],
     [422, "media_limit_reached", "Alcanzaste el límite de 300 imágenes."],
     [401, "unauthenticated", "Inicia sesión para subir imágenes."],
   ])("maps a backend %s %s to «%s»", async (status, code, message) => {
