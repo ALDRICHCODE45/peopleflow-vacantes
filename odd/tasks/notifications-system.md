@@ -39,6 +39,11 @@ allow it, company rules set by the owner and personal preferences within them. D
 | T3.4 | S6 | Pipeline board opens one candidate from `?candidato=<participation_id>` (link kind `participation`); inline | e50b2cd8 |
 | T3.5 | S6 | Read / unread with exact undo / read-all / type+vacancy filter (needs backend N5) | API e1ae7127; UI 26067fac |
 | T3.6 | S2, S6 | Candidate bell + inbox on `/v2/me/notifications` (needs backend N6) | e3f718be |
+| T4 | S1, S3, S5 | Stage 2 (email + personal preferences), branch `feat/notifications-stage2` | |
+| T4.1 | S1, S3, S5 | Stage-2 backend contract with the backend session (email channel, preferences API) | |
+| T4.2 | S3 | «Mis preferencias» page (design 05), company and candidate | |
+| T4.3 | S6 | Candidate status and test due-date badges in inbox rows (design 04) | |
+| T4.4 | S3 | «Preferencias» link and «Elegir qué me llega» wired to the new page | |
 
 ## Log
 
@@ -178,3 +183,7 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   occurred_at, so the group day and latest_at agree even with a delayed fan-out; scheduler items keep run time. Frontend
   impact: none in code. Known edge: read-all `before` (newest latest_at shown) can now also mark a row fanned out after
   the page loaded whose event occurred before that instant (fan-out lag ~2 s) — accepted.
+- **L17** (2026-11-26) Stage 1 merged to main (frontend 601eec53, backend e6b2d501) and pushed by the user. Stage 2
+  decisions (user): «Email + preferencias personales (recomendado)» — digests stay in stage 3; operational events:
+  «Apagado hasta que lo active (recomendado)» — email off by default, mandatory ones (overdue deliveries, assignments)
+  always by email; candidates: «Solo los que tienen cuenta (recomendado)».
