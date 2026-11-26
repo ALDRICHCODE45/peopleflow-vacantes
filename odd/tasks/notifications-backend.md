@@ -51,7 +51,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6), frontend approved (L7)
 - T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — done: 0f133e1a 6810c32a d12d2139 1f5ed631 c8080b10 b52fbca6 + review correction 07f53042
 - T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — done: 31d04365 0d8168e8 76b60256 fc9270a4; review advisories fixed 7fe1e88f a7209e44 706387df; verified (L12)
-- T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — pending
+- T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — implemented, uncommitted in the worktree (L13); pending parent commit + review
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — pending
 - T6 — N5: read/unread/read-all + facets (D15–D17, D26) — pending
 - T7 — N6: candidate route tree (D18) — pending
@@ -197,3 +197,38 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   integration 33 pass/0 skip, unit 125 packages ok, fanout -race ok, sqlc diff clean. Follow-ups: double-attempt race
   between rollback and recordFailure across instances (earlier give-up only); deleted company and manual participation
   not covered against Postgres; integration tests not run under -race.
+- **L13** 2026-11-26, N3 (T4) by worker, uncommitted (parent commits). `notifications/schedule`: `Today` (calendar date in
+  America/Mexico_City, tzdata embedded) + `Classify` (deadline < today → overdue; today / today+1 → due soon; later →
+  nothing); `Runner.RunOnce` (injected clock) = one tx: list delivery recipients (process `process_status='active' AND
+  status IN ('published','paused')`, `job_draft_delivery_configs.commitment_date ≤ today+1`, no
+  `process_delivery_fulfillments` row; team = active assignment of a non-stakeholder member of the process company,
+  company not deleted) and active assignments with `recruiter_deadline ≤ today+1` (same process filter, assignee
+  still a non-stakeholder member, open function via LEFT JOIN), insert each row (uuid v7, `group_key n:<id>`, actor
+  and source NULL, reason team / assignee, payload `{commitment_date}` / `{assignment_id, function, commitment_date}`)
+  `ON CONFLICT … notifications_dedupe_scheduled DO NOTHING`, then one `UPDATE … resolved_at = now()` on open deadline
+  items when the process is no longer active published/paused (closed with any process value, finished or gone), has a
+  fulfillment row, the delivery date differs / is cleared, the assignment (matched by `payload.assignment_id`, same job
+  and user) ended or its deadline differs / is cleared, or — for due soon — an overdue row exists for the same recipient,
+  job and date (inserted earlier in the same run, so supersession is immediate). `AdvisoryLock` (key
+  `0x6e6f7469665f7363`, dedicated pooled connection, release on a non-cancelled context, connection closed when the
+  release is unconfirmed; copied from the documents pattern, no sibling import) and `Scheduler` (once at start, then
+  every 15 min, panic/err recovered; logs `notification schedule finished|skipped|failed` with counts, `step`
+  (lock/begin/list_delivery/list_assignment/insert/resolve/commit) and SQLSTATE only). Composition
+  `cmd/api/notifications_schedule.go`, started in `main.go` right after the fan-out and stopped (waited) by defer before
+  `pool.Close`. sqlc: `ListScheduledDeliveryRecipients`, `ListScheduledAssignmentDeadlines`,
+  `InsertScheduledNotification`, `ResolveStaleScheduledNotifications`. RED observed: schedule unit + integration tests
+  and the cmd/api test failed to build (undefined `Today`, `Window`, `Classify`, `Result`, `startNotificationSchedule`,
+  `newNotificationScheduler`). Behavioural evidence for the integration tests by mutation (each restored, checksum
+  identical): UTC instead of MX date → MX-boundary test fails; stakeholder filter dropped → boundary test fails;
+  `paused` dropped → process-filter test fails; supersede clause inverted → overdue-supersedes test fails;
+  `ended_at IS NULL` dropped from resolution → stale-items test fails; delivery-date comparison dropped → renegotiation
+  test fails; `ON CONFLICT DO UPDATE` → dedupe test fails; lock ignores `acquired=false` → lock-held test fails.
+  Evidence: `DRAFT_TEST_DATABASE_URL=… make test-integration PKG=./internal/features/notifications/...` 46 pass / 0 fail /
+  0 skip (capture 8, domain 10, fanout 15, schedule 13); `make test PKG='./internal/features/notifications/... ./cmd/api/
+  ./internal/tools/archguard/'` ok (6 packages); `go tool sqlc diff` clean. Interpretations for review: Q5 is enforced by
+  dedupe + run-time recipients only — a member who joins while a deadline is open gets the current window's item on the
+  next run (e.g. overdue), never items for dates or windows already fired; a recipient who leaves the team keeps their
+  open delivery item (not listed as a resolution cause); a resolved item never re-fires for the same (recipient, type,
+  job, date) — e.g. a date renegotiated back, or a closed process reopened with the same date; `function` is omitted
+  from the payload when the assignment has no open function. Not run: `-race` on the schedule package, cmd/api
+  integration suite.
