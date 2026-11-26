@@ -31,7 +31,7 @@ allow it, company rules set by the owner and personal preferences within them. D
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | T1 | S1–S7 | Design directions in `design/notifications/` (writer, gentle-design) | |
-| T2 | S1–S6 | Backend contract proposal (events, recipients, inbox API, preferences) with the backend session | |
+| T2 | S1–S6 | Backend contract proposal (events, recipients, inbox API, preferences) with the backend session | backend 80a5ce80 (agreed, L11) |
 | T3 | S5–S6 | Stage 1 implementation (bell + inbox + stage-1 events) | |
 
 ## Log
@@ -127,3 +127,9 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   {motivo}.»; assignment_deadline_due_soon «Tu fecha límite en {vacante} es {hoy|mañana}» / «Como {función}, tu
   entrega vence el {fecha}.»; assignment_deadline_overdue «Venció tu fecha límite en {vacante}» / «Tu entrega como
   {función} era el {fecha}.» Side finding: stage-config/editor.tsx:100 links to /empresa/vacantes/${draftId} (no page).
+- **L11** (2026-11-26) Backend contract agreed: `docs/contracts/notifications-v1.md` commit 80a5ce80 (status «Agreed»).
+  All L10 fixes taken: 14 types; attention = the 4 deadline types; only the ≤20 attention items (created_at DESC, id
+  DESC) are excluded from items, the rest stay in items; vacancy_reassigned / vacancy_unassigned carry from_user /
+  to_user {user_id, name} (name null if the user no longer exists); participation_id == /v2/me/applications item.id
+  (no application_id); reason ∈ workload | recruiter_departure | performance | client_request | other (free note of
+  other never included). T2 done. Backend started N1; it will notify when N4 is usable locally (T3 waits on it).
