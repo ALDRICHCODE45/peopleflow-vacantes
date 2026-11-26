@@ -60,7 +60,7 @@ type routerDeps struct {
 	requireDocumentReader func(http.Handler) http.Handler
 	// documentHandler serves the documents routes; its store re-checks the vacancy access.
 	documentHandler *documentshttp.Handler
-	// notificationsHandler serves the member notifications read API (notifications-v1 N4)
+	// notificationsHandler serves the member notifications API (notifications-v1 N4, N5)
 	// behind requireDocumentReader; its store scopes every read to the session user and company.
 	notificationsHandler *notificationsinbox.Handler
 	// stakeholderInvitationHandler serves the invitation routes (§1.3).
@@ -302,12 +302,17 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/metrics/applications/export", d.metricsHandler.Export("applications"))
 	})
 
-	// Member notifications (notifications-v1 D18, N4): owners, recruiters and stakeholders
-	// (the documents read gate); grouped list with attention and the bell counter. Not audited (D23).
+	// Member notifications (notifications-v1 D18, N4, N5): owners, recruiters and stakeholders
+	// (the documents read gate); grouped list with attention, the bell counter, read / unread /
+	// read-all marks and the filter facets. Reads and marks are not audited (D23).
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireDocumentReader)
 		r.Get("/v2/me/company/notifications", d.notificationsHandler.List)
 		r.Get("/v2/me/company/notifications/unread-count", d.notificationsHandler.UnreadCount)
+		r.Post("/v2/me/company/notifications/read", d.notificationsHandler.Read)
+		r.Post("/v2/me/company/notifications/unread", d.notificationsHandler.Unread)
+		r.Post("/v2/me/company/notifications/read-all", d.notificationsHandler.ReadAll)
+		r.Get("/v2/me/company/notifications/facets", d.notificationsHandler.Facets)
 	})
 
 	// The stakeholder's own vacancy list (placement-vacancy-documents-v1, P7c, L20): every vacancy of the company, never-published drafts
