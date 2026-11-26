@@ -54,7 +54,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — done: bdd85ef9 f2473e79 235982da 9e446230 e3339a54; reviewed and verified (L14)
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — done: a9e48d8a and the 4 commits before it; reviewed and verified (L16)
 - T6 — N5: read/unread/read-all + facets (D15–D17, D26) — done: 89a63897 and the 3 commits before it (L18)
-- T7 — N6: candidate route tree (D18) — pending
+- T7 — N6: candidate route tree (D18) — done by worker, uncommitted (L19)
 - T8 — N7: `cmd/notifications-purge` (D22) — pending
 - Slice boundary: T1 (contract docs, ~720 lines, 5 commits) is its own review slice.
 
@@ -328,3 +328,35 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - **L18** 2026-11-26, N5 closed. Parent checks: unit (notifications, cmd/api incl. route topology, archguard) ok;
   TestNotifications* 10/10; notifications integration ok; go vet ok. Native assess medium, review not due (under budget),
   no independent verifier required. Validation-code and body-cap choices recorded in L17 accepted.
+- **L19** 2026-11-26, N6 (T7) by worker, uncommitted (parent commits). Candidate tree `/v2/me/notifications` (GET, `/unread-count`,
+  `POST /read`, `/unread`, `/read-all`, `GET /facets`) in `router.go` behind `NoStore, requireAuth, requireCandidate` (the
+  `/v2/me/applications` gate), served by `inbox.NewCandidateHandler` (same handlers and shapes; `cmd/api/notifications_read.go`
+  `newCandidateNotificationsHandler`, wired in `main.go` as `candidateNotificationsHandler`). The gate puts only the session claims in
+  the context, so the handler resolves the scope with `GetNotificationCandidateUser` (live candidate account by `cognito_sub`;
+  missing → 403 `account_required`). `inbox.Scope` gained `Candidate`; the eight read/mark/facet queries are now scope-parametric and
+  renamed without `Member` (`ListNotificationAttention`, `ListNotificationGroups`, `CountUnreadNotifications`, `MarkNotificationsRead`,
+  `MarkNotificationsUnread`, `MarkAllNotificationsRead`, `ListNotificationFacetTypes`, `ListNotificationFacetJobs`): `recipient_kind =
+  $kind AND company_id IS NOT DISTINCT FROM $company` (member: 'member' + gate company; candidate: 'candidate' + NULL; with the table
+  CHECK either predicate alone isolates). Candidate items: `company {id, name}` (`omitzero` field: absent on member items, `null` when
+  the job is gone), `job.title` = public projection title (the `/v2/me/applications` source) via `ListCandidateNotificationJobs`, only
+  for processes the candidate participates in; `actor` always null (even if a row held one); `sample: []`; links per type
+  (`application {job_id, participation_id}`, `assessment {invitation_id}`, null without participation / invitation). Attention is
+  always empty for candidates (the three candidate types have urgency normal in the D12 table; attention runs the same query and
+  returns `[]` / 0). Facets per type and per job with the candidate's public title. Six routes added to
+  `TestRouteTopology_ExactRegistrations`. RED observed: the three new HTTP tests (`cmd/api/notifications_candidate_integration_test.go`)
+  failed with `404 page not found` on every candidate route; `TestRouteTopology_ExactRegistrations` failed with exactly the six
+  routes missing. Tests: exact shapes for the 3 types + a gone job (company/title null, link null), unread-count, filters + cursor
+  pagination, member-type filter empty, invalid filter / cursor; marks by keys / ids, undo by `marked_at`, read-all with filters and
+  undo, facets unread/all ignoring filters, validation errors, foreign rows (own member row, other candidate, member) never touched,
+  not audited; isolation: anonymous 401, member on candidate routes 403 `wrong_role`, unknown subject 403 `account_required`,
+  candidate on member routes 403 `forbidden`, a recruiter's candidate-kind row never on the member tree, a candidate with a company
+  membership sees only candidate rows on the candidate tree and only member rows on the member tree, marks never cross trees.
+  Mutations of the generated SQL (restored, `sqlc diff` clean): scope dropped in `CountUnreadNotifications` → 3 candidate + 2 member
+  tests fail; scope dropped in `ListNotificationGroups` (CTE + LATERAL) → candidate shape and isolation tests fail. Evidence:
+  `DRAFT_TEST_DATABASE_URL=… make test-integration PKG=./internal/features/notifications/...` 58 pass / 0 fail / 0 skip; `… PKG=./cmd/api/
+  RUN='^TestNotifications'` 13 pass (5 N4 + 5 N5 + 3 N6); `make test PKG='./internal/features/notifications/... ./cmd/api/
+  ./internal/tools/archguard/'` 7 ok; `go tool sqlc diff` clean. Interpretations for review: candidate `sample` is `[]` (no names
+  on the candidate side; the participation is in `link`); the title/company lookup requires a participation of the candidate on the
+  process (any source); `company.name` is `companies.name` without a deleted filter (as `/v2/me/applications`). Stray file
+  `backend/internal/db/notifications.sql.go.q` (a mutation backup) left by the worker for the parent to delete (worker policy forbids
+  deletion). Not done: contract status (outside surface), `-race`, cmd/api full suite.
