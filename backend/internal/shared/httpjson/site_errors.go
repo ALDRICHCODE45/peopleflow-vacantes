@@ -17,10 +17,13 @@ const (
 	CodeImageTooSmall        Code = "image_too_small"
 	CodeImageTooLarge        Code = "image_too_large"
 	CodeMediaLimitReached    Code = "media_limit_reached"
+	// Hero video uploads (slice B, contract §2.4).
+	CodeVideoTooLong Code = "video_too_long"
+	CodeVideoInvalid Code = "video_invalid"
 )
 
 func SiteErrorCodes() []Code {
-	return []Code{CodeSlugTaken, CodeSlugReserved, CodePublishBlocked, CodeSiteNotFound, CodeUnsupportedMediaType, CodeImageTooSmall, CodeImageTooLarge, CodeMediaLimitReached}
+	return []Code{CodeSlugTaken, CodeSlugReserved, CodePublishBlocked, CodeSiteNotFound, CodeUnsupportedMediaType, CodeImageTooSmall, CodeImageTooLarge, CodeMediaLimitReached, CodeVideoTooLong, CodeVideoInvalid}
 }
 func resolveSiteError(code Code) (Definition, bool) {
 	status := http.StatusUnprocessableEntity
@@ -45,6 +48,10 @@ func resolveSiteError(code Code) (Definition, bool) {
 		message = "image too large"
 	case CodeMediaLimitReached:
 		message = "media limit reached"
+	case CodeVideoTooLong:
+		message = "video too long"
+	case CodeVideoInvalid:
+		message = "video invalid"
 	default:
 		return Definition{}, false
 	}
@@ -64,6 +71,16 @@ func WriteSiteSlugError(w http.ResponseWriter, code Code) {
 		Code  Code   `json:"code"`
 		Field string `json:"field"`
 	}{def.Message, def.Code, "slug"})
+}
+
+// WriteSiteVideoTooLong answers 422 video_too_long with `data {max_ms, duration_ms}`.
+func WriteSiteVideoTooLong(w http.ResponseWriter, maxMS, durationMS int64) {
+	def := Resolve(CodeVideoTooLong)
+	recordCatalogCode(w, def.Code)
+	WriteJSON(w, def.Status, ErrorEnvelope{Error: def.Message, Code: def.Code, Data: struct {
+		MaxMS      int64 `json:"max_ms"`
+		DurationMS int64 `json:"duration_ms"`
+	}{maxMS, durationMS}})
 }
 
 // WriteSitePublishBlocked exposes only bounded readiness issues.

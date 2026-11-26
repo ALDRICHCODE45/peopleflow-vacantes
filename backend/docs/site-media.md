@@ -1,6 +1,6 @@
-# Company site images: disk or private S3
+# Company site media: disk or private S3
 
-Only site images use this selection. Candidate CV storage and `CV_STORAGE_ROOT`
+Site images and hero videos use this selection. Candidate CV storage and `CV_STORAGE_ROOT`
 semantics are unchanged. The frontend always uses the API-relative capability URL
 `/v2/company-sites/media/{id}`, never an S3 URL or a presigned URL.
 
@@ -13,6 +13,7 @@ semantics are unchanged. The frontend always uses the API-relative capability UR
 | `portrait` | JPEG, PNG, WebP | 200–6,000 | testimonial and team photos |
 | `story` | JPEG, PNG, WebP | 200–6,000 | `story.image` |
 | `logo` | PNG, WebP (alpha kept) | 64–6,000 | `logos.items[].image` (sections v2) |
+| `hero_video` | MP4 (`video/mp4`) | from `tkhd`, 1–16,384 or unknown (`null`) | `hero.background_video` (slice B, contract §2.4) |
 
 Every kind is detected by magic bytes, limited to 5,242,880 bytes and stripped of
 EXIF/XMP/text chunks without re-encoding (`application.PrepareMediaKind`). The
@@ -21,6 +22,54 @@ database mirrors the rules: migration 00066 (`company_site_logo_media`) widened
 200 px otherwise, and added `company_site_media_logo_format_check` (PNG/WebP only).
 Its Down refuses while any `logo` row exists. A saved document references media by
 company **and** kind, so a logo can never be used as a cover and vice versa.
+
+## Hero videos (slice B)
+
+`kind=hero_video` goes through the same multipart endpoint. The handler streams the
+file part to a temporary spool (`os.CreateTemp` in `$TMPDIR`, mode 0600, at most
+20,971,520 + 1 bytes, removed on every path); a file part sent before the `kind`
+field is kept in memory up to 5 MiB and continues into the spool past that. The
+request envelope is 20 MiB + 64 KiB; the read/write deadlines of one video upload
+or download are extended to 2 minutes. Validation (`application.InspectVideo`) is
+structural and dependency-free: `ftyp` first with an accepted brand (`isom`, `iso2`,
+`mp41`, `mp42`, `avc1`), top-level boxes tiling the file, `moov` before or after
+`mdat`, `mvhd` (version 0 or 1) with non-zero timescale and duration, dimensions
+from the first `vide` track's `tkhd`. Hostile input is bounded: every box size is
+checked against its parent (32-bit, 64-bit `largesize`, size 0 = to the end),
+at most 1,024 top-level boxes and 4,096 box headers in total, only
+`moov/trak/mdia/hdlr` is descended, fields are read with `ReadAt` (never the whole
+box). Codes: 415 `unsupported_media_type`, 413 `payload_too_large`, 422
+`video_too_long` (`data {max_ms, duration_ms}`), 422 `video_invalid`. No ffmpeg:
+codecs and audio are not verified.
+
+Storage is file-first: the upload is stored (`Storage.PutStream`) before the short
+transaction that re-checks the 300-media quota under the company lock and writes
+the row; any later failure deletes the object. Migration 00067
+(`company_site_hero_video_media`) adds the nullable `duration_ms` (required and
+1..30000 iff `hero_video`, NULL otherwise), makes width/height nullable only for
+`hero_video` (both or neither: `company_site_media_dimensions_check`), allows
+`video/mp4` only with `hero_video` (`company_site_media_video_format_check`) and a
+20 MiB byte size for videos (5 MiB for images). Its Down refuses while any
+`hero_video` row exists and restores the 00066 schema under the same names.
+
+## Serving and Range
+
+`GET /v2/company-sites/media/{id}` uses `http.ServeContent` for every kind: one
+`Range` (first-last, `N-`, `-N`) → 206 with `Content-Range`; none → 200; both with
+`Accept-Ranges: bytes`. An unsatisfiable range → 416 `Content-Range: bytes */size`,
+`no-store`, empty body; several ranges, a malformed spec, another unit or `bytes=-0`
+→ the header is ignored and the answer is 200 with the whole file. Images are opened
+whole (`Storage.Open`: the file on disk, or the bounded S3 buffer below); videos
+through `Storage.OpenRange`: the file on disk, or a lazy S3 reader whose `Prefetch`
+issues one ranged `GetObject` for exactly the response bytes right before the
+status is written (a missing key still answers 404 `no-store`, other failures 500)
+and streams the body. Video S3 transfers use a client without a whole-request
+timeout (20 s to response headers), bounded by the request context.
+
+Disk mode uses its own adapter (`infrastructure/storage/disk`) on `CV_STORAGE_ROOT`
+with the flat random 64-hex layout the CV adapter used for site images, so files
+written before slice B stay readable. Because the root is shared, the CV
+reconciliation keeps every key referenced by `company_site_media`.
 
 ## Configuration
 
@@ -85,9 +134,9 @@ Block Public Access. The application never sends an ACL or creates a bucket at
 startup. Encryption/retention/backups are operator responsibilities; do not
 configure lifecycle deletion of referenced images.
 
-Images remain limited to 5,242,880 bytes. S3 reads buffer at most that limit plus
-one sentinel byte before public headers are written; broken/oversized reads fail
-closed. Successful responses use the DB content type and length, `nosniff`, CSP
+Images remain limited to 5,242,880 bytes. S3 image reads buffer at most that limit
+plus one sentinel byte before public headers are written; broken/oversized reads
+fail closed. Hero videos never use that buffered read (see «Serving and Range»). Successful responses use the DB content type and length, `nosniff`, CSP
 `default-src 'none'; sandbox` and `public, max-age=31536000, immutable`. Unknown
 media IDs or missing S3 keys return 404 with `Cache-Control: no-store`; other
 storage failures return generic `internal_error` without provider details.
@@ -166,5 +215,7 @@ DRAFT_TEST_DATABASE_URL='postgres://draft_test:draft_test@127.0.0.1:32776/draft_
 
 Coverage: put/get/delete, random keys/prefix, S3 HEAD size, denied anonymous object
 access, not-found, near-5-MiB object, unreachable endpoint to sanitized domain
-errors, and real-router multipart upload/public GET with exact bytes and headers.
+errors, and real-router multipart upload/public GET with exact bytes and headers;
+`TestCompanySiteS3HeroVideoRange` uploads a > 5 MiB MP4 (built box by box by
+`testsupport/mp4fixture`, no ffmpeg) through the router and checks 200/206/416.
 Unit tests separately exercise fake S3 failures, read bounds and config guards.

@@ -7,11 +7,11 @@ import (
 )
 
 func TestSiteErrorCodes(t *testing.T) {
-	want := []Code{"slug_taken", "slug_reserved", "publish_blocked", "site_not_found", "unsupported_media_type", "image_too_small", "image_too_large", "media_limit_reached"}
+	want := []Code{"slug_taken", "slug_reserved", "publish_blocked", "site_not_found", "unsupported_media_type", "image_too_small", "image_too_large", "media_limit_reached", "video_too_long", "video_invalid"}
 	if !reflect.DeepEqual(SiteErrorCodes(), want) {
 		t.Fatal(SiteErrorCodes())
 	}
-	statuses := []int{409, 422, 422, 404, 415, 422, 422, 422}
+	statuses := []int{409, 422, 422, 404, 415, 422, 422, 422, 422, 422}
 	for i, code := range want {
 		t.Run(string(code), func(t *testing.T) {
 			def := Resolve(code)
@@ -39,5 +39,19 @@ func TestSiteErrorEnvelopes(t *testing.T) {
 				t.Fatalf("%d %s", w.Code, w.Body)
 			}
 		})
+	}
+}
+
+// Slice B (hero video): the catalog envelopes, byte-exact.
+func TestSiteVideoErrorEnvelopes(t *testing.T) {
+	w := httptest.NewRecorder()
+	WriteSiteVideoTooLong(w, 30000, 30001)
+	if w.Code != 422 || w.Body.String() != "{\"error\":\"video too long\",\"code\":\"video_too_long\",\"data\":{\"max_ms\":30000,\"duration_ms\":30001}}\n" {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	w = httptest.NewRecorder()
+	WriteCatalogError(w, Resolve(CodeVideoInvalid))
+	if w.Code != 422 || w.Body.String() != "{\"error\":\"video invalid\",\"code\":\"video_invalid\"}\n" {
+		t.Fatalf("%d %s", w.Code, w.Body)
 	}
 }

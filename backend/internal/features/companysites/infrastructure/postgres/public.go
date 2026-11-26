@@ -45,7 +45,7 @@ func (s *Store) Public(ctx context.Context, slug string) (app.PublicSnapshot, er
 		}
 		seen[ref.ID] = true
 		var m app.Media
-		err = s.pool.QueryRow(ctx, `SELECT id,kind,width,height FROM company_site_media WHERE id=$1 AND company_id=$2 AND kind=$3`, ref.ID, out.CompanyID, ref.Kind).Scan(&m.ID, &m.Kind, &m.Width, &m.Height)
+		err = s.pool.QueryRow(ctx, `SELECT id,kind,width,height,duration_ms FROM company_site_media WHERE id=$1 AND company_id=$2 AND kind=$3`, ref.ID, out.CompanyID, ref.Kind).Scan(&m.ID, &m.Kind, &m.Width, &m.Height, &m.DurationMS)
 		if err != nil {
 			return out, err
 		}

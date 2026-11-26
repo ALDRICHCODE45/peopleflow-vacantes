@@ -156,7 +156,7 @@ func (s *Store) read(ctx context.Context, tx pgx.Tx, company uuid.UUID) (app.Cur
 		}
 		seen[ref.ID] = true
 		var m app.Media
-		err := tx.QueryRow(ctx, `SELECT id,kind,width,height FROM company_site_media WHERE id=$1 AND company_id=$2`, ref.ID, company).Scan(&m.ID, &m.Kind, &m.Width, &m.Height)
+		err := tx.QueryRow(ctx, `SELECT id,kind,width,height,duration_ms FROM company_site_media WHERE id=$1 AND company_id=$2`, ref.ID, company).Scan(&m.ID, &m.Kind, &m.Width, &m.Height, &m.DurationMS)
 		if err != nil {
 			return out, err
 		}

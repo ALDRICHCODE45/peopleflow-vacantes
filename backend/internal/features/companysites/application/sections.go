@@ -141,6 +141,11 @@ func (v *validator) heroField(m map[string]any, k, p string) {
 		m[k] = id.String()
 	case "images":
 		v.mediaList(m, k, p, maxHeroImages, "gallery")
+	case "background_video":
+		// Slice B (§2.4): null stays null; a ref must be this company's hero_video.
+		if m[k] != nil {
+			v.mediaRef(m[k], path(p, k), HeroVideoKind)
+		}
 	}
 }
 
@@ -266,13 +271,15 @@ func (v *validator) areaOverrides(m map[string]any, p string) {
 }
 
 // heroIssues are the hero publish issues added by sections v2. Absent keys
-// carry their defaults: secondary_visible true, images [].
+// carry their defaults: secondary_visible true, images [], background_video null.
 func heroIssues(b map[string]any, blocks []any, p string, add func(string, string)) {
 	c := b["content"].(map[string]any)
 	switch text(b, "variant") {
 	case "background_loop":
-		// Slice B adds the uploaded video; until then the variant cannot publish.
-		add("hero_video_missing", p)
+		// Slice B (§2.4): the uploaded video plus the cover as its poster.
+		if c["background_video"] == nil || c["cover"] == nil {
+			add("hero_video_missing", p)
+		}
 	case "collage":
 		if images, _ := c["images"].([]any); len(images) < minCollageImages {
 			add("hero_collage_images_missing", p)

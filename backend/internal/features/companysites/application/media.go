@@ -22,10 +22,26 @@ var ErrMediaNotFound = errors.New("media not found")
 // ErrStorageUnavailable is safe to return or log; provider details never cross the port.
 var ErrStorageUnavailable = errors.New("site media storage unavailable")
 
+// Storage is the site media port (disk or private S3). Images go through Put
+// and Open (whole object, at most MaxMediaBytes, buffered by S3 before any
+// response header); hero videos go through PutStream (from the upload spool)
+// and OpenRange, which never holds the object in memory: disk returns the file,
+// S3 a lazy reader issuing one ranged GetObject per contiguous read. Both
+// readers are seekable so the public route can answer Range requests.
 type Storage interface {
 	Put(context.Context, []byte) (string, error)
-	Open(context.Context, string) (io.ReadCloser, error)
+	PutStream(ctx context.Context, body io.ReadSeeker, size int64) (string, error)
+	Open(context.Context, string) (io.ReadSeekCloser, error)
+	OpenRange(ctx context.Context, key string, size int64) (io.ReadSeekCloser, error)
 	Delete(context.Context, string) error
+}
+
+// Prefetcher is implemented by OpenRange readers that fetch lazily. The media
+// route calls Prefetch(n) with the response length right before writing the
+// status, so a storage failure still answers a clean error (never a truncated
+// 200/206 with immutable caching).
+type Prefetcher interface {
+	Prefetch(n int64) error
 }
 type StoredMedia struct {
 	Media
@@ -35,11 +51,14 @@ type StoredMedia struct {
 }
 type MediaStore interface {
 	InsertMedia(context.Context, uuid.UUID, uuid.UUID, StoredMedia, []byte, Storage) (StoredMedia, error)
+	// InsertMediaStream stores a spooled video through Storage.PutStream.
+	InsertMediaStream(ctx context.Context, company, user uuid.UUID, m StoredMedia, body io.ReadSeeker, size int64, files Storage) (StoredMedia, error)
 	FindMedia(context.Context, uuid.UUID) (StoredMedia, error)
 }
 
-// MediaKinds are the upload kinds (contract §3.4); `logo` is sections v2.
-var MediaKinds = []string{"cover", "gallery", "portrait", "story", "logo"}
+// MediaKinds are the upload kinds (contract §3.4); `logo` is sections v2 slice
+// A, `hero_video` slice B (§2.4).
+var MediaKinds = []string{"cover", "gallery", "portrait", "story", "logo", HeroVideoKind}
 
 func IsMediaKind(kind string) bool { return slices.Contains(MediaKinds, kind) }
 

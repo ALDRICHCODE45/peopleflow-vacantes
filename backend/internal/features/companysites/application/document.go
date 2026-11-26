@@ -44,7 +44,7 @@ type blockRule struct {
 }
 
 var rules = map[string]blockRule{
-	"hero":         {variants: []string{"photo", "split", "centered", "background_loop", "photo_jobs", "collage"}, strings: map[string]int{"title": 80, "subtitle": 200}, special: []string{"cover", "images", "primary_label", "secondary_visible", "secondary_label", "secondary_target"}},
+	"hero":         {variants: []string{"photo", "split", "centered", "background_loop", "photo_jobs", "collage"}, strings: map[string]int{"title": 80, "subtitle": 200}, special: []string{"cover", "images", "primary_label", "secondary_visible", "secondary_label", "secondary_target", "background_video"}},
 	"story":        {variants: []string{"text", "text_image"}, strings: map[string]int{"title": 80}, special: []string{"body", "image"}},
 	"values":       {variants: []string{"grid", "list", "bento", "big_icons"}, strings: map[string]int{"mission": 300}, itemStrings: map[string]int{"title": 60, "description": 240}, itemSpecial: []string{"icon", "emoji"}, maximum: 8, minimum: 1, required: []string{"title"}},
 	"benefits":     {variants: []string{"grid", "compact", "bento", "big_icons"}, itemStrings: map[string]int{"title": 60, "description": 160}, itemSpecial: []string{"icon", "emoji"}, maximum: 24, minimum: 1, required: []string{"title"}},
@@ -219,7 +219,7 @@ func (v *validator) content(m map[string]any, p, kind string, limits map[string]
 			v.media(m, k, p, mediaKind)
 		case "photo":
 			v.media(m, k, p, "portrait")
-		case "images", "primary_label", "secondary_visible", "secondary_label", "secondary_target":
+		case "images", "primary_label", "secondary_visible", "secondary_label", "secondary_target", "background_video":
 			v.heroField(m, k, p)
 		case "video_url":
 			v.videoURL(m, k, p)
