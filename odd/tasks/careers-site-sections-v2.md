@@ -124,3 +124,6 @@ picks a direction, coordinated with the backend session.
   (CV retention period, owner email per CV vs daily digest). Agent decision for slice B: no ffmpeg (deploy image
   unchanged; structural MP4 validation; always muted, looped, playsinline, paused under reduced motion).
 
+- **L15** (2026-11-26) Slice C decisions: retention «Hasta que el equipo los borre»; owner email postponed — user wants a
+  full notification system first (captured verbatim in `odd/tasks/notifications-system-idea.md`). Backend took slice B
+  (shape recorded in the contract file).

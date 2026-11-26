@@ -59,7 +59,9 @@ Three slices, ordered by risk; each one is independently shippable.
 - Response never reveals whether the person already existed (always the same «Recibimos tu CV» answer).
 - Decided (user, L6): duplicates → create a new candidate and flag it «posible duplicado» (matched on normalized email
   or E.164 phone) for the team to resolve; notification → a «Nuevos desde el sitio» counter + origin filter in Base de
-  talento AND an email to the owner. Still open: retention period, email cadence (each CV vs daily digest).
+  talento AND an email to the owner. Retention (user, 2026-11-26): «Hasta que el equipo los borre» — no automatic deletion;
+  the person can ask for deletion. Owner email: POSTPONED by the user until a full notification system is designed (see
+  odd/tasks/notifications-system-idea.md); slice C ships with the in-app counter + origin filter only.
 
 ## Backend session adjustments to slice A (2026-11-25, accepted)
 
@@ -92,3 +94,13 @@ filled to all 5 keys; team/logos absent strings → null, absent lists → []; l
 `unsupported_media_type`, < 64 px → 422 `image_too_small`; `video_url` rejects explicit ports (even :443); a stored
 `secondary_target` that no longer exists reads as null; save errors reuse existing codes; team/logos/areas/talent_cta
 publish issues use `block_incomplete`. Backend merges to main after its full suite.
+
+## Backend slice B shape (2026-11-26, branch feat/careers-hero-video-backend, migration 00067)
+
+Upload: same multipart `/v2/me/company/site/media` with `kind=hero_video`; cap 20971520 bytes; duration ≤ 30000 ms; ftyp
+brands isom/iso2/mp41/mp42/avc1; moov before or after mdat accepted (UI recommends faststart); streamed to a bounded temp
+spool. Errors: 415 `unsupported_media_type`, 413 `payload_too_large`, 422 `video_too_long` {max_ms, duration_ms}, 422
+`video_invalid`. Media item width/height from the first video track's tkhd (nullable), new `duration_ms` (null for images).
+GET /media/{id}: Range → 206 + Content-Range + `Accept-Ranges: bytes`, 416 unsatisfiable, no Range → 200; same headers;
+disk and S3 ranged GET. Hero `background_video: {media_id} | null` (kind hero_video via v.media), absent stays absent;
+publishing `background_loop` needs background_video and cover, else `hero_video_missing`. Amendment §2.4 to follow.
