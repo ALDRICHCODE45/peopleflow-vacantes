@@ -1,6 +1,6 @@
 # Notifications v1 (in-app, stage 1; company members and candidates)
 
-Status: **Agreed — Q1–Q8 decided by the user, reviewed by the frontend; in implementation** (2026-11-26): capture (N1) and fan-out (N2) done on `feat/notifications-backend`; scheduler and endpoints pending. Source of the requested shape:
+Status: **Agreed — Q1–Q8 decided by the user, reviewed by the frontend; in implementation** (2026-11-26): capture (N1), fan-out (N2), scheduler (N3) and member read API (N4) done on `feat/notifications-backend`; member writes/facets, candidate routes and purge pending. Source of the requested shape:
 the frontend proposal `peopleflow-vacantes-frontend/odd/tasks/notifications-system-contract.md` and its decisions
 `…/odd/tasks/notifications-system.md` (L1–L9). Backend tracking: `odd/tasks/notifications-backend.md` (S1 request,
 S2 backend counter-proposal, **L4 frontend agreement, which overrides S2 where they differ**). Branch
@@ -468,7 +468,7 @@ like any new notification).
   `sample`); `candidate_status_changed {status}`; `candidate_message_received {status: "closed"}` (the text is read
   from `/v2/me/applications`); `candidate_test_pending {invitation_id}`.
 - `link.kind` per type: `application_received` / `psychometric_completed` group → `vacancy_candidates {job_id}`
-  (single-member group → `participation {job_id, participation_id}`); `psychometric_pending` → `participation`;
+  (single-member group → `participation {job_id, participation_id}`); `psychometric_pending` group → same as the other grouped types (`vacancy_candidates`, single-member group → `participation`, Q3);
   assignment types → `vacancy {job_id}` (`vacancy_unassigned`: `link: null` when the recipient can no longer open the
   vacancy, D19); delivery and assignment deadline → `vacancy_delivery {job_id}`; `candidate_status_changed` /
   `candidate_message_received` → `application {job_id, participation_id}` (`participation_id` is the same id as `item.id`

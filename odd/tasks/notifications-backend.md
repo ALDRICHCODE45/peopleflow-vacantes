@@ -52,7 +52,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — done: 0f133e1a 6810c32a d12d2139 1f5ed631 c8080b10 b52fbca6 + review correction 07f53042
 - T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — done: 31d04365 0d8168e8 76b60256 fc9270a4; review advisories fixed 7fe1e88f a7209e44 706387df; verified (L12)
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — done: bdd85ef9 f2473e79 235982da 9e446230 e3339a54; reviewed and verified (L14)
-- T5 — N4: member read API + unread-count (D13, D14, D19, D27) — pending
+- T5 — N4: member read API + unread-count (D13, D14, D19, D27) — implemented, uncommitted (L15); parent commits and adds the two topology entries
 - T6 — N5: read/unread/read-all + facets (D15–D17, D26) — pending
 - T7 — N6: candidate route tree (D18) — pending
 - T8 — N7: `cmd/notifications-purge` (D22) — pending
@@ -239,3 +239,47 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   access (D6/D19); deleted company / role change to stakeholder do not resolve items (same read gate); a resolved item
   does not re-fire for the same (recipient, type, job, date); late joiners get the current window's item (Q5).
   Follow-ups: lock failure paths untested against Postgres; deleted-company filter untested; integration not under -race.
+- **L15** 2026-11-26, N4 (T5) by worker, uncommitted (parent commits). `notifications/inbox`: `ParseQuery` (state all|unread;
+  `types` comma list of the 14 domain types, ≤ 14; `job_ids` comma list of UUIDs, ≤ 20, normalised lowercase; `limit` 1–50,
+  default 20; a repeated parameter → `duplicate`; unknown parameters ignored; every failure → `invalid_filter` with
+  `fields[{field, code: invalid|too_many|duplicate}]`, sorted; the cursor is checked only after the filters) and the
+  opaque cursor (base64url `{v, at (µs), gk, f}` with `f` = hash of state/types/job_ids, exact re-encoding; other filters or
+  undecodable → `invalid_cursor`; limit may change). `Store.List` = one REPEATABLE READ read-only tx: attention (first page
+  only: unread unresolved deadline items of the member scope, honouring types/job_ids, `created_at DESC, id DESC`, ≤ 20,
+  `attention_total` via `count(*) OVER ()`; `null`/`null` with a cursor), groups (same scope and filters minus the same top-20
+  attention ids recomputed on every page, so only those are excluded — overflow appears in normal order; `GROUP BY group_key,
+  type, job_id`; count / unread (`read_at IS NULL AND resolved_at IS NULL`) / latest_at / first_at / resolved = all rows
+  resolved; latest row by LATERAL; `state=unread` → groups with an unread member; keyset `(latest_at, group_key) <` cursor,
+  `limit + 1`), samples (≤ 3 newest distinct participations per group), read-time resolution and the unfiltered counters.
+  Resolution (D19, L14): job title = current draft title (`null` when the job is gone or untitled); `can_open` = owner (live
+  gate role) or an active assignment of the caller on the job; sample names (company correction, else manual / account name)
+  only with `can_open`; `latest.actor` and `from_user` / `to_user` `{user_id, name}` from current users (deleted → name
+  null); `vacancy_unassigned` link null without `can_open`; items stay. kind/urgency from the domain table; links per
+  §Endpoints. `Store.UnreadCount` = unread groups + rows of the member scope. `Handler` (scope only from the gate's
+  CompanyContext; catalog writers only) composed in `cmd/api/notifications_read.go`, wired in `main.go`
+  (`notificationsHandler`) and routed in `router.go` behind `NoStore, requireAuth, requireDocumentReader`: `Get
+  /v2/me/company/notifications`, `Get /v2/me/company/notifications/unread-count`. Reads write nothing and are not audited
+  (D23, asserted). sqlc (`go tool sqlc generate`): `ListMemberNotificationAttention`, `ListMemberNotificationGroups`,
+  `ListMemberNotificationSamples`, `ListNotificationJobs`, `ListNotificationCandidateNames`, `ListNotificationUserNames`,
+  `CountMemberUnreadNotifications`. RED observed: inbox unit tests failed to build (undefined `Query`, `Link`, …); the cmd/api
+  HTTP tests failed to build (unknown field `notificationsHandler`, undefined `newNotificationsHandler`). Tests:
+  inbox unit (defaults, normalisation, ignored params, 18 invalid cases, cursor bound to filters, link per type) and
+  `cmd/api/notifications_read_integration_test.go` (disposable `draft_test_mig_*` DB from DRAFT_TEST_DATABASE_URL only, real
+  router + auth + documents read gate): exact response shape + unread-count, filters/validation/cursor errors, pagination
+  with 22 deadline items (attention 20/22 first page only, 2 overflow in items, a seen group bumped mid-walk never repeats),
+  scope isolation (other user, same user in another company, candidate rows, outsider, stakeholder empty, 401, candidate
+  403 `forbidden`, deleted company 403 `company_inactive`), names gated after leaving the team (renames / corrections /
+  title current; owner sees names). Mutations (generated SQL / store, each restored, sha256 identical): no attention
+  exclusion → shape, filters and overflow tests fail; member/company scope dropped in groups + latest → scope test fails;
+  counter unscoped by company → scope test fails; access gate forced open → names test fails (dropping scope only in the
+  grouped CTE survives: the LATERAL latest re-applies the scope). Evidence: `DRAFT_TEST_DATABASE_URL=… make
+  test-integration PKG='./internal/features/notifications/...'` 52 pass / 0 fail / 0 skip (inbox 6 new); `… make
+  test-integration PKG=./cmd/api/ RUN='^TestNotificationsRead_'` 5 pass; `make test PKG='./internal/features/notifications/...
+  ./cmd/api/ ./internal/tools/archguard/'` all ok except the expected `TestRouteTopology_ExactRegistrations` (exactly the two
+  new routes missing from its `want`; `main_test.go` is outside the worker surface, the parent adds them); `go tool sqlc diff`
+  clean. Interpretations for review: a candidate *actor* (application_received / psychometric_completed are acted by the
+  candidate) is gated like a sample name; `psychometric_pending` groups (Q3) link like the other grouped types
+  (`vacancy_candidates`, single member → `participation`); a stakeholder (or a member demoted to stakeholder) passes the gate
+  and sees any member rows of the company with candidate names hidden (no assignment, not owner); colleagues' names are not
+  gated by membership. Not done: contract status line (docs/contracts outside the surface); `-race`; cmd/api full suite.
+
