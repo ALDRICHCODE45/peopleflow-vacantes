@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -106,10 +107,20 @@ func (p *Processor) process(ctx context.Context, tx pgx.Tx, q *db.Queries, row d
 	if err != nil {
 		return event, true, stepErr(stepPlan, err)
 	}
+	inApp, err := inAppOverrides(ctx, q, notifications)
+	if err != nil {
+		return event, true, stepErr(stepPreferences, err)
+	}
 	for _, n := range notifications {
-		if err := insert(ctx, q, n); err != nil {
+		inserted, err := insert(ctx, q, n, inApp.Effective(preferenceKey(n)))
+		if err != nil {
 			return event, true, stepErr(stepInsert, fmt.Errorf("insert %s notification: %w", n.Type, err))
 		}
+		if !inserted {
+			continue // D21 dedupe: created by an earlier attempt, nothing else to decide
+		}
+		// notifications-v2 D8 (E4): the email delivery decision runs here,
+		// only for rows this attempt actually inserted.
 	}
 	if err := q.MarkNotificationEventProcessed(ctx, event.ID); err != nil {
 		return event, true, stepErr(stepMark, err)
@@ -154,12 +165,12 @@ func toEvent(row db.ClaimNextNotificationEventRow) (Event, error) {
 	return e, nil
 }
 
-func insert(ctx context.Context, q *db.Queries, n Notification) error {
+func insert(ctx context.Context, q *db.Queries, n Notification, inApp bool) (bool, error) {
 	payload, err := json.Marshal(n.Payload)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return q.InsertNotification(ctx, db.InsertNotificationParams{
+	rows, err := q.InsertNotification(ctx, db.InsertNotificationParams{
 		ID:              n.ID,
 		RecipientUserID: n.RecipientUserID,
 		RecipientKind:   string(n.RecipientKind),
@@ -172,7 +183,47 @@ func insert(ctx context.Context, q *db.Queries, n Notification) error {
 		ActorUserID:     nullable(n.ActorUserID),
 		SourceEventID:   n.SourceEventID,
 		Payload:         payload,
+		InApp:           inApp,
 	})
+	return rows == 1, err
+}
+
+// preferenceKey is the override scope of a row: (recipient, company, type);
+// a candidate row has no company (company_id NULL, notifications-v2 D1).
+func preferenceKey(n Notification) domain.PreferenceKey {
+	k := domain.PreferenceKey{User: n.RecipientUserID, Type: n.Type}
+	if n.CompanyID != nil {
+		k.Company = *n.CompanyID
+	}
+	return k
+}
+
+// inAppOverrides reads, in the event's tx and with one query, the in_app
+// override rows of every planned row (notifications-v2 D6, D7); no read when
+// every planned type is mandatory (always visible).
+func inAppOverrides(ctx context.Context, q *db.Queries, notifications []Notification) (*domain.Overrides, error) {
+	keys := make([]domain.PreferenceKey, len(notifications))
+	for i, n := range notifications {
+		keys[i] = preferenceKey(n)
+	}
+	out := domain.NewOverrides(domain.ChannelInApp)
+	lookup := domain.NewOverrideLookup(keys)
+	if lookup.Empty() {
+		return out, nil
+	}
+	rows, err := q.ListNotificationPreferenceOverrides(ctx, db.ListNotificationPreferenceOverridesParams{
+		Channel: string(domain.ChannelInApp), UserIds: lookup.Users, Types: lookup.Types, CompanyIds: lookup.Companies})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		k := domain.PreferenceKey{User: r.UserID, Type: domain.Type(r.Type)}
+		if r.CompanyID.Valid {
+			k.Company = r.CompanyID.Bytes
+		}
+		out.Set(k, r.Enabled)
+	}
+	return out, nil
 }
 
 // directory is the Directory over the fan-out tx.

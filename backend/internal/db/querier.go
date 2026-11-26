@@ -243,8 +243,11 @@ type Querier interface {
 	InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error
 	// Immediate notification (D21): a re-processed event inserts nothing twice.
 	// created_at is the event's occurred_at, so a delayed fan-out keeps the group's
-	// day and the retention clock aligned with the event (L24).
-	InsertNotification(ctx context.Context, arg InsertNotificationParams) error
+	// day and the retention clock aligned with the event (L24). in_app is the
+	// recipient's effective in-app preference at creation (notifications-v2 D6,
+	// D7), never rewritten. Affected rows = 1 inserted / 0 deduplicated: only an
+	// inserted row gets an email delivery decision (v2 D8).
+	InsertNotification(ctx context.Context, arg InsertNotificationParams) (int64, error)
 	// Capture row written by the audit-port decorator inside the caller's tx,
 	// right after the audit event (notifications-v1 D1–D3). occurred_at is the DB
 	// DEFAULT now(), the same transaction clock as the audit row. payload holds
@@ -252,6 +255,7 @@ type Querier interface {
 	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
 	// Scheduled notification (D21): each (recipient, type, job, date) fires at
 	// most once; a renegotiated date is a new key. No actor, no source event.
+	// in_app as in InsertNotification (v2 D6, D7); affected rows feed v2 D8.
 	InsertScheduledNotification(ctx context.Context, arg InsertScheduledNotificationParams) (int64, error)
 	// Atomic liveness probe for the RequireCompanyRole middleware
 	// (require-company-role-tombstone-gate slice). Returns `deleted_at IS NULL`
@@ -370,6 +374,12 @@ type Querier interface {
 	// an active assignment on it). Jobs of other companies or gone are absent;
 	// has_title is false when the draft has no title.
 	ListNotificationJobs(ctx context.Context, arg ListNotificationJobsParams) ([]ListNotificationJobsRow, error)
+	// Creation-time preferences (notifications-v2 D6, D7): the override rows of
+	// one channel for a batch of recipients, read in the inserting tx, one query
+	// per fan-out event / scheduler run. Arrays over-fetch at most their cross
+	// product (company_id NULL = candidate tree); the caller matches exact
+	// (user, company, type) keys and mandatory types ignore any row.
+	ListNotificationPreferenceOverrides(ctx context.Context, arg ListNotificationPreferenceOverridesParams) ([]ListNotificationPreferenceOverridesRow, error)
 	// Personal preferences (notifications-v2 D1, D2): the caller's sparse override
 	// rows in their scope, member (user, company) or candidate (user, NULL). The
 	// catalog and the defaults come from the domain table.

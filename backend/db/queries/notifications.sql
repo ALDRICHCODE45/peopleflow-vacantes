@@ -99,11 +99,14 @@ SELECT candidate_id
 FROM process_participations
 WHERE id = sqlc.arg('participation_id')::uuid AND process_id = sqlc.arg('job_id')::uuid;
 
--- name: InsertNotification :exec
+-- name: InsertNotification :execrows
 -- Immediate notification (D21): a re-processed event inserts nothing twice.
 -- created_at is the event's occurred_at, so a delayed fan-out keeps the group's
--- day and the retention clock aligned with the event (L24).
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, created_at)
+-- day and the retention clock aligned with the event (L24). in_app is the
+-- recipient's effective in-app preference at creation (notifications-v2 D6,
+-- D7), never rewritten. Affected rows = 1 inserted / 0 deduplicated: only an
+-- inserted row gets an email delivery decision (v2 D8).
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, in_app, created_at)
 VALUES (
     sqlc.arg('id')::uuid,
     sqlc.arg('recipient_user_id')::uuid,
@@ -117,9 +120,23 @@ VALUES (
     sqlc.narg('actor_user_id')::uuid,
     sqlc.arg('source_event_id')::uuid,
     sqlc.arg('payload')::jsonb,
+    sqlc.arg('in_app')::boolean,
     (SELECT e.occurred_at FROM notification_events e WHERE e.id = sqlc.arg('source_event_id')::uuid)
 )
 ON CONFLICT (recipient_user_id, source_event_id, type) WHERE source_event_id IS NOT NULL DO NOTHING;
+
+-- name: ListNotificationPreferenceOverrides :many
+-- Creation-time preferences (notifications-v2 D6, D7): the override rows of
+-- one channel for a batch of recipients, read in the inserting tx, one query
+-- per fan-out event / scheduler run. Arrays over-fetch at most their cross
+-- product (company_id NULL = candidate tree); the caller matches exact
+-- (user, company, type) keys and mandatory types ignore any row.
+SELECT p.user_id, p.company_id, p.type, p.enabled
+FROM notification_preferences p
+WHERE p.channel = sqlc.arg('channel')::text
+  AND p.user_id = ANY (sqlc.arg('user_ids')::uuid[])
+  AND p.type = ANY (sqlc.arg('types')::text[])
+  AND (p.company_id IS NULL OR p.company_id = ANY (sqlc.arg('company_ids')::uuid[]));
 
 -- name: ListScheduledDeliveryRecipients :many
 -- Scheduler (notifications-v1 §Scheduler, D20, Q1): every team recipient of
@@ -162,7 +179,8 @@ ORDER BY vp.id, va.user_id;
 -- name: InsertScheduledNotification :execrows
 -- Scheduled notification (D21): each (recipient, type, job, date) fires at
 -- most once; a renegotiated date is a new key. No actor, no source event.
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, commitment_date, payload)
+-- in_app as in InsertNotification (v2 D6, D7); affected rows feed v2 D8.
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, commitment_date, payload, in_app)
 VALUES (
     sqlc.arg('id')::uuid,
     sqlc.arg('recipient_user_id')::uuid,
@@ -173,7 +191,8 @@ VALUES (
     sqlc.arg('group_key')::text,
     sqlc.arg('job_id')::uuid,
     sqlc.arg('commitment_date')::date,
-    sqlc.arg('payload')::jsonb
+    sqlc.arg('payload')::jsonb,
+    sqlc.arg('in_app')::boolean
 )
 ON CONFLICT (recipient_user_id, type, job_id, commitment_date) WHERE commitment_date IS NOT NULL DO NOTHING;
 

@@ -219,8 +219,8 @@ func (q *Queries) GetNotificationParticipationCandidate(ctx context.Context, arg
 	return candidate_id, err
 }
 
-const insertNotification = `-- name: InsertNotification :exec
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, created_at)
+const insertNotification = `-- name: InsertNotification :execrows
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, in_app, created_at)
 VALUES (
     $1::uuid,
     $2::uuid,
@@ -234,6 +234,7 @@ VALUES (
     $10::uuid,
     $11::uuid,
     $12::jsonb,
+    $13::boolean,
     (SELECT e.occurred_at FROM notification_events e WHERE e.id = $11::uuid)
 )
 ON CONFLICT (recipient_user_id, source_event_id, type) WHERE source_event_id IS NOT NULL DO NOTHING
@@ -252,13 +253,17 @@ type InsertNotificationParams struct {
 	ActorUserID     pgtype.UUID `json:"actor_user_id"`
 	SourceEventID   uuid.UUID   `json:"source_event_id"`
 	Payload         []byte      `json:"payload"`
+	InApp           bool        `json:"in_app"`
 }
 
 // Immediate notification (D21): a re-processed event inserts nothing twice.
 // created_at is the event's occurred_at, so a delayed fan-out keeps the group's
-// day and the retention clock aligned with the event (L24).
-func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) error {
-	_, err := q.db.Exec(ctx, insertNotification,
+// day and the retention clock aligned with the event (L24). in_app is the
+// recipient's effective in-app preference at creation (notifications-v2 D6,
+// D7), never rewritten. Affected rows = 1 inserted / 0 deduplicated: only an
+// inserted row gets an email delivery decision (v2 D8).
+func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertNotification,
 		arg.ID,
 		arg.RecipientUserID,
 		arg.RecipientKind,
@@ -271,8 +276,12 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 		arg.ActorUserID,
 		arg.SourceEventID,
 		arg.Payload,
+		arg.InApp,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertNotificationEvent = `-- name: InsertNotificationEvent :exec
@@ -322,7 +331,7 @@ func (q *Queries) InsertNotificationEvent(ctx context.Context, arg InsertNotific
 }
 
 const insertScheduledNotification = `-- name: InsertScheduledNotification :execrows
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, commitment_date, payload)
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, commitment_date, payload, in_app)
 VALUES (
     $1::uuid,
     $2::uuid,
@@ -333,7 +342,8 @@ VALUES (
     $6::text,
     $7::uuid,
     $8::date,
-    $9::jsonb
+    $9::jsonb,
+    $10::boolean
 )
 ON CONFLICT (recipient_user_id, type, job_id, commitment_date) WHERE commitment_date IS NOT NULL DO NOTHING
 `
@@ -348,10 +358,12 @@ type InsertScheduledNotificationParams struct {
 	JobID           uuid.UUID   `json:"job_id"`
 	CommitmentDate  pgtype.Date `json:"commitment_date"`
 	Payload         []byte      `json:"payload"`
+	InApp           bool        `json:"in_app"`
 }
 
 // Scheduled notification (D21): each (recipient, type, job, date) fires at
 // most once; a renegotiated date is a new key. No actor, no source event.
+// in_app as in InsertNotification (v2 D6, D7); affected rows feed v2 D8.
 func (q *Queries) InsertScheduledNotification(ctx context.Context, arg InsertScheduledNotificationParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertScheduledNotification,
 		arg.ID,
@@ -363,6 +375,7 @@ func (q *Queries) InsertScheduledNotification(ctx context.Context, arg InsertSch
 		arg.JobID,
 		arg.CommitmentDate,
 		arg.Payload,
+		arg.InApp,
 	)
 	if err != nil {
 		return 0, err
@@ -991,6 +1004,64 @@ func (q *Queries) ListNotificationJobs(ctx context.Context, arg ListNotification
 			&i.HasTitle,
 			&i.Title,
 			&i.CanOpen,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotificationPreferenceOverrides = `-- name: ListNotificationPreferenceOverrides :many
+SELECT p.user_id, p.company_id, p.type, p.enabled
+FROM notification_preferences p
+WHERE p.channel = $1::text
+  AND p.user_id = ANY ($2::uuid[])
+  AND p.type = ANY ($3::text[])
+  AND (p.company_id IS NULL OR p.company_id = ANY ($4::uuid[]))
+`
+
+type ListNotificationPreferenceOverridesParams struct {
+	Channel    string      `json:"channel"`
+	UserIds    []uuid.UUID `json:"user_ids"`
+	Types      []string    `json:"types"`
+	CompanyIds []uuid.UUID `json:"company_ids"`
+}
+
+type ListNotificationPreferenceOverridesRow struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+	Type      string      `json:"type"`
+	Enabled   bool        `json:"enabled"`
+}
+
+// Creation-time preferences (notifications-v2 D6, D7): the override rows of
+// one channel for a batch of recipients, read in the inserting tx, one query
+// per fan-out event / scheduler run. Arrays over-fetch at most their cross
+// product (company_id NULL = candidate tree); the caller matches exact
+// (user, company, type) keys and mandatory types ignore any row.
+func (q *Queries) ListNotificationPreferenceOverrides(ctx context.Context, arg ListNotificationPreferenceOverridesParams) ([]ListNotificationPreferenceOverridesRow, error) {
+	rows, err := q.db.Query(ctx, listNotificationPreferenceOverrides,
+		arg.Channel,
+		arg.UserIds,
+		arg.Types,
+		arg.CompanyIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNotificationPreferenceOverridesRow
+	for rows.Next() {
+		var i ListNotificationPreferenceOverridesRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.CompanyID,
+			&i.Type,
+			&i.Enabled,
 		); err != nil {
 			return nil, err
 		}

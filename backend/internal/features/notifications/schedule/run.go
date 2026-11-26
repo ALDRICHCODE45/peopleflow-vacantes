@@ -65,19 +65,15 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, stepErr(stepAssignment, err)
 	}
-	var res Result
+	var due []scheduled
 	for _, d := range deliveries {
 		w, ok := Classify(d.CommitmentDate.Time, today)
 		if !ok {
 			continue
 		}
 		date := civil(d.CommitmentDate.Time)
-		n, err := insert(ctx, q, scheduled{recipient: d.UserID, company: d.CompanyID, job: d.JobID, typ: w.DeliveryType(), reason: domain.RelationTeam,
+		due = append(due, scheduled{recipient: d.UserID, company: d.CompanyID, job: d.JobID, typ: w.DeliveryType(), reason: domain.RelationTeam,
 			date: date, payload: map[string]any{"commitment_date": date.Format(time.DateOnly)}})
-		if err != nil {
-			return Result{}, err
-		}
-		res.DeliveryCreated += n
 	}
 	for _, a := range assignments {
 		w, ok := Classify(a.RecruiterDeadline.Time, today)
@@ -89,12 +85,26 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 		if a.Function.Valid {
 			payload["function"] = a.Function.String
 		}
-		n, err := insert(ctx, q, scheduled{recipient: a.UserID, company: a.CompanyID, job: a.JobID, typ: w.AssignmentType(), reason: domain.RelationAssignee,
+		due = append(due, scheduled{recipient: a.UserID, company: a.CompanyID, job: a.JobID, typ: w.AssignmentType(), reason: domain.RelationAssignee,
 			date: date, payload: payload})
+	}
+	inApp, err := inAppOverrides(ctx, q, due)
+	if err != nil {
+		return Result{}, stepErr(stepPreferences, err)
+	}
+	var res Result
+	for _, item := range due {
+		n, err := insert(ctx, q, item, inApp.Effective(item.scope()))
 		if err != nil {
 			return Result{}, err
 		}
-		res.AssignmentCreated += n
+		if item.reason == domain.RelationAssignee {
+			res.AssignmentCreated += n
+		} else {
+			res.DeliveryCreated += n
+		}
+		// notifications-v2 D8 (E4): the email delivery decision runs here,
+		// only when n == 1 (the row was inserted by this run).
 	}
 	resolved, err := q.ResolveStaleScheduledNotifications(ctx)
 	if err != nil {
@@ -107,9 +117,43 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 	return res, nil
 }
 
-// insert writes one item with a uuid v7 id and group n:<id>; 0 when the
-// (recipient, type, job, date) already fired.
-func insert(ctx context.Context, q *db.Queries, s scheduled) (int, error) {
+// scope is the override scope of an item: (recipient, company, type).
+func (s scheduled) scope() domain.PreferenceKey {
+	return domain.PreferenceKey{User: s.recipient, Company: s.company, Type: s.typ}
+}
+
+// inAppOverrides reads, in the run's tx and with one query, the in_app
+// override rows of every item the date rule yields (notifications-v2 D6,
+// D7); no read when every item is mandatory (always visible).
+func inAppOverrides(ctx context.Context, q *db.Queries, due []scheduled) (*domain.Overrides, error) {
+	keys := make([]domain.PreferenceKey, len(due))
+	for i, item := range due {
+		keys[i] = item.scope()
+	}
+	out := domain.NewOverrides(domain.ChannelInApp)
+	lookup := domain.NewOverrideLookup(keys)
+	if lookup.Empty() {
+		return out, nil
+	}
+	rows, err := q.ListNotificationPreferenceOverrides(ctx, db.ListNotificationPreferenceOverridesParams{
+		Channel: string(domain.ChannelInApp), UserIds: lookup.Users, Types: lookup.Types, CompanyIds: lookup.Companies})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		k := domain.PreferenceKey{User: r.UserID, Type: domain.Type(r.Type)}
+		if r.CompanyID.Valid {
+			k.Company = r.CompanyID.Bytes
+		}
+		out.Set(k, r.Enabled)
+	}
+	return out, nil
+}
+
+// insert writes one item with a uuid v7 id, group n:<id> and the given
+// in_app; it returns the affected rows: 1 inserted, 0 when the (recipient,
+// type, job, date) already fired (its in_app is never rewritten).
+func insert(ctx context.Context, q *db.Queries, s scheduled, inApp bool) (int, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
 		return 0, stepErr(stepInsert, err)
@@ -128,6 +172,7 @@ func insert(ctx context.Context, q *db.Queries, s scheduled) (int, error) {
 		JobID:           s.job,
 		CommitmentDate:  pgtype.Date{Time: s.date, Valid: true},
 		Payload:         payload,
+		InApp:           inApp,
 	})
 	if err != nil {
 		return 0, stepErr(stepInsert, err)
