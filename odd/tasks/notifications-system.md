@@ -164,3 +164,13 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   candidate no longer participates; title from the public projection (as /v2/me/applications); no candidate account →
   403 account_required. N7 = 180-day purge command, no API change. T3.6 unblocked (frontend schema must accept
   company: null).
+- **L15** (2026-11-26) Close of T3 (feat/notifications-ui HEAD 6d97448e): full Vitest suite 12591 pass + 1 fixed
+  (requestPath allowlist, 6d97448e), production build ok. Independent real-browser check (Chromium, real Cognito login,
+  API e1f0affd at :8081, dev data Grupo Altavista): all 9 items pass, S2 and S6 pass — bell count/aria and 30 s polling,
+  448px sheet / full-screen phone, attention 3 «Vencida» + 1 «Vence hoy», 9-application group with sample, reassigned
+  copy, real Base UI «Filtrar» popover (focus, Escape, facets), single mark persisted, read-all + exact undo (member
+  and candidate), pipeline ?candidato= incl. client navigation, candidate inbox without attention/sample/filter. Data
+  restored to the initial counts. Not checked: «Cargar más», multiple day sections, filter popover on phone, hidden-tab
+  polling. Notes: the application group dated 2026-11-18 by group_key shows under «Hoy» because latest_at is the
+  notification created_at (seed events fanned out today); the candidate sheet on the pipeline is modal and covers the
+  bell until closed.
