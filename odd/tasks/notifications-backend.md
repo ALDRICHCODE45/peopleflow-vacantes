@@ -50,7 +50,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 
 - T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6), frontend approved (L7)
 - T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — done: 0f133e1a 6810c32a d12d2139 1f5ed631 c8080b10 b52fbca6 + review correction 07f53042
-- T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — done: 31d04365 0d8168e8 76b60256 fc9270a4; review advisories fixed (L11, uncommitted)
+- T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — done: 31d04365 0d8168e8 76b60256 fc9270a4; review advisories fixed 7fe1e88f a7209e44 706387df; verified (L12)
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — pending
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — pending
 - T6 — N5: read/unread/read-all + facets (D15–D17, D26) — pending
@@ -192,3 +192,8 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   loop test under `-race` → `WARNING: DATA RACE`; (4) `row ids: … RecipientKind:candidate … ActorUserID:<actor>`;
   (5) mutation `process_id = $2 OR true` in the generated query → only «participation of another job» fails
   (restored, `cmp` identical); (6) build failure, undefined `classify` / `stepErr`. GREEN: see the return evidence.
+- **L12** 2026-11-26, N2 closed. Native review `review-f86e275fc0c9abf1` approved (advisories fixed in a7209e44/7fe1e88f).
+  Independent verify: claim/process, recipients (11 immediate types), visible status/payloads, group keys all pass;
+  integration 33 pass/0 skip, unit 125 packages ok, fanout -race ok, sqlc diff clean. Follow-ups: double-attempt race
+  between rollback and recordFailure across instances (earlier give-up only); deleted company and manual participation
+  not covered against Postgres; integration tests not run under -race.
