@@ -143,7 +143,11 @@ func (h *Handler) UploadMedia(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(transferTimeout))
+	// Lift both server-wide deadlines: the read one for the body and the write one, which
+	// counts from the request headers, so a slow but accepted upload still gets its answer.
+	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(time.Now().Add(transferTimeout))
+	_ = rc.SetWriteDeadline(time.Now().Add(transferTimeout))
 	r.Body = http.MaxBytesReader(w, r.Body, app.MaxVideoBytes+multipartOverhead)
 	reader, err := r.MultipartReader()
 	if err != nil {
@@ -324,7 +328,9 @@ func (h *Handler) GetMedia(w http.ResponseWriter, r *http.Request) {
 	header.Set("Content-Type", m.ContentType) // set before ServeContent: never sniffed
 	header.Set("X-Content-Type-Options", "nosniff")
 	header.Set("Content-Security-Policy", "default-src 'none'; sandbox")
-	if strings.Contains(r.Header.Get("Range"), ",") {
+	if raw := r.Header.Get("Range"); raw != "" && !singleByteRange(raw) {
+		// Several ranges, another unit or a malformed spec: ignore the header and
+		// answer the whole file (RFC 9110 §14.2), as images did before Range support.
 		r = r.Clone(r.Context())
 		r.Header.Del("Range")
 	}
@@ -389,4 +395,42 @@ func (w *mediaWriter) Write(b []byte) (int, error) {
 		return len(b), nil
 	}
 	return w.ResponseWriter.Write(b)
+}
+
+// singleByteRange reports whether raw is exactly one satisfiable-looking byte range
+// spec: "bytes=N-M" (N <= M), "bytes=N-" or "bytes=-K" (K > 0). Anything else is
+// ignored by the caller instead of being answered 416.
+func singleByteRange(raw string) bool {
+	spec, ok := strings.CutPrefix(raw, "bytes=")
+	if !ok || strings.Contains(spec, ",") {
+		return false
+	}
+	first, last, ok := strings.Cut(strings.TrimSpace(spec), "-")
+	if !ok {
+		return false
+	}
+	digits := func(v string) bool {
+		if v == "" || len(v) > 18 {
+			return false
+		}
+		for _, c := range v {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	switch {
+	case first == "":
+		return digits(last) && strings.TrimLeft(last, "0") != ""
+	case last == "":
+		return digits(first)
+	default:
+		if !digits(first) || !digits(last) {
+			return false
+		}
+		a, _ := strconv.ParseInt(first, 10, 64)
+		b, _ := strconv.ParseInt(last, 10, 64)
+		return a <= b
+	}
 }

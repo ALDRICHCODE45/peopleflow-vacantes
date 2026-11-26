@@ -57,7 +57,8 @@ the row; any later failure deletes the object. Migration 00067
 `GET /v2/company-sites/media/{id}` uses `http.ServeContent` for every kind: one
 `Range` (first-last, `N-`, `-N`) → 206 with `Content-Range`; none → 200; both with
 `Accept-Ranges: bytes`. An unsatisfiable range → 416 `Content-Range: bytes */size`,
-`no-store`, empty body; several ranges → 200 with the whole file. Images are opened
+`no-store`, empty body; several ranges, a malformed spec, another unit or `bytes=-0`
+→ the header is ignored and the answer is 200 with the whole file. Images are opened
 whole (`Storage.Open`: the file on disk, or the bounded S3 buffer below); videos
 through `Storage.OpenRange`: the file on disk, or a lazy S3 reader whose `Prefetch`
 issues one ranged `GetObject` for exactly the response bytes right before the

@@ -329,7 +329,8 @@ variants ignore `background_video`.
 the whole file; both carry `Accept-Ranges: bytes`, `Content-Length`, the DB content type, `nosniff`, CSP
 `default-src 'none'; sandbox` and `public, max-age=31536000, immutable`. An unsatisfiable range → 416 with
 `Content-Range: bytes */size`, `Cache-Control: no-store` and an empty body; a request with several ranges is answered
-200 with the whole file. 404 `not_found` / 500 `internal_error` keep `no-store`. Disk serves the file; S3 issues one
+200 with the whole file, and so is a malformed spec, another unit or `bytes=-0` (the header is ignored, RFC 9110
+§14.2). 404 `not_found` / 500 `internal_error` keep `no-store`. Disk serves the file; S3 issues one
 ranged `GetObject` per response and streams it (videos never go through the 5 MiB buffered image read).
 
 ## 3. Private endpoints (`requireAuth` + `requireRecruiter`, member of the company; `Cache-Control: no-store`)

@@ -60,3 +60,14 @@ it merges only after this is in main.
   `background_video` and `cover`. Deviations: multi-range requests are served 200 whole; video upload/download
   deadlines extended to 2 min; media JSON `width`/`height` may be `null` (videos only) and `duration_ms` appears
   only on videos. Contract §2.4 amendment + `backend/docs/site-media.md` updated.
+- **L4** 2026-11-26, independent verify (gentle-ai-verify, Risk items 2/3): no blockers. Parser robustness, upload
+  (spool bounded and removed, keys, traversal, ownership, quota), serving (206/416/200 disk + MinIO), migration 00067
+  round trip, CV Reconcile keep-predicate and old documents: PASS. Fixed by the parent: #1 Medium — the upload
+  handler extended only the read deadline, so a slow accepted upload was stored but the client got no response (the
+  server WriteTimeout counts from the headers): now also extends the write deadline; #2 Low — a malformed Range,
+  another unit or `bytes=-0` answered 416 (images answered 200 before): now ignored → 200 (`singleByteRange`, unit
+  test; `TestPublicMediaRange` updated, real 416 only for an unsatisfiable start); contract and site-media doc say so.
+  Accepted Low/info: request cap 20 MiB + 64 KiB for every kind (per-file 5 MiB image cap and 413 unchanged), image
+  preconditions now honored by ServeContent, spool concurrency/tmpfs (follow-up), latent Reconcile race (no caller in
+  production). Full backend suite on the branch: unit exit 0, integration 123 packages ok, only the legacy
+  pre-existing identity/jobs postgres FAIL; archguard only docker/minio.

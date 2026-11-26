@@ -231,7 +231,10 @@ func TestPublicMediaRange(t *testing.T) {
 			{"suffix", "bytes=-3", 206, "789", "bytes 7-9/10"},
 			{"past the end clamps", "bytes=8-99", 206, "89", "bytes 8-9/10"},
 			{"multiple ranges are ignored", "bytes=0-1,4-5", 200, "0123456789", ""},
-			{"malformed range", "bytes=x-y", 416, "", ""},
+			{"malformed range is ignored", "bytes=x-y", 200, "0123456789", ""},
+			{"unknown unit is ignored", "items=0-1", 200, "0123456789", ""},
+			{"empty suffix is ignored", "bytes=-0", 200, "0123456789", ""},
+			{"start past the end is unsatisfiable", "bytes=20-", 416, "", ""},
 		} {
 			t.Run(kind+"/"+tc.name, func(t *testing.T) {
 				w := getMedia(router, s.m.ID, tc.header)
