@@ -33,12 +33,12 @@ allow it, company rules set by the owner and personal preferences within them. D
 | T1 | S1–S7 | Design directions in `design/notifications/` (writer, gentle-design) | |
 | T2 | S1–S6 | Backend contract proposal (events, recipients, inbox API, preferences) with the backend session | backend 80a5ce80 (agreed, L11) |
 | T3 | S5–S6 | Stage 1 implementation (bell + inbox + stage-1 events), branch `feat/notifications-ui` | |
-| T3.1 | S6 | Company API client + types for GET list / unread-count, unread-count polling (~30 s + on focus); inline | |
-| T3.2 | S6 | Bell with unread counter in the company shell; opens the inbox sheet; inline | |
-| T3.3 | S6 | Inbox side sheet (design 07): attention, grouped items, copy per type, link mapping (L10), cursor paging, empty/error; inline | |
-| T3.4 | S6 | Pipeline board opens one candidate from `?candidato=<participation_id>` (link kind `participation`); inline | |
-| T3.5 | S6 | Read / unread with exact undo / read-all / type+vacancy filter (needs backend N5) | |
-| T3.6 | S2, S6 | Candidate bell + inbox on `/v2/me/notifications` (needs backend N6) | |
+| T3.1 | S6 | Company API client + types for GET list / unread-count, unread-count polling (~30 s + on focus); inline | 2b138bd2 |
+| T3.2 | S6 | Bell with unread counter in the company shell; opens the inbox sheet; inline | aa40a4f9 |
+| T3.3 | S6 | Inbox side sheet (design 07): attention, grouped items, copy per type, link mapping (L10), cursor paging, empty/error; inline | aa40a4f9 |
+| T3.4 | S6 | Pipeline board opens one candidate from `?candidato=<participation_id>` (link kind `participation`); inline | e50b2cd8 |
+| T3.5 | S6 | Read / unread with exact undo / read-all / type+vacancy filter (needs backend N5) | API e1ae7127; UI 26067fac |
+| T3.6 | S2, S6 | Candidate bell + inbox on `/v2/me/notifications` (needs backend N6) | e3f718be |
 
 ## Log
 
