@@ -335,6 +335,10 @@ func run() error {
 	// waited for, on shutdown before the pool is closed (deferred calls run last-in first).
 	stopNotificationFanOut := startNotificationFanOut(ctx, newNotificationFanOut(pool))
 	defer stopNotificationFanOut()
+	// notifications-v1 D20: delivery and recruiter deadline items, once at startup and every 15 min, one instance at a time
+	// (advisory lock notif_sc). Stopped, and waited for, on shutdown before the pool is closed (deferred calls run last-in first).
+	stopNotificationSchedule := startNotificationSchedule(ctx, newNotificationScheduler(pool))
+	defer stopNotificationSchedule()
 	slog.Info("document storage", "enabled", documentConfig.Enabled(), "mode", documentConfig.Mode, "bucket", documentConfig.Bucket, "region", documentConfig.Region, "prefix", documentConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)
 	// Carried replacement candidates trigger the same stage-entry effects (psychometric auto-send) as an intake.
