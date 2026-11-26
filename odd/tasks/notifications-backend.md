@@ -50,7 +50,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 
 - T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6), frontend approved (L7)
 - T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — done: 0f133e1a 6810c32a d12d2139 1f5ed631 c8080b10 b52fbca6 + review correction 07f53042
-- T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — pending
+- T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — done: 31d04365 0d8168e8 76b60256 fc9270a4; review advisories fixed (L11, uncommitted)
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — pending
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — pending
 - T6 — N5: read/unread/read-all + facets (D15–D17, D26) — pending
@@ -142,3 +142,53 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   IDENTITY_* vars) — not re-run on base. Follow-ups for N2: copy actor_user_id only for ActorType user (FK risk);
   count/log capture failures distinctly; test the StructuredMetadata branch; cmd/api harness uses the wrapped audit
   repo; seed geo_countries in the harness; deploy N1 together with N2 (events accumulate otherwise).
+- **L10** 2026-11-26, N2 (T3) by worker, uncommitted in the worktree (the worker policy forbids staging/committing; the parent
+  commits). `notifications/fanout`: `Planner` (ordered `(type → relation)` rules = `Stage1Rules()` from the type table;
+  relations team / assignee / previous_assignee / candidate; reserved `RelationRole` seam returns
+  `ErrRelationNotEnabled`; actor excluded; de-duplicated per type, first rule gives the reason; NULL subject /
+  participation → nobody; malformed `from_user_id` → nobody), visible-status rule through an injected `VisibleStatus`
+  (D7: Moved notifies only when the status changes, payload `status` = new; Recovered always; Discarded → `closed`, with
+  `has_message` only `candidate_message_received`, D8), contract payloads per type (ids/enums only), `group_key` per D11
+  with the America/Mexico_City date of `occurred_at` (tzdata embedded), `n:<uuid v7 id>` otherwise. `Processor.Tick`:
+  up to 100 events per tick, each claimed `ORDER BY occurred_at, id LIMIT 1 FOR UPDATE SKIP LOCKED` in its own tx
+  (resolve + `INSERT … ON CONFLICT (recipient_user_id, source_event_id, type) DO NOTHING` + `processed_at`), events
+  already tried in the tick are skipped (a failing event is retried on the next tick and never blocks later ones); on
+  error rollback, then `attempts+1` in a separate statement, at 10 `failed=true, processed_at=now()`; logs carry
+  event type + id only. Directory SQL (`db/queries/notifications.sql`, sqlc regenerated, `sqlc diff` clean): team =
+  active assignments of non-stakeholder members of the event company with `companies.deleted_at IS NULL`; assignee =
+  same for the subject; previous assignee = non-stakeholder member; candidate = `process_participations.candidate_id`
+  of the participation on that job. `Loop` (2 s, once at start, panic/err logged without content) started/stopped in
+  `cmd/api/main.go` via `cmd/api/notifications_fanout.go` (stop waits, runs before `pool.Close`); `candidateVisibleStatus`
+  composes `CandidateStatus` with `participationRules.InitialStage` there so notifications import no sibling feature
+  (archguard). N1 follow-ups: `actor_user_id` copied only for `ActorType user`; capture failures counted
+  (`Decorator.Failures()`) and logged `notification capture failed` with audit type + audit event id only; test for
+  the StructuredMetadata branch. RED observed: actor test failed (`actor type "system": actor_user_id=…`), capture
+  test and planner tests failed to build (undefined `WithLogger` / `Rule`), cmd/api tests undefined
+  `candidateVisibleStatus` / `startNotificationFanOut`. Not RED-first: `process.go` / `loop.go` were written before
+  their tests; the integration tests were instead checked by mutation of the generated SQL (each restored, file
+  compared): removing the in-tick skip → `claimed=11` fail; dropping the stakeholder filter → resolver cases fail;
+  removing `ON CONFLICT` → re-processing records an attempt instead of being idempotent. Evidence: `make test
+  PKG='./internal/features/notifications/... ./cmd/api/'` ok (4 packages); `make test PKG=./internal/tools/archguard/`
+  ok; `go vet -tags=integration ./internal/features/notifications/...` clean; `DRAFT_TEST_DATABASE_URL=… make
+  test-integration PKG=./internal/features/notifications/...` all pass, none skipped (capture 8, domain 10, fanout 11:
+  recipients from current data incl. stakeholder / ex-member / ended assignment / actor / foreign participation,
+  SKIP LOCKED with three concurrent txs + two racing processors over 62 events claimed exactly once, retry → failed
+  after 10 with log redaction, idempotent re-processing). Deviation: claim is one event per tx (≤ 100 per tick) rather
+  than one 100-row locking batch, to honour «per event one tx» with row locks held. Not covered against Postgres: a
+  real manual participation (fixture needs geo seeds); covered by the resolver unit test and the no-row path. Open from
+  L9 (not N2 scope): cmd/api harness on the wrapped audit repo, geo_countries harness seed; deploy N1 with N2.
+- **L11** 2026-11-26, N2 native review approved with advisories; fixed by worker (uncommitted; parent commits). (1) Poison
+  event: `processNext` recovers a panic per event (deferred rollback still runs), records it as a failed attempt with
+  step `panic`, value dropped; later events in the tick still process. (2) Retry budget: `notification_events.next_attempt_at
+  timestamptz NULL` added in place to unreleased 00068 (pending index `INCLUDE (next_attempt_at)`); claim requires
+  `next_attempt_at IS NULL OR <= now()`; a failure sets `now() + min(30 s · 2^(n−1), 30 min)` from the stored count
+  (30 s … 30 min, ~2 h over 10 attempts; base 30 s rather than the review's example 2 s, which would span ~34 min),
+  NULL when given up. (3) Loop test deterministic and race-free (atomics, per-tick completion channel, no cancel
+  race). (4) Candidate rows store `actor_user_id = NULL`. (5) The «participation of another job» case uses a real
+  organic participation on a second job. (6) Value-free classifier: tick and attempt logs carry `step`
+  (begin/claim/decode/plan/insert/mark/commit/panic) and `sqlstate` (pgconn code), never the message. Contract D4,
+  §Data model and §Scheduler fan-out paragraph updated. RED observed per item: (1) `panic: poison …` escaped `Tick`;
+  (2) `column "next_attempt_at" does not exist (SQLSTATE 42703)` in the retry and not-yet-due tests; (3) the committed
+  loop test under `-race` → `WARNING: DATA RACE`; (4) `row ids: … RecipientKind:candidate … ActorUserID:<actor>`;
+  (5) mutation `process_id = $2 OR true` in the generated query → only «participation of another job» fails
+  (restored, `cmp` identical); (6) build failure, undefined `classify` / `stepErr`. GREEN: see the return evidence.

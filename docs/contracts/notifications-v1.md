@@ -103,7 +103,7 @@ system is not in production and all data is disposable.
 | D1 | S2 | **Capture = a decorator of the audit port** (`internal/features/notifications/capture`) wrapping the production audit repository in `cmd/api/main.go` (both instances); after the inner `Append` succeeds it inserts a `notification_events` row in the **same tx** when the type is notifiable, and fails the tx if that insert fails — same atomicity as S2 with zero call-site changes and without coupling the audit feature to notifications. |
 | D2 | S2 | **Closed notifiable map in code** (audit type → notification types, §Capture), guarded by a test that every key exists in the audit catalog — one place to review what notifies. |
 | D3 | S2 | **`notification_events` stores only ids/enums copied from the audit event**; the only extra read at capture is `candidate_message IS NOT NULL` for `ParticipationDiscarded` (same tx, row already updated) — keeps capture cheap and the message flag race-free against a later recovery. |
-| D4 | S2 | **Fan-out in-process** (`internal/features/notifications/fanout`, no `outbox`/`worker` segments): every API instance claims pending events with `FOR UPDATE SKIP LOCKED`, batch 100, every 2 s, resolves recipients from current data, inserts `ON CONFLICT DO NOTHING`, marks processed in the same tx — at-least-once processing, exactly-once rows via uniques, no extra infrastructure. |
+| D4 | S2 | **Fan-out in-process** (`internal/features/notifications/fanout`, no `outbox`/`worker` segments): every API instance claims due pending events (`next_attempt_at IS NULL OR next_attempt_at <= now()`) with `FOR UPDATE SKIP LOCKED`, ≤ 100 per tick (one event per tx), every 2 s, resolves recipients from current data, inserts `ON CONFLICT DO NOTHING`, marks processed in the same tx; a failed or panicking event is rolled back and retried with exponential backoff (30 s · 2^(n−1), cap 30 min, ~2 h over 10 attempts) — at-least-once processing, exactly-once rows via uniques, no poison event blocks the queue, no extra infrastructure. |
 | D5 | S2, L4.5 | **Recipient resolver = ordered rules `(notification type → relation)`** with relations `team`, `assignee`, `candidate` in stage 1 and a reserved `role:<member_role>` relation (company-wide, in-app only) for stage 3 — the per-role stakeholder rule plugs in without touching capture or fan-out. |
 | D6 | S1, S2, L4.5 | **Actor never notified; stakeholders receive nothing; candidate notifications only for organic participations (account); member recipients must be active company members at fan-out and are filtered by their current company at read time** — fixed stage-1 rules agreed in L4. |
 | D7 | S2 | **`candidate_status_changed` only when the candidate-visible status (`submitted | in_process | closed`) changes** — a move between internal stages is not shown to the candidate today (`status.go:6-13`), so notifying it would leak pipeline detail and spam. |
@@ -144,9 +144,10 @@ CREATE TABLE notification_events (
     occurred_at      timestamptz NOT NULL DEFAULT now(),     -- same clock as the audit row (same tx)
     attempts         integer NOT NULL DEFAULT 0,
     processed_at     timestamptz NULL,
-    failed           boolean NOT NULL DEFAULT false          -- true when given up after 10 attempts (processed_at set too)
+    failed           boolean NOT NULL DEFAULT false,         -- true when given up after 10 attempts (processed_at set too)
+    next_attempt_at  timestamptz NULL                        -- retry backoff after a failed attempt (D4); NULL = due now
 );
-CREATE INDEX notification_events_pending ON notification_events (occurred_at, id) WHERE processed_at IS NULL;
+CREATE INDEX notification_events_pending ON notification_events (occurred_at, id) INCLUDE (next_attempt_at) WHERE processed_at IS NULL;
 CREATE INDEX notification_events_processed ON notification_events (processed_at) WHERE processed_at IS NOT NULL; -- purge
 
 CREATE TABLE notifications (
@@ -321,10 +322,13 @@ the assignment ends, its `recruiter_deadline` changes or is cleared (`VacancyAss
 has a fulfillment row, is `closed` or `finished`, or — for due-soon — an overdue item exists for the same recipient,
 job and date.
 
-Fan-out (D4) is a separate loop in every instance (no advisory lock): claim `≤ 100` pending events `ORDER BY
-occurred_at, id FOR UPDATE SKIP LOCKED`, per event resolve + insert + `processed_at = now()` in one tx; on error
-increment `attempts` (separate tx) and retry on the next tick; after 10 attempts set `failed = true, processed_at =
-now()` and log type and id only (no payload).
+Fan-out (D4) is a separate loop in every instance (no advisory lock): claim `≤ 100` due pending events (`next_attempt_at
+IS NULL OR next_attempt_at <= now()`) `ORDER BY occurred_at, id FOR UPDATE SKIP LOCKED`, one event per tx: resolve +
+insert + `processed_at = now()`; on error or panic roll back, increment `attempts` (separate tx) and set
+`next_attempt_at = now() + min(30 s · 2^(attempts−1), 30 min)` (an event is tried at most once per tick and never
+blocks later ones); after 10 attempts set `failed = true, processed_at = now()`, `next_attempt_at = NULL`. Logs carry
+the event type, id, failing step and SQLSTATE only (no payload, no error message). Candidate rows store
+`actor_user_id = NULL`.
 
 ## Endpoints
 
