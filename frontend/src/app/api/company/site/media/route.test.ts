@@ -38,3 +38,11 @@ it("rejects malformed backend success", async () => { vi.mocked(fetch).mockResol
 it("rejects status/code mismatch", async () => { vi.mocked(fetch).mockResolvedValue(Response.json({ error: "bad", code: "image_too_small" }, { status: 400 })); expect((await POST(request())).status).toBe(502); });
 it("rejects cross-origin requests", async () => { expect((await POST(request(form(), { origin: "https://other.test" }))).status).toBe(403); expect(fetch).not.toHaveBeenCalled(); });
 it("requires session", async () => { vi.mocked(getActionAccessToken).mockResolvedValue(null); expect((await POST(request())).status).toBe(401); expect(fetch).not.toHaveBeenCalled(); });
+it("hero_video (slice B) is unknown while sections v2 is off", async () => {
+ const req = new Request("http://localhost/api/company/site/media?kind=hero_video", { method: "POST", body: new Uint8Array([1, 2, 3]), headers: { "content-type": "video/mp4" } });
+ expect((await POST(req)).status).toBe(400); expect(fetch).not.toHaveBeenCalled();
+});
+it("rejects unknown query parameters before the backend", async () => {
+ const req = new Request("http://localhost/api/company/site/media?kind=cover", { method: "POST", body: form() });
+ expect((await POST(req)).status).toBe(400); expect(fetch).not.toHaveBeenCalled();
+});
