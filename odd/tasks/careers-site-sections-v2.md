@@ -127,3 +127,8 @@ picks a direction, coordinated with the backend session.
 - **L15** (2026-11-26) Slice C decisions: retention «Hasta que el equipo los borre»; owner email postponed — user wants a
   full notification system first (captured verbatim in `odd/tasks/notifications-system-idea.md`). Backend took slice B
   (shape recorded in the contract file).
+- **L16** (2026-11-26) T6 slice B frontend: `c00e35a3` (background_video model, hero_video media kind + Spanish limit
+  messages, streamed upload route `?kind=hero_video`, media proxy forwarding Range → 206/416 and allowing video/mp4) and
+  `cb1eeed3` (editor «Fondo en movimiento» + VideoField with checks/progress/cancel/poster note; public `<video>` muted loop
+  inline with pause/play, reduced motion paused, error fallback). Related 59 files / 1497 passed, tsc 0, lint 0 errors.
+  Real playback, Range through the proxy and a ~20 MB upload need the browser once backend slice B is in main.
