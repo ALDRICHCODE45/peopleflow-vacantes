@@ -35,8 +35,8 @@ it merges only after this is in main.
 
 ## Tasks
 
-- T1 S1-S2 — slice B (writer) — done, uncommitted (L3)
-- T2 — suite, review, merge, notify frontend — pending
+- T1 S1-S2 — slice B (writer) — done 995e030a, 0462cc61, cd54cc4f, 188ab355
+- T2 — suite, review, merge, notify frontend — done
 
 ## Log
 
@@ -71,3 +71,11 @@ it merges only after this is in main.
   preconditions now honored by ServeContent, spool concurrency/tmpfs (follow-up), latent Reconcile race (no caller in
   production). Full backend suite on the branch: unit exit 0, integration 123 packages ok, only the legacy
   pre-existing identity/jobs postgres FAIL; archguard only docker/minio.
+- **L5** 2026-11-26, parent: RDD native review (whole branch over the lens budget → per commit): cd54cc4f
+  (upload/serving/disk adapter) and 0462cc61 (MP4 parser + codes) approved and acknowledged. Advisory follow-ups:
+  (1) duration enforced only from the self-declared mvhd; fragmented MP4 (mvex/moof) with mvhd 0 → video_invalid, and
+  a longer fragmented file could pass — cross-check mdhd/tkhd or reject mvex/moof; (2) mp4Reader treats (n==len, EOF)
+  from ReadAt as malformed; (3) untested uuid/hdlr/tkhd-version branches; (4) public video GET holds a connection up
+  to 2 min (slow-reader amplification); (5) spool in TMPDIR has no global bound or startup sweep; (6) rollback is
+  fix-forward only once a company saves `background_video` (old validator rejects the key; NULL dimensions);
+  write-deadline finding already fixed in 188ab355. Merged into local main; 00067 on the dev DB.
