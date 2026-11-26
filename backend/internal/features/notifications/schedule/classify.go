@@ -17,6 +17,7 @@ const (
 	stepAssignment  step = "list_assignment"
 	stepPreferences step = "preferences"
 	stepInsert      step = "insert"
+	stepEmail       step = "email"
 	stepResolve     step = "resolve"
 	stepCommit      step = "commit"
 	stepUnknown     step = "unknown"

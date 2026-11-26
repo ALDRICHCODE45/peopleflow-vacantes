@@ -240,6 +240,10 @@ type Querier interface {
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	InsertCandidateEducation(ctx context.Context, arg InsertCandidateEducationParams) error
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
+	// Single groups (every non-grouped type, all mandatory ones included, v2
+	// D10): one delivery per notification, due now. group_key is the
+	// notification's own n:<id>, so it never meets an open window.
+	InsertImmediateNotificationEmailDelivery(ctx context.Context, arg InsertImmediateNotificationEmailDeliveryParams) error
 	InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error
 	// Immediate notification (D21): a re-processed event inserts nothing twice.
 	// created_at is the event's occurred_at, so a delayed fan-out keeps the group's
@@ -286,6 +290,9 @@ type Querier interface {
 	// Relation previous_assignee: still a non-stakeholder member of the company,
 	// company not deleted (no assignment required, D10).
 	IsNotificationCompanyMember(ctx context.Context, arg IsNotificationCompanyMemberParams) (bool, error)
+	// v2 D8: a notification links to its delivery once, in the tx that created
+	// both; 0 affected rows means the row was missing or already linked.
+	LinkNotificationEmailDelivery(ctx context.Context, arg LinkNotificationEmailDeliveryParams) (int64, error)
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
 	// Recruiter queue read (design D5 second step). Same-company scope
 	// enforced inside the same statement. NO deleted_at / status filter on
@@ -351,6 +358,11 @@ type Querier interface {
 	// manual candidate or account name; '' when unknown). The caller gates it by
 	// vacancy access.
 	ListNotificationCandidateNames(ctx context.Context, arg ListNotificationCandidateNamesParams) ([]ListNotificationCandidateNamesRow, error)
+	// Email eligibility at creation (notifications-v2 D9, D19): of the given
+	// recipients, those live with a non-empty address whose normalized form
+	// (lower(btrim)) is not in email_suppressions. Only ids leave this query:
+	// the address is never copied or returned.
+	ListNotificationEmailDeliverableUsers(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error)
 	// GET B/facets (D17): the same groups per job with the current title
 	// (members: the draft title of the company; candidates: the public title they
 	// see in /v2/me/applications, only for a process they participate in;
@@ -692,6 +704,13 @@ type Querier interface {
 	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
 	// Reserved cv_s3_key and search_vector remain database-owned.
 	UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error)
+	// Grouped types (v2 D10, §Coalescing): the first eligible row of a
+	// (recipient, group_key) with no 'pending' delivery opens a fixed 10-minute
+	// window; later rows join it (the conflict returns the open delivery's id and
+	// never moves send_after). A claimed delivery ('sending') is outside the
+	// partial unique arbiter, so the next row opens a new window — also when this
+	// statement waited on the claim's row lock (the arbiter is re-checked).
+	UpsertCoalescedNotificationEmailDelivery(ctx context.Context, arg UpsertCoalescedNotificationEmailDeliveryParams) (uuid.UUID, error)
 	// PUT …/preferences (D4): one explicit settings row per validated entry, even
 	// when equal to the default; the caller runs every entry of a body in one tx
 	// (all or nothing). Mandatory types are refused before (and by the table

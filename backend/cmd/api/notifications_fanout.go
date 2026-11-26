@@ -28,9 +28,10 @@ type fanOutRunner interface {
 
 // newNotificationFanOut composes the fan-out (D4): every instance claims
 // pending notification_events every 2 s (SKIP LOCKED, no advisory lock).
-func newNotificationFanOut(pool *pgxpool.Pool) fanOutRunner {
+// email (notifications-v2 D8, mailer ≠ off) adds the email delivery decision.
+func newNotificationFanOut(pool *pgxpool.Pool, email bool) fanOutRunner {
 	planner := fanout.NewPlanner(candidateVisibleStatus{})
-	return fanout.NewLoop(fanout.NewProcessor(pool, planner, slog.Default()), slog.Default())
+	return fanout.NewLoop(fanout.NewProcessor(pool, planner, slog.Default()).WithEmailDeliveries(email), slog.Default())
 }
 
 // startNotificationFanOut runs the loop in a goroutine that ends with ctx (the

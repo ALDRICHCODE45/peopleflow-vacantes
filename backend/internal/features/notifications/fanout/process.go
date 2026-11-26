@@ -10,6 +10,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/emaildelivery"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -36,6 +37,7 @@ type Processor struct {
 	batch       int
 	maxAttempts int
 	logger      *slog.Logger
+	email       bool
 }
 
 // NewProcessor builds the stage-1 processor; a nil logger means slog.Default().
@@ -44,6 +46,13 @@ func NewProcessor(pool *pgxpool.Pool, planner Planner, logger *slog.Logger) *Pro
 		logger = slog.Default()
 	}
 	return &Processor{pool: pool, planner: planner, batch: BatchSize, maxAttempts: MaxAttempts, logger: logger}
+}
+
+// WithEmailDeliveries turns on the email delivery decision at creation
+// (notifications-v2 D8; NOTIFICATIONS_MAILER ≠ off). Off by default.
+func (p *Processor) WithEmailDeliveries(enabled bool) *Processor {
+	p.email = enabled
+	return p
 }
 
 // Tick processes up to BatchSize due events, oldest first. Each event is
@@ -111,6 +120,7 @@ func (p *Processor) process(ctx context.Context, tx pgx.Tx, q *db.Queries, row d
 	if err != nil {
 		return event, true, stepErr(stepPreferences, err)
 	}
+	var created []emaildelivery.Row
 	for _, n := range notifications {
 		inserted, err := insert(ctx, q, n, inApp.Effective(preferenceKey(n)))
 		if err != nil {
@@ -119,8 +129,14 @@ func (p *Processor) process(ctx context.Context, tx pgx.Tx, q *db.Queries, row d
 		if !inserted {
 			continue // D21 dedupe: created by an earlier attempt, nothing else to decide
 		}
-		// notifications-v2 D8 (E4): the email delivery decision runs here,
-		// only for rows this attempt actually inserted.
+		created = append(created, emailRow(n))
+	}
+	// notifications-v2 D8: the email delivery decision, in this tx and only
+	// for rows this attempt actually inserted (mailer off: none).
+	if p.email {
+		if err := emaildelivery.Create(ctx, q, created); err != nil {
+			return event, true, stepErr(stepEmail, err)
+		}
 	}
 	if err := q.MarkNotificationEventProcessed(ctx, event.ID); err != nil {
 		return event, true, stepErr(stepMark, err)
@@ -186,6 +202,13 @@ func insert(ctx context.Context, q *db.Queries, n Notification, inApp bool) (boo
 		InApp:           inApp,
 	})
 	return rows == 1, err
+}
+
+// emailRow is the delivery decision input of an inserted row.
+func emailRow(n Notification) emaildelivery.Row {
+	k := preferenceKey(n)
+	return emaildelivery.Row{NotificationID: n.ID, Recipient: n.RecipientUserID, RecipientKind: n.RecipientKind, Company: k.Company,
+		Type: n.Type, GroupKey: n.GroupKey, JobID: n.JobID}
 }
 
 // preferenceKey is the override scope of a row: (recipient, company, type);

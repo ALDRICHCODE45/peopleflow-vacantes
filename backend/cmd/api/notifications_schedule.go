@@ -16,8 +16,9 @@ type scheduleRunner interface {
 
 // newNotificationScheduler composes the deadline scheduler (D20): once at
 // start and every 15 min, one instance at a time (advisory lock notif_sc).
-func newNotificationScheduler(pool *pgxpool.Pool) scheduleRunner {
-	return schedule.NewScheduler(schedule.NewRunner(pool, nil), schedule.NewAdvisoryLock(pool), slog.Default())
+// email (notifications-v2 D8, mailer ≠ off) adds the email delivery decision.
+func newNotificationScheduler(pool *pgxpool.Pool, email bool) scheduleRunner {
+	return schedule.NewScheduler(schedule.NewRunner(pool, nil).WithEmailDeliveries(email), schedule.NewAdvisoryLock(pool), slog.Default())
 }
 
 // startNotificationSchedule runs the scheduler in a goroutine that ends with

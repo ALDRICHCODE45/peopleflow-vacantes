@@ -129,10 +129,10 @@ func TestInsertScheduledNotificationReportsAffectedRows(t *testing.T) {
 	s := scheduled{recipient: w.owner, company: w.company, job: j.id, typ: domain.TypeDeliveryDueSoon, reason: domain.RelationTeam,
 		date: time.Date(2026, 11, 27, 0, 0, 0, 0, time.UTC), payload: map[string]any{"commitment_date": "2026-11-27"}}
 	q := db.New(pool)
-	if n, err := insert(ctx, q, s, false); err != nil || n != 1 {
+	if _, n, err := insert(ctx, q, s, false); err != nil || n != 1 {
 		t.Fatalf("first insert: n=%d err=%v", n, err)
 	}
-	if n, err := insert(ctx, q, s, true); err != nil || n != 0 {
+	if _, n, err := insert(ctx, q, s, true); err != nil || n != 0 {
 		t.Fatalf("conflicting insert: n=%d err=%v", n, err)
 	}
 	want := map[shown]bool{{"delivery_due_soon", w.owner.String(), false}: true}

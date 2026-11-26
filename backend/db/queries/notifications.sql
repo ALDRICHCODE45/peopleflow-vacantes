@@ -138,6 +138,64 @@ WHERE p.channel = sqlc.arg('channel')::text
   AND p.type = ANY (sqlc.arg('types')::text[])
   AND (p.company_id IS NULL OR p.company_id = ANY (sqlc.arg('company_ids')::uuid[]));
 
+-- name: ListNotificationEmailDeliverableUsers :many
+-- Email eligibility at creation (notifications-v2 D9, D19): of the given
+-- recipients, those live with a non-empty address whose normalized form
+-- (lower(btrim)) is not in email_suppressions. Only ids leave this query:
+-- the address is never copied or returned.
+SELECT u.id
+FROM users u
+WHERE u.id = ANY (sqlc.arg('user_ids')::uuid[])
+  AND u.deleted_at IS NULL
+  AND btrim(u.email) <> ''
+  AND NOT EXISTS (SELECT 1 FROM email_suppressions s WHERE s.address = lower(btrim(u.email)));
+
+-- name: UpsertCoalescedNotificationEmailDelivery :one
+-- Grouped types (v2 D10, §Coalescing): the first eligible row of a
+-- (recipient, group_key) with no 'pending' delivery opens a fixed 10-minute
+-- window; later rows join it (the conflict returns the open delivery's id and
+-- never moves send_after). A claimed delivery ('sending') is outside the
+-- partial unique arbiter, so the next row opens a new window — also when this
+-- statement waited on the claim's row lock (the arbiter is re-checked).
+INSERT INTO notification_email_deliveries (id, recipient_user_id, recipient_kind, company_id, type, group_key, job_id, send_after)
+VALUES (
+    sqlc.arg('id')::uuid,
+    sqlc.arg('recipient_user_id')::uuid,
+    sqlc.arg('recipient_kind')::text,
+    sqlc.narg('company_id')::uuid,
+    sqlc.arg('type')::text,
+    sqlc.arg('group_key')::text,
+    sqlc.arg('job_id')::uuid,
+    now() + interval '10 minutes'
+)
+ON CONFLICT (recipient_user_id, group_key) WHERE status = 'pending'
+DO UPDATE SET updated_at = now()
+RETURNING id;
+
+-- name: InsertImmediateNotificationEmailDelivery :exec
+-- Single groups (every non-grouped type, all mandatory ones included, v2
+-- D10): one delivery per notification, due now. group_key is the
+-- notification's own n:<id>, so it never meets an open window.
+INSERT INTO notification_email_deliveries (id, recipient_user_id, recipient_kind, company_id, type, group_key, job_id, send_after)
+VALUES (
+    sqlc.arg('id')::uuid,
+    sqlc.arg('recipient_user_id')::uuid,
+    sqlc.arg('recipient_kind')::text,
+    sqlc.narg('company_id')::uuid,
+    sqlc.arg('type')::text,
+    sqlc.arg('group_key')::text,
+    sqlc.arg('job_id')::uuid,
+    now()
+);
+
+-- name: LinkNotificationEmailDelivery :execrows
+-- v2 D8: a notification links to its delivery once, in the tx that created
+-- both; 0 affected rows means the row was missing or already linked.
+UPDATE notifications
+SET email_delivery_id = sqlc.arg('delivery_id')::uuid
+WHERE id = sqlc.arg('notification_id')::uuid
+  AND email_delivery_id IS NULL;
+
 -- name: ListScheduledDeliveryRecipients :many
 -- Scheduler (notifications-v1 §Scheduler, D20, Q1): every team recipient of
 -- an active published or paused process with a commitment date up to

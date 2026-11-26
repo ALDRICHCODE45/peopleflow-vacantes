@@ -35,7 +35,9 @@ func TestStartNotificationSchedule_RunsInTheBackgroundAndStopWaitsForIt(t *testi
 // The composition builds a runnable scheduler without touching the database
 // (the pool is only used when a run starts).
 func TestNewNotificationScheduler_Composes(t *testing.T) {
-	if newNotificationScheduler(nil) == nil {
-		t.Fatal("nil scheduler")
+	for _, email := range []bool{false, true} {
+		if newNotificationScheduler(nil, email) == nil {
+			t.Fatalf("nil scheduler (email=%v)", email)
+		}
 	}
 }

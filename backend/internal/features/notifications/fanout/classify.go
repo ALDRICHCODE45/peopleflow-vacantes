@@ -17,6 +17,7 @@ const (
 	stepPlan        step = "plan"
 	stepPreferences step = "preferences"
 	stepInsert      step = "insert"
+	stepEmail       step = "email"
 	stepMark        step = "mark"
 	stepCommit      step = "commit"
 	stepPanic       step = "panic"

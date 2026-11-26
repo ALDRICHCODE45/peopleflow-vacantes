@@ -207,6 +207,15 @@ func run() error {
 	// Unset means no forwarded client header is ever trusted (peer only).
 	auditProxySecret := runtimeconfig.LoadAuditProxySecret(os.Getenv)
 
+	notificationsEmail, err := runtimeconfig.LoadNotificationsEmailConfig(os.Getenv)
+	if err != nil {
+		// Config errors are static messages, never the raw environment values.
+		slog.Error("notifications email configuration invalid", "reason", err.Error())
+		return err
+	}
+	// notifications-v2 D13: only the mailer kind is logged, never another key.
+	slog.Info("notifications email", "mailer", string(notificationsEmail.Mailer), "deliveries", notificationsEmail.Enabled())
+
 	// Connection pool: pgx manages a set of reusable connections, not a single one.
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
@@ -332,12 +341,13 @@ func run() error {
 	stopDocumentReconcile := startDocumentReconcile(ctx, newDocumentReconcileScheduler(pool, documentStorage))
 	defer stopDocumentReconcile()
 	// notifications-v1 D4: fan-out of captured notification events, every 2 s in every instance (SKIP LOCKED). Stopped, and
-	// waited for, on shutdown before the pool is closed (deferred calls run last-in first).
-	stopNotificationFanOut := startNotificationFanOut(ctx, newNotificationFanOut(pool))
+	// waited for, on shutdown before the pool is closed (deferred calls run last-in first). notifications-v2 D8: with
+	// NOTIFICATIONS_MAILER ≠ off the fan-out and the scheduler also create the email deliveries of the rows they insert.
+	stopNotificationFanOut := startNotificationFanOut(ctx, newNotificationFanOut(pool, notificationsEmail.Enabled()))
 	defer stopNotificationFanOut()
 	// notifications-v1 D20: delivery and recruiter deadline items, once at startup and every 15 min, one instance at a time
 	// (advisory lock notif_sc). Stopped, and waited for, on shutdown before the pool is closed (deferred calls run last-in first).
-	stopNotificationSchedule := startNotificationSchedule(ctx, newNotificationScheduler(pool))
+	stopNotificationSchedule := startNotificationSchedule(ctx, newNotificationScheduler(pool, notificationsEmail.Enabled()))
 	defer stopNotificationSchedule()
 	slog.Info("document storage", "enabled", documentConfig.Enabled(), "mode", documentConfig.Mode, "bucket", documentConfig.Bucket, "region", documentConfig.Region, "prefix", documentConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)

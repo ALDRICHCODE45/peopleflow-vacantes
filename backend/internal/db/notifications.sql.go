@@ -219,6 +219,46 @@ func (q *Queries) GetNotificationParticipationCandidate(ctx context.Context, arg
 	return candidate_id, err
 }
 
+const insertImmediateNotificationEmailDelivery = `-- name: InsertImmediateNotificationEmailDelivery :exec
+INSERT INTO notification_email_deliveries (id, recipient_user_id, recipient_kind, company_id, type, group_key, job_id, send_after)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::uuid,
+    $5::text,
+    $6::text,
+    $7::uuid,
+    now()
+)
+`
+
+type InsertImmediateNotificationEmailDeliveryParams struct {
+	ID              uuid.UUID   `json:"id"`
+	RecipientUserID uuid.UUID   `json:"recipient_user_id"`
+	RecipientKind   string      `json:"recipient_kind"`
+	CompanyID       pgtype.UUID `json:"company_id"`
+	Type            string      `json:"type"`
+	GroupKey        string      `json:"group_key"`
+	JobID           uuid.UUID   `json:"job_id"`
+}
+
+// Single groups (every non-grouped type, all mandatory ones included, v2
+// D10): one delivery per notification, due now. group_key is the
+// notification's own n:<id>, so it never meets an open window.
+func (q *Queries) InsertImmediateNotificationEmailDelivery(ctx context.Context, arg InsertImmediateNotificationEmailDeliveryParams) error {
+	_, err := q.db.Exec(ctx, insertImmediateNotificationEmailDelivery,
+		arg.ID,
+		arg.RecipientUserID,
+		arg.RecipientKind,
+		arg.CompanyID,
+		arg.Type,
+		arg.GroupKey,
+		arg.JobID,
+	)
+	return err
+}
+
 const insertNotification = `-- name: InsertNotification :execrows
 INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, in_app, created_at)
 VALUES (
@@ -434,6 +474,28 @@ func (q *Queries) IsNotificationCompanyMember(ctx context.Context, arg IsNotific
 	var member bool
 	err := row.Scan(&member)
 	return member, err
+}
+
+const linkNotificationEmailDelivery = `-- name: LinkNotificationEmailDelivery :execrows
+UPDATE notifications
+SET email_delivery_id = $1::uuid
+WHERE id = $2::uuid
+  AND email_delivery_id IS NULL
+`
+
+type LinkNotificationEmailDeliveryParams struct {
+	DeliveryID     uuid.UUID `json:"delivery_id"`
+	NotificationID uuid.UUID `json:"notification_id"`
+}
+
+// v2 D8: a notification links to its delivery once, in the tx that created
+// both; 0 affected rows means the row was missing or already linked.
+func (q *Queries) LinkNotificationEmailDelivery(ctx context.Context, arg LinkNotificationEmailDeliveryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, linkNotificationEmailDelivery, arg.DeliveryID, arg.NotificationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const listCandidateNotificationJobs = `-- name: ListCandidateNotificationJobs :many
@@ -681,6 +743,39 @@ func (q *Queries) ListNotificationCandidateNames(ctx context.Context, arg ListNo
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotificationEmailDeliverableUsers = `-- name: ListNotificationEmailDeliverableUsers :many
+SELECT u.id
+FROM users u
+WHERE u.id = ANY ($1::uuid[])
+  AND u.deleted_at IS NULL
+  AND btrim(u.email) <> ''
+  AND NOT EXISTS (SELECT 1 FROM email_suppressions s WHERE s.address = lower(btrim(u.email)))
+`
+
+// Email eligibility at creation (notifications-v2 D9, D19): of the given
+// recipients, those live with a non-empty address whose normalized form
+// (lower(btrim)) is not in email_suppressions. Only ids leave this query:
+// the address is never copied or returned.
+func (q *Queries) ListNotificationEmailDeliverableUsers(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listNotificationEmailDeliverableUsers, userIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1571,6 +1666,54 @@ func (q *Queries) ResolveStaleScheduledNotifications(ctx context.Context) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const upsertCoalescedNotificationEmailDelivery = `-- name: UpsertCoalescedNotificationEmailDelivery :one
+INSERT INTO notification_email_deliveries (id, recipient_user_id, recipient_kind, company_id, type, group_key, job_id, send_after)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::uuid,
+    $5::text,
+    $6::text,
+    $7::uuid,
+    now() + interval '10 minutes'
+)
+ON CONFLICT (recipient_user_id, group_key) WHERE status = 'pending'
+DO UPDATE SET updated_at = now()
+RETURNING id
+`
+
+type UpsertCoalescedNotificationEmailDeliveryParams struct {
+	ID              uuid.UUID   `json:"id"`
+	RecipientUserID uuid.UUID   `json:"recipient_user_id"`
+	RecipientKind   string      `json:"recipient_kind"`
+	CompanyID       pgtype.UUID `json:"company_id"`
+	Type            string      `json:"type"`
+	GroupKey        string      `json:"group_key"`
+	JobID           uuid.UUID   `json:"job_id"`
+}
+
+// Grouped types (v2 D10, §Coalescing): the first eligible row of a
+// (recipient, group_key) with no 'pending' delivery opens a fixed 10-minute
+// window; later rows join it (the conflict returns the open delivery's id and
+// never moves send_after). A claimed delivery ('sending') is outside the
+// partial unique arbiter, so the next row opens a new window — also when this
+// statement waited on the claim's row lock (the arbiter is re-checked).
+func (q *Queries) UpsertCoalescedNotificationEmailDelivery(ctx context.Context, arg UpsertCoalescedNotificationEmailDeliveryParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, upsertCoalescedNotificationEmailDelivery,
+		arg.ID,
+		arg.RecipientUserID,
+		arg.RecipientKind,
+		arg.CompanyID,
+		arg.Type,
+		arg.GroupKey,
+		arg.JobID,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const upsertNotificationPreference = `-- name: UpsertNotificationPreference :exec

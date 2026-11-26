@@ -7,6 +7,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/emaildelivery"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -24,8 +25,9 @@ type Result struct {
 // resolve stale ones, so an overdue item created in this run supersedes its
 // due-soon sibling at once.
 type Runner struct {
-	pool *pgxpool.Pool
-	now  func() time.Time
+	pool  *pgxpool.Pool
+	now   func() time.Time
+	email bool
 }
 
 // NewRunner builds the runner; a nil clock means time.Now.
@@ -34,6 +36,13 @@ func NewRunner(pool *pgxpool.Pool, now func() time.Time) *Runner {
 		now = time.Now
 	}
 	return &Runner{pool: pool, now: now}
+}
+
+// WithEmailDeliveries turns on the email delivery decision at creation
+// (notifications-v2 D8; NOTIFICATIONS_MAILER ≠ off). Off by default.
+func (r *Runner) WithEmailDeliveries(enabled bool) *Runner {
+	r.email = enabled
+	return r
 }
 
 // scheduled is one row to insert.
@@ -93,8 +102,9 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 		return Result{}, stepErr(stepPreferences, err)
 	}
 	var res Result
+	var created []emaildelivery.Row
 	for _, item := range due {
-		n, err := insert(ctx, q, item, inApp.Effective(item.scope()))
+		id, n, err := insert(ctx, q, item, inApp.Effective(item.scope()))
 		if err != nil {
 			return Result{}, err
 		}
@@ -103,8 +113,17 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 		} else {
 			res.DeliveryCreated += n
 		}
-		// notifications-v2 D8 (E4): the email delivery decision runs here,
-		// only when n == 1 (the row was inserted by this run).
+		if n == 1 {
+			created = append(created, item.emailRow(id))
+		}
+	}
+	// notifications-v2 D8: the email delivery decision, in the run's tx and
+	// only for rows this run inserted (mailer off: none). Every scheduled
+	// type is a single group: immediate deliveries.
+	if r.email {
+		if err := emaildelivery.Create(ctx, q, created); err != nil {
+			return Result{}, stepErr(stepEmail, err)
+		}
 	}
 	resolved, err := q.ResolveStaleScheduledNotifications(ctx)
 	if err != nil {
@@ -121,6 +140,15 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 func (s scheduled) scope() domain.PreferenceKey {
 	return domain.PreferenceKey{User: s.recipient, Company: s.company, Type: s.typ}
 }
+
+// emailRow is the delivery decision input of the item inserted as id.
+func (s scheduled) emailRow(id uuid.UUID) emaildelivery.Row {
+	return emaildelivery.Row{NotificationID: id, Recipient: s.recipient, RecipientKind: domain.RecipientMember, Company: s.company,
+		Type: s.typ, GroupKey: groupKey(id), JobID: s.job}
+}
+
+// groupKey is the single group of a scheduled row (n:<id>, v1 D11).
+func groupKey(id uuid.UUID) string { return "n:" + id.String() }
 
 // inAppOverrides reads, in the run's tx and with one query, the in_app
 // override rows of every item the date rule yields (notifications-v2 D6,
@@ -151,16 +179,16 @@ func inAppOverrides(ctx context.Context, q *db.Queries, due []scheduled) (*domai
 }
 
 // insert writes one item with a uuid v7 id, group n:<id> and the given
-// in_app; it returns the affected rows: 1 inserted, 0 when the (recipient,
-// type, job, date) already fired (its in_app is never rewritten).
-func insert(ctx context.Context, q *db.Queries, s scheduled, inApp bool) (int, error) {
+// in_app; it returns the id and the affected rows: 1 inserted, 0 when the
+// (recipient, type, job, date) already fired (its in_app is never rewritten).
+func insert(ctx context.Context, q *db.Queries, s scheduled, inApp bool) (uuid.UUID, int, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
-		return 0, stepErr(stepInsert, err)
+		return uuid.Nil, 0, stepErr(stepInsert, err)
 	}
 	payload, err := json.Marshal(s.payload)
 	if err != nil {
-		return 0, stepErr(stepInsert, err)
+		return uuid.Nil, 0, stepErr(stepInsert, err)
 	}
 	n, err := q.InsertScheduledNotification(ctx, db.InsertScheduledNotificationParams{
 		ID:              id,
@@ -168,14 +196,14 @@ func insert(ctx context.Context, q *db.Queries, s scheduled, inApp bool) (int, e
 		RecipientReason: string(s.reason),
 		CompanyID:       s.company,
 		Type:            string(s.typ),
-		GroupKey:        "n:" + id.String(),
+		GroupKey:        groupKey(id),
 		JobID:           s.job,
 		CommitmentDate:  pgtype.Date{Time: s.date, Valid: true},
 		Payload:         payload,
 		InApp:           inApp,
 	})
 	if err != nil {
-		return 0, stepErr(stepInsert, err)
+		return uuid.Nil, 0, stepErr(stepInsert, err)
 	}
-	return int(n), nil
+	return id, int(n), nil
 }

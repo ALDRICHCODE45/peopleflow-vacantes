@@ -45,3 +45,13 @@ func TestStartNotificationFanOut_RunsInTheBackgroundAndStopWaitsForIt(t *testing
 	}
 	stop()
 }
+
+// The composition builds a runnable fan-out with and without email deliveries
+// (notifications-v2 D8) without touching the database.
+func TestNewNotificationFanOut_Composes(t *testing.T) {
+	for _, email := range []bool{false, true} {
+		if newNotificationFanOut(nil, email) == nil {
+			t.Fatalf("nil fan-out (email=%v)", email)
+		}
+	}
+}
