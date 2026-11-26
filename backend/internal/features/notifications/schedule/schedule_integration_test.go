@@ -373,7 +373,12 @@ func TestScheduleSkipsWhileTheLockIsHeld(t *testing.T) {
 	}
 	assertItems(t, pool, j.id, w.team("delivery_overdue", "2026-11-25", false)...)
 	var held int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND granted`).Scan(&held); err != nil || held != 0 {
+	// Only this database and this key: pg_locks is cluster-wide, and other
+	// integration packages may hold their own advisory locks concurrently.
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_locks
+		WHERE locktype = 'advisory' AND granted AND objsubid = 1
+		  AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+		  AND classid::bigint = ($1::bigint >> 32) AND objid::bigint = ($1::bigint & 4294967295)`, LockKey).Scan(&held); err != nil || held != 0 {
 		t.Fatalf("advisory locks still held after the run: %d (%v)", held, err)
 	}
 }
