@@ -17,10 +17,10 @@ export const VARIANT_LABELS: Record<string, string> = {
 };
 /** Layouts slice A adds to existing sections (marked «Nuevo» in the picker). */
 export const NEW_VARIANTS: ReadonlySet<string> = new Set(Object.keys(NEW_VARIANT_LABELS));
-/** Background video arrives with slice B; until then this layout always blocks
- * publication, so it is never offered, only shown while it is the current one. */
-const UNOFFERED_VARIANTS: ReadonlySet<string> = new Set(["background_loop"]);
-/** The layouts the picker and the library offer for a section. */
+/** Layouts that exist but aren't offered yet; kept current-only when a draft already uses them.
+ * Empty since slice B shipped the background video («Fondo en movimiento»). */
+const UNOFFERED_VARIANTS: ReadonlySet<string> = new Set<string>();
+/** The layouts the picker and the library offer for a section (v2 ones only with the flag on). */
 export function offeredVariants(type: BlockTypeV2, current?: string): string[] {
   return variantOptions(type).filter(variant => variant === current || !UNOFFERED_VARIANTS.has(variant));
 }

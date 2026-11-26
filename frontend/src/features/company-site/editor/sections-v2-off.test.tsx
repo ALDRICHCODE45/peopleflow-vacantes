@@ -16,6 +16,7 @@ import { defaultBlockV2 } from "../defaults";
 import type { SiteState } from "../api/model";
 import { SECTIONS_V2_ENABLED } from "../sections-v2";
 import { v2Draft } from "./site-state.test-support";
+import { offeredVariants } from "./variant-picker";
 
 beforeEach(() => {
   localStorage.clear();
@@ -65,4 +66,7 @@ it("keeps today's testimonial fields and the text library dialog", async () => {
   expect(within(library).getAllByRole("button", { name: /^Agregar / })).toHaveLength(13);
   expect(within(library).queryByText("Equipo / Líderes")).toBeNull();
   expect(screen.queryByRole("region", { name: "Agregar sección" })).toBeNull();
+});
+it("never offers «Fondo en movimiento» (background video) with the flag off", () => {
+  expect(offeredVariants("hero")).toEqual(["photo", "split", "centered"]);
 });

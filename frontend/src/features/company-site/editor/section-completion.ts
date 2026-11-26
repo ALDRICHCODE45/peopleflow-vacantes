@@ -30,7 +30,9 @@ function missingContentPart(block: SiteBlockV2, blocks: readonly SiteBlockV2[]):
   switch (block.type) {
     case "hero": {
       if (!present(block.content.title)) return content("title", "Falta: el título principal");
-      if (block.variant === "background_loop") return { hint: "Falta: el video de fondo, que llega pronto; elige otro diseño", group: "layout", target: "variants" };
+      // Same rule as publishIssuesV2 (hero_video_missing): the video, then its poster.
+      if (block.variant === "background_loop" && block.content.background_video === null) return content("background-video", "Falta: el video de fondo");
+      if (block.variant === "background_loop" && block.content.cover === null) return content("cover", "Falta: la imagen de portada (póster del video)");
       if (block.variant === "collage" && block.content.images.length < HERO_COLLAGE_MIN_TO_PUBLISH) return content("collage", `Falta: al menos ${HERO_COLLAGE_MIN_TO_PUBLISH} fotos para el collage`);
       const target = block.content.secondary_target;
       if (block.content.secondary_visible && target !== null && blocks.find(item => item.id === target)?.hidden) return { hint: "Falta: el botón secundario lleva a una sección oculta", group: "buttons", target: "secondary-target" };

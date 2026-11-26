@@ -36,6 +36,9 @@ picks a direction, coordinated with the backend session.
 | T2 | S1–S4 | Backend contract proposal for the chosen direction (coordinate with the backend session) | `af6a6140` (backend `64e2e379`) |
 | T3 | S1–S4 | Frontend implementation of the chosen direction (slice A) | `616b3934`…`105dd1bd` |
 | T4 | S1–S4 | Browser check, full suite, merge to main (slice A) | this log + merge; slices B/C pending |
+| T5 | S2 | Slice B backend: hero video media (migration, MP4 validation, Range/206 serving) — backend session | backend `c053e8d0` |
+| T6 | S2 | Slice B frontend: video upload, «Fondo en movimiento» offered, `<video>` hero, proxy Range | `c00e35a3`, `cb1eeed3`, `cf5c4717` |
+| T7 | S2 | Slice B browser check, full suite, merge to main | |
 
 ## Log
 
@@ -116,4 +119,30 @@ picks a direction, coordinated with the backend session.
   Default-on build `jRNJKnPQDm6--yRC1Rr5e` serves the v2 library; full suite 665 files / 12411 passed, tsc 0, lint 0
   errors. Native review assess unassessable (untracked canvas files); plan required no extra verifier. Merged slice A to
   local main; the user pushes. Next: slice B (hero video), slice C («Dejar mi CV»).
+- **L14** (2026-11-26) User, verbatim: «ya esta pusheado todo, adelante con los siguientes pasos recomendados.» → slice B
+  (hero background video) on branch `feat/careers-hero-video` from main `97f2c28a`; slice C waits for two user decisions
+  (CV retention period, owner email per CV vs daily digest). Agent decision for slice B: no ffmpeg (deploy image
+  unchanged; structural MP4 validation; always muted, looped, playsinline, paused under reduced motion).
 
+- **L15** (2026-11-26) Slice C decisions: retention «Hasta que el equipo los borre»; owner email postponed — user wants a
+  full notification system first (captured verbatim in `odd/tasks/notifications-system.md`). Backend took slice B
+  (shape recorded in the contract file).
+- **L16** (2026-11-26) T6 slice B frontend: `c00e35a3` (background_video model, hero_video media kind + Spanish limit
+  messages, streamed upload route `?kind=hero_video`, media proxy forwarding Range → 206/416 and allowing video/mp4) and
+  `cb1eeed3` (editor «Fondo en movimiento» + VideoField with checks/progress/cancel/poster note; public `<video>` muted loop
+  inline with pause/play, reduced motion paused, error fallback). Related 59 files / 1497 passed, tsc 0, lint 0 errors.
+  Real playback, Range through the proxy and a ~20 MB upload need the browser once backend slice B is in main.
+- **L17** (2026-11-26) Backend slice B merged to main `c053e8d0` (migration 00067, §2.4); merged into this branch
+  `97c74c27`. Alignment `cf5c4717` (150 s route / 180 s browser upload deadlines, video stream not cut before 180 s, Range
+  edge cases passed through, 416 no-store, 0-byte rejected, faststart guidance). Browser check (Chromium + Firefox,
+  1440/390, real MP4s from ffmpeg in /tmp/hero-video; media uploads allowed to the dev DB, draft saves aborted): all 9
+  points pass — upload with progress/cancel/retry, muted looped inline playback under the scrim (axe 0), pause/play,
+  206 with Content-Range through the proxy (seek → new range request), 416 no-store, exact Spanish rejections (35 s,
+  22 MB, .mov/.txt/0-byte pre-checked; fragmented → backend 422 video_invalid), reduced motion paused with poster,
+  completion hints, phone fit, no regressions. Orphan dev media from the check are listed in the verifier report.
+
+- **L18** (2026-11-26) Full suite on `a156bd27`: 668 files / 12501 passed, 1 failed — the request-path security guard
+  (`features/jobs/requestPath.test.ts`) forbade any `request.headers` read in the media proxy. Guard tightened instead of
+  bypassed (`<this commit>`): the only allowed read is `request.headers.get("range")`, forwarded as the sole upstream
+  header; cookies/authorization still forbidden (negative check: injecting a cookie read fails the guard). 42/42 pass.
+  Risk: item 2 (security guard changed) — reviewed inline, scope limited to the Range header.

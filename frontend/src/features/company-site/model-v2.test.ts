@@ -14,6 +14,7 @@ import { SECTIONS_V2_ENABLED } from "./sections-v2";
 type RecordValue = Record<string, unknown>;
 type Candidate = RecordValue & { id: string; hidden: boolean; variant: string; content: RecordValue; style?: RecordValue };
 const media = { media_id: "c166f6ce-e0e9-4e20-916a-90828ef36273" };
+const video = { media_id: "5b8f0c4e-2d1a-4c3b-9e7f-6a5d4c3b2a19" };
 const company = { name: "Nexo", logo_url: "/logo.png" };
 const rich = (text: string) => ({ schema_version: 1, document: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] } });
 const emoji = (count: number) => "😀".repeat(count);
@@ -220,8 +221,8 @@ describe("hero buttons", () => {
     const hero = heroV2();
     const content = { title: "Trabaja en Nexo", subtitle: null, cover: null };
     const parsed = blockSchemaV2.parse({ ...hero, content });
-    expect(parsed.type === "hero" && parsed.content).toEqual({ ...content, images: [], primary_label: "Ver vacantes", secondary_visible: true, secondary_label: "Conoce la empresa", secondary_target: null });
-    expect(HERO_BUTTON_DEFAULTS).toEqual({ primary_label: "Ver vacantes", secondary_visible: true, secondary_label: "Conoce la empresa", secondary_target: null });
+    expect(parsed.type === "hero" && parsed.content).toEqual({ ...content, images: [], primary_label: "Ver vacantes", secondary_visible: true, secondary_label: "Conoce la empresa", secondary_target: null, background_video: null });
+    expect(HERO_BUTTON_DEFAULTS).toEqual({ primary_label: "Ver vacantes", secondary_visible: true, secondary_label: "Conoce la empresa", secondary_target: null, background_video: null });
   });
   it.each(["primary_label", "secondary_label"])("%s: 24 code points inclusive, blank → null", field => {
     expect(accepts(heroV2({ [field]: emoji(24) }))).toBe(true);
@@ -262,10 +263,23 @@ describe("hero buttons", () => {
 
 describe("v2 publication rules", () => {
   const story = () => ({ ...v2("story"), content: { title: null, body: rich("Historia"), image: null } });
-  it("background_loop is publish-blocked until hero video upload (slice B) exists", () => {
+  it("background_loop needs its background video (slice B) and the cover as poster to publish", () => {
     const draft = draftV2(story());
     draft.blocks[0] = { ...heroV2(), variant: "background_loop" };
     expect(issuesOf(draft)).toEqual([{ code: "hero_video_missing", field: "blocks[0]" }]);
+    draft.blocks[0] = { ...heroV2({ cover: media }), variant: "background_loop" };
+    expect(issuesOf(draft)).toEqual([{ code: "hero_video_missing", field: "blocks[0]" }]);
+    draft.blocks[0] = { ...heroV2({ background_video: video }), variant: "background_loop" };
+    expect(issuesOf(draft)).toEqual([{ code: "hero_video_missing", field: "blocks[0]" }]);
+    draft.blocks[0] = { ...heroV2({ background_video: video, cover: media }), variant: "background_loop" };
+    expect(issuesOf(draft)).toEqual([]);
+  });
+  it("other hero layouts never need the background video or a cover", () => {
+    for (const variant of ["photo", "split", "centered", "photo_jobs"]) {
+      const draft = draftV2(story());
+      draft.blocks[0] = { ...heroV2(), variant };
+      expect(issuesOf(draft)).toEqual([]);
+    }
   });
   it("collage needs at least two images to publish", () => {
     const draft = draftV2(story());
@@ -483,5 +497,51 @@ describe("backend §2.3 normalization rules", () => {
       { code: "style_image_missing", field: "blocks[0].style.image" },
       { code: "block_incomplete", field: "blocks[2]" }, { code: "style_image_missing", field: "blocks[2].style.image" },
     ]);
+  });
+});
+
+describe("slice B: hero background video", () => {
+  it("background_video is a media ref; missing and null both read and parse as null", () => {
+    const { background_video: _omit, ...withoutKey } = heroV2().content; void _omit;
+    for (const content of [withoutKey, { ...withoutKey, background_video: null }]) {
+      const parsed = blockSchemaV2.parse({ ...heroV2(), content });
+      expect(parsed.type === "hero" && parsed.content.background_video).toBeNull();
+      const draft = draftV2();
+      draft.blocks[0] = { ...heroV2(), content };
+      const read = siteDraftReadSchemaV2.parse(draft).blocks[0];
+      expect(read.type === "hero" && read.content.background_video).toBeNull();
+    }
+    const parsed = blockSchemaV2.parse(heroV2({ background_video: video }));
+    expect(parsed.type === "hero" && parsed.content.background_video).toEqual(video);
+    for (const bad of [{ media_id: "bad" }, "x", { media_id: video.media_id, extra: 1 }]) expect(accepts(heroV2({ background_video: bad }))).toBe(false);
+  });
+  it("the default v2 hero carries background_video: null", () => {
+    const hero = v2("hero");
+    expect(hero.content).toHaveProperty("background_video", null);
+  });
+  it("flag on: a null background_video is omitted from the PUT body (missing ≡ null), a set one is sent", () => {
+    const on = createSiteDraftPayloadSchema(true);
+    const empty = on.parse(draftV2()) as ReturnType<typeof siteDraftSchemaV2.parse>;
+    expect(empty.blocks[0].content).not.toHaveProperty("background_video");
+    const draft = draftV2();
+    draft.blocks[0] = { ...heroV2({ background_video: video, cover: media }), variant: "background_loop" };
+    const sent = on.parse(draft) as ReturnType<typeof siteDraftSchemaV2.parse>;
+    expect(sent.blocks[0].content).toHaveProperty("background_video", video);
+    expect(sent.blocks[0].variant).toBe("background_loop");
+  });
+  it("flag off: a null background_video keeps today's body; a set one is rejected, never dropped", () => {
+    const off = createSiteDraftPayloadSchema(false);
+    const draft = draftV2();
+    const legacy = off.parse(draft) as ReturnType<typeof siteDraftSchema.parse>;
+    expect(legacy.blocks[0].content).toEqual({ title: "Trabaja en Nexo", subtitle: null, cover: null });
+    draft.blocks[0] = heroV2({ background_video: video });
+    const parsed = off.safeParse(draft);
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) expect(draftFieldErrors(parsed.error.issues)).toContainEqual({ field: "blocks[0].content.background_video", code: "not_allowed" });
+  });
+  it("the editor state decodes hero_video media (no pixel size, with duration)", () => {
+    const state = { draft: draftV2(), draft_version: 1, published: null, has_unpublished_changes: false, updated_at: "2026-01-01T00:00:00Z",
+      media: [{ id: video.media_id, kind: "hero_video", url: `/v2/company-sites/media/${video.media_id}`, width: null, height: null, duration_ms: 12_000 }] };
+    expect(siteStateSchema.safeParse(state).success).toBe(true);
   });
 });

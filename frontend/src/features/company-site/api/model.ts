@@ -3,7 +3,12 @@ import { siteDraftReadSchemaV2 } from "../model";
 
 const version = z.number().int().positive().safe();
 const timestamp = z.string().datetime({ offset: true });
-export const mediaSchema = z.object({ id: z.string().uuid(), kind: z.enum(["cover", "gallery", "portrait", "story", "logo"]), url: z.string().min(1), width: z.number().int().positive(), height: z.number().int().positive() });
+// Slice B: `hero_video` media may carry no pixel size (nullable for video) and a duration.
+export const mediaSchema = z.object({
+  id: z.string().uuid(), kind: z.enum(["cover", "gallery", "portrait", "story", "logo", "hero_video"]), url: z.string().min(1),
+  width: z.number().int().positive().nullable(), height: z.number().int().positive().nullable(),
+  duration_ms: z.number().int().nonnegative().nullable().optional(),
+});
 export const siteStateSchema = z.object({
   // The editor always holds a v2 draft: legacy documents normalize to the slice A
   // defaults, and a backend that already returns slice A keys still decodes with the

@@ -113,9 +113,8 @@ describe("reducer and history with sections v2 on", () => {
     expect(controller.getSnapshot().editor.draft.blocks.some(block => block.id === story.id)).toBe(true);
     controller.dispose();
   });
-  it("never offers the background video layout (slice B), but keeps showing it when it is current", () => {
-    expect(offeredVariants("hero")).toEqual(["photo", "split", "centered", "photo_jobs", "collage"]);
-    expect(offeredVariants("hero", "background_loop")).toContain("background_loop");
+  it("offers «Fondo en movimiento» (slice B background video) in the hero layouts", () => {
+    expect(offeredVariants("hero")).toEqual(["photo", "split", "centered", "background_loop", "photo_jobs", "collage"]);
   });
 });
 
@@ -273,11 +272,20 @@ describe("properties panel", () => {
   it("offers the new Portada layouts with their photos (collage up to three)", async () => {
     await mount();
     const layouts = within(properties()).getByRole("group", { name: "Diseño de sección" });
-    expect(within(layouts).getAllByRole("button").map(node => node.getAttribute("aria-label"))).toEqual(["Diseño Fotográfica", "Diseño Dividida", "Diseño Centrada", "Diseño Foto con vacantes recientes", "Diseño Collage de fotos"]);
+    expect(within(layouts).getAllByRole("button").map(node => node.getAttribute("aria-label"))).toEqual(["Diseño Fotográfica", "Diseño Dividida", "Diseño Centrada", "Diseño Fondo en movimiento", "Diseño Foto con vacantes recientes", "Diseño Collage de fotos"]);
     fireEvent.click(within(layouts).getByRole("button", { name: "Diseño Collage de fotos" }));
     expect(within(properties()).getByText("Foto 1 del collage")).toBeInTheDocument();
     expect(within(properties()).queryByText("Imagen de portada")).toBeNull();
     expect(frameDocument().querySelector('[data-block-type="hero"]')).toHaveAttribute("data-variant", "collage");
+  });
+  it("«Fondo en movimiento» swaps the cover for the video slot plus the cover as its poster", async () => {
+    await mount();
+    const layouts = within(properties()).getByRole("group", { name: "Diseño de sección" });
+    fireEvent.click(within(layouts).getByRole("button", { name: "Diseño Fondo en movimiento" }));
+    expect(within(properties()).getByRole("button", { name: "Subir Video de fondo" })).toBeInTheDocument();
+    expect(within(properties()).getByText(/MP4 · hasta 20 MB · hasta 30 segundos/)).toBeInTheDocument();
+    expect(within(properties()).getByText("Imagen de portada")).toBeInTheDocument();
+    expect(frameDocument().querySelector('[data-block-type="hero"]')).toHaveAttribute("data-variant", "background_loop");
   });
   it("edits team, logos, areas and an existing talent call through the content action", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });

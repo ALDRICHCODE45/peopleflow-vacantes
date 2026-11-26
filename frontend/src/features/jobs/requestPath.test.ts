@@ -270,7 +270,14 @@ describe("single application-facing request path", () => {
     expect(route).toContain('redirect: "error"');
     expect(route).toContain("`/v2/company-sites/media/${id}`");
     expect(route).toMatch(/z\.string\(\)\.uuid\(\)\.safeParse\(id\)/);
-    expect(route).not.toMatch(/request\.headers|cookies\(|authorization/i);
+    expect(route).not.toMatch(/cookies\(|authorization/i);
+    // Hero videos stream in byte ranges (slice B): the only request header the proxy may read is
+    // `range`, and it may forward nothing else upstream — never cookies, auth or other headers.
+    const reads = route.match(/request\.headers\.[a-zA-Z]+\([^)]*\)/g) ?? [];
+    expect(reads).toEqual(['request.headers.get("range")']);
+    expect(route).not.toMatch(/request\.headers(?!\.get\("range"\))/);
+    const forwarded = route.match(/headers: \{ range \}/g) ?? [];
+    expect(forwarded).toHaveLength(1);
   });
 
   it("reaches the transport only through the guarded API functions", () => {

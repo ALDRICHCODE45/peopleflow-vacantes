@@ -124,6 +124,77 @@ describe("hero v2", () => {
     const element = section(draw(site(hero("background_loop"))));
     expect(within(element).queryByRole("button", { name: /fondo animado/ })).toBeNull();
   });
+  describe("background video (slice B)", () => {
+    const clip = { media_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d96" };
+    let play: ReturnType<typeof vi.fn>;
+    let pause: ReturnType<typeof vi.fn>;
+    beforeEach(() => {
+      play = vi.fn().mockResolvedValue(undefined); pause = vi.fn();
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(play);
+      vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(pause);
+    });
+    afterEach(() => vi.restoreAllMocks());
+    const loop = (content: Record<string, unknown> = {}) => section(draw(site(hero("background_loop", { cover: image, background_video: clip, ...content }))));
+    it("renders a muted, looped, inline, autoplaying <video> with the cover as poster, under the scrim", () => {
+      const element = loop();
+      const video = element.querySelector("video")!;
+      expect(video).toHaveAttribute("src", `/media/sitios/${clip.media_id}`);
+      expect(video).toHaveAttribute("poster", `/media/sitios/${mediaId}`);
+      expect(video.muted).toBe(true);
+      expect(video).toHaveAttribute("loop");
+      expect(video).toHaveAttribute("playsinline");
+      expect(video.autoplay).toBe(true);
+      expect(video).toHaveAttribute("preload", "metadata");
+      expect(video).toHaveClass("object-cover");
+      expect(video.compareDocumentPosition(element.querySelector("[data-scrim]")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(video.closest("[aria-hidden='true']")).not.toBeNull();
+      expect(element.querySelector("[data-hero-loop]")).toBeNull();
+    });
+    it("server markup is muted and plays inline (iOS autoplay needs both attributes)", () => {
+      const markup = renderToStaticMarkup(<CompanySitePresentation site={site(hero("background_loop", { cover: image, background_video: clip }))} company={publishedFixture().company} jobs={[]} officeLabels={new Map()} />);
+      expect(markup).toMatch(/<video[^>]*muted=""/);
+      expect(markup).toMatch(/<video[^>]*playsInline=""|<video[^>]*playsinline=""/);
+    });
+    it("«Pausar fondo animado» pauses and «Reproducir» resumes (aria-pressed follows)", () => {
+      const element = loop();
+      const toggle = within(element).getByRole("button", { name: "Pausar fondo animado" });
+      expect(toggle).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(toggle);
+      expect(pause).toHaveBeenCalled();
+      const resume = within(element).getByRole("button", { name: "Reproducir" });
+      expect(resume).toHaveAttribute("aria-pressed", "true");
+      play.mockClear();
+      fireEvent.click(resume);
+      expect(play).toHaveBeenCalled();
+      expect(within(element).getByRole("button", { name: "Pausar fondo animado" })).toHaveAttribute("aria-pressed", "false");
+    });
+    it("reduced motion: no autoplay, the poster only, and the control offers «Reproducir»", () => {
+      reduced = true;
+      const element = loop();
+      const video = element.querySelector("video")!;
+      expect(video.autoplay).toBe(false);
+      expect(play).not.toHaveBeenCalled();
+      expect(pause).toHaveBeenCalled();
+      fireEvent.click(within(element).getByRole("button", { name: "Reproducir" }));
+      expect(play).toHaveBeenCalled();
+    });
+    it("a video error falls back to the cover (or the brand gradient) and drops the control", () => {
+      const element = loop();
+      fireEvent.error(element.querySelector("video")!);
+      expect(element.querySelector("video")).toBeNull();
+      expect(element.querySelector("img")).toHaveAttribute("src", `/media/sitios/${mediaId}`);
+      expect(within(element).queryByRole("button", { name: /Pausar fondo animado|Reproducir/ })).toBeNull();
+      cleanup();
+      const gradient = loop({ cover: null });
+      fireEvent.error(gradient.querySelector("video")!);
+      expect(gradient.querySelector("video")).toBeNull();
+      expect(gradient.querySelector("[data-hero-loop]")).not.toBeNull();
+    });
+    it("plays in the editor preview too", () => {
+      const element = section(draw(site(hero("background_loop", { cover: image, background_video: clip })), [job(1)], true));
+      expect(element.querySelector("video")!.autoplay).toBe(true);
+    });
+  });
   it("custom button labels, secondary target anchor, and a hidden secondary", () => {
     const team = block("team", { content: { title: "Equipo", items: [{ name: "Ana", role: "Directora", photo: null, consent: true }] } }, 7);
     const container = draw(site(hero("photo", { cover: image, primary_label: "Únete", secondary_label: "Conoce al equipo", secondary_target: id(7) }), team));

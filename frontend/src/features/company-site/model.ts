@@ -206,8 +206,9 @@ const sectionStyleObject = z.object({
 export const sectionStyleSchema = nullAsAbsent(sectionStyleObject);
 const styled = { style: sectionStyleSchema };
 
-/** Contract defaults for hero button keys missing on read (null target = first block after the hero). */
-export const HERO_BUTTON_DEFAULTS = Object.freeze({ primary_label: "Ver vacantes", secondary_visible: true, secondary_label: "Conoce la empresa", secondary_target: null });
+/** Contract defaults for hero keys missing on read: the buttons (null target = first block after
+ * the hero) and, since slice B, `background_video` (null = no video). Templates spread it whole. */
+export const HERO_BUTTON_DEFAULTS = Object.freeze({ primary_label: "Ver vacantes", secondary_visible: true, secondary_label: "Conoce la empresa", secondary_target: null, background_video: null });
 export const HERO_COLLAGE_MAX = 3;
 /** Publishing a collage needs at least this many images (contract only caps it at 3). */
 export const HERO_COLLAGE_MIN_TO_PUBLISH = 2;
@@ -218,6 +219,8 @@ const heroContentV2 = heroBlockSchema.shape.content.extend({
   secondary_label: text(24).default(HERO_BUTTON_DEFAULTS.secondary_label),
   // Any case on the wire, stored lower-case (§2.3).
   secondary_target: z.string().uuid().transform(id => id.toLowerCase()).nullable().default(HERO_BUTTON_DEFAULTS.secondary_target),
+  // Slice B: the «Fondo en movimiento» MP4 (media kind `hero_video`); missing and null both mean none.
+  background_video: mediaRefSchema.default(HERO_BUTTON_DEFAULTS.background_video),
 });
 export const heroBlockSchemaV2 = heroBlockSchema.extend({ variant: z.enum(["photo", "split", "centered", "background_loop", "photo_jobs", "collage"]), content: heroContentV2, ...styled });
 const decoratedVariants = ["bento", "big_icons"] as const;
@@ -319,8 +322,9 @@ function toLegacyDraft(draft: SiteDraftV2, ctx: z.RefinementCtx): SiteDraft {
     const { style, ...envelope } = block;
     if (!sameValue(style, DEFAULT_SECTION_STYLE)) reject(["blocks", index, "style"]);
     if (envelope.type === "hero") {
-      const { images, primary_label, secondary_visible, secondary_label, secondary_target, ...content } = envelope.content;
+      const { images, primary_label, secondary_visible, secondary_label, secondary_target, background_video, ...content } = envelope.content;
       if (images.length > 0) reject(["blocks", index, "content", "images"]);
+      if (background_video !== null) reject(["blocks", index, "content", "background_video"]);
       const buttons = { primary_label, secondary_visible, secondary_label, secondary_target };
       for (const key of Object.keys(buttons) as (keyof typeof buttons)[]) if (buttons[key] !== HERO_BUTTON_DEFAULTS[key]) reject(["blocks", index, "content", key]);
       return { ...envelope, content };
@@ -335,13 +339,25 @@ function toLegacyDraft(draft: SiteDraftV2, ctx: z.RefinementCtx): SiteDraft {
   });
   return valid ? { ...draft, blocks: blocks as SiteDraft["blocks"] } : z.NEVER;
 }
+/** Slice B: a null `background_video` is not sent (missing ≡ null on the backend), so the v2 body
+ * only changes once a video is actually set — saves keep working against a backend without slice B. */
+function omitEmptyHeroVideo(draft: SiteDraftV2): SiteDraftV2 {
+  return { ...draft, blocks: draft.blocks.map(block => {
+    if (block.type !== "hero" || block.content.background_video !== null) return block;
+    const { background_video: _none, ...content } = block.content; void _none;
+    return { ...block, content: content as typeof block.content };
+  }) };
+}
 export type SiteDraftPayload = SiteDraft | SiteDraftV2;
 /** The draft PUT body for a v2 (or legacy) editor draft; flag off ⇒ exactly today's v1 document. */
 export function createSiteDraftPayloadSchema(enabled: boolean): z.ZodType<SiteDraftPayload, z.ZodTypeDef, unknown> {
-  return enabled ? siteDraftSchemaV2 : siteDraftSchemaV2.transform(toLegacyDraft);
+  return enabled ? siteDraftSchemaV2.transform(omitEmptyHeroVideo) : siteDraftSchemaV2.transform(toLegacyDraft);
 }
 export const siteDraftPayloadSchema = createSiteDraftPayloadSchema(SECTIONS_V2_ENABLED);
 
+/** Slice B (backend-confirmed): «Fondo en movimiento» publishes only with its background video AND
+ * the cover as poster; either one missing is a single `hero_video_missing` on the block. */
+export const HERO_VIDEO_ISSUE = Object.freeze({ code: "hero_video_missing", field: (index: number) => `blocks[${index}]` } as const);
 export type PublishIssueV2 = PublishIssue | {
   /** Codes agreed with the backend session for slice A. */
   code: "hero_video_missing" | "secondary_target_hidden" | "hero_collage_images_missing" | "style_image_missing";
@@ -359,8 +375,7 @@ export function publishIssuesV2(draft: SiteDraftV2, company: { name: string | nu
     // secondary_target_hidden; other blocks block_incomplete; then style_image_missing.
     if (block.type === "hero") {
       if (!complete(block)) issues.push({ code: "hero_title_missing", field });
-      // Background video arrives with slice B; until then this layout cannot go live.
-      if (block.variant === "background_loop") issues.push({ code: "hero_video_missing", field });
+      if (block.variant === "background_loop" && (block.content.background_video === null || block.content.cover === null)) issues.push({ code: HERO_VIDEO_ISSUE.code, field: HERO_VIDEO_ISSUE.field(index) });
       if (block.variant === "collage" && block.content.images.length < HERO_COLLAGE_MIN_TO_PUBLISH) issues.push({ code: "hero_collage_images_missing", field });
       const target = block.content.secondary_target;
       if (block.content.secondary_visible && target !== null && visible.get(target) === false) issues.push({ code: "secondary_target_hidden", field: `${field}.content.secondary_target` });

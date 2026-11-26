@@ -25,12 +25,14 @@ describe("missingContent: what the «Incompleta» chip and «Completar sección�
     ["areas", block("areas"), { hint: "Falta: el título", group: "content", target: "title" }],
     ["hero without title", block("hero"), { hint: "Falta: el título principal", group: "content", target: "title" }],
     ["hero collage with one photo", block("hero", { title: "Hola", images: [media] }, { variant: "collage" } as Partial<SiteBlockV2>), { hint: "Falta: al menos 2 fotos para el collage", group: "content", target: "collage" }],
-    ["hero background video", block("hero", { title: "Hola" }, { variant: "background_loop" } as Partial<SiteBlockV2>), { hint: "Falta: el video de fondo, que llega pronto; elige otro diseño", group: "layout", target: "variants" }],
+    ["hero background video, nothing uploaded", block("hero", { title: "Hola" }, { variant: "background_loop" } as Partial<SiteBlockV2>), { hint: "Falta: el video de fondo", group: "content", target: "background-video" }],
+    ["hero background video without its poster", block("hero", { title: "Hola", background_video: media }, { variant: "background_loop" } as Partial<SiteBlockV2>), { hint: "Falta: la imagen de portada (póster del video)", group: "content", target: "cover" }],
     ["image background without image", block("faq", { items: [{ question: "¿Q?", answer: "R" }] }, { style: { background: "image", spacing: "airy", align: "start", overlay: "medium", image: null } }), { hint: "Falta: la imagen de fondo", group: "style", target: "style-image" }],
   ])("%s", (_, target, expected) => {
     expect(missingContent(target)).toEqual(expected);
   });
   it("a complete or hidden section misses nothing", () => {
+    expect(missingContent(block("hero", { title: "Hola", background_video: media, cover: media }, { variant: "background_loop" } as Partial<SiteBlockV2>))).toBeNull();
     expect(missingContent(block("team", { items: [person()] }))).toBeNull();
     expect(missingContent(block("team", {}, { hidden: true }))).toBeNull();
   });

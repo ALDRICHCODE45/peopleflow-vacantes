@@ -82,6 +82,22 @@ describe("«Completar sección» leads to what is missing (L11)", () => {
     expect(document.getElementById("editor-properties")).toBeVisible();
     await waitFor(() => expect(document.activeElement).toBe(within(properties()).getByRole("button", { name: "Agregar persona" })));
   });
+  it("«Ir a lo que falta» on a «Fondo en movimiento» hero focuses its video slot first, then the poster", async () => {
+    const media = publishedFixture().media[0].id;
+    for (const [background_video, focused] of [[null, "Subir Video de fondo"], [{ media_id: media }, "Imagen de portada"]] as const) {
+      const props = fixture([]);
+      const hero = props.initialSite.draft.blocks[0];
+      if (hero.type !== "hero") throw new Error("fixture");
+      props.initialSite.draft.blocks[0] = { ...hero, variant: "background_loop", content: { ...hero.content, title: "Hola", cover: null, background_video } };
+      render(<CareersSiteEditor {...props} />);
+      await waitFor(() => expect(frame().getByRole("heading", { level: 1 })).toBeInTheDocument());
+      expect(row("Portada")).toHaveAccessibleDescription(background_video ? /Falta: la imagen de portada \(póster del video\)/ : /Falta: el video de fondo/);
+      fireEvent.click(row("Portada"));
+      fireEvent.click(within(within(properties()).getByRole("note")).getByRole("button", { name: "Ir a lo que falta" }));
+      await waitFor(() => expect(document.activeElement).toBe(within(properties()).getByRole("button", { name: focused })));
+      cleanup();
+    }
+  });
   it("opens the properties Sheet on phones and tablets and focuses the missing control", async () => {
     vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     await mount([team()]);

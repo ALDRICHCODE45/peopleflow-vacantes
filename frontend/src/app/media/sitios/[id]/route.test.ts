@@ -34,3 +34,104 @@ it("handles network errors and an upstream timeout", async () => {
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline"))); expect((await call()).status).toBe(502);
   vi.stubGlobal("fetch", vi.fn((request: Request) => new Promise((_resolve, reject) => request.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))))); expect((await call()).status).toBe(502);
 });
+
+// Slice B: the hero background video is served with Range/206 so browsers can seek and stream it.
+const ranged = (range?: string) => GET(new Request("http://localhost/media/sitios/" + id, { headers: { cookie: "session=private", ...(range ? { range } : {}) } }), { params: Promise.resolve({ id }) });
+it("an image 200 is unchanged and never forwards a Range it wasn't sent", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("image bytes", { headers: { "content-type": "image/png", "content-length": "11" } })));
+  const response = await ranged();
+  expect(response.status).toBe(200); expect(await response.text()).toBe("image bytes");
+  expect(response.headers.get("content-length")).toBe("11");
+  expect((vi.mocked(fetch).mock.calls[0][0] as Request).headers.has("range")).toBe(false);
+});
+it("forwards Range and passes back a 206 video/mp4 with its range headers", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("0123", { status: 206, headers: {
+    "content-type": "video/mp4", "content-range": "bytes 0-3/2000000", "accept-ranges": "bytes", "content-length": "4", "cache-control": "public, max-age=31536000, immutable", "set-cookie": "a=b", "etag": "\"x\"",
+  } })));
+  const response = await ranged("bytes=0-3");
+  const outbound = vi.mocked(fetch).mock.calls[0][0] as Request;
+  expect(outbound.headers.get("range")).toBe("bytes=0-3");
+  expect(outbound.headers.has("cookie")).toBe(false);
+  expect(response.status).toBe(206);
+  expect(await response.text()).toBe("0123");
+  expect(response.headers.get("content-type")).toBe("video/mp4");
+  expect(response.headers.get("content-range")).toBe("bytes 0-3/2000000");
+  expect(response.headers.get("accept-ranges")).toBe("bytes");
+  expect(response.headers.get("content-length")).toBe("4");
+  expect(response.headers.get("cache-control")).toContain("immutable");
+  expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  expect(response.headers.has("set-cookie")).toBe(false);
+});
+it("serves a full video/mp4 200 with Accept-Ranges", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("video", { headers: { "content-type": "video/mp4", "accept-ranges": "bytes", "content-length": "5" } })));
+  const response = await ranged();
+  expect(response.status).toBe(200); expect(response.headers.get("accept-ranges")).toBe("bytes"); expect(response.headers.get("content-length")).toBe("5");
+});
+it("passes back 416 with its Content-Range and no body", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("nope", { status: 416, headers: { "content-range": "bytes */2000", "content-type": "text/plain" } })));
+  const response = await ranged("bytes=5000-");
+  expect(response.status).toBe(416); expect(response.headers.get("content-range")).toBe("bytes */2000"); expect(await response.text()).toBe("");
+  expect(response.headers.get("cache-control")).toBe("no-store"); expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+});
+it("a 416 is never cacheable, even if the upstream said otherwise", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 416, headers: { "content-range": "bytes */2000", "cache-control": "public, max-age=31536000, immutable" } })));
+  expect((await ranged("bytes=2000-")).headers.get("cache-control")).toBe("no-store");
+});
+it.each(["bytes=-0", "bytes=9-3"])("forwards the single-range-looking %s and passes the upstream's whole-file 200 through", async range => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("whole video", { headers: { "content-type": "video/mp4", "accept-ranges": "bytes", "content-length": "11" } })));
+  const response = await ranged(range);
+  expect((vi.mocked(fetch).mock.calls[0][0] as Request).headers.get("range")).toBe(range);
+  expect(response.status).toBe(200); expect(await response.text()).toBe("whole video");
+  expect(response.headers.has("content-range")).toBe(false); expect(response.headers.get("content-length")).toBe("11");
+});
+it.each(["bytes=0-", "bytes=-500", "bytes=100-199"])("forwards the single byte range %s", async range => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("x", { status: 206, headers: { "content-type": "video/mp4", "content-range": "bytes 0-0/10" } })));
+  expect((await ranged(range)).status).toBe(206);
+  expect((vi.mocked(fetch).mock.calls[0][0] as Request).headers.get("range")).toBe(range);
+});
+it.each(["items=0-3", "bytes=0-3,5-9", "bytes=0-3, 5-9", "bytes=abc", "bytes=", "bytes=-", `bytes=0-${"9".repeat(40)}`])("drops a malformed or multi Range %s instead of forwarding it", async range => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("video", { headers: { "content-type": "video/mp4" } })));
+  expect((await ranged(range)).status).toBe(200);
+  expect((vi.mocked(fetch).mock.calls[0][0] as Request).headers.has("range")).toBe(false);
+});
+it.each(["video/quicktime", "video/webm", "text/html", "multipart/byteranges; boundary=x"])("a 206 of %s is still blocked", async type => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("x", { status: 206, headers: { "content-type": type, "content-range": "bytes 0-0/10" } })));
+  expect((await ranged("bytes=0-0")).status).toBe(502);
+});
+it("a 206 without a valid Content-Range is refused", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("x", { status: 206, headers: { "content-type": "video/mp4", "content-range": "garbage" } })));
+  expect((await ranged("bytes=0-0")).status).toBe(502);
+});
+
+// The API timeout bounds the response headers; a video body may legitimately take minutes to stream.
+const slowVideo = (after: number) => vi.fn((request: Request) => Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+  start(controller) {
+    controller.enqueue(new TextEncoder().encode("head-"));
+    const timer = setTimeout(() => { controller.enqueue(new TextEncoder().encode("tail")); controller.close(); }, after);
+    request.signal.addEventListener("abort", () => { clearTimeout(timer); controller.error(new DOMException("aborted", "AbortError")); });
+  },
+}), { headers: { "content-type": "video/mp4" } })));
+it("does not cut a video body that streams for longer than 2 minutes", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal("fetch", slowVideo(150_000));
+    const response = await ranged();
+    expect(response.status).toBe(200);
+    const text = response.text();
+    await vi.advanceTimersByTimeAsync(150_000);
+    expect(await text).toBe("head-tail");
+    expect((vi.mocked(fetch).mock.calls[0][0] as Request).signal.aborted).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+it("an image body keeps the short API deadline", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal("fetch", vi.fn((request: Request) => Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+      start(controller) { request.signal.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError"))); },
+    }), { headers: { "content-type": "image/png" } }))));
+    const response = await ranged();
+    const text = response.text().then(() => "done", () => "aborted");
+    await vi.advanceTimersByTimeAsync(30);
+    expect(await text).toBe("aborted");
+  } finally { vi.useRealTimers(); }
+});

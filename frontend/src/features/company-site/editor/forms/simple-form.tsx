@@ -13,6 +13,8 @@ import { SECTIONS_V2_ENABLED } from "../../sections-v2";
 import { AreaOverrides, CollageField } from "./v2-fields";
 import { mediaUrl } from "../../public/media";
 import { ImageField } from "../media";
+// Direct import: tests that stub `../media` (ImageField) keep the real video slot.
+import { VideoField as BackgroundVideoField } from "../media/VideoField";
 import { CompleteTarget, Counter, fieldMessage, TextField } from "./fields";
 import type { FormProps } from "./section-form";
 
@@ -45,6 +47,10 @@ export function SimpleForm({ block, dispatch, fieldErrors }: FormProps) {
       <CompleteTarget name="title"><TextField label="Título principal" value={block.content.title} onChange={title => change({ title })} max={80} description="Presenta tu empresa. Es necesario para publicar." error={error("title")} multiline /></CompleteTarget>
       <TextField label="Subtítulo" value={block.content.subtitle} onChange={subtitle => change({ subtitle })} max={200} description="Invita a las personas a conocer tu equipo. Es opcional." error={error("subtitle")} multiline />
       {SECTIONS_V2_ENABLED && block.variant === "collage" ? <CollageField block={block} fieldErrors={fieldErrors} onChange={images => change({ images })} />
+        : SECTIONS_V2_ENABLED && block.variant === "background_loop" ? <>
+          <CompleteTarget name="background-video"><BackgroundVideoField label="Video de fondo" value={block.content.background_video} onChange={background_video => change({ background_video })} previewUrl={mediaUrl} error={error("background_video")} /></CompleteTarget>
+          <CompleteTarget name="cover"><ImageField kind="cover" label="Imagen de portada" description="Es el póster del video: se ve mientras carga y cuando la persona prefiere menos movimiento. Es necesaria para publicar." value={block.content.cover} onChange={cover => change({ cover })} previewUrl={mediaUrl} error={error("cover")} /></CompleteTarget>
+        </>
         : <ImageField kind="cover" label="Imagen de portada" description="Una imagen que represente a tu empresa. Es opcional." value={block.content.cover} onChange={cover => change({ cover })} previewUrl={mediaUrl} error={error("cover")} />}
       {/* With sections v2 the buttons have their own «Botones» group. */}
       <FieldDescription>{SECTIONS_V2_ENABLED ? "La identidad de tu empresa se toma de tu perfil." : "El botón «Ver vacantes» lleva a las vacantes de este sitio. «Conoce la empresa» aparece si hay una Historia visible. La identidad de tu empresa se toma de tu perfil."}</FieldDescription>
