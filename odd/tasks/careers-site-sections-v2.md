@@ -32,10 +32,10 @@ picks a direction, coordinated with the backend session.
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
-| T1 | S1–S5 | Design directions in `design/careers-site-sections-v2/` (writer, gentle-design) | |
-| T2 | S1–S4 | Backend contract proposal for the chosen direction (coordinate with the backend session) | |
-| T3 | S1–S4 | Frontend implementation of the chosen direction | |
-| T4 | S1–S4 | Browser check, full suite, merge to main | |
+| T1 | S1–S5 | Design directions in `design/careers-site-sections-v2/` (writer, gentle-design) | `8b8c50db` |
+| T2 | S1–S4 | Backend contract proposal for the chosen direction (coordinate with the backend session) | `af6a6140` (backend `64e2e379`) |
+| T3 | S1–S4 | Frontend implementation of the chosen direction (slice A) | `616b3934`…`105dd1bd` |
+| T4 | S1–S4 | Browser check, full suite, merge to main (slice A) | this log + merge; slices B/C pending |
 
 ## Log
 
@@ -109,3 +109,11 @@ picks a direction, coordinated with the backend session.
   Browser re-check (Chromium + Firefox, 1440/1280/1024/390): the user's flow and the sweep pass, axe 0. Full suite on
   `12903f0a`: 665 files / 12410 passed, tsc 0, lint 0 errors. Follow-up `fce67854`: slots keep the page card/ink on brand,
   image and tint surfaces; both «Completar sección» buttons use the editor colour.
+- **L13** (2026-11-25) User, verbatim: «Si hermnao, merge, solamente una cosa: [Image#7] dale un poco mas de espacio a la
+  izquierda del icono para hacer el "drag" de la seccion, esta muy pgado al icono y al titulo del contenido.» → `3f5bd60a`
+  (row padding 28 px, handle 2–26 px, clear of the icon tile); `105dd1bd` flag ON by default
+  (`NEXT_PUBLIC_CAREERS_SECTIONS_V2=false` is the kill switch; vitest runs with it off to keep the pre-v2 mode pinned).
+  Default-on build `jRNJKnPQDm6--yRC1Rr5e` serves the v2 library; full suite 665 files / 12411 passed, tsc 0, lint 0
+  errors. Native review assess unassessable (untracked canvas files); plan required no extra verifier. Merged slice A to
+  local main; the user pushes. Next: slice B (hero video), slice C («Dejar mi CV»).
+
