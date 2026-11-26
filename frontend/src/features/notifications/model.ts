@@ -65,6 +65,23 @@ export const notificationPageSchema = z.object({
 
 export const unreadCountSchema = z.object({ unread_count: count, unread_notifications: count });
 
+/** Answer of `POST …/read`, `…/unread` and `…/read-all` (N5). `marked_at` is what «Deshacer» sends back to `…/unread`. */
+export const markResultSchema = z.object({
+  affected_notifications: count,
+  affected_groups: count,
+  marked_at: timestamp,
+  unread_count: count,
+  unread_notifications: count,
+});
+
+/** `GET …/facets`: group counts per type (open string) and per job (≤ 50, `jobs_total` = distinct jobs). */
+export const facetsSchema = z.object({
+  state: z.enum(NOTIFICATION_STATES),
+  types: z.array(z.object({ type: text, count })),
+  jobs: z.array(z.object({ job_id: uuid, title: z.string().nullable(), count })).max(50),
+  jobs_total: count,
+});
+
 /** Flat error envelope; leniently decoded, never shown verbatim. */
 export const errorEnvelopeSchema = z.object({
   error: text, code: text,
@@ -76,13 +93,28 @@ export type NotificationGroup = z.infer<typeof notificationGroupSchema>;
 export type NotificationPage = z.infer<typeof notificationPageSchema>;
 export type UnreadCount = z.infer<typeof unreadCountSchema>;
 export type NotificationErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
+export type MarkResult = z.infer<typeof markResultSchema>;
+export type NotificationFacets = z.infer<typeof facetsSchema>;
 export type FilterIssue = { field: string; code: string };
+
+/** Body issue codes of 400 `validation_error` (L13); anything else from the backend is dropped. */
+export const VALIDATION_CODES = ["required", "invalid", "not_allowed", "empty", "too_many"] as const;
+export const VALIDATION_FIELDS = ["body", "group_keys", "ids", "marked_at", "types", "job_ids", "before"] as const;
+
+/** Exactly one selection. `markedAt` (undo of an earlier mark) is accepted by unread only. */
+export type MarkTarget = { groupKeys: readonly string[] } | { ids: readonly string[] };
+export type UnmarkTarget = MarkTarget | { markedAt: string };
+export type MarkAllInput = { types?: readonly NotificationType[]; jobIds?: readonly string[]; before?: string };
 
 export type NotificationFailure = {
   ok: false;
-  reason: "unauthenticated" | "forbidden" | "invalid_filter" | "invalid_cursor" | "server_error" | "no_response" | "unrecognized_response";
+  reason:
+    | "unauthenticated" | "forbidden" | "invalid_filter" | "invalid_cursor" | "validation_error"
+    | "server_error" | "no_response" | "unrecognized_response";
   fields?: FilterIssue[];
   reference: { status?: number; code?: string };
 };
 export type NotificationListResult = { ok: true; data: NotificationPage } | NotificationFailure;
 export type UnreadCountResult = { ok: true; data: UnreadCount } | NotificationFailure;
+export type MarkResultResult = { ok: true; data: MarkResult } | NotificationFailure;
+export type FacetsResult = { ok: true; data: NotificationFacets } | NotificationFailure;

@@ -1,4 +1,4 @@
-import type { NotificationGroup, NotificationPage } from "./model";
+import type { MarkResult, NotificationFacets, NotificationGroup, NotificationPage } from "./model";
 
 export const jobId = "40000000-0000-4000-8000-000000000001";
 export const otherJobId = "40000000-0000-4000-8000-000000000002";
@@ -71,6 +71,29 @@ export function reassignedGroup(overrides: Partial<NotificationGroup> = {}): Not
     sample: [],
     link: { kind: "vacancy", job_id: otherJobId },
     from_user: { user_id: carmenId, name: "Carmen Colleague" },
+    ...overrides,
+  };
+}
+
+/** Response of `POST …/read`, `…/unread` and `…/read-all` (contract §POST B/read). */
+export function markResult(overrides: Partial<MarkResult> = {}): MarkResult {
+  return {
+    affected_notifications: 3,
+    affected_groups: 1,
+    marked_at: "2026-11-26T18:45:02.123456Z",
+    unread_count: 3,
+    unread_notifications: 3,
+    ...overrides,
+  };
+}
+
+/** Response of `GET …/facets` (contract §GET B/facets). */
+export function notificationFacets(overrides: Partial<NotificationFacets> = {}): NotificationFacets {
+  return {
+    state: "unread",
+    types: [{ type: "application_received", count: 2 }, { type: "delivery_overdue", count: 1 }],
+    jobs: [{ job_id: jobId, title: "Analista de nómina", count: 3 }, { job_id: otherJobId, title: null, count: 1 }],
+    jobs_total: 2,
     ...overrides,
   };
 }

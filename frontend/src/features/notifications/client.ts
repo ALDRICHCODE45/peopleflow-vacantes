@@ -1,16 +1,26 @@
 import "server-only";
-import type { z } from "zod";
+import { z } from "zod";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 import {
-  errorEnvelopeSchema, isKnownNotificationType, NOTIFICATION_STATES, notificationPageSchema, unreadCountSchema,
-  type NotificationErrorEnvelope, type NotificationPage, type NotificationState, type NotificationType, type UnreadCount,
+  errorEnvelopeSchema, facetsSchema, isKnownNotificationType, markResultSchema, NOTIFICATION_STATES, NOTIFICATION_TYPES,
+  notificationPageSchema, unreadCountSchema,
+  type FilterIssue, type MarkAllInput, type MarkResult, type MarkTarget, type NotificationErrorEnvelope, type NotificationFacets,
+  type NotificationPage, type NotificationState, type NotificationType, type UnmarkTarget, type UnreadCount,
 } from "./model";
 
 const PATH = "/v2/me/company/notifications";
 export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 50;
 export const MAX_JOB_IDS = 20;
+export const MAX_TYPES = NOTIFICATION_TYPES.length;
+export const MAX_GROUP_KEYS = 100;
+export const MAX_IDS = 200;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+/** D11 group keys: `n:<notification uuid>` or `<grouped prefix>:<job uuid>:<YYYY-MM-DD>` (backend `canonicalGroupKey`). */
+const SINGLE_KEY = /^n:([^:]{36})$/;
+const GROUPED_KEY = /^(?:applications|psychometrics|psychometrics_pending):([^:]{36}):(\d{4}-\d{2}-\d{2})$/;
+const timestampSchema = z.string().datetime({ offset: true });
 
 let envModule: Promise<typeof import("@/lib/env/server")> | undefined;
 const loadServerEnv = async () => (await (envModule ??= import("@/lib/env/server"))).serverEnv;
@@ -24,17 +34,25 @@ export type NotificationQuery = {
 };
 export type NotificationClientFailure = {
   ok: false;
-  error: { kind: RequestJsonError["kind"] | "missing_token" | "invalid_request"; retryable: boolean; status?: number };
+  error: { kind: RequestJsonError["kind"] | "missing_token" | "invalid_request" | "invalid_body"; retryable: boolean; status?: number };
   envelope?: NotificationErrorEnvelope;
+  /** Local body issues (`invalid_body`), named and coded as the backend's 400 `validation_error` would. */
+  fields?: FilterIssue[];
 };
+type ClientResult<T> = Promise<{ ok: true; data: T } | NotificationClientFailure>;
 const noToken: NotificationClientFailure = { ok: false, error: { kind: "missing_token", retryable: false } };
 const invalidRequest: NotificationClientFailure = { ok: false, error: { kind: "invalid_request", retryable: false } };
+const invalidBody = (fields: FilterIssue[]): NotificationClientFailure => ({ ok: false, error: { kind: "invalid_body", retryable: false }, fields });
 const hasToken = (token: unknown): token is string => typeof token === "string" && !!token.trim();
 
-async function get<T>(path: string, token: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>, query?: URLSearchParams) {
+async function call<T>(
+  path: string, token: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  { query, body }: { query?: URLSearchParams; body?: object } = {},
+): ClientResult<T> {
   if (!hasToken(token)) return noToken;
   const serverEnv = await loadServerEnv();
   const result = await requestJson(new URL(`${path}${query?.size ? `?${query}` : ""}`, serverEnv.apiBaseUrl).toString(), {
+    ...(body ? { method: "POST", body } : {}),
     headers: { authorization: `Bearer ${token.trim()}` }, redirect: "error", expectedStatus: 200,
     timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
     decoder: value => schema.parse(value), errorDecoder: value => errorEnvelopeSchema.parse(value),
@@ -43,6 +61,15 @@ async function get<T>(path: string, token: string, schema: z.ZodType<T, z.ZodTyp
 }
 
 const isStringList = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === "string");
+const isUuid = (value: string) => UUID_PATTERN.test(value) && value !== NIL_UUID;
+const isDay = (value: string) => { const day = new Date(`${value}T00:00:00Z`); return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value; };
+const isGroupKey = (value: string) => {
+  const single = SINGLE_KEY.exec(value);
+  if (single) return isUuid(single[1]);
+  const grouped = GROUPED_KEY.exec(value);
+  return !!grouped && isUuid(grouped[1]) && isDay(grouped[2]);
+};
+const isTimestamp = (value: unknown): value is string => timestampSchema.safeParse(value).success;
 
 /** Only the contract's query travels: anything else is refused before a request is made. */
 function toQuery(input: NotificationQuery): URLSearchParams | null {
@@ -61,11 +88,79 @@ function toQuery(input: NotificationQuery): URLSearchParams | null {
   return params;
 }
 
-export async function listNotifications(input: NotificationQuery & { token: string }): Promise<{ ok: true; data: NotificationPage } | NotificationClientFailure> {
-  if (!hasToken(input.token)) return noToken;
-  const query = toQuery(input);
-  return query ? get(PATH, input.token, notificationPageSchema, query) : invalidRequest;
+/** Backend `parseList` order: not a list or a bad value → invalid; empty → empty (unless omitted); over the limit → too_many. */
+function listIssue(value: unknown, limit: number, valid: (item: string) => boolean): FilterIssue["code"] | undefined {
+  if (!isStringList(value)) return "invalid";
+  if (value.length === 0) return "empty";
+  if (value.length > limit) return "too_many";
+  return value.every(valid) ? undefined : "invalid";
+}
+const sorted = (issues: FilterIssue[]) => issues.sort((a, b) => a.field.localeCompare(b.field));
+
+/** Read/unread body: exactly one of `group_keys`, `ids` or (unread only) `marked_at`; refused locally like the backend would. */
+function toMarkBody(target: unknown, unread: boolean): { body: object } | { fields: FilterIssue[] } {
+  if (typeof target !== "object" || target === null || Array.isArray(target)) return { fields: [{ field: "body", code: "required" }] };
+  const entries = Object.entries(target).filter(([, value]) => value !== undefined);
+  if (entries.length === 0) return { fields: [{ field: "body", code: "required" }] };
+  if (entries.length > 1 || !["groupKeys", "ids", "markedAt"].includes(entries[0][0])) return { fields: [{ field: "body", code: "invalid" }] };
+  const [key, value] = entries[0];
+  if (key === "markedAt") {
+    if (!unread) return { fields: [{ field: "marked_at", code: "not_allowed" }] };
+    return isTimestamp(value) ? { body: { marked_at: value } } : { fields: [{ field: "marked_at", code: "invalid" }] };
+  }
+  const [field, limit, valid] = key === "groupKeys" ? ["group_keys", MAX_GROUP_KEYS, isGroupKey] as const : ["ids", MAX_IDS, isUuid] as const;
+  const code = listIssue(value, limit, valid);
+  return code ? { fields: [{ field, code }] } : { body: { [field]: value } };
 }
 
-export const getUnreadCount = (token: string): Promise<{ ok: true; data: UnreadCount } | NotificationClientFailure> =>
-  get(`${PATH}/unread-count`, token, unreadCountSchema);
+/** Read-all body: every key optional; an empty list is omitted (never sent), `{}` marks everything up to now. */
+function toMarkAllBody(input: unknown): { body: object } | { fields: FilterIssue[] } {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return { fields: [{ field: "body", code: "invalid" }] };
+  const { types, jobIds, before, ...rest } = input as Record<string, unknown>;
+  if (Object.values(rest).some(value => value !== undefined)) return { fields: [{ field: "body", code: "invalid" }] };
+  const body: Record<string, unknown> = {};
+  const issues: FilterIssue[] = [];
+  const list = (value: unknown, field: string, limit: number, valid: (item: string) => boolean) => {
+    if (value === undefined || (Array.isArray(value) && value.length === 0)) return;
+    const code = listIssue(value, limit, valid);
+    if (code) issues.push({ field, code }); else body[field] = value;
+  };
+  list(types, "types", MAX_TYPES, isKnownNotificationType);
+  list(jobIds, "job_ids", MAX_JOB_IDS, isUuid);
+  if (before !== undefined) { if (isTimestamp(before)) body.before = before; else issues.push({ field: "before", code: "invalid" }); }
+  return issues.length ? { fields: sorted(issues) } : { body };
+}
+
+export async function listNotifications(input: NotificationQuery & { token: string }): ClientResult<NotificationPage> {
+  if (!hasToken(input.token)) return noToken;
+  const query = toQuery(input);
+  return query ? call(PATH, input.token, notificationPageSchema, { query }) : invalidRequest;
+}
+
+export const getUnreadCount = (token: string): ClientResult<UnreadCount> => call(`${PATH}/unread-count`, token, unreadCountSchema);
+
+async function mark(path: string, token: string, built: { body: object } | { fields: FilterIssue[] }): ClientResult<MarkResult> {
+  if (!hasToken(token)) return noToken;
+  return "fields" in built ? invalidBody(built.fields) : call(path, token, markResultSchema, { body: built.body });
+}
+
+/** `POST …/read` with `{group_keys}` (1–100) or `{ids}` (1–200). */
+export const markRead = (input: { token: string; target: MarkTarget }): ClientResult<MarkResult> =>
+  mark(`${PATH}/read`, input.token, toMarkBody(input.target, false));
+
+/** `POST …/unread` with `{group_keys}`, `{ids}` or `{marked_at}` (exact undo of an earlier mark). */
+export const markUnread = (input: { token: string; target: UnmarkTarget }): ClientResult<MarkResult> =>
+  mark(`${PATH}/unread`, input.token, toMarkBody(input.target, true));
+
+/** `POST …/read-all` with optional `types`, `job_ids`, `before`. */
+export const markAllRead = (input: MarkAllInput & { token: string }): ClientResult<MarkResult> => {
+  const { token, ...filters } = input;
+  return mark(`${PATH}/read-all`, token, toMarkAllBody(filters));
+};
+
+/** `GET …/facets?state=unread|all`; the backend ignores every other filter. */
+export async function getFacets(input: { token: string; state: NotificationState }): ClientResult<NotificationFacets> {
+  if (!hasToken(input.token)) return noToken;
+  if (!(NOTIFICATION_STATES as readonly string[]).includes(input.state)) return invalidRequest;
+  return call(`${PATH}/facets`, input.token, facetsSchema, { query: new URLSearchParams({ state: input.state }) });
+}
