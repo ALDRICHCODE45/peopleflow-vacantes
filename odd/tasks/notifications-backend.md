@@ -408,3 +408,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   audit-purge parity all pass; integration 9/0/0, sqlc clean. Stale "becomes NULL" comment fixed in 00068 and contract.
   Parent final checks: unit 128 packages ok, go vet ok. Pending human decisions: push/PR of feat/notifications-backend
   (contract + N1..N7 slices) and merge to main. Open follow-ups: see L9–L22.
+- **L24** 2026-11-26, browser test by the frontend (feat/notifications-ui) against the API on :8081 over the dev DB (00068
+  applied, seed in .scratch/notifications-demo/): member and candidate 9/9 OK. FYI from the frontend (not a request):
+  notifications.created_at is the fan-out time while group_key uses the event's occurred_at date, so a delayed fan-out
+  shows an older day's group under «Hoy». Follow-up option: set created_at = occurred_at at fan-out.
