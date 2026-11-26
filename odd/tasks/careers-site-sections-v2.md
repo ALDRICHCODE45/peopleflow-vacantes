@@ -91,3 +91,14 @@ picks a direction, coordinated with the backend session.
   on `ea5b6c28`: 662 files / 12323 passed, tsc 0, lint 0 errors. Browser re-check (Chromium + Firefox): 11/12 then the
   properties panel measured clean at 1440/1280/1024 (no sideways scroll, single scrollbar); axe 0 violations everywhere.
   :3000 serves BUILD_ID `aZjt_CmVbkudSA5EqNLKC` with the flag on. Waiting for the user's review before merging.
+- **L11** (2026-11-25) User review, verbatim: «Bien hermano, estoy revisando y hay algunos problemas: [Image#5] [Image#6] el
+  primero es que creo que hay un error (a menos que yo lo este usando mal), pero cuando presiono "Completar seccion" no
+  pasa nada, no abre nada, no me dice uqe tengo que completar, no me dice nada.. y si abro el panel izquierdo, hay doss
+  cosas que no me gustan, la primera es que para seleccionar el "Diseno de la seccion" como que se corta el borde morado,
+  si lo vez? se corta, y parece que no hay borde arriba del diseno seelccionado, y tambien, cuando estoy escribiento el
+  titulo nuevo junto con la descrpcion noueva, no se pone en ningun lado, y cuando se pone, en la vista previa sale "Este
+  titulo de la seccion. todavia no tiene contenido" y en la introduccion ya directamente no se pone nada, no se si lo
+  estoy haciendo algo mal, pero bueno, revisalo a detalle por favor, revisa si hay mas errores de estos o algo parecido,
+  a detalle por favor.» → fix round: «Completar sección» selects the section, opens properties and focuses what's
+  missing; partial sections render their heading/intro with an editor-only placeholder; selected rings never clipped;
+  audit of every type × state, preview buttons, pickers and «Incompleta» hints.
