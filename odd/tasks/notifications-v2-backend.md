@@ -24,11 +24,19 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   la respuesta, para que el frontend no los duplique. El endpoint público de baja. El efecto del in-app apagado: no se crea la
   fila, o se crea oculta. Elegí y justificá. La lista de plantillas que necesitan copy.»
 - **S9** Constraint (user, 2026-11-22): «nadie TOQUE NADA DE AWS TODAVIA».
+- **S10** Copy, labels, fallbacks and path map: see L5 (verbatim).
 
 ## Tasks
 
-- T1 — S1–S9 — contract `docs/contracts/notifications-v2.md` (Draft) for frontend review — worker (docs) — drafted (uncommitted)
-- T2+ — implementation slices from the agreed contract — pending
+- T1 — S1–S10 — contract `docs/contracts/notifications-v2.md` — worker (docs) — agreed
+- T2 — E1 — migration 00069, domain defaults/effective preference/locked rule, `AND n.in_app` in the scoped inbox statements + guard test — worker — pending
+- T3 — E2 — preferences store + GET/PUT handlers for both trees, `notification_preference_locked`, routes — worker — pending
+- T4 — E3 — in-app off at creation in fan-out and scheduler, `InsertNotification` → `:execrows` — worker — pending
+- T5 — E4 — config loader, email eligibility, delivery creation with coalescing upsert in both creation paths — worker — pending
+- T6 — E5 — `Mailer` port, `log`/`smtp` adapters, Mailpit in compose, templates with the S10 copy, headers, dates, path map — worker — pending
+- T7 — E6 — sender loop (claim/lease, re-check/skip, fenced finalize, backoff, throttle), start/stop in `main.go` — worker — pending
+- T8 — E7 — unsubscribe token, public GET/POST, per-IP limit, `unsubscribe_link_invalid` — worker — pending
+- T9 — E8 — purge of terminal deliveries, follow-up note in `docs/decision-email-provider.md` — worker — pending
 
 ## Log
 
@@ -76,3 +84,54 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   título (Recomendado)»; Q6 «Sí, se cancela (Recomendado)»; Q7 «Ocultarla hasta la etapa 3 (Recomendado)». Parent accepts
   Q5/Q8/Q9/Q10 as recommended; Q3/Q4 go to the frontend; Q11 (sender domain) deferred to the SES work (S9). Contract
   updated; next: frontend review.
+- **L5** 2026-11-26, frontend review of the contract, approved by the user (verbatim; spec source for the copy, S10):
+  «Correcciones:
+  1. En la tabla de defaults de §Preferences los 3 tipos del candidato dicen «off (Q1)», pero D2 y Q1 resuelta dicen on. Que diga «on (Q1)».
+  2. En «Open questions» siguen Q1, Q2 y Q6–Q10, que ya están resueltas. Que queden solo Q3, Q4 y Q11 (y Q3 y Q4 se cierran con esto).
+  3. T13 vacancy_unassigned puede venir con link null. En ese caso app_url = APP_BASE_URL + /empresa.
+  4. La landing y el one-click van en paths distintos, porque en Next una page y un route handler no pueden compartir path.
+
+  Q3, mapa de paths:
+  - vacancy y vacancy_candidates → /empresa/vacantes/{job_id}/pipeline
+  - participation → /empresa/vacantes/{job_id}/pipeline?candidato={participation_id}
+  - vacancy_delivery → /empresa/vacantes/{job_id}/configuracion/entrega
+  - application → /candidato/postulaciones?postulacion={participation_id}
+  - assessment → /candidato/evaluaciones/{invitation_id}
+  - preferencias del miembro → /empresa/configuracion/notificaciones
+  - preferencias del candidato → /candidato/configuracion/notificaciones
+  - unsubscribe_url → /notificaciones/baja?token={token}
+  - NOTIFICATIONS_UNSUBSCRIBE_URL → APP_BASE_URL + /api/notificaciones/baja (vos le sumás ?token=)
+
+  Q4: origen del frontend. /api/notificaciones/baja acepta solo POST y reenvía token y body a POST /v2/notifications/unsubscribe, sin cookies, sin sesión y sin chequeo de mismo origen. La landing usa tu GET y confirma con una server action.
+
+  Copy (asunto | encabezado | línea | botón):
+  T1 Nueva postulación en {{job_title}} | Nueva postulación en {{job_title}} | Recibiste una postulación nueva el {{date_local}}. | Ver candidatos
+  T2 {{count}} postulaciones nuevas en {{job_title}} | igual | Llegaron {{count}} postulaciones nuevas el {{date_local}}. | Ver candidatos
+  T3 Prueba psicométrica completada en {{job_title}} | Prueba psicométrica completada | Un candidato de {{job_title}} terminó su prueba psicométrica. | Ver resultado
+  T4 {{count}} pruebas psicométricas completadas en {{job_title}} | {{count}} pruebas psicométricas completadas | {{count}} candidatos de {{job_title}} terminaron su prueba psicométrica. | Ver candidatos
+  T5 Prueba psicométrica pendiente en {{job_title}} | Prueba psicométrica pendiente | Se envió una prueba psicométrica a un candidato de {{job_title}} y aún no la responde. | Ver candidato
+  T6 {{count}} pruebas psicométricas pendientes en {{job_title}} | {{count}} pruebas psicométricas pendientes | Se enviaron {{count}} pruebas psicométricas a candidatos de {{job_title}} y aún no las responden. | Ver candidatos
+  T7 La entrega de {{job_title}} vence pronto | La entrega vence pronto | La fecha compromiso de {{job_title}} es el {{commitment_date_local}}. | Ver entrega
+  T8 La entrega de {{job_title}} está vencida | La entrega está vencida | La fecha compromiso de {{job_title}} era el {{commitment_date_local}}. | Ver entrega
+  T9 Tu fecha límite en {{job_title}} se acerca | Tu fecha límite se acerca | Como {{function}} de {{job_title}}, tu entrega vence el {{commitment_date_local}}. | Ver entrega
+  T10 Venció tu fecha límite en {{job_title}} | Venció tu fecha límite | Tu entrega como {{function}} de {{job_title}} era el {{commitment_date_local}}. | Ver entrega
+  T11 Te asignaron {{job_title}} | Te asignaron una vacante | Ahora eres responsable de {{job_title}} en {{company_name}}. | Abrir vacante
+  T12 Ahora eres responsable de {{job_title}} | Te reasignaron una vacante | Ahora eres responsable de {{job_title}}. Motivo: {{reason}}. | Abrir vacante
+  T13 Ya no eres responsable de {{job_title}} | Se reasignó una vacante | {{job_title}} ahora está a cargo de otra persona. Motivo: {{reason}}. | Ir a PeopleFlow
+  T14 Te agregaron al equipo de {{job_title}} | Te agregaron a un equipo | Formas parte del equipo de {{job_title}} como {{function}}. | Abrir vacante
+  T15 Tu postulación a {{job_title}} cambió de estado | Tu postulación ahora está «{{status}}» | {{company_name}} actualizó tu proceso para {{job_title}}. | Ver postulación
+  T16 {{company_name}} te dejó un mensaje | Tienes un mensaje sobre tu postulación | {{company_name}} te escribió sobre {{job_title}}. Por privacidad no lo incluimos aquí; léelo en PeopleFlow. | Leer mensaje
+  T17 Tienes una prueba psicométrica pendiente | Tienes una prueba pendiente | {{company_name}} te envió una prueba psicométrica para {{job_title}}. | Empezar prueba
+  F1: «Recibes este correo porque este aviso está activado en tus preferencias.», con los links «Mis preferencias» · «Dejar de recibir este tipo de correo».
+  F2: «Este aviso es obligatorio y no se puede desactivar.», con el link «Mis preferencias».
+  Etiquetas:
+  - function: responsable / colaborador / integrante
+  - reason: carga de trabajo / salida del reclutador / desempeño / solicitud del cliente / otro motivo
+  - status: Enviada / En proceso / Cerrada
+  Fallbacks: job_title null → «una vacante»; company_name null → «una empresa».»
+  Applied to the contract: corrections 1–4, Resolved questions Q1–Q11 (Q3 path map, Q4 frontend-origin pass-through,
+  Q11 deferred to SES), §Templates with the verbatim copy; Status Agreed.
+- **L6** 2026-11-26, contract Agreed (parent commit). Technical gaps owned by the backend, decided by the parent: candidate
+  items with a null link (no participation / invalid invitation) use app_url = APP_BASE_URL + /candidato/postulaciones
+  (apply in E5); the per-IP unsubscribe limit behind the frontend pass-through is designed in E7 (trusted forwarded client
+  IP, as the existing TRUSTED_PROXY_CIDRS / requestmeta pattern). T13 lowercase start with the fallback kept verbatim.

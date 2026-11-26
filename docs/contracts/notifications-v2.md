@@ -1,6 +1,6 @@
 # Notifications v2 (stage 2: email channel and personal preferences)
 
-Status: **Draft — Q1, Q2, Q6, Q7 decided by the user; Q5, Q8, Q9, Q10 accepted as recommended; Q3, Q4 pending frontend; Q11 deferred to the SES work** (2026-11-26). Source of the request: the frontend decisions forwarded in
+Status: **Agreed — reviewed by the frontend and approved by the user (2026-11-26); not implemented yet**. Source of the request: the frontend decisions forwarded in
 `odd/tasks/notifications-v2-backend.md` (S1–S9, L1; frontend feature L17–L18). Builds on
 `docs/contracts/notifications-v1.md` (stage 1, merged e6b2d501): every stage-1 rule stays unless a decision below says
 otherwise. Branch `feat/notifications-v2-backend`. Style follows `notifications-v1.md`. Every `path:line` is a backend path
@@ -105,12 +105,12 @@ digest is stage 3 (S1). The system is not in production and all data is disposab
 | D14 | S6 | **Email content is minimal**: type, count (groups), vacancy title (Q2), company name, dates in `America/Mexico_City`, one deep link to the app and the footer link(s). **Never** candidate names, actor names, free text (discard messages, reassignment notes) or ids in visible text. |
 | D15 | S7 | **Non-mandatory emails carry `List-Unsubscribe` + `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058) and a visible «Dejar de recibir este tipo de correo» link; mandatory emails carry no unsubscribe header and only link to «Mis preferencias».** |
 | D16 | S7 | **Unsubscribe token = stateless HMAC-SHA256 with a key id, payload `{v, u, c, t, x}`, 365-day expiry, verified in constant time; every invalid token gets one identical response.** Key rotation by keeping old keys as verify-only. Details in §Unsubscribe. |
-| D17 | S7 | **Public endpoints**: `POST /v2/notifications/unsubscribe?token=…` (one-click and landing confirm, idempotent) and `GET` the same URL (never mutates: link scanners prefetch GETs) returning what would be turned off. Effect = upsert `(user, company, type, email, enabled=false, source='unsubscribe')`; never for mandatory types (no token is ever issued for them, and they are refused). |
+| D17 | S7, Q4 | **Public endpoints**: `POST /v2/notifications/unsubscribe?token=…` (one-click and landing confirm, idempotent) and `GET` the same URL (never mutates: link scanners prefetch GETs) returning what would be turned off. In the frontend the landing page (`/notificaciones/baja`) and the one-click route handler (`/api/notificaciones/baja`) live on **different paths** (a Next page and a route handler cannot share one); both reach these same two backend endpoints (§Unsubscribe). Effect = upsert `(user, company, type, email, enabled=false, source='unsubscribe')`; never for mandatory types (no token is ever issued for them, and they are refused). |
 | D18 | S7 | **`email_suppressions(address, reason bounce\|complaint\|manual, created_at)` designed now**, global (not per user or feature), consulted at delivery creation and at send; rows are inserted manually for now, ingestion arrives with SES. |
 | D19 | S6 | **The recipient address is never copied** into deliveries or logs; the sender reads `users.email` at send time — no extra PII store, address changes apply to pending emails. |
 | D20 | v1 D22 | **Deliveries follow the 180-day retention** in `cmd/notifications-purge` (terminal rows only); preferences and suppressions are kept until the user is deleted / manually. |
 | D21 | S9, L2 | **Delivery is DB-backed and in-process, deviating from the queue design of `docs/decision-email-provider.md:11`** (EventBridge/SQS/Fargate worker): AWS is frozen (S9) and archguard forbids worker/outbox paths. The `Mailer` port keeps SES pluggable; the decision doc gets a follow-up note (Q10). |
-| D22 | S7 | **Templates live in the backend** (embedded Go templates, plain-text + HTML from the same copy), one per email-enabled type and per group form; **the Spanish copy comes from the frontend** (§Templates). Deep links are built from the existing link descriptors plus a path map the frontend provides (Q3). |
+| D22 | S7 | **Templates live in the backend** (embedded Go templates, plain-text + HTML from the same copy), one per email-enabled type and per group form; **the Spanish copy comes from the frontend** (§Templates). Deep links are built from the existing link descriptors plus the frontend path map (Q3, §Templates). |
 | D23 | — | **Stakeholders get the member catalog** behind the same gate as their inbox (`requireDocumentReader`), although no rule notifies them in stage 2 — one gate per tree, and stage-3 role rules will read the same preferences (Q7: hide the page in the UI until then). |
 
 ## Data model (migration `00069_notifications_email`, proposal)
@@ -196,7 +196,7 @@ CREATE INDEX notifications_recipient_unread ON notifications (recipient_user_id,
 | Kind | `in_app` default | `in_app` locked | `email` default | `email` locked |
 | --- | --- | --- | --- | --- |
 | mandatory | on | yes | on | yes |
-| operational | on | no | **off** (S2) | no |
+| operational | on | no | **off** (S2); **on** for the three candidate types (Q1, D2) | no |
 | informative (no type yet) | on | no | off | no |
 
 Per type (member tree: 11 types; candidate tree: 3 types; order = `types.go:90-105`):
@@ -214,9 +214,9 @@ Per type (member tree: 11 types; candidate tree: 3 types; order = `types.go:90-1
 | `vacancy_team_added` | mandatory | member | on 🔒 | on 🔒 |
 | `psychometric_completed` | operational | member | on | off |
 | `psychometric_pending` | operational | member | on | off |
-| `candidate_status_changed` | operational | candidate | on | off (Q1) |
-| `candidate_message_received` | operational | candidate | on | off (Q1) |
-| `candidate_test_pending` | operational | candidate | on | off (Q1) |
+| `candidate_status_changed` | operational | candidate | on | on (Q1) |
+| `candidate_message_received` | operational | candidate | on | on (Q1) |
+| `candidate_test_pending` | operational | candidate | on | on (Q1) |
 
 **Effective preference** of `(user, company, type, channel)` = the override row's `enabled` if one exists, else the
 default above; a locked pair is always on (no row can exist, D2).
@@ -428,12 +428,12 @@ Dev compose: a `mailpit` service added to `backend/docker-compose.yml` (pinned `
 | Key | Required when | Meaning |
 | --- | --- | --- |
 | `NOTIFICATIONS_MAILER` | — | `off` \| `log` \| `smtp` (`ses` reserved); default `off` |
-| `NOTIFICATIONS_EMAIL_FROM` | mailer ≠ off | sender, e.g. `PeopleFlow <no-reply@…>` (domain open, Q11) |
+| `NOTIFICATIONS_EMAIL_FROM` | mailer ≠ off | sender, e.g. `PeopleFlow <no-reply@…>` (domain deferred to the SES work, Q11) |
 | `NOTIFICATIONS_SMTP_HOST`, `NOTIFICATIONS_SMTP_PORT` | mailer = smtp | Mailpit `localhost` / `1025` in dev; refused when `APP_ENV=production` |
 | `NOTIFICATIONS_EMAIL_MAX_PER_SECOND` | — | per-instance throttle, default `1` |
 | `NOTIFICATIONS_UNSUBSCRIBE_KEYS` | mailer ≠ off | secret: comma list `kid:base64key`, first signs, all verify; each key ≥ 32 bytes |
-| `NOTIFICATIONS_UNSUBSCRIBE_URL` | mailer ≠ off | absolute https URL (http allowed outside production) that receives the one-click POST (Q4) |
-| `APP_BASE_URL` | mailer ≠ off | frontend origin for deep links, «Mis preferencias» and the unsubscribe landing |
+| `NOTIFICATIONS_UNSUBSCRIBE_URL` | mailer ≠ off | absolute https URL (http allowed outside production) that receives the one-click POST; value = `APP_BASE_URL` + `/api/notificaciones/baja` (frontend pass-through, Q4); the backend appends `?token=…` |
+| `APP_BASE_URL` | mailer ≠ off | frontend origin for deep links, «Mis preferencias» and the unsubscribe landing (paths in §Templates, Q3) |
 
 Loaded by a new `internal/runtime/config/notifications_email.go` (same style as `site_media.go`: validate, never echo
 values; the keys list is never logged).
@@ -445,22 +445,25 @@ values; the keys list is never logged).
 - **Variables** are resolved at send time: `job_title` (members: the current draft title, like
   `ListNotificationJobs`, `db/queries/notifications.sql:303-319`; candidates: the public title they see in
   `/v2/me/applications`, like `ListCandidateNotificationJobs`, `:492-507`; `null` → template fallback «una vacante»),
-  `company_name` (the member's own company / the hiring company for candidates), `count`, `date_local` (group day),
+  `company_name` (the member's own company / the hiring company for candidates; `null` → «una empresa»), `count`, `date_local` (group day),
   `commitment_date_local`, `function`, `reason`, `status`. Dates are formatted in Spanish in
   `America/Mexico_City` (e.g. «26 de noviembre de 2026»); no times are shown except `sent_at_local` if the copy wants it.
 - **Deep link** (`app_url`): `APP_BASE_URL` + the path the frontend assigns to the item's existing link descriptor
-  (`inbox/link.go:22-56`), computed for the delivery's group (`count = 1` → `participation`, else
-  `vacancy_candidates`). The app enforces access as usual (login, vacancy access); the email adds no token to it.
+  (`inbox/link.go:22-56`; path map in §Templates, Q3), computed for the delivery's group (`count = 1` →
+  `participation`, else `vacancy_candidates`). **`vacancy_unassigned` (T13) may have a `null` link** (the recipient can
+  no longer open the vacancy, v1 D19): then `app_url` = `APP_BASE_URL` + `/empresa`. The app enforces access as usual (login, vacancy access); the email adds no token to it.
   Candidate tests link to the in-app assessment (`assessment {invitation_id}`), never to a public assessment token.
 - **Footer**:
   - non-mandatory: «Mis preferencias» (`preferences_url`) + «Dejar de recibir este tipo de correo»
-    (`unsubscribe_url` = `APP_BASE_URL` + landing path + `?token=…`);
+    (`unsubscribe_url` = `APP_BASE_URL` + `/notificaciones/baja?token={token}`, the landing page, Q3);
   - mandatory: «Mis preferencias» only, with a line explaining these emails are required (S7).
-- **Headers** (non-mandatory only): `List-Unsubscribe: <{NOTIFICATIONS_UNSUBSCRIBE_URL}?token=…>` and
+- **Headers** (non-mandatory only): `List-Unsubscribe: <{NOTIFICATIONS_UNSUBSCRIBE_URL}?token=…>` (the one-click
+  route handler `/api/notificaciones/baja`, a different path from the landing, Q4) and
   `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058). All emails: `Auto-Submitted: auto-generated`,
   `Message-ID: <delivery_id@domain>`. (RFC 8058 also needs a DKIM signature covering these headers — that is the
   SES/domain step, out of scope.)
-- `preferences_url` = `APP_BASE_URL` + the member or candidate preferences path (Q3).
+- `preferences_url` = `APP_BASE_URL` + `/empresa/configuracion/notificaciones` (member) or
+  `/candidato/configuracion/notificaciones` (candidate) (Q3).
 
 ## Unsubscribe (D16, D17)
 
@@ -490,8 +493,18 @@ in-process limit **60 requests / 10 min per instance** → `429 rate_limited`. N
 | GET | `/v2/notifications/unsubscribe?token=…` | none — returns what would be turned off (landing page and link-scanner safe) |
 | POST | `/v2/notifications/unsubscribe?token=…` | upsert `email = false` for the token's `(user, company, type)`, `source = 'unsubscribe'`; idempotent |
 
+- **Frontend origin, two paths (Q4)**. Emails only show the frontend origin:
+  - **one-click** (`List-Unsubscribe`): `APP_BASE_URL` + `/api/notificaciones/baja?token=…`, a Next route handler that
+    accepts **only `POST`** and forwards the token and the body to `POST /v2/notifications/unsubscribe?token=…`, with
+    no cookies, no session and no same-origin check;
+  - **landing** (`unsubscribe_url` in the footer): `APP_BASE_URL` + `/notificaciones/baja?token=…`, a Next page that
+    calls `GET /v2/notifications/unsubscribe` to show what would be turned off and confirms with a server action that
+    calls `POST`.
+  A Next page and a route handler cannot share a path, hence the two paths; the backend endpoints are the same for
+  both.
 - `POST` accepts the RFC 8058 body `List-Unsubscribe=One-Click` (`application/x-www-form-urlencoded`) from mail
-  providers, or an empty / `{}` body from the landing page; the body is ignored beyond a 1 KiB cap.
+  providers (forwarded by the one-click route), or an empty / `{}` body from the landing's server action; the body is
+  ignored beyond a 1 KiB cap.
 - Valid token, both methods, `200`:
 
 ```json
@@ -518,38 +531,105 @@ in-process limit **60 requests / 10 min per instance** → `429 rate_limited`. N
   unaffected. `GET …/preferences` exposes only `email_deliverable: false`.
 - Global on purpose: any future email feature (member invitations, `decision-email-provider.md:40`) must honour it.
 
-## Templates needing Spanish copy (D22, S7, S8)
+## Templates (D22, S7, S8)
 
-The frontend provides, per template: **subject**, **heading**, **one body line** and **button label**; plus the two
-footers. Variables in `{{…}}` are the only dynamic parts (none is a candidate name). Every template also receives
-`app_url`, `preferences_url`, `company_name`; non-mandatory ones `unsubscribe_url`.
+The Spanish copy below is the frontend review approved by the user (2026-11-26), kept **verbatim**; its source is
+`odd/tasks/notifications-v2-backend.md` L5 (S10). Each template has a **subject**, a **heading**, **one body line** and a
+**button label** (the button opens `app_url`), plus one footer. Variables in `{{…}}` are the only dynamic parts (none
+is a candidate or actor name, D14). Every template receives `app_url`, `preferences_url` and `company_name`;
+non-mandatory ones also `unsubscribe_url`. Templates ship with this copy in E5 (no placeholder copy). Values are
+HTML-escaped in the HTML part.
 
-| # | Template id | Type / form | Variables |
-| --- | --- | --- | --- |
-| T1 | `application_received.one` | 1 new application in the group | `job_title`, `date_local` |
-| T2 | `application_received.many` | coalesced group | `job_title`, `count`, `date_local` |
-| T3 | `psychometric_completed.one` | 1 test completed | `job_title` |
-| T4 | `psychometric_completed.many` | coalesced group | `job_title`, `count` |
-| T5 | `psychometric_pending.one` | 1 test sent, pending | `job_title` |
-| T6 | `psychometric_pending.many` | coalesced group | `job_title`, `count` |
-| T7 | `delivery_due_soon` | delivery due today / tomorrow | `job_title`, `commitment_date_local` |
-| T8 | `delivery_overdue` 🔒 | delivery overdue | `job_title`, `commitment_date_local` |
-| T9 | `assignment_deadline_due_soon` | own deadline due soon | `job_title`, `commitment_date_local`, `function` |
-| T10 | `assignment_deadline_overdue` 🔒 | own deadline overdue | `job_title`, `commitment_date_local`, `function` |
-| T11 | `vacancy_assigned` 🔒 | made responsible | `job_title` |
-| T12 | `vacancy_reassigned` 🔒 | receives a reassigned vacancy | `job_title`, `reason` |
-| T13 | `vacancy_unassigned` 🔒 | vacancy taken away | `job_title`, `reason` |
-| T14 | `vacancy_team_added` 🔒 | added to a team | `job_title`, `function` |
-| T15 | `candidate_status_changed` | own application status changed | `job_title`, `company_name`, `status` (`submitted` \| `in_process` \| `closed`) |
-| T16 | `candidate_message_received` | company left a closing message (text not included) | `job_title`, `company_name` |
-| T17 | `candidate_test_pending` | test to take | `job_title`, `company_name` |
-| F1 | `footer.optional` | non-mandatory footer | `preferences_url`, `unsubscribe_url` |
-| F2 | `footer.mandatory` | mandatory footer («este aviso es obligatorio») | `preferences_url` |
+### Template map
 
-Enum labels the copy needs: `function` (`responsible`, `collaborator`, `member`), `reason` (`workload`,
-`recruiter_departure`, `performance`, `client_request`, `other` — the free-text note is never included), `status`.
-Until the copy arrives the templates ship with placeholder Spanish marked `TODO(copy)` and email stays `off` outside
-dev.
+`app_url` = `APP_BASE_URL` + the path of the link kind (§Path map). Footer F2 for the mandatory types (🔒, type table in
+§Preferences), F1 for every other type.
+
+| # | Template id | Type / form | Variables | Footer | Link kind → `app_url` path |
+| --- | --- | --- | --- | --- | --- |
+| T1 | `application_received.one` | `application_received`, single (1 new application in the group) | `job_title`, `date_local` | F1 | `participation` → `/empresa/vacantes/{job_id}/pipeline?candidato={participation_id}` |
+| T2 | `application_received.many` | `application_received`, group (coalesced) | `job_title`, `count`, `date_local` | F1 | `vacancy_candidates` → `/empresa/vacantes/{job_id}/pipeline` |
+| T3 | `psychometric_completed.one` | `psychometric_completed`, single | `job_title` | F1 | `participation` → `/empresa/vacantes/{job_id}/pipeline?candidato={participation_id}` |
+| T4 | `psychometric_completed.many` | `psychometric_completed`, group | `job_title`, `count` | F1 | `vacancy_candidates` → `/empresa/vacantes/{job_id}/pipeline` |
+| T5 | `psychometric_pending.one` | `psychometric_pending`, single | `job_title` | F1 | `participation` → `/empresa/vacantes/{job_id}/pipeline?candidato={participation_id}` |
+| T6 | `psychometric_pending.many` | `psychometric_pending`, group | `job_title`, `count` | F1 | `vacancy_candidates` → `/empresa/vacantes/{job_id}/pipeline` |
+| T7 | `delivery_due_soon` | `delivery_due_soon`, single | `job_title`, `commitment_date_local` | F1 | `vacancy_delivery` → `/empresa/vacantes/{job_id}/configuracion/entrega` |
+| T8 | `delivery_overdue` 🔒 | `delivery_overdue`, single | `job_title`, `commitment_date_local` | F2 | `vacancy_delivery` → `/empresa/vacantes/{job_id}/configuracion/entrega` |
+| T9 | `assignment_deadline_due_soon` | `assignment_deadline_due_soon`, single | `job_title`, `commitment_date_local`, `function` | F1 | `vacancy_delivery` → `/empresa/vacantes/{job_id}/configuracion/entrega` |
+| T10 | `assignment_deadline_overdue` 🔒 | `assignment_deadline_overdue`, single | `job_title`, `commitment_date_local`, `function` | F2 | `vacancy_delivery` → `/empresa/vacantes/{job_id}/configuracion/entrega` |
+| T11 | `vacancy_assigned` 🔒 | `vacancy_assigned`, single | `job_title`, `company_name` | F2 | `vacancy` → `/empresa/vacantes/{job_id}/pipeline` |
+| T12 | `vacancy_reassigned` 🔒 | `vacancy_reassigned`, single | `job_title`, `reason` | F2 | `vacancy` → `/empresa/vacantes/{job_id}/pipeline` |
+| T13 | `vacancy_unassigned` 🔒 | `vacancy_unassigned`, single | `job_title`, `reason` | F2 | `vacancy` → `/empresa/vacantes/{job_id}/pipeline`; **link `null` → `/empresa`** |
+| T14 | `vacancy_team_added` 🔒 | `vacancy_team_added`, single | `job_title`, `function` | F2 | `vacancy` → `/empresa/vacantes/{job_id}/pipeline` |
+| T15 | `candidate_status_changed` | `candidate_status_changed`, single | `job_title`, `company_name`, `status` | F1 | `application` → `/candidato/postulaciones?postulacion={participation_id}` |
+| T16 | `candidate_message_received` | `candidate_message_received`, single (message text never included) | `job_title`, `company_name` | F1 | `application` → `/candidato/postulaciones?postulacion={participation_id}` |
+| T17 | `candidate_test_pending` | `candidate_test_pending`, single | `job_title`, `company_name` | F1 | `assessment` → `/candidato/evaluaciones/{invitation_id}` |
+| F1 | `footer.optional` | non-mandatory footer | `preferences_url`, `unsubscribe_url` | — | — |
+| F2 | `footer.mandatory` | mandatory footer | `preferences_url` | — | — |
+
+The `.one` / `.many` choice follows the link rule of `inbox/link.go:22-29`: `count = 1` with a participation →
+`.one` + `participation`; otherwise `.many` + `vacancy_candidates`.
+
+### Path map (Q3)
+
+All paths are appended to `APP_BASE_URL`; one code table with a test.
+
+| Link / URL | Path |
+| --- | --- |
+| `vacancy`, `vacancy_candidates` | `/empresa/vacantes/{job_id}/pipeline` |
+| `participation` | `/empresa/vacantes/{job_id}/pipeline?candidato={participation_id}` |
+| `vacancy_delivery` | `/empresa/vacantes/{job_id}/configuracion/entrega` |
+| `application` | `/candidato/postulaciones?postulacion={participation_id}` |
+| `assessment` | `/candidato/evaluaciones/{invitation_id}` |
+| `null` link (only `vacancy_unassigned`, T13) | `/empresa` |
+| `preferences_url`, member | `/empresa/configuracion/notificaciones` |
+| `preferences_url`, candidate | `/candidato/configuracion/notificaciones` |
+| `unsubscribe_url` (landing page) | `/notificaciones/baja?token={token}` |
+| `NOTIFICATIONS_UNSUBSCRIBE_URL` (one-click, `List-Unsubscribe`) | `/api/notificaciones/baja` (the backend appends `?token=`) |
+
+### Copy (verbatim)
+
+| # | Asunto | Encabezado | Línea | Botón |
+| --- | --- | --- | --- | --- |
+| T1 | Nueva postulación en {{job_title}} | Nueva postulación en {{job_title}} | Recibiste una postulación nueva el {{date_local}}. | Ver candidatos |
+| T2 | {{count}} postulaciones nuevas en {{job_title}} | igual (= asunto: {{count}} postulaciones nuevas en {{job_title}}) | Llegaron {{count}} postulaciones nuevas el {{date_local}}. | Ver candidatos |
+| T3 | Prueba psicométrica completada en {{job_title}} | Prueba psicométrica completada | Un candidato de {{job_title}} terminó su prueba psicométrica. | Ver resultado |
+| T4 | {{count}} pruebas psicométricas completadas en {{job_title}} | {{count}} pruebas psicométricas completadas | {{count}} candidatos de {{job_title}} terminaron su prueba psicométrica. | Ver candidatos |
+| T5 | Prueba psicométrica pendiente en {{job_title}} | Prueba psicométrica pendiente | Se envió una prueba psicométrica a un candidato de {{job_title}} y aún no la responde. | Ver candidato |
+| T6 | {{count}} pruebas psicométricas pendientes en {{job_title}} | {{count}} pruebas psicométricas pendientes | Se enviaron {{count}} pruebas psicométricas a candidatos de {{job_title}} y aún no las responden. | Ver candidatos |
+| T7 | La entrega de {{job_title}} vence pronto | La entrega vence pronto | La fecha compromiso de {{job_title}} es el {{commitment_date_local}}. | Ver entrega |
+| T8 | La entrega de {{job_title}} está vencida | La entrega está vencida | La fecha compromiso de {{job_title}} era el {{commitment_date_local}}. | Ver entrega |
+| T9 | Tu fecha límite en {{job_title}} se acerca | Tu fecha límite se acerca | Como {{function}} de {{job_title}}, tu entrega vence el {{commitment_date_local}}. | Ver entrega |
+| T10 | Venció tu fecha límite en {{job_title}} | Venció tu fecha límite | Tu entrega como {{function}} de {{job_title}} era el {{commitment_date_local}}. | Ver entrega |
+| T11 | Te asignaron {{job_title}} | Te asignaron una vacante | Ahora eres responsable de {{job_title}} en {{company_name}}. | Abrir vacante |
+| T12 | Ahora eres responsable de {{job_title}} | Te reasignaron una vacante | Ahora eres responsable de {{job_title}}. Motivo: {{reason}}. | Abrir vacante |
+| T13 | Ya no eres responsable de {{job_title}} | Se reasignó una vacante | {{job_title}} ahora está a cargo de otra persona. Motivo: {{reason}}. | Ir a PeopleFlow |
+| T14 | Te agregaron al equipo de {{job_title}} | Te agregaron a un equipo | Formas parte del equipo de {{job_title}} como {{function}}. | Abrir vacante |
+| T15 | Tu postulación a {{job_title}} cambió de estado | Tu postulación ahora está «{{status}}» | {{company_name}} actualizó tu proceso para {{job_title}}. | Ver postulación |
+| T16 | {{company_name}} te dejó un mensaje | Tienes un mensaje sobre tu postulación | {{company_name}} te escribió sobre {{job_title}}. Por privacidad no lo incluimos aquí; léelo en PeopleFlow. | Leer mensaje |
+| T17 | Tienes una prueba psicométrica pendiente | Tienes una prueba pendiente | {{company_name}} te envió una prueba psicométrica para {{job_title}}. | Empezar prueba |
+
+T2's heading is «igual» in the review: the same text as its subject.
+
+### Footers (verbatim)
+
+- **F1** (non-mandatory): «Recibes este correo porque este aviso está activado en tus preferencias.», con los links
+  «Mis preferencias» (`preferences_url`) · «Dejar de recibir este tipo de correo» (`unsubscribe_url`).
+- **F2** (mandatory): «Este aviso es obligatorio y no se puede desactivar.», con el link «Mis preferencias»
+  (`preferences_url`).
+
+### Labels (verbatim)
+
+| Variable | Code value → label |
+| --- | --- |
+| `function` | `responsible` → responsable · `collaborator` → colaborador · `member` → integrante |
+| `reason` | `workload` → carga de trabajo · `recruiter_departure` → salida del reclutador · `performance` → desempeño · `client_request` → solicitud del cliente · `other` → otro motivo (the free-text note is never included) |
+| `status` | `submitted` → Enviada · `in_process` → En proceso · `closed` → Cerrada |
+
+### Fallbacks (verbatim)
+
+- `job_title` null → «una vacante».
+- `company_name` null → «una empresa».
 
 ## Error codes
 
@@ -584,8 +664,8 @@ trace (status, attempts, timestamps, error class) for 180 days.
    non-production volumes).
 2. **Backend slices** E1–E8 with `NOTIFICATIONS_MAILER=off` everywhere except dev (`smtp` + Mailpit). Nothing existing
    changes shape: inbox responses are identical (hidden rows simply never appear).
-3. **Frontend** preferences screens after E2 is live; unsubscribe landing after E7; the frontend sends the copy (E5
-   placeholders replaced) and the path map (Q3).
+3. **Frontend** preferences screens after E2 is live; unsubscribe landing (`/notificaciones/baja`) and
+   one-click route handler (`/api/notificaciones/baja`) after E7. The copy and the path map are already in §Templates.
 4. **Real email** requires the SES adapter, verified domain and DKIM — blocked by S9; until then non-dev environments
    keep `off` (or `log`).
 5. Purge (E8) any time before 180 days of deliveries exist.
@@ -598,34 +678,28 @@ trace (status, attempts, timestamps, error class) for 180 days.
 | E2 | Preferences store + handlers for both trees (GET catalog, PUT partial/atomic/idempotent), `notification_preference_locked` code, routes in `router.go`. |
 | E3 | In-app off at creation: preference lookup in the fan-out and scheduler txs, `in_app` written; `InsertNotification` → `:execrows`; tests (hidden row, dedupe unchanged, mandatory always visible). |
 | E4 | Config loader (`notifications_email.go`), eligibility (preference, address, suppression), delivery creation with coalescing upsert and link, in both creation paths; race test for the window close. |
-| E5 | `Mailer` port, `log` and `smtp` adapters, Mailpit service in `docker-compose.yml`, template engine with the 17 + 2 templates (placeholder copy), headers, Spanish dates in `America/Mexico_City`, deep-link path map. |
+| E5 | `Mailer` port, `log` and `smtp` adapters, Mailpit service in `docker-compose.yml`, template engine with the 17 + 2 templates (final copy, labels and fallbacks from §Templates), headers, Spanish dates in `America/Mexico_City`, deep-link path map (§Path map, T13 `null` → `/empresa`). |
 | E6 | Sender loop: claim with lease, re-check/skip rules, fenced finalize, backoff, throttle; start/stop in `main.go`. |
 | E7 | Unsubscribe token (sign/verify, rotation, constant-time, uniform failure), public GET/POST, per-IP limit, `unsubscribe_link_invalid`; token issued in E5 templates. |
 | E8 | `cmd/notifications-purge` deletes terminal deliveries older than 180 days (after notifications, `ON DELETE SET NULL` link); follow-up note in `docs/decision-email-provider.md` (Q10). |
 
 ## Resolved questions (2026-11-26)
 
-- **Q1** (user): candidate types `candidate_status_changed`, `candidate_message_received`, `candidate_test_pending` have `email` **on by default** (still switchable off by the candidate).
-- **Q2** (user): emails **include the vacancy title** («una vacante» fallback).
-- **Q6** (user): a non-mandatory email is **skipped** if everything it covers was already read in the app before sending.
-- **Q7** (user): the preferences page is **hidden for stakeholders** in the UI until stage 3; the backend still returns the catalog (D23).
-- **Q5, Q8, Q9, Q10**: accepted as recommended below.
+No open questions remain. All eleven are resolved or deferred.
 
-## Open questions (for the frontend / user)
-
-| # | Question | Recommendation |
+| # | Question | Resolution |
 | --- | --- | --- |
-| Q1 | S2 says operational emails are off by default; read literally that includes the three **candidate** types, so candidates get no email until they opt in — and no other email tells a candidate a test is waiting (no email code exists). Keep off, or default candidate types to on? | **Default on for the three candidate types** (own process, low volume, `candidate_test_pending` needs action); members stay off per S2. Needs the user's decision since S2 is theirs. |
-| Q2 | Include the vacancy title in emails? It is not a candidate name, but it travels through the mail provider. | **Include** it (`«una vacante»` fallback); without it every email reads the same and the link is the only context. |
-| Q3 | Frontend paths for each link kind (`vacancy_candidates`, `participation`, `vacancy`, `vacancy_delivery`, `application`, `assessment`), both preferences pages and the unsubscribe landing. | Frontend sends a path map; the backend keeps it in one code table with a test. |
-| Q4 | Which public origin receives the RFC 8058 POST (`NOTIFICATIONS_UNSUBSCRIBE_URL`): the frontend origin with a Next route that forwards to the backend, or a public API origin? | **Frontend origin** with a pass-through route (one public domain in emails); the backend contract is the same either way. |
-| Q5 | Throttle is per instance (global = rate × instances). Enough? | Yes for stage 2: default 1/s, raise with SES production access; a global limiter only if several instances run. |
-| Q6 | Skip a non-mandatory email if every notification it covers was already read in the app before sending (mostly grouped emails inside their 10-min window)? | **Yes** (D11) — avoids telling people what they just saw. Mandatory emails are never skipped for being read. |
-| Q7 | Stakeholders receive nothing in stage 2 but pass the member gate: show them the preferences page? | Backend returns the catalog (D23); **hide the page for stakeholders** in the UI until stage 3 role rules exist. |
-| Q8 | A burst crossing midnight (`America/Mexico_City`) yields two emails because `group_key` carries the date. | Accept (consistent with the inbox groups). |
-| Q9 | Unsubscribe links valid 365 days; old keys kept 365 days after rotation. | Accept. |
-| Q10 | `docs/decision-email-provider.md:11-12` describes a queue + Fargate worker + Terraform; this contract delivers from the API process. Update that doc? | Yes, a short note in E8 (provider still SES; transport DB-backed until a queue is justified). |
-| Q11 | Sender domain: the decision doc says «Pendiente» (`:13`), `docs/ROADMAP.md:251` says «ya comprado». | Not needed for dev (Mailpit accepts any sender); settle it with the SES work (S9). |
+| Q1 | Default email for the three candidate types (S2 read literally = off). | **User**: `email` **on by default** for `candidate_status_changed`, `candidate_message_received`, `candidate_test_pending` (still switchable off); members stay off per S2 (D2). |
+| Q2 | Include the vacancy title in emails? | **User**: yes, with the title; fallback «una vacante» (D14, §Templates). |
+| Q3 | Frontend paths for each link kind, both preferences pages and the unsubscribe URLs. | **Frontend**: path map in §Templates (§Path map), one code table with a test; `vacancy_unassigned` with a `null` link → `/empresa`. |
+| Q4 | Which public origin receives the RFC 8058 POST? | **Frontend origin**: `NOTIFICATIONS_UNSUBSCRIBE_URL` = `APP_BASE_URL` + `/api/notificaciones/baja`, a route handler that accepts only `POST` and forwards token and body to `POST /v2/notifications/unsubscribe`, with no cookies, no session and no same-origin check. The landing `/notificaciones/baja` (a different path) uses the backend `GET` and confirms with a server action (§Unsubscribe). |
+| Q5 | Per-instance throttle enough? | Accepted as recommended: default 1/s per instance; global limiter only if several instances run. |
+| Q6 | Skip a non-mandatory email if everything it covers was already read? | **User**: yes, skipped (D11); mandatory emails are never skipped for being read. |
+| Q7 | Show the preferences page to stakeholders? | **User**: hide it in the UI until stage 3; the backend still returns the catalog (D23). |
+| Q8 | Burst crossing midnight yields two emails. | Accepted (consistent with the inbox groups). |
+| Q9 | Unsubscribe links valid 365 days; old keys kept 365 days after rotation. | Accepted. |
+| Q10 | Update `docs/decision-email-provider.md` for the in-process delivery? | Accepted: short note in E8 (provider still SES; transport DB-backed until a queue is justified). |
+| Q11 | Sender domain («Pendiente» vs «ya comprado»). | **Deferred to the SES work** (S9); not needed for dev (Mailpit accepts any sender). |
 
 ## Out of scope (v2)
 
