@@ -51,7 +51,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6), frontend approved (L7)
 - T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — done: 0f133e1a 6810c32a d12d2139 1f5ed631 c8080b10 b52fbca6 + review correction 07f53042
 - T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — done: 31d04365 0d8168e8 76b60256 fc9270a4; review advisories fixed 7fe1e88f a7209e44 706387df; verified (L12)
-- T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — implemented, uncommitted in the worktree (L13); pending parent commit + review
+- T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — done: bdd85ef9 f2473e79 235982da 9e446230 e3339a54; reviewed and verified (L14)
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — pending
 - T6 — N5: read/unread/read-all + facets (D15–D17, D26) — pending
 - T7 — N6: candidate route tree (D18) — pending
@@ -232,3 +232,10 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   job, date) — e.g. a date renegotiated back, or a closed process reopened with the same date; `function` is omitted
   from the payload when the assignment has no open function. Not run: `-race` on the schedule package, cmd/api
   integration suite.
+- **L14** 2026-11-26, N3 closed. Native review `review-cef39c3ad277c5fa` approved; advisory R3-pg-locks-cluster-wide fixed
+  (e3339a54, filter by database and key, checked against a held bigint lock). Independent verify: lock/lifecycle, MX date
+  rule, recipients, resolution and commands pass (integration 46/0/0, unit 126 ok, schedule -race ok, sqlc clean).
+  Accepted behaviours: a leaver keeps an open delivery item — N4/N5 must gate reads by current membership and vacancy
+  access (D6/D19); deleted company / role change to stakeholder do not resolve items (same read gate); a resolved item
+  does not re-fire for the same (recipient, type, job, date); late joiners get the current window's item (Q5).
+  Follow-ups: lock failure paths untested against Postgres; deleted-company filter untested; integration not under -race.
