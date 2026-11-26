@@ -62,8 +62,14 @@ func BuildEvent(event audit.AuditEvent) (Event, bool, error) {
 	return out, true, nil
 }
 
+// optionalID returns nil when the rule declares no source or the value is
+// absent (captured as NULL; the fan-out then finds no recipient), and refuses
+// only a present but malformed or nil id.
 func optionalID(event audit.AuditEvent, from string) (*uuid.UUID, error) {
 	if from == "" {
+		return nil, nil
+	}
+	if _, present := source(event, from); !present {
 		return nil, nil
 	}
 	id, err := requiredID(event, from)

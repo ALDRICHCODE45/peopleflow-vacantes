@@ -57,13 +57,27 @@ func TestBuildEventSkipsNonNotifiableTypes(t *testing.T) {
 
 // A notifiable event without the ids its rule needs is refused, so the
 // caller's transaction fails closed instead of losing the notification.
+// An absent optional id (participation/subject) is captured as NULL: a
+// notification gap must never abort the domain write (review R3/R4).
+func TestBuildEventAbsentOptionalIdsAreNull(t *testing.T) {
+	company := uuid.New()
+	event := audit.AuditEvent{ID: uuid.New(), EventType: audit.EventVacancyTeamCreated, EntityID: uuid.New(), CompanyID: &company, Metadata: map[string]string{"mode": "without_responsible"}}
+	got, ok, err := BuildEvent(event)
+	if !ok || err != nil {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	if got.SubjectUserID != nil || got.ParticipationID != nil || got.JobID != event.EntityID {
+		t.Fatalf("subject=%v participation=%v job=%v", got.SubjectUserID, got.ParticipationID, got.JobID)
+	}
+}
+
 func TestBuildEventRefusesMissingIds(t *testing.T) {
 	company := uuid.New()
 	for name, event := range map[string]audit.AuditEvent{
 		"no company":        {ID: uuid.New(), EventType: audit.EventVacancyApplicationSubmitted, EntityID: uuid.New(), Metadata: map[string]string{"vacancy_id": uuid.NewString()}},
 		"no job":            {ID: uuid.New(), EventType: audit.EventVacancyApplicationSubmitted, EntityID: uuid.New(), CompanyID: &company, Metadata: map[string]string{}},
 		"malformed job":     {ID: uuid.New(), EventType: audit.EventParticipationMoved, EntityID: uuid.New(), CompanyID: &company, Metadata: map[string]string{"vacancy_id": "nope"}},
-		"no subject":        {ID: uuid.New(), EventType: audit.EventVacancyTeamCreated, EntityID: uuid.New(), CompanyID: &company, Metadata: map[string]string{"assignment_id": "a"}},
+		"malformed subject": {ID: uuid.New(), EventType: audit.EventVacancyTeamCreated, EntityID: uuid.New(), CompanyID: &company, Metadata: map[string]string{"assignment_id": "a", "responsible_user_id": "nope"}},
 		"nil participation": {ID: uuid.New(), EventType: audit.EventPsychometricAssessmentFinished, EntityID: uuid.New(), CompanyID: &company, Metadata: map[string]string{"vacancy_id": uuid.NewString(), "participation_id": uuid.Nil.String()}},
 		"nil entity as job": {ID: uuid.New(), EventType: audit.EventVacancyTeamMemberAdded, CompanyID: &company, Metadata: map[string]string{"user_id": uuid.NewString()}},
 	} {

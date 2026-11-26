@@ -52,7 +52,7 @@ func (d *Decorator) Append(ctx context.Context, tx pgx.Tx, event audit.AuditEven
 }
 
 func insert(ctx context.Context, q *db.Queries, e domain.Event) error {
-	if e.NeedsHasMessage {
+	if e.NeedsHasMessage && e.ParticipationID != nil {
 		// D3: same tx, after the discard UPDATE; the text itself is never read.
 		has, err := q.ParticipationHasCandidateMessage(ctx, *e.ParticipationID)
 		if err != nil {
