@@ -209,18 +209,25 @@ WHERE n.resolved_at IS NULL
           AND o.type = CASE n.type WHEN 'delivery_due_soon' THEN 'delivery_overdue' ELSE 'assignment_deadline_overdue' END))
   );
 
--- name: ListMemberNotificationAttention :many
+-- Read and mark queries below run in the caller's scope (notifications-v1
+-- §Data model, D18): recipient_user_id = the session user and either
+-- recipient_kind 'member' with company_id = the gate's company (members) or
+-- recipient_kind 'candidate' with company_id NULL (candidates). The CHECK
+-- (recipient_kind = 'candidate') = (company_id IS NULL) makes any other
+-- combination match nothing.
+
+-- name: ListNotificationAttention :many
 -- Attention (notifications-v1 D13), the single source of the selection: the
 -- caller's unread, unresolved items of the attention types (passed by the
--- caller from the domain type table) in the member scope, honouring types /
+-- caller from the domain type table) in the caller's scope, honouring types /
 -- job_ids (not state), newest first, capped; total counts every qualifying
 -- item. Computed on every page: its ids are excluded from the grouped list.
 SELECT n.id, n.group_key, n.type, n.job_id, n.participation_id, n.actor_user_id, n.payload, n.created_at,
        count(*) OVER () AS total
 FROM notifications n
 WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
-  AND n.recipient_kind = 'member'
-  AND n.company_id = sqlc.arg('company_id')::uuid
+  AND n.recipient_kind = sqlc.arg('recipient_kind')::text
+  AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
   AND n.type = ANY (sqlc.arg('attention_types')::text[])
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL
@@ -229,10 +236,10 @@ WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
 ORDER BY n.created_at DESC, n.id DESC
 LIMIT sqlc.arg('attention_limit')::integer;
 
--- name: ListMemberNotificationGroups :many
--- Grouped list (D11, D13, D27): the caller's member-scope rows matching
+-- name: ListNotificationGroups :many
+-- Grouped list (D11, D13, D27): the caller's scoped rows matching
 -- types / job_ids, minus the attention ids returned by
--- ListMemberNotificationAttention for the same filters (so only those are
+-- ListNotificationAttention for the same filters (so only those are
 -- excluded), grouped by group_key (one type and job per group), optionally
 -- only groups with an unread member, keyset after (at, key) in latest_at DESC,
 -- group_key DESC order. latest is the newest row of the group.
@@ -245,8 +252,8 @@ WITH grouped AS (
            bool_and(n.resolved_at IS NOT NULL) AS resolved
     FROM notifications n
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
-      AND n.recipient_kind = 'member'
-      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.recipient_kind = sqlc.arg('recipient_kind')::text
+      AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
       AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
       AND (cardinality(sqlc.arg('job_ids')::uuid[]) = 0 OR n.job_id = ANY (sqlc.arg('job_ids')::uuid[]))
       AND NOT (n.id = ANY (sqlc.arg('exclude_ids')::uuid[]))
@@ -260,8 +267,8 @@ CROSS JOIN LATERAL (
     SELECT x.id, x.created_at, x.actor_user_id, x.participation_id, x.payload
     FROM notifications x
     WHERE x.recipient_user_id = sqlc.arg('user_id')::uuid
-      AND x.recipient_kind = 'member'
-      AND x.company_id = sqlc.arg('company_id')::uuid
+      AND x.recipient_kind = sqlc.arg('recipient_kind')::text
+      AND x.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
       AND x.group_key = g.group_key
     ORDER BY x.created_at DESC, x.id DESC
     LIMIT 1
@@ -334,20 +341,20 @@ LEFT JOIN company_candidate_corrections o ON u.user_type = 'candidate' AND o.use
 WHERE u.id = ANY (sqlc.arg('user_ids')::uuid[])
   AND u.deleted_at IS NULL;
 
--- name: CountMemberUnreadNotifications :one
+-- name: CountUnreadNotifications :one
 -- Bell counter (D14): unread groups (attention included) and unread rows of
--- the caller's member scope, from notifications_recipient_unread.
+-- the caller's scope, from notifications_recipient_unread.
 SELECT count(DISTINCT n.group_key)::integer AS unread_groups, count(*)::integer AS unread_notifications
 FROM notifications n
 WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
-  AND n.recipient_kind = 'member'
-  AND n.company_id = sqlc.arg('company_id')::uuid
+  AND n.recipient_kind = sqlc.arg('recipient_kind')::text
+  AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL;
 
--- name: MarkMemberNotificationsRead :one
+-- name: MarkNotificationsRead :one
 -- POST B/read (D15, D26): stamps one statement timestamp on the caller's
--- unread, unresolved member-scope rows selected by group key or id (the
+-- unread, unresolved scoped rows selected by group key or id (the
 -- other array is empty); rows of others are not matched. Returns the stamp
 -- and the affected rows / distinct groups.
 WITH stamp AS (
@@ -356,8 +363,8 @@ WITH stamp AS (
     UPDATE notifications n
     SET read_at = (SELECT at FROM stamp)
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
-      AND n.recipient_kind = 'member'
-      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.recipient_kind = sqlc.arg('recipient_kind')::text
+      AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY (sqlc.arg('group_keys')::text[]) OR n.id = ANY (sqlc.arg('ids')::uuid[]))
@@ -368,9 +375,9 @@ SELECT (SELECT at FROM stamp)::timestamptz AS marked_at,
        count(DISTINCT m.group_key)::integer AS affected_groups
 FROM marked m;
 
--- name: MarkMemberNotificationsUnread :one
+-- name: MarkNotificationsUnread :one
 -- POST B/unread (D15, D26): clears read_at on the caller's read, unresolved
--- member-scope rows selected by group key, id or the exact read_at of an
+-- scoped rows selected by group key, id or the exact read_at of an
 -- earlier mark (undo of exactly that batch); a resolved row stays read.
 WITH stamp AS (
     SELECT statement_timestamp() AS at
@@ -378,8 +385,8 @@ WITH stamp AS (
     UPDATE notifications n
     SET read_at = NULL
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
-      AND n.recipient_kind = 'member'
-      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.recipient_kind = sqlc.arg('recipient_kind')::text
+      AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
       AND n.read_at IS NOT NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY (sqlc.arg('group_keys')::text[])
@@ -392,9 +399,9 @@ SELECT (SELECT at FROM stamp)::timestamptz AS marked_at,
        count(DISTINCT m.group_key)::integer AS affected_groups
 FROM marked m;
 
--- name: MarkAllMemberNotificationsRead :one
+-- name: MarkAllNotificationsRead :one
 -- POST B/read-all (D16): stamps one statement timestamp on every unread,
--- unresolved member-scope row of the caller matching types / job_ids (empty =
+-- unresolved scoped row of the caller matching types / job_ids (empty =
 -- all) created at or before `before` (NULL = the stamp), attention included.
 WITH stamp AS (
     SELECT statement_timestamp() AS at
@@ -402,8 +409,8 @@ WITH stamp AS (
     UPDATE notifications n
     SET read_at = (SELECT at FROM stamp)
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
-      AND n.recipient_kind = 'member'
-      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.recipient_kind = sqlc.arg('recipient_kind')::text
+      AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
@@ -416,8 +423,8 @@ SELECT (SELECT at FROM stamp)::timestamptz AS marked_at,
        count(DISTINCT m.group_key)::integer AS affected_groups
 FROM marked m;
 
--- name: ListMemberNotificationFacetTypes :many
--- GET B/facets (D17): groups of the caller's member scope (attention
+-- name: ListNotificationFacetTypes :many
+-- GET B/facets (D17): groups of the caller's scope (attention
 -- included) per type, only groups with an unread member when unread_only;
 -- zero counts are absent.
 SELECT g.type, count(*)::integer AS count
@@ -425,17 +432,19 @@ FROM (
     SELECT n.group_key, n.type, bool_or(n.read_at IS NULL AND n.resolved_at IS NULL) AS unread
     FROM notifications n
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
-      AND n.recipient_kind = 'member'
-      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.recipient_kind = sqlc.arg('recipient_kind')::text
+      AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
     GROUP BY n.group_key, n.type
 ) g
 WHERE NOT sqlc.arg('unread_only')::boolean OR g.unread
 GROUP BY g.type
 ORDER BY count(*) DESC, g.type;
 
--- name: ListMemberNotificationFacetJobs :many
--- GET B/facets (D17): the same groups per job with the current draft title
--- of the company (has_title false when gone or untitled), ordered by count
+-- name: ListNotificationFacetJobs :many
+-- GET B/facets (D17): the same groups per job with the current title
+-- (members: the draft title of the company; candidates: the public title they
+-- see in /v2/me/applications, only for a process they participate in;
+-- has_title false when gone or untitled), ordered by count
 -- DESC, title (untitled last), job id; capped at jobs_limit, total = every
 -- job with a group in that state.
 WITH jobs AS (
@@ -444,19 +453,52 @@ WITH jobs AS (
         SELECT n.group_key, n.job_id, bool_or(n.read_at IS NULL AND n.resolved_at IS NULL) AS unread
         FROM notifications n
         WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
-          AND n.recipient_kind = 'member'
-          AND n.company_id = sqlc.arg('company_id')::uuid
+          AND n.recipient_kind = sqlc.arg('recipient_kind')::text
+          AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
         GROUP BY n.group_key, n.job_id
     ) g
     WHERE NOT sqlc.arg('unread_only')::boolean OR g.unread
     GROUP BY g.job_id
 ), titled AS (
-    SELECT j.job_id, j.count, convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title' AS title
+    SELECT j.job_id, j.count,
+           CASE WHEN sqlc.arg('recipient_kind')::text = 'candidate' THEN (
+               SELECT v.title FROM vacancy_public_projections v
+               WHERE v.id = j.job_id
+                 AND EXISTS (SELECT 1 FROM process_participations p
+                             WHERE p.process_id = v.id AND p.candidate_id = sqlc.arg('user_id')::uuid))
+           ELSE (
+               SELECT convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title' FROM job_drafts d
+               WHERE d.id = j.job_id AND d.company_id = sqlc.narg('company_id')::uuid)
+           END AS title
     FROM jobs j
-    LEFT JOIN job_drafts d ON d.id = j.job_id AND d.company_id = sqlc.arg('company_id')::uuid
 )
 SELECT t.job_id, (t.title IS NOT NULL)::boolean AS has_title, COALESCE(t.title, '')::text AS title,
        t.count::integer AS count, (count(*) OVER ())::integer AS total
 FROM titled t
 ORDER BY t.count DESC, t.title NULLS LAST, t.job_id
 LIMIT sqlc.arg('jobs_limit')::integer;
+
+-- name: GetNotificationCandidateUser :one
+-- Candidate scope (notifications-v1 D18): the live candidate account of the
+-- session subject, resolved after the candidate gate passed.
+SELECT u.id FROM users u
+WHERE u.cognito_sub = sqlc.arg('cognito_sub')::text
+  AND u.user_type = 'candidate'
+  AND u.deleted_at IS NULL;
+
+-- name: ListCandidateNotificationJobs :many
+-- Read-time job resolution for candidates (§Endpoints): the title the
+-- candidate sees in /v2/me/applications (public projection; has_title false
+-- when absent) and the company {id, name} of the process, only for processes
+-- the candidate participates in. Jobs gone or foreign are absent.
+SELECT vp.id,
+       (v.title IS NOT NULL)::boolean AS has_title,
+       COALESCE(v.title, '')::text AS title,
+       c.id AS company_id,
+       c.name AS company_name
+FROM vacancy_processes vp
+JOIN companies c ON c.id = vp.company_id
+LEFT JOIN vacancy_public_projections v ON v.id = vp.id
+WHERE vp.id = ANY (sqlc.arg('job_ids')::uuid[])
+  AND EXISTS (SELECT 1 FROM process_participations p
+              WHERE p.process_id = vp.id AND p.candidate_id = sqlc.arg('user_id')::uuid);
