@@ -174,3 +174,7 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   polling. Notes: the application group dated 2026-11-18 by group_key shows under «Hoy» because latest_at is the
   notification created_at (seed events fanned out today); the candidate sheet on the pipeline is modal and covers the
   bell until closed.
+- **L16** (2026-11-26) Backend b1124fc1 (user request): immediate notifications take created_at = the event's
+  occurred_at, so the group day and latest_at agree even with a delayed fan-out; scheduler items keep run time. Frontend
+  impact: none in code. Known edge: read-all `before` (newest latest_at shown) can now also mark a row fanned out after
+  the page loaded whose event occurred before that instant (fan-out lag ~2 s) — accepted.
