@@ -32,6 +32,7 @@ import { activeFilterCount, applyFilters, type FilterSelection } from "./filters
 import { boardFilterDimensions } from "./board-filter-dimensions";
 import { substateConfigHref } from "./substates";
 import { matchesSearch, useBoardSearch } from "./board-search";
+import { useCandidateParam } from "./board-candidate-param";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import { ChecklistProvider, useBoardChecklist } from "@/features/vacancy-checklist/board/state";
 import { ChecklistComparison, ChecklistReminder, ChecklistRetry } from "@/features/vacancy-checklist/board/ui";
@@ -75,6 +76,16 @@ function BoardContent({ vacancyId, vacancyTitle, onLifecycleChange, onStartRepla
   const searching = query.trim().length > 0;
   const matchingItems = applyFilters(board?.participations ?? [], dimensions, filters).filter(item => matchesSearch(item.candidate.full_name, query));
   const visibleItems = bestFit && checklist.checklist?.criteria.length ? orderByFit(matchingItems, checklist.checklist.criteria, checklist.marks) : matchingItems;
+  // Each new `?candidato=` value (on load or a client-side navigation) opens that sheet once the board is read, only for a candidate
+  // visible under the current search and filters (discarded ones included); anything else opens nothing. A value already handled never reopens by itself.
+  const [requested, clearRequested] = useCandidateParam();
+  const linked = requested && visibleItems.some(item => item.id === requested) ? requested : null;
+  const linkHandled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!board || requested === linkHandled.current) return;
+    linkHandled.current = requested;
+    if (linked) setSelected(linked);
+  }, [board, requested, linked]);
   function changeOrder(value: string | null) {
     const nextBestFit = value === "fit";
     if (nextBestFit === bestFit) return;
@@ -185,7 +196,7 @@ function BoardContent({ vacancyId, vacancyTitle, onLifecycleChange, onStartRepla
       </div>}
       <BoardColumns configHref={substateConfigHref(vacancyId)} visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0 || searching} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={readOnly || state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition || !!state.departure} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} late={late} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
-      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} tabRequest={sheetTab?.id === selectedItem.id ? sheetTab : undefined} onClose={() => { setSelected(null); setSheetTab(undefined); }} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={readOnly || stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition || !!state.departure} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
+      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} tabRequest={sheetTab?.id === selectedItem.id ? sheetTab : undefined} onClose={() => { setSelected(null); setSheetTab(undefined); clearRequested(); }} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={readOnly || stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition || !!state.departure} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
       {intake && <ManualIntakeSheet vacancyId={vacancyId} stages={board.stages} disabled={readOnly || stale} onClose={() => setIntake(false)} onSuccess={value => { state.addCandidate(value); setFilters({}); setQuery(""); }} onViewExisting={async id => {
         const known = board.participations.find(item => item.id === id);
         if (known) { setSelected(id); setIntake(false); return; }
