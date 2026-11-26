@@ -1,6 +1,6 @@
 # Notifications v1 (in-app, stage 1; company members and candidates)
 
-Status: **Agreed — Q1–Q8 decided by the user, reviewed by the frontend; in implementation** (2026-11-26): capture (N1), fan-out (N2), scheduler (N3), member read API (N4), member marks/facets (N5) and candidate routes (N6) done on `feat/notifications-backend`; purge pending. Source of the requested shape:
+Status: **Agreed — Q1–Q8 decided by the user, reviewed by the frontend; in implementation** (2026-11-26): capture (N1), fan-out (N2), scheduler (N3), member read API (N4), member marks/facets (N5), candidate routes (N6) and the purge command (N7) done on `feat/notifications-backend`. Source of the requested shape:
 the frontend proposal `peopleflow-vacantes-frontend/odd/tasks/notifications-system-contract.md` and its decisions
 `…/odd/tasks/notifications-system.md` (L1–L9). Backend tracking: `odd/tasks/notifications-backend.md` (S1 request,
 S2 backend counter-proposal, **L4 frontend agreement, which overrides S2 where they differ**). Branch
@@ -200,7 +200,10 @@ CREATE INDEX notifications_created ON notifications (created_at);
 - "Unread" everywhere means `read_at IS NULL AND resolved_at IS NULL`. A resolved item stays in the list (shown as
   read, `resolved: true`) and never in attention.
 - Retention (D22): rows with `created_at < now() - 180 days` are deleted; `notification_events` with
-  `processed_at < now() - 180 days` too. No FK from `notifications.job_id` / `participation_id` (soft references; reads
+  `processed_at < now() - 180 days` too (pending events never). `cmd/notifications-purge` deletes notifications first,
+  then events, in batches; an expired event that a remaining notification still references is kept until that
+  notification expires, because the `ON DELETE SET NULL` action would violate the `source_event_id` CHECK of immediate
+  rows (so in practice `source_event_id` is never nulled). No FK from `notifications.job_id` / `participation_id` (soft references; reads
   tolerate missing targets).
 - Down migration drops both tables (data disposable).
 
@@ -582,7 +585,8 @@ trace (`notification_events.audit_event_id`).
    for current deliveries (Q8).
 2. **All endpoints are new** (`/v2/me/company/notifications…`, `/v2/me/notifications…`); nothing existing changes
    shape, so the frontend deploys after the backend slices N4–N6 are live.
-3. The purge command (N7) can ship any time before 180 days of data exist.
+3. The purge command (N7) can ship any time before 180 days of data exist; run it daily from the deploy scheduler,
+   dry run first (`go run ./cmd/notifications-purge`, `-execute` deletes).
 
 ## Slices (~400 lines each, tests included)
 

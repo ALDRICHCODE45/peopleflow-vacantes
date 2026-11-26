@@ -54,8 +54,8 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — done: bdd85ef9 f2473e79 235982da 9e446230 e3339a54; reviewed and verified (L14)
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — done: a9e48d8a and the 4 commits before it; reviewed and verified (L16)
 - T6 — N5: read/unread/read-all + facets (D15–D17, D26) — done: 89a63897 and the 3 commits before it (L18)
-- T7 — N6: candidate route tree (D18) — done by worker, uncommitted (L19)
-- T8 — N7: `cmd/notifications-purge` (D22) — pending
+- T7 — N6: candidate route tree (D18) — done: f55e92e8 + 2581d042 and the commits before; reviewed and verified (L21)
+- T8 — N7: `cmd/notifications-purge` (D22) — done by worker, uncommitted (L20)
 - Slice boundary: T1 (contract docs, ~720 lines, 5 commits) is its own review slice.
 
 ## Log
@@ -360,3 +360,45 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   process (any source); `company.name` is `companies.name` without a deleted filter (as `/v2/me/applications`). Stray file
   `backend/internal/db/notifications.sql.go.q` (a mutation backup) left by the worker for the parent to delete (worker policy forbids
   deletion). Not done: contract status (outside surface), `-race`, cmd/api full suite.
+- **L20** 2026-11-26, N7 (T8) by worker, uncommitted (parent commits). `cmd/notifications-purge` copies `cmd/audit-purge`: dry run
+  by default (`notifications_would_delete=<n>` / `notification_events_would_delete=<n>`), `-execute` deletes
+  (`notifications_deleted=<n>` / `notification_events_deleted=<n>`), `-help` usage; DATABASE_URL only from the environment,
+  pool of 1 connection, 10 s connect timeout, SIGINT/SIGTERM cancel; any failure (flags, positional args, DSN, driver,
+  query) → exit 1, stderr `notifications purge failed`, empty stdout; output carries counts only. Store (`store.go`, main
+  package, sqlc via `internal/db`): notifications pass first, then events; batches of 1000 (injectable for tests), one tx per
+  batch, `ORDER BY created_at|processed_at, id LIMIT n FOR UPDATE SKIP LOCKED`, loop until a batch deletes 0, ctx checked per
+  batch. sqlc: `CountExpiredNotifications`, `DeleteExpiredNotifications` (`created_at < now() - interval '180 days'`),
+  `CountExpiredNotificationEvents`, `DeleteExpiredNotificationEvents` (`processed_at < now() - interval '180 days'`, so pending
+  events never; given-up events are processed and go). **Deviation:** the requested «SET NULL on purged source events» cannot
+  happen — `notifications` has `CHECK ((source_event_id IS NULL) = (type IN <deadline types>))`, so the FK's SET NULL on an
+  immediate row raises 23514 and would fail the batch (asserted in the test). The event delete therefore skips events any
+  notification still references (`NOT EXISTS … n.source_event_id = e.id`); the dry-run count forecasts the post-notifications
+  pass (excludes events referenced by a notification inside the retention). Such an event goes on the run after its last
+  notification expires; in production both normally expire together (fan-out inserts the rows and sets `processed_at` in
+  one tx, same `now()`). Contract §Data model retention bullet, status line and Deployment order item 3 updated. RED observed:
+  unit + integration tests failed to build (`undefined: run` / `runBatch`); with the queries but no reference guard,
+  `TestEventsReferencedByRemainingNotificationsAreKept` failed (`dry run: … notification_events_would_delete=2`). Mutation:
+  guard removed from the generated delete only → that test fails `execute: 1 "" "notifications purge failed"`; restored by
+  `make sqlc` (sha256 identical). Tests (`main_integration_test.go`, one migrated `draft_test_mig_*` DB per fixture from
+  DRAFT_TEST_DATABASE_URL only, loopback + `/draft_test` guard, `t.Fatal` instead of skip, DATABASE_URL overridden with the
+  disposable DSN): dry run twice deletes nothing (3/3 of 7/8 rows); execute keeps 179-day and recent rows, pending events 181
+  and 400 days old, deletes a given-up event, second run 0/0; batch size 3 across 7+7 rows with pending kept; referenced event
+  kept with `source_event_id` intact, then purged once its notification ages; recent notifications do not hold back
+  unreferenced events (batch size 1); missing table (either) → static failure; unit: missing DSN, static driver errors, help /
+  bad flags. Evidence: `DRAFT_TEST_DATABASE_URL=… make test-integration PKG=./cmd/notifications-purge/` 9 pass / 0 fail / 0 skip;
+  `make test PKG='./cmd/notifications-purge/ ./internal/tools/archguard/'` 2 ok; `go tool sqlc diff` clean; `go vet
+  -tags=integration ./cmd/notifications-purge/` clean. No Makefile target exists for audit-purge, so none added. Missing
+  (outside the surface): an operator doc like `backend/docs/audit-retention.md` (e.g. `backend/docs/notifications-retention.md`:
+  usage, scheduling, role needs DELETE on both tables). Operational: no index on `notifications.source_event_id` alone, so the
+  event batch's anti-join scans `notifications` (bounded by retention) once per batch.
+- **L21** 2026-11-26, N6 closed. Native review `review-359e126aea805e1e` approved; advisory R3-candidate-link-without-job-row
+  fixed in 2581d042 (RED observed: dangling application link; now null when the candidate no longer participates).
+  Independent verify: isolation across all 8 scope-parametric queries, candidate gate/account lookup, candidate items,
+  member behaviour unchanged — all pass; integration 58/0/0, TestNotifications* 13/13, unit 117 ok, sqlc clean.
+  Follow-ups: scope predicate may not use partial indexes (perf only); link check accepts any participation of the
+  candidate on the process; deleted-account and 500 paths untested.
+- **L22** 2026-11-26, N7 closed (parent commit). Deviation accepted: the CHECK on source_event_id makes ON DELETE SET NULL
+  impossible for immediate notifications, so the purge keeps events still referenced by any notification and deletes
+  them on the run after their last notification expires (normally same day, same tx clock). Follow-ups: operator doc
+  backend/docs/notifications-retention.md like audit-retention.md; schedule the purge in deploy; optional index on
+  notifications(source_event_id).
