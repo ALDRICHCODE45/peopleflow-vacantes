@@ -3,6 +3,7 @@ package inbox
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,13 +15,32 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Scope is the member scope of a request (§Data model): the session user's
-// rows with recipient_kind member in the current company. Owner grants
-// access to every vacancy of the company (D19).
+// Scope is the recipient scope of a request (§Data model, D18): the session
+// user's rows with recipient_kind member in the current company (members;
+// Owner grants access to every vacancy of the company, D19) or, when
+// Candidate, the session user's rows with recipient_kind candidate and no
+// company (CompanyID and Owner are ignored).
 type Scope struct {
 	UserID    uuid.UUID
 	CompanyID uuid.UUID
 	Owner     bool
+	Candidate bool
+}
+
+// kind is the recipient_kind of the scope.
+func (s Scope) kind() string {
+	if s.Candidate {
+		return "candidate"
+	}
+	return "member"
+}
+
+// company is the company_id of the scope: NULL for candidates.
+func (s Scope) company() pgtype.UUID {
+	if s.Candidate {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: s.CompanyID, Valid: true}
 }
 
 // Page is the GET B response. Attention and AttentionTotal are null on pages
@@ -53,6 +73,7 @@ type Item struct {
 	LatestAt    time.Time      `json:"latest_at"`
 	FirstAt     time.Time      `json:"first_at"`
 	Job         Job            `json:"job"`
+	Company     CompanyField   `json:"company,omitzero"`
 	Latest      Latest         `json:"latest"`
 	Sample      []Subject      `json:"sample"`
 	Link        *Link          `json:"link"`
@@ -65,6 +86,23 @@ type Job struct {
 	ID    string  `json:"id"`
 	Title *string `json:"title"`
 }
+
+// Company is the company of a candidate item's job (§Endpoints).
+type Company struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// CompanyField is present on candidate items only (null when the job is gone)
+// and absent from member items.
+type CompanyField struct {
+	Present bool
+	Value   *Company
+}
+
+func (c CompanyField) IsZero() bool { return !c.Present }
+
+func (c CompanyField) MarshalJSON() ([]byte, error) { return json.Marshal(c.Value) }
 
 // Latest is the newest notification of a group.
 type Latest struct {
@@ -86,7 +124,7 @@ type Subject struct {
 	Name            *string `json:"name"`
 }
 
-// Store reads the member scope through sqlc in one read-only snapshot.
+// Store reads the caller's scope through sqlc in one read-only snapshot.
 type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
@@ -98,11 +136,30 @@ var attentionTypes = AttentionTypes()
 
 // UnreadCount returns unread groups (attention included) and unread rows.
 func (s *Store) UnreadCount(ctx context.Context, scope Scope) (Counts, error) {
-	row, err := db.New(s.pool).CountMemberUnreadNotifications(ctx, db.CountMemberUnreadNotificationsParams{UserID: scope.UserID, CompanyID: scope.CompanyID})
+	row, err := db.New(s.pool).CountUnreadNotifications(ctx, countParams(scope))
 	if err != nil {
 		return Counts{}, fmt.Errorf("count unread notifications: %w", err)
 	}
 	return Counts{UnreadCount: int(row.UnreadGroups), UnreadNotifications: int(row.UnreadNotifications)}, nil
+}
+
+func countParams(scope Scope) db.CountUnreadNotificationsParams {
+	return db.CountUnreadNotificationsParams{UserID: scope.UserID, RecipientKind: scope.kind(), CompanyID: scope.company()}
+}
+
+// ErrNoCandidate means the session subject has no live candidate account.
+var ErrNoCandidate = errors.New("no candidate account")
+
+// CandidateUser resolves the live candidate account of a session subject.
+func (s *Store) CandidateUser(ctx context.Context, sub string) (uuid.UUID, error) {
+	id, err := db.New(s.pool).GetNotificationCandidateUser(ctx, sub)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, ErrNoCandidate
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("get notification candidate: %w", err)
+	}
+	return id, nil
 }
 
 // raw is one group before read-time resolution.
@@ -134,8 +191,8 @@ func (s *Store) List(ctx context.Context, scope Scope, q Query) (Page, error) {
 	// The attention selection runs on every page (single source, D13): its ids
 	// are excluded from the groups, and the section is returned on the first
 	// page only.
-	attentionRows, err := qs.ListMemberNotificationAttention(ctx, db.ListMemberNotificationAttentionParams{
-		UserID: scope.UserID, CompanyID: scope.CompanyID, AttentionTypes: attentionTypes, Types: types, JobIds: jobs, AttentionLimit: AttentionLimit})
+	attentionRows, err := qs.ListNotificationAttention(ctx, db.ListNotificationAttentionParams{
+		UserID: scope.UserID, RecipientKind: scope.kind(), CompanyID: scope.company(), AttentionTypes: attentionTypes, Types: types, JobIds: jobs, AttentionLimit: AttentionLimit})
 	if err != nil {
 		return Page{}, fmt.Errorf("list notification attention: %w", err)
 	}
@@ -155,14 +212,14 @@ func (s *Store) List(ctx context.Context, scope Scope, q Query) (Page, error) {
 		page.AttentionTotal = &total
 	}
 
-	params := db.ListMemberNotificationGroupsParams{
-		UserID: scope.UserID, CompanyID: scope.CompanyID, Types: types, JobIds: jobs, ExcludeIds: exclude,
+	params := db.ListNotificationGroupsParams{
+		UserID: scope.UserID, RecipientKind: scope.kind(), CompanyID: scope.company(), Types: types, JobIds: jobs, ExcludeIds: exclude,
 		UnreadOnly: q.State == StateUnread, PageLimit: int32(q.Limit + 1)}
 	if q.After != nil {
 		params.AfterAt = pgtype.Timestamptz{Time: q.After.At, Valid: true}
 		params.AfterKey = pgtype.Text{String: q.After.GroupKey, Valid: true}
 	}
-	rows, err := qs.ListMemberNotificationGroups(ctx, params)
+	rows, err := qs.ListNotificationGroups(ctx, params)
 	if err != nil {
 		return Page{}, fmt.Errorf("list notification groups: %w", err)
 	}
@@ -188,7 +245,7 @@ func (s *Store) List(ctx context.Context, scope Scope, q Query) (Page, error) {
 		return Page{}, err
 	}
 
-	counts, err := qs.CountMemberUnreadNotifications(ctx, db.CountMemberUnreadNotificationsParams{UserID: scope.UserID, CompanyID: scope.CompanyID})
+	counts, err := qs.CountUnreadNotifications(ctx, countParams(scope))
 	if err != nil {
 		return Page{}, fmt.Errorf("count unread notifications: %w", err)
 	}
@@ -248,6 +305,9 @@ func resolve(ctx context.Context, qs *db.Queries, scope Scope, groups []raw, don
 	if len(groups) == 0 {
 		done([]Item{})
 		return nil
+	}
+	if scope.Candidate {
+		return resolveCandidate(ctx, qs, scope, groups, jobIDs, done)
 	}
 
 	jobRows, err := qs.ListNotificationJobs(ctx, db.ListNotificationJobsParams{IsOwner: scope.Owner, UserID: scope.UserID, CompanyID: scope.CompanyID, JobIds: jobIDs})
@@ -341,6 +401,42 @@ func resolve(ctx context.Context, qs *db.Queries, scope Scope, groups []raw, don
 			}
 		}
 		item.Link = linkFor(item.Type, g.jobID, item.Count, g.participation, g.payload, job.canOpen)
+		items[i] = item
+	}
+	done(items)
+	return nil
+}
+
+// resolveCandidate fills candidate items (§Endpoints): the title the candidate
+// sees in /v2/me/applications and the company {id, name} of the job (both
+// null when the job is gone), never an actor and no sample (no names on the
+// candidate side), links per type.
+func resolveCandidate(ctx context.Context, qs *db.Queries, scope Scope, groups []raw, jobIDs []uuid.UUID, done func([]Item)) error {
+	rows, err := qs.ListCandidateNotificationJobs(ctx, db.ListCandidateNotificationJobsParams{UserID: scope.UserID, JobIds: jobIDs})
+	if err != nil {
+		return fmt.Errorf("list candidate notification jobs: %w", err)
+	}
+	type jobInfo struct {
+		title   *string
+		company *Company
+	}
+	jobs := map[uuid.UUID]jobInfo{}
+	for _, j := range rows {
+		info := jobInfo{company: &Company{ID: j.CompanyID.String(), Name: j.CompanyName}}
+		if j.HasTitle {
+			title := j.Title
+			info.title = &title
+		}
+		jobs[j.ID] = info
+	}
+	items := make([]Item, len(groups))
+	for i, g := range groups {
+		item := g.item
+		job := jobs[g.jobID]
+		item.Job.Title = job.title
+		item.Company = CompanyField{Present: true, Value: job.company}
+		item.Latest.Actor = nil
+		item.Link = linkFor(item.Type, g.jobID, item.Count, g.participation, g.payload, true)
 		items[i] = item
 	}
 	done(items)

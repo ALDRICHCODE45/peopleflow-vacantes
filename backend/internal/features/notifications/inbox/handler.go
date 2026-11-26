@@ -33,15 +33,51 @@ type Port interface {
 	Writer
 }
 
-// Handler serves the member routes behind the owner/recruiter/stakeholder gate
-// (D18); the scope comes only from the gate's CompanyContext.
-type Handler struct{ store Port }
+// CandidatePort adds the candidate account lookup of the candidate tree.
+type CandidatePort interface {
+	Port
+	CandidateUser(ctx context.Context, sub string) (uuid.UUID, error)
+}
 
-func NewHandler(store Port) *Handler { return &Handler{store: store} }
+// Handler serves one route tree (D18) with the same handlers and shapes; scope
+// resolves the caller's recipient scope or writes the error itself.
+type Handler struct {
+	store Port
+	scope func(w http.ResponseWriter, r *http.Request) (Scope, bool)
+}
 
-func scopeOf(r *http.Request) (Scope, bool) {
+// NewHandler serves the member routes behind the owner/recruiter/stakeholder
+// gate; the scope comes only from the gate's CompanyContext.
+func NewHandler(store Port) *Handler { return &Handler{store: store, scope: memberScope} }
+
+// NewCandidateHandler serves the candidate routes behind requireCandidate; the
+// scope is the session subject's candidate account, recipient_kind candidate,
+// no company.
+func NewCandidateHandler(store CandidatePort) *Handler {
+	return &Handler{store: store, scope: func(w http.ResponseWriter, r *http.Request) (Scope, bool) {
+		sub := security.ClaimsFromContext(r.Context()).Subject
+		if sub == "" {
+			httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
+			return Scope{}, false
+		}
+		id, err := store.CandidateUser(r.Context(), sub)
+		switch {
+		case errors.Is(err, ErrNoCandidate):
+			httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeAccountRequired))
+			return Scope{}, false
+		case err != nil:
+			slog.Error("notifications candidate scope failed", "code_class", httpjson.CodeInternalError)
+			httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
+			return Scope{}, false
+		}
+		return Scope{UserID: id, Candidate: true}, true
+	}}
+}
+
+func memberScope(w http.ResponseWriter, r *http.Request) (Scope, bool) {
 	cc, ok := security.CompanyContextFromContext(r.Context())
 	if !ok || cc.CompanyID == uuid.Nil || cc.UserID == uuid.Nil {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
 		return Scope{}, false
 	}
 	return Scope{UserID: cc.UserID, CompanyID: cc.CompanyID, Owner: cc.Role == valueobjects.OwnerRole}, true
@@ -49,9 +85,8 @@ func scopeOf(r *http.Request) (Scope, bool) {
 
 // List serves GET B.
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	scope, ok := scopeOf(r)
+	scope, ok := h.scope(w, r)
 	if !ok {
-		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
 		return
 	}
 	q, err := ParseQuery(r.URL.Query())
@@ -78,9 +113,8 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 // UnreadCount serves GET B/unread-count.
 func (h *Handler) UnreadCount(w http.ResponseWriter, r *http.Request) {
-	scope, ok := scopeOf(r)
+	scope, ok := h.scope(w, r)
 	if !ok {
-		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
 		return
 	}
 	counts, err := h.store.UnreadCount(r.Context(), scope)
@@ -135,9 +169,8 @@ func writeBodyError(w http.ResponseWriter, err error) {
 // serveMark is the shared flow of read / unread / read-all: scope, body,
 // strict parse, one store call. Not audited (D23).
 func (h *Handler) serveMark(w http.ResponseWriter, r *http.Request, op string, run func(Scope, []byte) (MarkResult, error)) {
-	scope, ok := scopeOf(r)
+	scope, ok := h.scope(w, r)
 	if !ok {
-		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
 		return
 	}
 	raw, ok := readBody(w, r)
@@ -194,9 +227,8 @@ func (h *Handler) ReadAll(w http.ResponseWriter, r *http.Request) {
 
 // Facets serves GET B/facets: group counts per type and job over state (D17).
 func (h *Handler) Facets(w http.ResponseWriter, r *http.Request) {
-	scope, ok := scopeOf(r)
+	scope, ok := h.scope(w, r)
 	if !ok {
-		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
 		return
 	}
 	state, err := ParseFacetsQuery(r.URL.Query())

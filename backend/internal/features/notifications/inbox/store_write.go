@@ -7,7 +7,6 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -64,7 +63,7 @@ func (s *Store) mark(ctx context.Context, scope Scope, run func(*db.Queries) (ma
 	if err != nil {
 		return MarkResult{}, fmt.Errorf("mark notifications: %w", err)
 	}
-	counts, err := qs.CountMemberUnreadNotifications(ctx, db.CountMemberUnreadNotificationsParams{UserID: scope.UserID, CompanyID: scope.CompanyID})
+	counts, err := qs.CountUnreadNotifications(ctx, countParams(scope))
 	if err != nil {
 		return MarkResult{}, fmt.Errorf("count unread notifications: %w", err)
 	}
@@ -85,8 +84,8 @@ func orEmpty[T any](v []T) []T {
 // Read marks the selected unread rows of the caller read (D15, D26).
 func (s *Store) Read(ctx context.Context, scope Scope, req MarkRequest) (MarkResult, error) {
 	return s.mark(ctx, scope, func(qs *db.Queries) (markRow, error) {
-		r, err := qs.MarkMemberNotificationsRead(ctx, db.MarkMemberNotificationsReadParams{
-			UserID: scope.UserID, CompanyID: scope.CompanyID, GroupKeys: orEmpty(req.GroupKeys), Ids: orEmpty(req.IDs)})
+		r, err := qs.MarkNotificationsRead(ctx, db.MarkNotificationsReadParams{
+			UserID: scope.UserID, RecipientKind: scope.kind(), CompanyID: scope.company(), GroupKeys: orEmpty(req.GroupKeys), Ids: orEmpty(req.IDs)})
 		return markRow{r.MarkedAt, r.AffectedNotifications, r.AffectedGroups}, err
 	})
 }
@@ -99,8 +98,8 @@ func (s *Store) Unread(ctx context.Context, scope Scope, req MarkRequest) (MarkR
 		markedAt = pgtype.Timestamptz{Time: *req.MarkedAt, Valid: true}
 	}
 	return s.mark(ctx, scope, func(qs *db.Queries) (markRow, error) {
-		r, err := qs.MarkMemberNotificationsUnread(ctx, db.MarkMemberNotificationsUnreadParams{
-			UserID: scope.UserID, CompanyID: scope.CompanyID, GroupKeys: orEmpty(req.GroupKeys), Ids: orEmpty(req.IDs), MarkedAt: markedAt})
+		r, err := qs.MarkNotificationsUnread(ctx, db.MarkNotificationsUnreadParams{
+			UserID: scope.UserID, RecipientKind: scope.kind(), CompanyID: scope.company(), GroupKeys: orEmpty(req.GroupKeys), Ids: orEmpty(req.IDs), MarkedAt: markedAt})
 		return markRow{r.MarkedAt, r.AffectedNotifications, r.AffectedGroups}, err
 	})
 }
@@ -114,8 +113,8 @@ func (s *Store) ReadAll(ctx context.Context, scope Scope, req ReadAllRequest) (M
 		before = pgtype.Timestamptz{Time: *req.Before, Valid: true}
 	}
 	return s.mark(ctx, scope, func(qs *db.Queries) (markRow, error) {
-		r, err := qs.MarkAllMemberNotificationsRead(ctx, db.MarkAllMemberNotificationsReadParams{
-			UserID: scope.UserID, CompanyID: scope.CompanyID, Types: orEmpty(req.Types), JobIds: orEmpty(req.JobIDs), Before: before})
+		r, err := qs.MarkAllNotificationsRead(ctx, db.MarkAllNotificationsReadParams{
+			UserID: scope.UserID, RecipientKind: scope.kind(), CompanyID: scope.company(), Types: orEmpty(req.Types), JobIds: orEmpty(req.JobIDs), Before: before})
 		return markRow{r.MarkedAt, r.AffectedNotifications, r.AffectedGroups}, err
 	})
 }
@@ -130,11 +129,11 @@ func (s *Store) Facets(ctx context.Context, scope Scope, state string) (Facets, 
 	defer func() { _ = tx.Rollback(ctx) }()
 	qs := db.New(tx)
 	unreadOnly := state == StateUnread
-	typeRows, err := qs.ListMemberNotificationFacetTypes(ctx, db.ListMemberNotificationFacetTypesParams{UserID: scope.UserID, CompanyID: scope.CompanyID, UnreadOnly: unreadOnly})
+	typeRows, err := qs.ListNotificationFacetTypes(ctx, db.ListNotificationFacetTypesParams{UserID: scope.UserID, RecipientKind: scope.kind(), CompanyID: scope.company(), UnreadOnly: unreadOnly})
 	if err != nil {
 		return Facets{}, fmt.Errorf("list notification facet types: %w", err)
 	}
-	jobRows, err := qs.ListMemberNotificationFacetJobs(ctx, db.ListMemberNotificationFacetJobsParams{UserID: scope.UserID, CompanyID: scope.CompanyID, UnreadOnly: unreadOnly, JobsLimit: FacetJobsLimit})
+	jobRows, err := qs.ListNotificationFacetJobs(ctx, db.ListNotificationFacetJobsParams{UserID: scope.UserID, RecipientKind: scope.kind(), CompanyID: scope.company(), UnreadOnly: unreadOnly, JobsLimit: FacetJobsLimit})
 	if err != nil {
 		return Facets{}, fmt.Errorf("list notification facet jobs: %w", err)
 	}
@@ -143,7 +142,7 @@ func (s *Store) Facets(ctx context.Context, scope Scope, state string) (Facets, 
 		out.Types = append(out.Types, TypeCount{Type: domain.Type(r.Type), Count: int(r.Count)})
 	}
 	for _, r := range jobRows {
-		job := JobCount{JobID: uuid.UUID(r.JobID).String(), Count: int(r.Count)}
+		job := JobCount{JobID: r.JobID.String(), Count: int(r.Count)}
 		if r.HasTitle {
 			title := r.Title
 			job.Title = &title
