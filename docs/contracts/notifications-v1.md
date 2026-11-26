@@ -1,6 +1,6 @@
 # Notifications v1 (in-app, stage 1; company members and candidates)
 
-Status: **Draft — pending frontend review** (2026-11-26). Nothing here is implemented. Source of the requested shape:
+Status: **Draft — Q1–Q8 decided by the user, pending frontend review** (2026-11-26). Nothing here is implemented. Source of the requested shape:
 the frontend proposal `peopleflow-vacantes-frontend/odd/tasks/notifications-system-contract.md` and its decisions
 `…/odd/tasks/notifications-system.md` (L1–L9). Backend tracking: `odd/tasks/notifications-backend.md` (S1 request,
 S2 backend counter-proposal, **L4 frontend agreement, which overrides S2 where they differ**). Branch
@@ -109,17 +109,17 @@ system is not in production and all data is disposable.
 | D7 | S2 | **`candidate_status_changed` only when the candidate-visible status (`submitted | in_process | closed`) changes** — a move between internal stages is not shown to the candidate today (`status.go:6-13`), so notifying it would leak pipeline detail and spam. |
 | D8 | S2 | **A discard with a candidate message yields only `candidate_message_received`** (its payload says `status: closed`), not also `candidate_status_changed` — one domain event, one bell item. |
 | D9 | S1 | **Type name `vacancy_team_added`** (frontend proposal / L1), not `team_added` (S2) — keeps the `vacancy_` prefix of its siblings. |
-| D10 | S1 | **`vacancy_reassigned` goes to the new responsible (`to_user_id`) only** — "the affected person"; notifying the previous responsible is Q2. |
-| D11 | L4.1 | **Server-side grouping**: each list item is a group; `group_key = applications:<job_id>:<YYYY-MM-DD>` for `application_received`, `psychometrics:<job_id>:<YYYY-MM-DD>` for `psychometric_completed` (local date of the event in `America/Mexico_City`), `n:<notification_id>` for everything else — counts and cursors are exact. |
+| D10 | S1, Q2 | **A reassignment notifies both people**: `vacancy_reassigned` to the new responsible (`to_user_id`, relation `assignee`) and `vacancy_unassigned` to the previous one (`from_user_id`, relation `previous_assignee`, only while still a company member) — user decision Q2 (2026-11-26). |
+| D11 | L4.1 | **Server-side grouping**: each list item is a group; `group_key = applications:<job_id>:<YYYY-MM-DD>` for `application_received`, `psychometrics:<job_id>:<YYYY-MM-DD>` for `psychometric_completed`, `psychometrics_pending:<job_id>:<YYYY-MM-DD>` for `psychometric_pending` (Q3) (local date of the event in `America/Mexico_City`), `n:<notification_id>` for everything else — counts and cursors are exact. |
 | D12 | L4.4 | **`kind` (mandatory/operational/informative) and `urgency` (normal/due_soon/overdue) are derived from `type`** by a closed table, not stored — the type fully determines both in stage 1; stage 3 can add columns. |
-| D13 | L4.4 | **`attention` = unread, unresolved `delivery_due_soon` / `delivery_overdue` notifications, returned outside the paginated list** (and excluded from it while in attention), honouring `types` / `job_ids`, capped at 20 with `attention_total` — pinned on top as designed. |
+| D13 | L4.4, Q7 | **`attention` = unread, unresolved deadline notifications (`delivery_due_soon` / `delivery_overdue` / `assignment_deadline_due_soon` / `assignment_deadline_overdue`), returned outside the paginated list** (and excluded from it while in attention), honouring `types` / `job_ids`, capped at 20 with `attention_total` — pinned on top as designed. |
 | D14 | L4.2 | **`unread_count` counts unread groups (attention included); `unread_notifications` counts rows** — both from one partial index, cheap for 30 s polling. |
 | D15 | L4.3 | **`POST …/read` and `…/unread` take exactly one of `{group_keys}`, `{ids}` or (unread only) `{marked_at}`**; every mark stamps one statement timestamp returned as `marked_at`, so «Deshacer» reverts exactly that batch even if new rows arrived in the group meanwhile. |
 | D16 | L4.3 | **`read-all` keeps the list filters (`types`, `job_ids`) plus `before`** (marks only rows created at or before the moment the user was looking) and returns `marked_at` for undo. |
 | D17 | L4.6 | **Facets = group counts per type and per job (with current title) over `state = unread | all`**, ignoring the other filters — what the 07 popover needs. |
 | D18 | L4.7 | **Two route trees, same handlers and shapes**: company members `/v2/me/company/notifications…` behind the owner/recruiter/stakeholder gate; candidates `/v2/me/notifications…` behind `requireCandidate` — follows the existing `/v2/me` vs `/v2/me/company` convention (`router.go:193-248`) and makes the scope unambiguous. |
 | D19 | S2 | **Names and titles are resolved at read time**; candidate names in a member's group appear only while the recipient can still open that vacancy (owner of the company or active assignment), otherwise `name: null` — renames show current values and leaving a team stops exposing candidates. |
-| D20 | S2 | **Scheduler** every 15 min (and once at start) under a session advisory lock with fixed key `0x6e6f7469665f7363` (ASCII `notif_sc`), date rule in `America/Mexico_City`; it also **resolves** stale delivery items (fulfilled, closed, renegotiated, superseded) — the documents pattern, one instance at a time, no stale red badges. |
+| D20 | S2 | **Scheduler** every 15 min (and once at start) under a session advisory lock with fixed key `0x6e6f7469665f7363` (ASCII `notif_sc`), date rule in `America/Mexico_City`, over vacancy commitment dates and per-recruiter `recruiter_deadline` (Q7); it also **resolves** stale deadline items (fulfilled, closed, renegotiated or changed, assignment ended, superseded) — the documents pattern, one instance at a time, no stale red badges. |
 | D21 | S2 | **Dedupe**: immediate `UNIQUE (recipient_user_id, source_event_id, type)`; scheduled `UNIQUE (recipient_user_id, type, job_id, commitment_date)` — a retried command or re-run never notifies twice; a renegotiated date fires again. |
 | D22 | S2 | **Retention 180 days** for `notifications` (read or not) and processed `notification_events`, purged by a follow-up `cmd/notifications-purge` like `cmd/audit-purge` — bounded tables and list queries. |
 | D23 | — | **Reading or marking notifications is not audited** — no new sensitive data (names shown are already visible to the recipient in the vacancy), and 30 s polling would flood the audit log. |
@@ -153,11 +153,12 @@ CREATE TABLE notifications (
     id               uuid PRIMARY KEY,                       -- uuid v7
     recipient_user_id uuid NOT NULL REFERENCES users(id),
     recipient_kind   text NOT NULL CHECK (recipient_kind IN ('member','candidate')),
-    recipient_reason text NOT NULL CHECK (recipient_reason IN ('team','assignee','candidate')), -- stage 3 adds 'role'
+    recipient_reason text NOT NULL CHECK (recipient_reason IN ('team','assignee','previous_assignee','candidate')), -- stage 3 adds 'role'
     company_id       uuid NULL REFERENCES companies(id),
     type             text NOT NULL CHECK (type IN (
                          'application_received','delivery_due_soon','delivery_overdue',
-                         'vacancy_assigned','vacancy_reassigned','vacancy_team_added',
+                         'assignment_deadline_due_soon','assignment_deadline_overdue',
+                         'vacancy_assigned','vacancy_reassigned','vacancy_unassigned','vacancy_team_added',
                          'psychometric_completed','psychometric_pending',
                          'candidate_status_changed','candidate_message_received','candidate_test_pending')),
     group_key        text NOT NULL CHECK (char_length(group_key) BETWEEN 3 AND 120),
@@ -169,10 +170,10 @@ CREATE TABLE notifications (
     payload          jsonb NOT NULL DEFAULT '{}',            -- ids/enums only (D24)
     created_at       timestamptz NOT NULL DEFAULT now(),
     read_at          timestamptz NULL,
-    resolved_at      timestamptz NULL,                       -- delivery items no longer true (D20)
+    resolved_at      timestamptz NULL,                       -- deadline items no longer true (D20)
     CHECK ((recipient_kind = 'candidate') = (company_id IS NULL)),
-    CHECK ((source_event_id IS NULL) = (type IN ('delivery_due_soon','delivery_overdue'))),
-    CHECK ((commitment_date IS NULL) <> (type IN ('delivery_due_soon','delivery_overdue')))
+    CHECK ((source_event_id IS NULL) = (type IN ('delivery_due_soon','delivery_overdue','assignment_deadline_due_soon','assignment_deadline_overdue'))),
+    CHECK ((commitment_date IS NULL) <> (type IN ('delivery_due_soon','delivery_overdue','assignment_deadline_due_soon','assignment_deadline_overdue')))
 );
 -- Dedupe (D21). source_event_id becomes NULL only after the event is purged, which is after the notification's own retention.
 CREATE UNIQUE INDEX notifications_dedupe_immediate ON notifications (recipient_user_id, source_event_id, type)
@@ -211,7 +212,7 @@ inserts one `notification_events` row; the fan-out later derives the notificatio
 | --- | --- | --- | --- | --- | --- |
 | `VacancyApplicationSubmitted` | `metadata.vacancy_id` | `entity_id` | — | `{}` | `application_received` (team) |
 | `VacancyTeamCreated` | `entity_id` | — | `metadata.responsible_user_id` | `{assignment_id}` | `vacancy_assigned` (assignee) |
-| `VacancyResponsibleReassigned` | `entity_id` | — | `metadata.to_user_id` | `{reassignment_id, from_user_id, reason}` | `vacancy_reassigned` (assignee) |
+| `VacancyResponsibleReassigned` | `entity_id` | — | `metadata.to_user_id` | `{reassignment_id, from_user_id, reason}` | `vacancy_reassigned` (assignee) + `vacancy_unassigned` (previous assignee, D10) |
 | `VacancyTeamMemberAdded` | `entity_id` | — | `metadata.user_id` | `{assignment_id, function}` | `vacancy_team_added` (assignee) |
 | `PsychometricAssessmentFinished` | `metadata.vacancy_id` | `metadata.participation_id` | — | `{invitation_id: entity_id}` | `psychometric_completed` (team) |
 | `PsychometricInvitationCreated` | `metadata.vacancy_id` | `metadata.participation_id` | — | `{invitation_id: entity_id}` | `psychometric_pending` (team) + `candidate_test_pending` (candidate) |
@@ -230,7 +231,7 @@ inserts one `notification_events` row; the fan-out later derives the notificatio
   `ApplicationTransitioned`, `PsychometricInvitationRevoked` / `ReminderRecorded` / `LinkIssued` / `ConsentGiven` /
   `ComparisonCreated`, `VacancyTeamModeChanged`, `VacancyTeamMemberRemoved` / `Left`,
   `VacancyAssignmentDeadlineChanged`, `VacancyAssignmentEndedByMembership`, `VacancyCommitmentRenegotiated` and
-  `VacancyDeliveryFulfilled` (these two only **resolve** delivery items through the scheduler, D20), every lifecycle,
+  `VacancyDeliveryFulfilled` (these four only **resolve** delivery items through the scheduler, D20), every lifecycle,
   document, company, member and session type. Candidate-recipient types on a manual participation (no account)
   produce nothing; a `Moved` that keeps the visible status produces nothing. Such events are still captured (capture
   stays lookup-free, D3) and the fan-out marks them processed without rows.
@@ -244,6 +245,8 @@ The resolver runs at fan-out over current data, per notification type:
 | `application_received`, `psychometric_completed`, `psychometric_pending` | `team` | every user with an active `vacancy_assignments` row on `job_id` (`ended_at IS NULL`), whatever the function (responsible, collaborator, member) |
 | `delivery_due_soon`, `delivery_overdue` (scheduler) | `team` | same, at scheduler run time |
 | `vacancy_assigned`, `vacancy_reassigned`, `vacancy_team_added` | `assignee` | `subject_user_id`, only if their assignment on `job_id` is still active |
+| `vacancy_unassigned` | `previous_assignee` | `payload.from_user_id`, while still a company member (no assignment required) |
+| `assignment_deadline_due_soon`, `assignment_deadline_overdue` (scheduler) | `assignee` | the user of the active assignment that holds the `recruiter_deadline` |
 | `candidate_status_changed`, `candidate_message_received`, `candidate_test_pending` | `candidate` | `process_participations.candidate_id` of `participation_id`; skipped when NULL (manual candidate, no account) |
 
 Filters applied to every recipient: the **actor is excluded**; a `member` recipient must have a `company_members` row
@@ -258,6 +261,7 @@ changing capture, fan-out or the API (D5). Recipients are de-duplicated per noti
 - `group_key` is set at fan-out, per recipient row:
   - `application_received` → `applications:<job_id>:<YYYY-MM-DD>`
   - `psychometric_completed` → `psychometrics:<job_id>:<YYYY-MM-DD>`
+  - `psychometric_pending` → `psychometrics_pending:<job_id>:<YYYY-MM-DD>` (Q3)
   - every other type → `n:<notification_id>` (a group of one)
   where the date is `occurred_at` of the event converted to `America/Mexico_City`.
 - A group has one type and one job by construction, so `types` / `job_ids` filters never split a group.
@@ -274,8 +278,11 @@ changing capture, fan-out or the API (D5). Recipients are de-duplicated per noti
 | `application_received` | operational | normal | member |
 | `delivery_due_soon` | operational | due_soon | member |
 | `delivery_overdue` | mandatory | overdue | member |
+| `assignment_deadline_due_soon` | operational | due_soon | member |
+| `assignment_deadline_overdue` | mandatory | overdue | member |
 | `vacancy_assigned` | mandatory | normal | member |
 | `vacancy_reassigned` | mandatory | normal | member |
+| `vacancy_unassigned` | mandatory | normal | member |
 | `vacancy_team_added` | mandatory | normal | member |
 | `psychometric_completed` | operational | normal | member |
 | `psychometric_pending` | operational | normal | member |
@@ -305,6 +312,14 @@ fires at most once; a renegotiated date fires again; a member added to the team 
 fulfillment row (`VacancyDeliveryFulfilled`), is `closed` (any `process` value) or `finished`, its current
 `commitment_date` differs from the item's (renegotiated), or — for `delivery_due_soon` — an overdue item exists for
 the same recipient, job and date. Resolved items leave attention and the unread counts.
+
+**Per-recruiter deadlines** (Q7, same run, same process filter): for every active `vacancy_assignments` row
+(`ended_at IS NULL`) with a `recruiter_deadline`, the same date rule yields `assignment_deadline_due_soon` /
+`assignment_deadline_overdue` for that assignment's user only, with `commitment_date = recruiter_deadline` and payload
+`{assignment_id, function, commitment_date}` (same dedupe index, so a changed deadline fires again). They resolve when
+the assignment ends, its `recruiter_deadline` changes or is cleared (`VacancyAssignmentDeadlineChanged`), the process
+has a fulfillment row, is `closed` or `finished`, or — for due-soon — an overdue item exists for the same recipient,
+job and date.
 
 Fan-out (D4) is a separate loop in every instance (no advisory lock): claim `≤ 100` pending events `ORDER BY
 occurred_at, id FOR UPDATE SKIP LOCKED`, per event resolve + insert + `processed_at = now()` in one tx; on error
@@ -434,13 +449,15 @@ attention (D13). `attention` is returned only on the first page (no `cursor`; wi
   Candidates also get `company: {id, name}` on each item.
 - `sample[].name` and `latest.actor.name` are resolved at read time; candidate names are `null` when the member can no
   longer open the vacancy (D19). Candidate-side items never include actor names (`actor: null`).
-- `payload` per type (ids/enums only): `vacancy_reassigned {from_user_id, reason}`; `vacancy_team_added {function}`;
+- `payload` per type (ids/enums only): `vacancy_reassigned {from_user_id, reason}`; `vacancy_unassigned
+  {to_user_id, reason}`; assignment deadline `{assignment_id, function, commitment_date}`; `vacancy_team_added {function}`;
   `vacancy_assigned {}`; delivery `{commitment_date}`; psychometric `{invitation_id}` (+ `participation_id` in
   `sample`); `candidate_status_changed {status}`; `candidate_message_received {status: "closed"}` (the text is read
   from `/v2/me/applications`); `candidate_test_pending {invitation_id}`.
 - `link.kind` per type: `application_received` / `psychometric_completed` group → `vacancy_candidates {job_id}`
   (single-member group → `participation {job_id, participation_id}`); `psychometric_pending` → `participation`;
-  assignment types → `vacancy {job_id}`; delivery → `vacancy_delivery {job_id}`; `candidate_status_changed` /
+  assignment types → `vacancy {job_id}` (`vacancy_unassigned`: `link: null` when the recipient can no longer open the
+  vacancy, D19); delivery and assignment deadline → `vacancy_delivery {job_id}`; `candidate_status_changed` /
   `candidate_message_received` → `application {job_id, participation_id}`; `candidate_test_pending` → `assessment
   {invitation_id}`. The frontend maps kinds to paths.
 - `unread_count` / `unread_notifications`: the caller's whole scope, not filtered (saves a poll).
@@ -559,24 +576,24 @@ trace (`notification_events.audit_event_id`).
 | --- | --- |
 | N1 | Migration 00068; notifications domain (type table: kind, urgency, recipient kind, group rule, relation); capture decorator + notifiable map (D1–D3) wired at `cmd/api/main.go:237,573`; catalog-closure test; same-tx rollback tests. |
 | N2 | Fan-out loop (SKIP LOCKED, attempts/failed), recipient resolver (team, assignee, candidate; actor/membership/stakeholder filters; role-rule seam), visible-status rule, group keys in MX date; start/stop in `main.go`. |
-| N3 | Scheduler (lock key, due-soon/overdue rule, dedupe, resolution); start/stop in `main.go`. |
+| N3 | Scheduler (lock key, due-soon/overdue rule for commitment dates and recruiter deadlines, dedupe, resolution); start/stop in `main.go`. |
 | N4 | Member read API: `GET B` (groups, attention, cursor, name/title resolution with access check) + `GET B/unread-count`; routes. |
 | N5 | Member writes and facets: `read`, `unread` (`group_keys` / `ids` / `marked_at`), `read-all`, `facets`. |
 | N6 | Candidate route tree reusing N4/N5 handlers with the candidate scope; candidate titles/company from the application read model. |
 | N7 | `cmd/notifications-purge` (180 days, both tables), like `cmd/audit-purge`. |
 
-## Open questions (with recommendations)
+## Resolved questions (user decisions, 2026-11-26)
 
-| # | Question | Recommendation |
+| # | Question | Decision |
 | --- | --- | --- |
-| Q1 | Do paused processes and closed processes that continue (`close` with `process = continue`) get due-soon / overdue? | Paused **yes** (the commitment still runs); any closed **no** (resolves). |
-| Q2 | Notify the previous responsible on `vacancy_reassigned`? | Not in stage 1; add as a stage-3 rule (`from_user_id` is already in the payload). |
-| Q3 | `psychometric_pending` is ungrouped (L4) but automatic stage-entry invitations fire one per candidate entering the stage. Group it? | Group as `psychometrics_pending:<job_id>:<YYYY-MM-DD>` — same shape as the other two groups; frontend decides. |
-| Q4 | Should marking `candidate_message_received` read also mark the message read (`PUT /v2/me/applications/{id}/message-read`)? | No, keep them independent; the frontend may call both when the candidate opens the message. |
-| Q5 | Should members added to a team after a delivery item fired receive it? | No; they see the delivery state on the vacancy. |
-| Q6 | Page size 20 (max 50), attention cap 20, sample 3, facets jobs ≤ 50 — enough for 07? | Yes as drafted. |
-| Q7 | Per-recruiter deadlines (`recruiter_deadline` on assignments) due-soon / overdue? | Stage 3. |
-| Q8 | First scheduler run after deploy creates overdue items for every past-due delivery. | Accept (non-production data); if not, limit the first run to dates within the last 7 days. |
+| Q1 | Due-soon / overdue for paused processes and closed processes that continue? | Paused **yes**; any closed **no** (resolves). As recommended. |
+| Q2 | Notify the previous responsible on reassignment? | **Yes, in stage 1** — new type `vacancy_unassigned` (D10). |
+| Q3 | Group `psychometric_pending`? | **Yes**, `psychometrics_pending:<job_id>:<YYYY-MM-DD>` (D11). |
+| Q4 | Marking `candidate_message_received` read also marks the message read? | **No**, independent; the frontend may call both. |
+| Q5 | Members added to a team later receive past delivery items? | **No**; they see the delivery state on the vacancy. |
+| Q6 | Page 20 (max 50), attention cap 20, sample 3, facet jobs ≤ 50? | **Yes**, as drafted. |
+| Q7 | Per-recruiter `recruiter_deadline` due-soon / overdue? | **Yes, in stage 1** — `assignment_deadline_due_soon` / `_overdue` to the assignee only (§Scheduler). |
+| Q8 | First scheduler run creates overdue items for every past-due delivery? | **Accept** (non-production data). |
 
 ## Out of scope (v1)
 

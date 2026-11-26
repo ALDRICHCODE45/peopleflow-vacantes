@@ -48,7 +48,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 
 ## Tasks
 
-- T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — contract drafted (uncommitted)
+- T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6); pending frontend review
 - T2+ — implementation slices from the contract — pending
 
 ## Log
@@ -97,3 +97,9 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   yes, `psychometrics_pending:<job>:<date>`); Q4 message notification vs message-read (rec independent); Q5 late team
   members get past delivery items (rec no); Q6 limits 20/50/20/3/50 (rec ok); Q7 recruiter deadlines (rec stage 3);
   Q8 overdue flood on first run (rec accept). Slices N1–N7. Next: frontend review.
+- **L6** 2026-11-26, user answers to Q1–Q8: Q1 paused yes, closed no; **Q2 notify the previous responsible from
+  stage 1** («Sí, desde etapa 1»); Q3 group psychometric_pending by job and day; Q4 independent; Q5 no; Q6 limits as
+  drafted; **Q7 recruiter deadlines in stage 1** («Etapa 1»); Q8 accept. Contract updated: new types
+  `vacancy_unassigned` (relation `previous_assignee`) and `assignment_deadline_due_soon` / `_overdue` (scheduler over
+  active assignments' `recruiter_deadline`, assignee only, in attention); D10/D11/D13/D20, data model, recipients,
+  kinds, scheduler, payload/link and N3 adjusted. Next: frontend review of the contract.
