@@ -53,7 +53,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — done: 31d04365 0d8168e8 76b60256 fc9270a4; review advisories fixed 7fe1e88f a7209e44 706387df; verified (L12)
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — done: bdd85ef9 f2473e79 235982da 9e446230 e3339a54; reviewed and verified (L14)
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — done: a9e48d8a and the 4 commits before it; reviewed and verified (L16)
-- T6 — N5: read/unread/read-all + facets (D15–D17, D26) — implemented, uncommitted (L17); pending review
+- T6 — N5: read/unread/read-all + facets (D15–D17, D26) — done: 89a63897 and the 3 commits before it (L18)
 - T7 — N6: candidate route tree (D18) — pending
 - T8 — N7: `cmd/notifications-purge` (D22) — pending
 - Slice boundary: T1 (contract docs, ~720 lines, 5 commits) is its own review slice.
@@ -325,3 +325,6 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   `types` / `job_ids` arrays in read-all → `validation_error empty` (contract «empty array»); `marked_at` serialised RFC 3339 with
   trailing zeros trimmed (µs precision, round-trips); `unread` by `marked_at` matches the exact µs; facets `types` ordered count
   DESC, type. Not done: contract status (outside surface), `-race`, cmd/api full suite.
+- **L18** 2026-11-26, N5 closed. Parent checks: unit (notifications, cmd/api incl. route topology, archguard) ok;
+  TestNotifications* 10/10; notifications integration ok; go vet ok. Native assess medium, review not due (under budget),
+  no independent verifier required. Validation-code and body-cap choices recorded in L17 accepted.
