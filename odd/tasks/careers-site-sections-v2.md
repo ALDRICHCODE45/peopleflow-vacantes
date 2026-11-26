@@ -102,3 +102,10 @@ picks a direction, coordinated with the backend session.
   a detalle por favor.» → fix round: «Completar sección» selects the section, opens properties and focuses what's
   missing; partial sections render their heading/intro with an editor-only placeholder; selected rings never clipped;
   audit of every type × state, preview buttons, pickers and «Incompleta» hints.
+- **L12** (2026-11-25) User-review fix round `12903f0a`: the section's click capture swallowed every preview button (so
+  «Completar sección», carousel arrows, FAQ and pause did nothing); «Completar sección» now selects, reveals properties
+  (fold/Sheet rules) and focuses the first missing control; partial sections render heading/intro with an editor-only
+  slot (15 types / 38 layouts); inset selection rings; «Incompleta» hints («Falta: …») on rows and in a properties note.
+  Browser re-check (Chromium + Firefox, 1440/1280/1024/390): the user's flow and the sweep pass, axe 0. Full suite on
+  `12903f0a`: 665 files / 12410 passed, tsc 0, lint 0 errors. Follow-up `fce67854`: slots keep the page card/ink on brand,
+  image and tint surfaces; both «Completar sección» buttons use the editor colour.
