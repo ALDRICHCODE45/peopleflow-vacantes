@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/db/migrations"
@@ -171,6 +172,66 @@ func TestReconcileRetainsPlacementDocumentFile(t *testing.T) {
 	}
 	remaining, err := files.Keys(ctx)
 	if err != nil || len(remaining) != 1 || remaining[0] != kept {
+		t.Fatalf("keys=%v error=%v (orphan %s)", remaining, err, orphan)
+	}
+}
+
+// Site media (images and hero videos) share CV_STORAGE_ROOT in disk mode: a
+// referenced site media file survives CV reconciliation; an orphan is removed.
+func TestReconcileRetainsCompanySiteMediaFile(t *testing.T) {
+	pool := reconcileTestPool(t)
+	ctx := context.Background()
+	files, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := files.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	company, user, image, video := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	t.Cleanup(func() {
+		for _, q := range []struct{ sql, id string }{
+			{`DELETE FROM company_site_media WHERE company_id=$1`, company.String()},
+			{`DELETE FROM users WHERE id=$1`, user.String()},
+			{`DELETE FROM companies WHERE id=$1`, company.String()},
+		} {
+			if _, err := pool.Exec(context.Background(), q.sql, q.id); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+	imageKey, err := files.Put(ctx, []byte("site image"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	videoKey, err := files.Put(ctx, []byte("site video"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	orphan, err := files.Put(ctx, []byte("orphan"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO companies(id,name,rfc,industry_id,status) VALUES($1,'Site media retention fixture',$2,'technology','active')`, []any{company, uuid.NewString()}},
+		{`INSERT INTO users(id,cognito_sub,email,full_name,user_type) VALUES($1,$2,$3,'Site media retention fixture','recruiter')`, []any{user, uuid.NewString(), uuid.NewString() + "@example.test"}},
+		{`INSERT INTO company_site_media(id,company_id,kind,storage_key,content_type,width,height,byte_size,created_by) VALUES($1,$2,'cover',$3,'image/png',200,200,10,$4)`, []any{image, company, imageKey, user}},
+		{`INSERT INTO company_site_media(id,company_id,kind,storage_key,content_type,width,height,duration_ms,byte_size,created_by) VALUES($1,$2,'hero_video',$3,'video/mp4',NULL,NULL,5000,10,$4)`, []any{video, company, videoKey, user}},
+	} {
+		if _, err = pool.Exec(ctx, fixture.sql, fixture.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = NewLibrary(pool, files).Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	remaining, err := files.Keys(ctx)
+	if err != nil || len(remaining) != 2 || !slices.Contains(remaining, imageKey) || !slices.Contains(remaining, videoKey) {
 		t.Fatalf("keys=%v error=%v (orphan %s)", remaining, err, orphan)
 	}
 }

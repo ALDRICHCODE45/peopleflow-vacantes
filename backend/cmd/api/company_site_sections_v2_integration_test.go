@@ -196,7 +196,7 @@ func TestCompanySiteSectionsV2Flow(t *testing.T) {
 		t.Fatal(pub["media"])
 	}
 
-	// background_loop is publish-blocked until slice B ships the hero video; a
+	// background_loop without a background_video (slice B) is publish-blocked; a
 	// hidden secondary target is its own issue; a missing style image too.
 	draft["slug"] = slug
 	blocks[0].(map[string]any)["variant"] = "background_loop"

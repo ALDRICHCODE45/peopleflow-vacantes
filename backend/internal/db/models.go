@@ -249,11 +249,12 @@ type CompanySiteMedium struct {
 	Kind        string             `json:"kind"`
 	StorageKey  string             `json:"storage_key"`
 	ContentType string             `json:"content_type"`
-	Width       int32              `json:"width"`
-	Height      int32              `json:"height"`
+	Width       pgtype.Int4        `json:"width"`
+	Height      pgtype.Int4        `json:"height"`
 	ByteSize    int64              `json:"byte_size"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	CreatedBy   uuid.UUID          `json:"created_by"`
+	DurationMs  pgtype.Int4        `json:"duration_ms"`
 }
 
 type CompanySiteSlugHistory struct {

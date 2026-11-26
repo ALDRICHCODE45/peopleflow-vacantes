@@ -104,6 +104,20 @@ func TestReconcileKeepPredicateKnowsDocumentVersions(t *testing.T) {
 		t.Fatalf("keep predicate omits document versions: %s", tx.query)
 	}
 }
+
+// Company site media (images and hero videos) share CV_STORAGE_ROOT in disk
+// mode: the CV reconciliation must never treat a site media file as an orphan.
+func TestReconcileKeepPredicateKnowsSiteMedia(t *testing.T) {
+	tx := &reconcileTx{t: t}
+	storage := &reconcileStorage{tx: tx, keys: []string{"site-key"}}
+	library := &Library{pool: reconcilePool{tx}, storage: storage}
+	if err := library.Reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(tx.query, "FROM company_site_media s WHERE s.storage_key=$1") {
+		t.Fatalf("keep predicate omits site media: %s", tx.query)
+	}
+}
 func TestReconcileLookupFailureKeepsFiles(t *testing.T) {
 	failure := errors.New("lookup unavailable")
 	tx := &reconcileTx{t: t, lookupError: failure}

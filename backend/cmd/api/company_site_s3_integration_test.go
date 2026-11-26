@@ -18,6 +18,7 @@ import (
 	sitesapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/application"
 	sitess3 "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/s3"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/s3/testsupport"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/testsupport/mp4fixture"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	sdk "github.com/aws/aws-sdk-go-v2/service/s3"
@@ -163,5 +164,60 @@ func TestCompanySiteS3PublicMedia(t *testing.T) {
 	missing.header.Del("Date")
 	if !bytes.Equal(diskMissing.body, missing.body) || !reflect.DeepEqual(diskMissing.header, missing.header) {
 		t.Fatalf("disk/S3 missing response differs: disk=%s %v S3=%s %v", diskMissing.body, diskMissing.header, missing.body, missing.header)
+	}
+}
+
+// Slice B on S3: a hero video uploads through PutStream and is served with
+// ranged GetObject reads (206/416), same headers as on disk.
+func TestCompanySiteS3HeroVideoRange(t *testing.T) {
+	endpoint := requireSiteS3Endpoint(t)
+	ctx := context.Background()
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion("us-east-1"), awsconfig.WithLogger(logging.Nop{}))
+	if err != nil {
+		t.Fatal("load test SDK configuration")
+	}
+	client := sdk.NewFromConfig(cfg, func(o *sdk.Options) { o.BaseEndpoint = aws.String(endpoint); o.UsePathStyle = true })
+	_, err = client.CreateBucket(ctx, &sdk.CreateBucketInput{Bucket: aws.String("site-media")})
+	var api smithy.APIError
+	if err != nil && !(errors.As(err, &api) && api.ErrorCode() == "BucketAlreadyOwnedByYou") {
+		t.Fatal("bootstrap private test bucket")
+	}
+	storage, err := sitess3.New(ctx, sitess3.Options{Bucket: "site-media", Region: "us-east-1", Prefix: "router-tests/" + uuid.NewString(), Endpoint: endpoint, ForcePathStyle: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, _ := newCompanySiteFlowStorageHarness(t, storage)
+	a, id, sub := draftFlowNewPrincipal(t, h.pool, "active")
+	siteFlowCleanup(t, h, a.companyID)
+	actor := h.actor(t, id, sub)
+	// Above the 5 MiB image bound: proves the video path never uses the buffered Open.
+	video := mp4fixture.Build(mp4fixture.Options{MoovLast: true, MdatBytes: sitesapp.MaxMediaBytes + 4096})
+	upload := siteVideoUpload(t, h, actor.token, "clip.mp4", "video/mp4", video)
+	if upload.status != 201 {
+		t.Fatalf("%d %s", upload.status, upload.body)
+	}
+	m := draftFlowObject(t, upload.body)
+	var storageKey string
+	if err := h.pool.QueryRow(ctx, `SELECT storage_key FROM company_site_media WHERE id=$1`, m["id"]).Scan(&storageKey); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := storage.Delete(context.Background(), storageKey); err != nil {
+			t.Error(err)
+		}
+	})
+	head, err := client.HeadObject(ctx, &sdk.HeadObjectInput{Bucket: aws.String("site-media"), Key: aws.String(storageKey)})
+	if err != nil || head.ContentLength == nil || *head.ContentLength != int64(len(video)) {
+		t.Fatal("S3 head mismatch")
+	}
+	siteVideoRanges(t, h, m["url"].(string), video)
+	if err := storage.Delete(ctx, storageKey); err != nil {
+		t.Fatal(err)
+	}
+	missing := h.do(t, "GET", m["url"].(string), "", "", map[string]string{"Range": "bytes=0-9"})
+	draftFlowAssertCatalogError(t, missing, 404, "not_found")
+	draftFlowAssertNoStore(t, missing)
+	if missing.header.Get("Content-Range") != "" {
+		t.Fatal(missing.header)
 	}
 }
