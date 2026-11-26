@@ -32,9 +32,18 @@ async function mount() {
 }
 const properties = () => screen.getByRole("complementary", { name: "Propiedades de la sección" });
 
-it("is off unless NEXT_PUBLIC_CAREERS_SECTIONS_V2 is exactly \"true\"", () => {
-  expect(process.env.NEXT_PUBLIC_CAREERS_SECTIONS_V2).not.toBe("true");
+it("is off when NEXT_PUBLIC_CAREERS_SECTIONS_V2 is \"false\" (the kill switch these tests run with)", () => {
+  expect(process.env.NEXT_PUBLIC_CAREERS_SECTIONS_V2).toBe("false");
   expect(SECTIONS_V2_ENABLED).toBe(false);
+});
+it("is on by default and with any other value; only \"false\" turns it off", async () => {
+  for (const [value, expected] of [[undefined, true], ["true", true], ["", true], ["false", false]] as const) {
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_CAREERS_SECTIONS_V2", value as string);
+    const flags = await import("../sections-v2");
+    expect(flags.SECTIONS_V2_ENABLED, String(value)).toBe(expected);
+    vi.unstubAllEnvs();
+  }
 });
 it("keeps today's properties: no groups, no «Estilo de sección», no button texts, today's layouts", async () => {
   await mount();
