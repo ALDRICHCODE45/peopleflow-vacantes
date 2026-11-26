@@ -88,3 +88,46 @@ func TestBuildEventRefusesMissingIds(t *testing.T) {
 		})
 	}
 }
+
+// L9 follow-up: actor_user_id is an FK to users, so it is copied only for a
+// user actor; any other actor type stores NULL even if an id is present.
+func TestBuildEventCopiesActorOnlyForUserActors(t *testing.T) {
+	company, actor := uuid.New(), uuid.New()
+	event := audit.AuditEvent{ID: uuid.New(), EventType: audit.EventVacancyApplicationSubmitted, EntityID: uuid.New(), CompanyID: &company,
+		ActorID: &actor, Metadata: map[string]string{"vacancy_id": uuid.NewString()}}
+	for actorType, want := range map[audit.ActorType]bool{audit.ActorTypeUser: true, audit.ActorTypeSystem: false, "": false} {
+		event.ActorType = actorType
+		got, ok, err := BuildEvent(event)
+		if err != nil || !ok {
+			t.Fatal(ok, err)
+		}
+		if (got.ActorUserID != nil) != want || (want && *got.ActorUserID != actor) {
+			t.Fatalf("actor type %q: actor_user_id=%v", actorType, got.ActorUserID)
+		}
+		if got.ActorUserID != nil && got.ActorUserID == event.ActorID {
+			t.Fatal("actor id must be copied, not aliased")
+		}
+	}
+}
+
+// L9 follow-up: structured metadata replaces Metadata; string values are read,
+// non-string values count as absent, and Metadata is ignored.
+func TestBuildEventReadsStructuredMetadata(t *testing.T) {
+	company, job, participation := uuid.New(), uuid.New(), uuid.New()
+	event := audit.AuditEvent{ID: uuid.New(), EventType: audit.EventPsychometricAssessmentFinished, EntityID: uuid.New(), CompanyID: &company,
+		Metadata:           map[string]string{"vacancy_id": uuid.NewString(), "participation_id": uuid.NewString()},
+		StructuredMetadata: map[string]any{"vacancy_id": job.String(), "participation_id": participation.String()}}
+	got, ok, err := BuildEvent(event)
+	if err != nil || !ok || got.JobID != job || got.ParticipationID == nil || *got.ParticipationID != participation {
+		t.Fatalf("structured: %+v %v %v", got, ok, err)
+	}
+	event.StructuredMetadata = map[string]any{"vacancy_id": job.String(), "participation_id": []string{participation.String()}}
+	got, ok, err = BuildEvent(event)
+	if err != nil || !ok || got.ParticipationID != nil {
+		t.Fatalf("non-string value must count as absent: %+v %v %v", got, ok, err)
+	}
+	event.StructuredMetadata = map[string]any{"participation_id": participation.String()}
+	if _, _, err := BuildEvent(event); !errors.Is(err, ErrMissingID) {
+		t.Fatalf("metadata must not be read when structured metadata is present: %v", err)
+	}
+}

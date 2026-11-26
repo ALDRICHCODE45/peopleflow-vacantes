@@ -44,7 +44,8 @@ func BuildEvent(event audit.AuditEvent) (Event, bool, error) {
 		return Event{}, true, err
 	}
 	out := Event{AuditEventID: event.ID, CompanyID: *event.CompanyID, EventType: event.EventType, JobID: job, Payload: map[string]any{}, NeedsHasMessage: rule.HasMessage}
-	if event.ActorID != nil {
+	// actor_user_id references users: only a user actor's id is a user id.
+	if event.ActorType == audit.ActorTypeUser && event.ActorID != nil {
 		actor := *event.ActorID
 		out.ActorUserID = &actor
 	}
