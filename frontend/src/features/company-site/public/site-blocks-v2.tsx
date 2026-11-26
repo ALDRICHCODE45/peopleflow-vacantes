@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- Same-origin capability media proxy. */
 "use client";
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUpRight, Briefcase, ChevronLeft, ChevronRight, FileUser, ImagePlus, MapPin, Pause, Play, type LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -71,29 +71,53 @@ function DarkPanel({ marker, media, className, children }: { marker: string; med
 }
 const panelPhoto = (image: { media_id: string }) => <SiteMedia eager image={image} alt="" className="size-full rounded-none" />;
 
-/** «Fondo en movimiento» (02). Until the background video ships (slice B) the poster
- * (cover) or an animated brand gradient stands in; there is never a broken <video>. */
+/** The uploaded MP4 under the scrim: always muted, looped and inline; the cover is its poster.
+ * Playback follows `playing` (reduced motion starts paused, even if the browser began autoplay
+ * before hydration); a load error hands the background back to the cover/gradient. */
+function HeroVideo({ video, poster, playing, onError }: { video: { media_id: string }; poster: { media_id: string } | null; playing: boolean; onError: () => void }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    if (playing) void element.play()?.catch(() => {});
+    else element.pause();
+  }, [playing]);
+  return <video ref={ref} data-hero-video="" src={mediaUrl(video.media_id)} poster={poster ? mediaUrl(poster.media_id) : undefined}
+    muted loop playsInline autoPlay={playing} preload="metadata" onError={onError} className="absolute inset-0 size-full object-cover" />;
+}
+
+/** «Fondo en movimiento» (02): the background video (slice B) when there is one; otherwise, or
+ * when it fails to load, the poster (cover) or an animated brand gradient — never a broken <video>. */
 function HeroLoop({ block, company, jobs, jobsHref, secondaryHref }: HeroProps) {
   const reduced = usePrefersReducedMotion();
   const [paused, setPaused] = useState(false);
+  // The person's explicit choice wins; until then reduced motion means a still poster.
+  const [choice, setChoice] = useState<"play" | "pause" | null>(null);
+  const [videoFailed, setVideoFailed] = useState(false);
   const centered = useSectionAlign() === "center";
   const cover = block.content.cover;
+  const video = videoFailed ? null : block.content.background_video;
+  const playing = choice ? choice === "play" : !reduced;
   const chips = [
     company.location?.label ? { key: "location", Icon: MapPin, text: company.location.label } : null,
     jobs.length ? { key: "jobs", Icon: Briefcase, text: plural(jobs.length, "vacante abierta", "vacantes abiertas") } : null,
   ].filter(chip => chip !== null);
-  const animated = !cover && !reduced;
-  return <DarkPanel marker="hero-background_loop" className="flex min-h-[30rem] flex-col justify-between gap-10 px-6 py-10 sm:px-12 sm:py-14 lg:min-h-[36rem]"
-    media={cover ? panelPhoto(cover) : <div data-hero-loop="" data-paused={String(paused || reduced)} className={cn("absolute inset-0", styles.heroGradient, styles.heroLoop)} />}>
+  const animated = !video && !cover && !reduced;
+  const media = video ? <HeroVideo key={video.media_id} video={video} poster={cover} playing={playing} onError={() => setVideoFailed(true)} />
+    : cover ? panelPhoto(cover) : <div data-hero-loop="" data-paused={String(paused || reduced)} className={cn("absolute inset-0", styles.heroGradient, styles.heroLoop)} />;
+  const control = video
+    ? <Button type="button" variant="outline" aria-pressed={!playing} className="ms-auto min-h-10 bg-transparent" onClick={() => setChoice(playing ? "pause" : "play")}>{playing ? <Pause aria-hidden="true" data-icon="inline-start" /> : <Play aria-hidden="true" data-icon="inline-start" />}{playing ? "Pausar fondo animado" : "Reproducir"}</Button>
+    : animated ? <Button type="button" variant="outline" className="ms-auto min-h-10 bg-transparent" onClick={() => setPaused(value => !value)}>{paused ? <Play aria-hidden="true" data-icon="inline-start" /> : <Pause aria-hidden="true" data-icon="inline-start" />}{paused ? "Reanudar fondo animado" : "Pausar fondo animado"}</Button> : null;
+  return <DarkPanel marker="hero-background_loop" className="flex min-h-[30rem] flex-col justify-between gap-10 px-6 py-10 sm:px-12 sm:py-14 lg:min-h-[36rem]" media={media}>
     <div className={cn("my-auto flex flex-col gap-6", centered ? "mx-auto max-w-3xl items-center text-center" : "max-w-3xl")}>
       <p className="w-fit rounded-full border border-border px-4 py-1.5 text-xs font-medium tracking-widest uppercase">{company.name} · Tu próximo capítulo</p>
       <HeroTitle block={block} />
       {block.content.subtitle && <p className="max-w-[48ch] text-base leading-relaxed text-pretty sm:text-lg">{block.content.subtitle}</p>}
       <HeroActions block={block} jobsHref={jobsHref} secondaryHref={secondaryHref} centered={centered} dark />
     </div>
-    {(chips.length > 0 || animated) && <div className="flex flex-wrap items-end justify-between gap-3">
+    {(chips.length > 0 || control) && <div className="flex flex-wrap items-end justify-between gap-3">
       {chips.length > 0 && <ul aria-label={`Datos de ${company.name}`} className="flex flex-wrap gap-2">{chips.map(({ key, Icon, text }) => <li key={key} className="inline-flex min-h-8 items-center gap-2 rounded-full bg-(--card) px-3 text-sm"><Icon aria-hidden="true" className="size-4 shrink-0" />{text}</li>)}</ul>}
-      {animated && <Button type="button" variant="outline" className="ms-auto min-h-10 bg-transparent" onClick={() => setPaused(value => !value)}>{paused ? <Play aria-hidden="true" data-icon="inline-start" /> : <Pause aria-hidden="true" data-icon="inline-start" />}{paused ? "Reanudar fondo animado" : "Pausar fondo animado"}</Button>}
+      {control}
     </div>}
   </DarkPanel>;
 }

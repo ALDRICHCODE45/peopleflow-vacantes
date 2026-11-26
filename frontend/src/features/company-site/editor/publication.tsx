@@ -33,7 +33,7 @@ const ISSUE_LABELS: Record<PublishIssue["code"], string> = {
   no_content_block: "Agrega al menos una sección de contenido", block_incomplete: "Completa esta sección",
   company_logo_missing: "Agrega el logo de la empresa", company_name_missing: "Agrega el nombre de la empresa",
   // Sections v2 (slice A); unreachable while the flag is off.
-  hero_video_missing: "El fondo en movimiento de la portada todavía no se puede publicar: elige otro diseño",
+  hero_video_missing: "Sube el video de fondo y la imagen de portada (póster) de la portada",
   secondary_target_hidden: "Muestra la sección a la que lleva el botón secundario de la portada",
   hero_collage_images_missing: "Agrega al menos 2 fotos al collage de la portada",
   style_image_missing: "Sube la imagen de fondo de esta sección",
