@@ -30,7 +30,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 
 - T1 — S1–S10 — contract `docs/contracts/notifications-v2.md` — worker (docs) — agreed
 - T2 — E1 — migration 00069, domain defaults/effective preference/locked rule, `AND n.in_app` in the scoped inbox statements + guard test — worker — done (uncommitted, L7)
-- T3 — E2 — preferences store + GET/PUT handlers for both trees, `notification_preference_locked`, routes — worker — pending
+- T3 — E2 — preferences store + GET/PUT handlers for both trees, `notification_preference_locked`, routes — worker — done (uncommitted, L9)
 - T4 — E3 — in-app off at creation in fan-out and scheduler, `InsertNotification` → `:execrows` — worker — pending
 - T5 — E4 — config loader, email eligibility, delivery creation with coalescing upsert in both creation paths — worker — pending
 - T6 — E5 — `Mailer` port, `log`/`smtp` adapters, Mailpit in compose, templates with the S10 copy, headers, dates, path map — worker — pending
@@ -156,3 +156,40 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   (latest = the hidden row); restored. Test DB: disposable container `peopleflow-notif-test2` (tmpfs, loopback), DSN in
   `/tmp/pf-notif-test2-dsn` (0600), left running for later slices.
 - **L8** 2026-11-26, frontend correction (verbatim): «Cambio el body de T13 por: «Otra persona quedó a cargo de {{job_title}}. Motivo: {{reason}}.». Así el fallback «una vacante» nunca abre la oración.» Applied to the contract in b0a2efaa; supersedes the T13 line of L5.
+- **L9** 2026-11-26, T3/E2 implemented (uncommitted, worktree only; catalog code `notification_preference_locked` added by
+  the parent in 7ff33ef4, `internal/shared/httpjson/notification_errors.go`). Package
+  `internal/features/notifications/preferences`: `Build` renders the caller tree's catalog from the domain table only
+  (`TreeTypes(kind)` × `domain.Channels()`, `DefaultPreference`/`EffectivePreference`, overrides on locked or foreign
+  pairs ignored); `ParsePut` (strict JSON, objects only; 1–28 entries; `preferences` required/empty/too_many,
+  `preferences[i].type|channel|enabled` required/invalid — a type of the other tree is invalid —, `preferences[i]`
+  duplicate; all failures of the list together, in entry order; only a fully valid list is checked for locked types →
+  `LockedError{types}` once each in table order); `Store` (GET in one read-only RR snapshot; PUT = one upsert per entry
+  `source='settings', updated_at=now()` + catalog read-back in one tx); `Handler` GET/PUT with a 16 KiB body cap. Scope
+  resolvers moved out of the inbox handler as exported `inbox.MemberScope` / `inbox.CandidateScope(lookup)` and shared
+  by both features (same gates, same errors). Queries `ListNotificationPreferences`, `GetNotificationEmailDeliverable`
+  (live ∧ non-empty ∧ `lower(btrim(email))` not suppressed; address/reason never leave SQL), `UpsertNotificationPreference`
+  (sqlc cannot type a multi-array `unnest`, so one statement per entry inside the tx). Routes `Get`/`Put` on
+  `/v2/me/company/notifications/preferences` (member group) and `/v2/me/notifications/preferences` (candidate group),
+  the 4 added to `TestRouteTopology_ExactRegistrations`. Review advisories on 00069 (in place, unreleased):
+  `notification_email_deliveries.recipient_user_id` / `company_id` `ON DELETE CASCADE`; `type` CHECK = the 14 values of
+  `notifications.type`; `CHECK ((status = 'retry') = (next_attempt_at IS NOT NULL))` and `CHECK ((status = 'sending') =
+  (lease_until IS NOT NULL))` — the §Sender model allows it, E6 must clear `next_attempt_at` in the claim and
+  `lease_until` in every finalize. Guard `inbox/inapp_guard_test.go`: block comments stripped; each `<alias>.recipient_kind
+  =` occurrence needs `AND <alias>.in_app` in its own query scope (innermost parentheses, literals ignored). RED observed:
+  the 5 HTTP tests got `404 page not found`; preferences unit tests failed to build (undefined `ParsePut`, `Build`, …);
+  migration test `want SQLSTATE 23514, got <nil>` (unknown delivery type) and, with only the user FK reverted, `DELETE FROM
+  users … violates foreign key constraint notification_email_deliveries_recipient_user_id_fkey`; guard: 5 new cases failed
+  (block comment ×2, same alias in a second scope, predicate only nested, predicate only outer). Mutation: reusing alias
+  `n` in the lateral `latest` of `ListNotificationGroups` without its own `in_app` (passes the old guard) fails the new
+  one; restored byte-identical. GREEN: `make test-integration PKG=./internal/features/notifications/...` ok (6 packages,
+  74 top-level tests), `make test-integration PKG=./cmd/api/ RUN='^TestNotifications'` ok (20 tests, 5 new
+  `TestNotificationsPreferences_*`: member catalog/partial/idempotent/explicit default-valued rows/unsubscribe row
+  rewritten as settings; candidate catalog email on + `email_deliverable` false while the normalized address is
+  suppressed, both trees; 422 locked with nothing written incl. the whole 22-pair tree; 25 validation cases with nothing
+  written; isolation colleague/owner/outsider/other candidate, stakeholder member catalog + PUT (D23), company-keyed
+  rows across a membership move, member vs candidate, gates 401/403 forbidden/wrong_role/account_required/
+  company_inactive; 0 audit rows), `make test PKG='./internal/features/notifications/... ./cmd/api/
+  ./internal/tools/archguard/'` ok, `go tool sqlc diff` clean. Not reachable through HTTP: an empty stored address (the
+  gates refuse a user whose email is not a valid address), so that branch of `GetNotificationEmailDeliverable` is
+  defensive only; no test forces a DB failure mid-PUT (atomicity rests on the single tx; validation and 422 never touch
+  the DB).
