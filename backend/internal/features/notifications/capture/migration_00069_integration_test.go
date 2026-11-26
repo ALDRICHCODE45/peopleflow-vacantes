@@ -155,6 +155,50 @@ func TestMigration00069NotificationsEmail(t *testing.T) {
 	mustExec(t, pool, `UPDATE notification_email_deliveries SET status='sending', lease_until=now() WHERE id=$1`, open)
 	mustExec(t, pool, insertDel, uuid.Must(uuid.NewV7()), f.recruiter, "member", f.company, "application_received", group, f.job, "pending", nil, nil)
 
+	// type is the closed list of notifications.type: every domain type is accepted,
+	// anything else refused.
+	for _, spec := range domain.Types() {
+		user, kind, company := f.recruiter, "member", any(f.company)
+		if spec.RecipientKind == domain.RecipientCandidate {
+			user, kind, company = f.candidate, "candidate", nil
+		}
+		mustExec(t, pool, insertDel, uuid.Must(uuid.NewV7()), user, kind, company, string(spec.Type), "n:"+uuid.NewString(), f.job, "sent", nil, time.Now())
+	}
+	wantSQLState(t, pool, "23514", insertDel, uuid.Must(uuid.NewV7()), f.recruiter, "member", f.company, "team_added", "n:"+uuid.NewString(), f.job, "pending", nil, nil)
+
+	// next_attempt_at exists exactly while 'retry', lease_until exactly while 'sending'.
+	insertTimers := `INSERT INTO notification_email_deliveries(id,recipient_user_id,recipient_kind,company_id,type,group_key,job_id,status,send_after,next_attempt_at,lease_until,error_class)
+		VALUES($1,$2,'member',$3,'vacancy_assigned',$4,$5,$6,now(),$7,$8,$9)`
+	soon := time.Now().Add(time.Minute)
+	mustExec(t, pool, insertTimers, uuid.Must(uuid.NewV7()), f.recruiter, f.company, "n:"+uuid.NewString(), f.job, "retry", soon, nil, "transient")
+	mustExec(t, pool, insertTimers, uuid.Must(uuid.NewV7()), f.recruiter, f.company, "n:"+uuid.NewString(), f.job, "sending", nil, soon, nil)
+	for name, args := range map[string][]any{
+		"retry without next_attempt_at": {"retry", nil, nil, "transient"},
+		"next_attempt_at while pending": {"pending", soon, nil, nil},
+		"next_attempt_at while failed":  {"failed", soon, nil, "transient"},
+		"sending without lease_until":   {"sending", nil, nil, nil},
+		"lease_until while retry":       {"retry", soon, soon, "transient"},
+		"lease_until while pending":     {"pending", nil, soon, nil},
+	} {
+		t.Run("deliveries/"+name, func(t *testing.T) {
+			wantSQLState(t, pool, "23514", insertTimers, append([]any{uuid.Must(uuid.NewV7()), f.recruiter, f.company, "n:" + uuid.NewString(), f.job}, args...)...)
+		})
+	}
+
+	// Deliveries never block a hard delete of their user or company (ON DELETE
+	// CASCADE, like notification_preferences).
+	doomedUser, doomedCompany := uuid.New(), uuid.New()
+	mustExec(t, pool, `INSERT INTO users(id,cognito_sub,email,full_name,user_type) VALUES($1,$2,$3,'Doomed','candidate')`, doomedUser, uuid.NewString(), uuid.NewString()+"@example.test")
+	mustExec(t, pool, `INSERT INTO companies(id,name,rfc,industry_id,status) VALUES($1,'Doomed',$2,'technology','active')`, doomedCompany, uuid.NewString())
+	mustExec(t, pool, insertDel, uuid.Must(uuid.NewV7()), doomedUser, "candidate", nil, "candidate_test_pending", "n:"+uuid.NewString(), f.job, "pending", nil, nil)
+	mustExec(t, pool, insertDel, uuid.Must(uuid.NewV7()), f.recruiter, "member", doomedCompany, "vacancy_assigned", "n:"+uuid.NewString(), f.job, "pending", nil, nil)
+	mustExec(t, pool, `DELETE FROM users WHERE id=$1`, doomedUser)
+	mustExec(t, pool, `DELETE FROM companies WHERE id=$1`, doomedCompany)
+	var orphans int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_email_deliveries WHERE recipient_user_id=$1 OR company_id=$2`, doomedUser, doomedCompany).Scan(&orphans); err != nil || orphans != 0 {
+		t.Fatalf("deliveries of a deleted user/company = %d (%v), want 0", orphans, err)
+	}
+
 	// Notifications: in_app defaults to true, email_delivery_id links a delivery
 	// and is cleared when the delivery goes.
 	event := uuid.New()

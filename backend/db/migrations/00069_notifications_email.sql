@@ -26,13 +26,19 @@ CREATE TABLE email_suppressions (
     created_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- One row per email to send (D8, D10, D12). No address column (D19).
+-- One row per email to send (D8, D10, D12). No address column (D19). Rows go with their user or company (CASCADE, like
+-- notification_preferences) so a hard delete is never blocked by pending or historical mail.
 CREATE TABLE notification_email_deliveries (
     id                  uuid PRIMARY KEY,                                   -- uuid v7; also the Message-ID local part
-    recipient_user_id   uuid NOT NULL REFERENCES users(id),
+    recipient_user_id   uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     recipient_kind      text NOT NULL CHECK (recipient_kind IN ('member','candidate')),
-    company_id          uuid NULL REFERENCES companies(id),                 -- same rule as notifications
-    type                text NOT NULL,                                      -- same 14 values as notifications.type
+    company_id          uuid NULL REFERENCES companies(id) ON DELETE CASCADE, -- same rule as notifications
+    type                text NOT NULL CHECK (type IN (                      -- same 14 values as notifications.type (00068)
+                            'application_received','delivery_due_soon','delivery_overdue',
+                            'assignment_deadline_due_soon','assignment_deadline_overdue',
+                            'vacancy_assigned','vacancy_reassigned','vacancy_unassigned','vacancy_team_added',
+                            'psychometric_completed','psychometric_pending',
+                            'candidate_status_changed','candidate_message_received','candidate_test_pending')),
     group_key           text NOT NULL CHECK (char_length(group_key) BETWEEN 3 AND 120),
     job_id              uuid NOT NULL,
     status              text NOT NULL DEFAULT 'pending'
@@ -50,7 +56,11 @@ CREATE TABLE notification_email_deliveries (
     updated_at          timestamptz NOT NULL DEFAULT now(),
     CHECK ((recipient_kind = 'candidate') = (company_id IS NULL)),
     CHECK ((status = 'skipped') = (skip_reason IS NOT NULL)),
-    CHECK ((status = 'sent') = (sent_at IS NOT NULL))
+    CHECK ((status = 'sent') = (sent_at IS NOT NULL)),
+    -- §Sender: a retry waits for next_attempt_at, a claimed row holds a lease; the claim clears next_attempt_at and
+    -- every finalize clears lease_until.
+    CHECK ((status = 'retry') = (next_attempt_at IS NOT NULL)),
+    CHECK ((status = 'sending') = (lease_until IS NOT NULL))
 );
 -- At most one open window per recipient and group (D10); 'retry'/'sending' rows are outside it on purpose.
 CREATE UNIQUE INDEX notification_email_deliveries_open ON notification_email_deliveries (recipient_user_id, group_key)
