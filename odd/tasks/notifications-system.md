@@ -59,3 +59,15 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   technical choices: the bell refreshes every ~30 s and on tab focus at first (real-time push later); email provider
   for stage 2 proposed as Amazon SES (AWS already used for Cognito/S3), to confirm then. Docs ride on branch
   `feat/careers-hero-video` until that merges (docs only).
+- **L4** (2026-11-26) T1 design directions written to `design/notifications/` (gentle-design; `design.json` links this
+  feature; none chosen yet): `01-popover-desde-la-campana.html` (420 px popover from the bell; fastest, no filters),
+  `02-hoja-lateral-con-filtros.html` (modal right sheet with «Requiere atención» pinned and filters by type and vacancy),
+  `03-bandeja-en-dos-paneles.html` (own page /empresa/notificaciones, list + detail with the group's candidates and the
+  delivery's progress; the bell is a link) — the three company bell + inbox alternatives at 1440, light and dark;
+  `04-telefono-y-candidato.html` (shared by all three: full-screen inbox at 390, candidate bell at 1440 and 390);
+  `05-mis-preferencias.html` (personal events × channels table, mandatory rows locked with the reason, owner-disabled rows,
+  «Tu ajuste», «Restablecer a lo que define tu empresa»; candidate variant); `06-reglas-de-la-empresa.html` (owner rules per
+  event, role defaults Dueño/Reclutador/Stakeholder, preview «Así le llega a Valeria»). Browser review (Chromium + axe,
+  165 runs): 0 axe violations, no horizontal overflow, visible focus, reduced motion respected; deviations from
+  `design/system.md` (popover 420 px, sheet 460 px, bell count pill, sticky day headers, among others) listed in
+  `design/notifications/self-check.md`.

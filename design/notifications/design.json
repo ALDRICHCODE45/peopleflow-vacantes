@@ -1,0 +1,49 @@
+{
+  "title": "Sistema de notificaciones · campana, bandeja, preferencias y reglas",
+  "brief": "T1 · S1–S7. Direcciones para el sistema de notificaciones de PeopleFlow (empresa y candidatos) con datos de Grupo Altavista (Andrea Salinas dueña; Valeria Ortiz y Rodrigo Treviño reclutadores; Mariana Elizondo stakeholder; candidata Ximena Ruiz). 01–03: tres direcciones para la campana + bandeja de la empresa a 1440 (popover, hoja lateral con filtros, bandeja en dos paneles), cada una con contador en el encabezado, pestañas No leídas · Todas, agrupación por día y por objeto («5 postulaciones nuevas en Analista de Nómina»), los eventos de la etapa 1 con su icono y destino, entrega por vencer frente a vencida, marcar una o todas como leídas (con deshacer), primera vez, carga, error y enlace a preferencias. 04: la campana en el teléfono (común a las tres) y la del candidato a 1440 y 390. 05: preferencias personales (avisos × canales, obligatorias con candado y motivo, desactivadas por la empresa, «Tu ajuste» y «Restablecer a lo que define tu empresa»; variante candidato). 06: reglas del dueño (destinatarios, si se puede apagar, correo; valores por rol; vista previa «Así le llega a Valeria»). Claro y oscuro, interactivos, solo tokens de design/system.md. Ninguna dirección está elegida todavía.",
+  "feature": "odd/tasks/notifications-system.md",
+  "artboards": [
+    {
+      "file": "01-popover-desde-la-campana.html",
+      "title": "01 · Popover desde la campana · S6",
+      "tradeoff": "La más rápida y la que menos interrumpe: un panel de 420 px cae de la campana sin salir de la página, y las urgentes se distinguen por su badge. A cambio no tiene filtros ni espacio para contexto (un grupo se despliega dentro del panel), el historial largo se recorre con scroll y el panel es más ancho que el Popover del sistema (288 px).",
+      "width": 1440,
+      "height": 1760
+    },
+    {
+      "file": "02-hoja-lateral-con-filtros.html",
+      "title": "02 · Hoja lateral con filtros · S6",
+      "tradeoff": "Más espacio y triaje: «Requiere atención» fija arriba la entrega vencida y la que vence mañana, y se filtra por tipo y por vacante con chips que se quitan. A cambio es modal (telón sobre la página), pide un clic más para volver a trabajar y la hoja (460 px) es más ancha que la del sistema (384 px).",
+      "width": 1440,
+      "height": 1760
+    },
+    {
+      "file": "03-bandeja-en-dos-paneles.html",
+      "title": "03 · Bandeja en dos paneles · S6",
+      "tradeoff": "La más completa: página propia con lista y detalle, donde un grupo muestra a cada candidato y una entrega muestra su avance y qué falta, con la acción directa. A cambio la campana es solo un enlace (te saca de lo que hacías), es la más cara de construir y la que más pantalla nueva añade al producto.",
+      "width": 1440,
+      "height": 1810
+    },
+    {
+      "file": "04-telefono-y-candidato.html",
+      "title": "04 · Teléfono y espacio del candidato · S2 S6",
+      "tradeoff": "Común a cualquier dirección: en 390 px la campana abre la bandeja a pantalla completa, y el candidato tiene la misma campana con sus tres eventos (cambio de estado con el badge de estado del sistema, mensaje con extracto, prueba pendiente con fecha límite). A cambio, en el teléfono se pierden los filtros de 02 y el detalle de 03.",
+      "width": 1440,
+      "height": 1490
+    },
+    {
+      "file": "05-mis-preferencias.html",
+      "title": "05 · Mis preferencias · S1 S3 S5",
+      "tradeoff": "Una tabla avisos × canales (En la app con interruptor; Correo como Inmediato · Resumen diario · Apagado) que hace visible lo que no se puede tocar y por qué, y marca con «Tu ajuste» lo que difiere de la empresa. A cambio, la tabla crece con cada evento nuevo, en el teléfono cada aviso se vuelve una tarjeta larga y el guardado es explícito (barra «Cambios sin guardar»).",
+      "width": 1440,
+      "height": 2190
+    },
+    {
+      "file": "06-reglas-de-la-empresa.html",
+      "title": "06 · Reglas de la empresa · S1 S3 S4",
+      "tradeoff": "El dueño ve en una tabla quién recibe cada aviso, si se puede apagar y el correo, y comprueba el efecto con «Así le llega a Valeria» antes de guardar. A cambio hay dos niveles de configuración (regla por aviso en una hoja y valores por rol en una matriz) que pueden confundirse, y la vista previa ocupa una columna fija.",
+      "width": 1440,
+      "height": 2190
+    }
+  ]
+}
