@@ -45,7 +45,7 @@ Three slices, ordered by risk; each one is independently shippable.
 - Serving: Range/206 support (`http.ServeContent` over a seekable reader or S3 ranged GET — storage port change); the Next
   proxy `app/media/sitios/[id]/route.ts` forwards `Range` and returns `206`, `Content-Range`, `Accept-Ranges`, allows
   `video/mp4`. Streaming upload instead of reading 20 MB into memory.
-- Open: is ffmpeg acceptable on the backend image (would allow re-encode, poster frame, audio strip)?
+- Decided (2026-11-26): no ffmpeg — the backend image stays as is; validation stays structural; the poster is the hero `cover` the person uploads.
 
 ## Slice C — public «Dejar mi CV» into the talent base (migration + anonymous endpoint; risk items 1/2)
 

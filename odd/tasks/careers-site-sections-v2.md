@@ -36,6 +36,9 @@ picks a direction, coordinated with the backend session.
 | T2 | S1–S4 | Backend contract proposal for the chosen direction (coordinate with the backend session) | `af6a6140` (backend `64e2e379`) |
 | T3 | S1–S4 | Frontend implementation of the chosen direction (slice A) | `616b3934`…`105dd1bd` |
 | T4 | S1–S4 | Browser check, full suite, merge to main (slice A) | this log + merge; slices B/C pending |
+| T5 | S2 | Slice B backend: hero video media (migration, MP4 validation, Range/206 serving) — backend session | |
+| T6 | S2 | Slice B frontend: video upload, «Fondo en movimiento» offered, `<video>` hero, proxy Range | |
+| T7 | S2 | Slice B browser check, full suite, merge to main | |
 
 ## Log
 
@@ -116,4 +119,8 @@ picks a direction, coordinated with the backend session.
   Default-on build `jRNJKnPQDm6--yRC1Rr5e` serves the v2 library; full suite 665 files / 12411 passed, tsc 0, lint 0
   errors. Native review assess unassessable (untracked canvas files); plan required no extra verifier. Merged slice A to
   local main; the user pushes. Next: slice B (hero video), slice C («Dejar mi CV»).
+- **L14** (2026-11-26) User, verbatim: «ya esta pusheado todo, adelante con los siguientes pasos recomendados.» → slice B
+  (hero background video) on branch `feat/careers-hero-video` from main `97f2c28a`; slice C waits for two user decisions
+  (CV retention period, owner email per CV vs daily digest). Agent decision for slice B: no ffmpeg (deploy image
+  unchanged; structural MP4 validation; always muted, looped, playsinline, paused under reduced motion).
 
