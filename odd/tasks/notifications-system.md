@@ -106,3 +106,12 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   delivery deadlines live; counter-proposal of the contract to follow. Constraint: candidates added manually by a
   recruiter have no user account, so in-app candidate events only reach candidates who applied themselves (email in
   stage 2 could reach the others if they have an email — to decide then).
+- **L9** (2026-11-26) Backend counter-proposal (odd/tasks/notifications-backend.md on its branch feat/notifications-backend):
+  capture in the audit append (same tx) → `notification_events`; in-process dispatcher (SKIP LOCKED) → `notifications`
+  with ON CONFLICT DO NOTHING; event mapping from existing audit types; 15-min scheduler (advisory lock, Mexico City
+  dates) for due-soon/overdue; dedupe UNIQUE(recipient, source_event, type) and UNIQUE(recipient, type, draft,
+  commitment_date); actor never self-notified; stakeholders get nothing (stage 1); manual candidates skipped; members
+  only while members; texts built by the frontend from type + ids, names resolved at read time; retention 180 days.
+  Frontend asked for: server-side groups (group_key per job per local day for applications/psychometrics, count, sample,
+  latest_at), unread_count of groups, group read/unread (undo exact), urgency + kind per item, attention outside
+  pagination, facets per type/job, stage-3-ready per-role resolver, candidate scope. Contract notifications-v1.md next.
