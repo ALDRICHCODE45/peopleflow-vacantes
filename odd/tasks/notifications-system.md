@@ -208,3 +208,11 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   client IP forwarded by the trusted frontend proxy (E7). T13 body changed to «Otra persona quedó a cargo de
   {{job_title}}. Motivo: {{reason}}.» so the «una vacante» fallback never starts the sentence. Backend E1 started; E2
   (preferences GET/PUT) next. T4.1 done.
+- **L21** (2026-11-26) Backend E2 usable locally (feat/notifications-v2-backend 912d9554, not in main, needs migration
+  00069): GET/PUT /v2/me/company/notifications/preferences (member gate) and /v2/me/notifications/preferences
+  (candidate). GET {channels, email_deliverable, items[{type, kind, channels{in_app|email: {default, enabled,
+  mandatory_locked}}}]} — member 11 types, candidate 3 (email default on). PUT {preferences[{type, channel, enabled}]}
+  1–28 entries, atomic, idempotent, returns the full catalog. Mandatory entry → 422 notification_preference_locked
+  {data:{types[]}}, nothing written. 400 validation_error fields: preferences required|empty|too_many,
+  preferences[i].type|channel|enabled required|invalid, preferences[i] duplicate; null body/entry → invalid_request;
+  body cap 16 KiB. in_app off has no effect until E3; no email until E4–E6. T4.2 unblocked.
