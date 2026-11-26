@@ -208,3 +208,150 @@ WHERE n.resolved_at IS NULL
           AND o.commitment_date = n.commitment_date
           AND o.type = CASE n.type WHEN 'delivery_due_soon' THEN 'delivery_overdue' ELSE 'assignment_deadline_overdue' END))
   );
+
+-- name: ListMemberNotificationAttention :many
+-- Attention (notifications-v1 D13): the caller's unread, unresolved deadline
+-- items in the member scope, honouring types / job_ids (not state), newest
+-- first, capped; total counts every qualifying item.
+SELECT n.id, n.group_key, n.type, n.job_id, n.participation_id, n.actor_user_id, n.payload, n.created_at,
+       count(*) OVER () AS total
+FROM notifications n
+WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
+  AND n.recipient_kind = 'member'
+  AND n.company_id = sqlc.arg('company_id')::uuid
+  AND n.type IN ('delivery_due_soon', 'delivery_overdue', 'assignment_deadline_due_soon', 'assignment_deadline_overdue')
+  AND n.read_at IS NULL
+  AND n.resolved_at IS NULL
+  AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
+  AND (cardinality(sqlc.arg('job_ids')::uuid[]) = 0 OR n.job_id = ANY (sqlc.arg('job_ids')::uuid[]))
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT sqlc.arg('attention_limit')::integer;
+
+-- name: ListMemberNotificationGroups :many
+-- Grouped list (D11, D13, D27): the caller's member-scope rows matching
+-- types / job_ids, minus the top attention_limit attention items (the same
+-- selection as ListMemberNotificationAttention, recomputed on every page so
+-- only those are excluded), grouped by group_key (one type and job per group),
+-- optionally only groups with an unread member, keyset after (at, key) in
+-- latest_at DESC, group_key DESC order. latest is the newest row of the group.
+WITH attention AS (
+    SELECT a.id
+    FROM notifications a
+    WHERE a.recipient_user_id = sqlc.arg('user_id')::uuid
+      AND a.recipient_kind = 'member'
+      AND a.company_id = sqlc.arg('company_id')::uuid
+      AND a.type IN ('delivery_due_soon', 'delivery_overdue', 'assignment_deadline_due_soon', 'assignment_deadline_overdue')
+      AND a.read_at IS NULL
+      AND a.resolved_at IS NULL
+      AND (cardinality(sqlc.arg('types')::text[]) = 0 OR a.type = ANY (sqlc.arg('types')::text[]))
+      AND (cardinality(sqlc.arg('job_ids')::uuid[]) = 0 OR a.job_id = ANY (sqlc.arg('job_ids')::uuid[]))
+    ORDER BY a.created_at DESC, a.id DESC
+    LIMIT sqlc.arg('attention_limit')::integer
+), grouped AS (
+    SELECT n.group_key, n.type, n.job_id,
+           count(*) AS total,
+           count(*) FILTER (WHERE n.read_at IS NULL AND n.resolved_at IS NULL) AS unread,
+           max(n.created_at)::timestamptz AS latest_at,
+           min(n.created_at)::timestamptz AS first_at,
+           bool_and(n.resolved_at IS NOT NULL) AS resolved
+    FROM notifications n
+    WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
+      AND (cardinality(sqlc.arg('job_ids')::uuid[]) = 0 OR n.job_id = ANY (sqlc.arg('job_ids')::uuid[]))
+      AND n.id NOT IN (SELECT id FROM attention)
+    GROUP BY n.group_key, n.type, n.job_id
+)
+SELECT g.group_key, g.type, g.job_id, g.total, g.unread, g.latest_at, g.first_at, g.resolved,
+       l.id AS latest_id, l.created_at AS latest_created_at, l.actor_user_id AS latest_actor_user_id,
+       l.participation_id AS latest_participation_id, l.payload AS latest_payload
+FROM grouped g
+CROSS JOIN LATERAL (
+    SELECT x.id, x.created_at, x.actor_user_id, x.participation_id, x.payload
+    FROM notifications x
+    WHERE x.recipient_user_id = sqlc.arg('user_id')::uuid
+      AND x.recipient_kind = 'member'
+      AND x.company_id = sqlc.arg('company_id')::uuid
+      AND x.group_key = g.group_key
+    ORDER BY x.created_at DESC, x.id DESC
+    LIMIT 1
+) l
+WHERE (NOT sqlc.arg('unread_only')::boolean OR g.unread > 0)
+  AND (sqlc.narg('after_at')::timestamptz IS NULL
+       OR (g.latest_at, g.group_key) < (sqlc.narg('after_at')::timestamptz, sqlc.narg('after_key')::text))
+ORDER BY g.latest_at DESC, g.group_key DESC
+LIMIT sqlc.arg('page_limit')::integer;
+
+-- name: ListMemberNotificationSamples :many
+-- Group sample (§Grouping): per group, the newest distinct participations
+-- (at most 3) of the caller's member-scope rows.
+SELECT s.group_key, s.participation_id::uuid AS participation_id
+FROM (
+    SELECT n.group_key, n.participation_id,
+           row_number() OVER (PARTITION BY n.group_key ORDER BY max(n.created_at) DESC, n.participation_id DESC) AS rank
+    FROM notifications n
+    WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
+      AND n.recipient_kind = 'member'
+      AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.group_key = ANY (sqlc.arg('group_keys')::text[])
+      AND n.participation_id IS NOT NULL
+    GROUP BY n.group_key, n.participation_id
+) s
+WHERE s.rank <= 3
+ORDER BY s.group_key, s.rank;
+
+-- name: ListNotificationJobs :many
+-- Read-time job resolution (D19): the current draft title of each job of the
+-- company and whether the caller can still open it (owner of the company or
+-- an active assignment on it). Jobs of other companies or gone are absent;
+-- has_title is false when the draft has no title.
+SELECT d.id,
+       ((convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title') IS NOT NULL)::boolean AS has_title,
+       COALESCE(convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title', '')::text AS title,
+       (sqlc.arg('is_owner')::boolean OR EXISTS (
+           SELECT 1 FROM vacancy_assignments va
+           WHERE va.draft_id = d.id
+             AND va.company_id = d.company_id
+             AND va.user_id = sqlc.arg('user_id')::uuid
+             AND va.ended_at IS NULL))::boolean AS can_open
+FROM job_drafts d
+WHERE d.company_id = sqlc.arg('company_id')::uuid
+  AND d.id = ANY (sqlc.arg('job_ids')::uuid[]);
+
+-- name: ListNotificationCandidateNames :many
+-- Read-time candidate names (D19): the name the company currently sees for
+-- each participation of one of its processes (company correction, else the
+-- manual candidate or account name; '' when unknown). The caller gates it by
+-- vacancy access.
+SELECT p.id, p.process_id,
+       COALESCE(CASE WHEN o.corrections ? 'full_name' THEN o.corrections ->> 'full_name'
+                     ELSE COALESCE(cc.full_name, u.full_name) END, '')::text AS name
+FROM process_participations p
+JOIN vacancy_processes vp ON vp.id = p.process_id AND vp.company_id = sqlc.arg('company_id')::uuid
+LEFT JOIN users u ON u.id = p.candidate_id AND u.deleted_at IS NULL
+LEFT JOIN company_candidates cc ON cc.id = p.company_candidate_id AND cc.company_id = vp.company_id
+LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id = p.candidate_id AND o.company_id = vp.company_id
+WHERE p.id = ANY (sqlc.arg('participation_ids')::uuid[]);
+
+-- name: ListNotificationUserNames :many
+-- Read-time names of actors and from/to users (D19): the current account name;
+-- for a candidate account the company's correction wins and is_candidate lets
+-- the caller gate it like a candidate name. Deleted users are absent.
+SELECT u.id, (u.user_type = 'candidate')::boolean AS is_candidate,
+       COALESCE(CASE WHEN o.corrections ? 'full_name' THEN o.corrections ->> 'full_name' ELSE u.full_name END, '')::text AS name
+FROM users u
+LEFT JOIN company_candidate_corrections o ON u.user_type = 'candidate' AND o.user_id = u.id AND o.company_id = sqlc.arg('company_id')::uuid
+WHERE u.id = ANY (sqlc.arg('user_ids')::uuid[])
+  AND u.deleted_at IS NULL;
+
+-- name: CountMemberUnreadNotifications :one
+-- Bell counter (D14): unread groups (attention included) and unread rows of
+-- the caller's member scope, from notifications_recipient_unread.
+SELECT count(DISTINCT n.group_key)::integer AS unread_groups, count(*)::integer AS unread_notifications
+FROM notifications n
+WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
+  AND n.recipient_kind = 'member'
+  AND n.company_id = sqlc.arg('company_id')::uuid
+  AND n.read_at IS NULL
+  AND n.resolved_at IS NULL;

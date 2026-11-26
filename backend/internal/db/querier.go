@@ -45,6 +45,9 @@ type Querier interface {
 	// ("this company had no non-closed jobs at delete time").
 	CloseCompanyJobs(ctx context.Context, companyID uuid.UUID) (int64, error)
 	CountCompanyOwners(ctx context.Context, companyID uuid.UUID) (int64, error)
+	// Bell counter (D14): unread groups (attention included) and unread rows of
+	// the caller's member scope, from notifications_recipient_unread.
+	CountMemberUnreadNotifications(ctx context.Context, arg CountMemberUnreadNotificationsParams) (CountMemberUnreadNotificationsRow, error)
 	// Stakeholder invitations (stakeholder-metrics-v1 §1.3). Every write runs in
 	// the adapter's transaction together with its audit event.
 	// Run after LockCompanyForMemberMutation so two creates cannot both pass the limit.
@@ -284,6 +287,20 @@ type Querier interface {
 	// departure time (the same views as ListStartableCreditDetails). Voided and active credits
 	// are not fallen. Ordered by departure, then hire.
 	ListFallenCreditDetails(ctx context.Context, arg ListFallenCreditDetailsParams) ([]ListFallenCreditDetailsRow, error)
+	// Attention (notifications-v1 D13): the caller's unread, unresolved deadline
+	// items in the member scope, honouring types / job_ids (not state), newest
+	// first, capped; total counts every qualifying item.
+	ListMemberNotificationAttention(ctx context.Context, arg ListMemberNotificationAttentionParams) ([]ListMemberNotificationAttentionRow, error)
+	// Grouped list (D11, D13, D27): the caller's member-scope rows matching
+	// types / job_ids, minus the top attention_limit attention items (the same
+	// selection as ListMemberNotificationAttention, recomputed on every page so
+	// only those are excluded), grouped by group_key (one type and job per group),
+	// optionally only groups with an unread member, keyset after (at, key) in
+	// latest_at DESC, group_key DESC order. latest is the newest row of the group.
+	ListMemberNotificationGroups(ctx context.Context, arg ListMemberNotificationGroupsParams) ([]ListMemberNotificationGroupsRow, error)
+	// Group sample (§Grouping): per group, the newest distinct participations
+	// (at most 3) of the caller's member-scope rows.
+	ListMemberNotificationSamples(ctx context.Context, arg ListMemberNotificationSamplesParams) ([]ListMemberNotificationSamplesRow, error)
 	// Candidate's GET /me/applications list. Joins jobs (title) + companies
 	// (id, name) to render the embedded job summary. NOT redacted by
 	// jobs.deleted_at on purpose: the candidate's own history persists
@@ -291,9 +308,23 @@ type Querier interface {
 	//
 	// Hard cap 100 (no pagination in this slice).
 	ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]ListMyApplicationsRow, error)
+	// Read-time candidate names (D19): the name the company currently sees for
+	// each participation of one of its processes (company correction, else the
+	// manual candidate or account name; '' when unknown). The caller gates it by
+	// vacancy access.
+	ListNotificationCandidateNames(ctx context.Context, arg ListNotificationCandidateNamesParams) ([]ListNotificationCandidateNamesRow, error)
+	// Read-time job resolution (D19): the current draft title of each job of the
+	// company and whether the caller can still open it (owner of the company or
+	// an active assignment on it). Jobs of other companies or gone are absent;
+	// has_title is false when the draft has no title.
+	ListNotificationJobs(ctx context.Context, arg ListNotificationJobsParams) ([]ListNotificationJobsRow, error)
 	// Relation team (§Recipients): users with an active assignment on the job who
 	// are still non-stakeholder members of the event's company, company not deleted.
 	ListNotificationTeamRecipients(ctx context.Context, arg ListNotificationTeamRecipientsParams) ([]uuid.UUID, error)
+	// Read-time names of actors and from/to users (D19): the current account name;
+	// for a candidate account the company's correction wins and is_candidate lets
+	// the caller gate it like a candidate name. Deleted users are absent.
+	ListNotificationUserNames(ctx context.Context, arg ListNotificationUserNamesParams) ([]ListNotificationUserNamesRow, error)
 	ListPendingStakeholderInvitations(ctx context.Context, arg ListPendingStakeholderInvitationsParams) ([]ListPendingStakeholderInvitationsRow, error)
 	// The whole chain of the logical vacancy `process_id` belongs to: the root first
 	// (sequence 0, it has no vacancy_replacements row), then the replacements by
