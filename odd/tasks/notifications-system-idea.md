@@ -15,3 +15,11 @@ Captured from the user on 2026-11-26 while deciding the careers-site «Dejar mi 
 Topics to discuss later: catalogue of events (which are in-app only, which can also go by email, which can be turned off,
 which are mandatory), recipients per user and per role, user preferences vs company defaults, digests vs immediate, the
 first consumer («Dejar mi CV» from the careers site, slice C), delivery infrastructure (email provider, retries, unsubscribe).
+- **L2** (2026-11-26) Agent's starting point: no notification system exists (backend nothing; Configuración shows it as
+  «Próximamente»), no email provider. Model proposed: event → recipient rule (by relation to the object, by role, by
+  person) → channel (in-app always; email only for events that allow it, immediate or digest) → preferences (company
+  rules by the owner, personal within them); three kinds: mandatory (can't be turned off, always email), operational
+  (can be turned off, email configurable), informative (in-app only). User answers: «Empresa y candidatos
+  (recomendado)»; «Dueño define, persona ajusta (recomendado)»; vacancy events default to «Equipo de la vacante
+  (recomendado)»; delivery «Por etapas (recomendado)» — 1) bell + inbox + 5–6 key events, 2) email + preferences,
+  3) owner rules, digests and more events.
