@@ -423,6 +423,41 @@ type ManualLanguageName struct {
 	Name pgtype.Text `json:"name"`
 }
 
+type Notification struct {
+	ID              uuid.UUID          `json:"id"`
+	RecipientUserID uuid.UUID          `json:"recipient_user_id"`
+	RecipientKind   string             `json:"recipient_kind"`
+	RecipientReason string             `json:"recipient_reason"`
+	CompanyID       pgtype.UUID        `json:"company_id"`
+	Type            string             `json:"type"`
+	GroupKey        string             `json:"group_key"`
+	JobID           uuid.UUID          `json:"job_id"`
+	ParticipationID pgtype.UUID        `json:"participation_id"`
+	ActorUserID     pgtype.UUID        `json:"actor_user_id"`
+	SourceEventID   pgtype.UUID        `json:"source_event_id"`
+	CommitmentDate  pgtype.Date        `json:"commitment_date"`
+	Payload         []byte             `json:"payload"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ReadAt          pgtype.Timestamptz `json:"read_at"`
+	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
+}
+
+type NotificationEvent struct {
+	ID              uuid.UUID          `json:"id"`
+	AuditEventID    uuid.UUID          `json:"audit_event_id"`
+	CompanyID       uuid.UUID          `json:"company_id"`
+	EventType       string             `json:"event_type"`
+	ActorUserID     pgtype.UUID        `json:"actor_user_id"`
+	JobID           uuid.UUID          `json:"job_id"`
+	ParticipationID pgtype.UUID        `json:"participation_id"`
+	SubjectUserID   pgtype.UUID        `json:"subject_user_id"`
+	Payload         []byte             `json:"payload"`
+	OccurredAt      pgtype.Timestamptz `json:"occurred_at"`
+	Attempts        int32              `json:"attempts"`
+	ProcessedAt     pgtype.Timestamptz `json:"processed_at"`
+	Failed          bool               `json:"failed"`
+}
+
 type ParticipationChecklistMark struct {
 	ParticipationID uuid.UUID          `json:"participation_id"`
 	CriterionID     uuid.UUID          `json:"criterion_id"`
