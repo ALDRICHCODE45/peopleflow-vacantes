@@ -73,7 +73,10 @@ describe("section rows (S3)", () => {
     const handle = grip("Historia");
     expect(handle).toHaveClass("absolute", "w-6", "h-10");
     expect(rowOf("Historia").querySelector('[data-slot="item-media"]')).toBeNull();
-    expect(rowOf("Historia")).toHaveClass("pl-3.5");
+    // User: «dale un poco mas de espacio a la izquierda del icono para hacer el "drag"» — the
+    // 24 px handle starts 2 px in (left-0.5) and ends at 26 px, clear of the 28 px padding.
+    expect(handle).toHaveClass("left-0.5");
+    expect(rowOf("Historia")).toHaveClass("pl-7");
   });
   it("marks the selected row and keeps a real, named, focusable drag handle", () => {
     setup(editorWith(TYPES, state => { state.selectedId = state.draft.blocks[1].id; }));
