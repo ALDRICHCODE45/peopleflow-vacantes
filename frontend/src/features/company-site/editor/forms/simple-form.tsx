@@ -13,7 +13,7 @@ import { SECTIONS_V2_ENABLED } from "../../sections-v2";
 import { AreaOverrides, CollageField } from "./v2-fields";
 import { mediaUrl } from "../../public/media";
 import { ImageField } from "../media";
-import { Counter, fieldMessage, TextField } from "./fields";
+import { CompleteTarget, Counter, fieldMessage, TextField } from "./fields";
 import type { FormProps } from "./section-form";
 
 function VideoField({ value, onChange, error }: { value: SiteVideo | null; onChange: (value: SiteVideo | null) => void; error?: string }) {
@@ -42,7 +42,7 @@ export function SimpleForm({ block, dispatch, fieldErrors }: FormProps) {
   const titleHelp = "Dale un título breve a esta sección. Es opcional.";
   switch (block.type) {
     case "hero": return <>
-      <TextField label="Título principal" value={block.content.title} onChange={title => change({ title })} max={80} description="Presenta tu empresa. Es necesario para publicar." error={error("title")} multiline />
+      <CompleteTarget name="title"><TextField label="Título principal" value={block.content.title} onChange={title => change({ title })} max={80} description="Presenta tu empresa. Es necesario para publicar." error={error("title")} multiline /></CompleteTarget>
       <TextField label="Subtítulo" value={block.content.subtitle} onChange={subtitle => change({ subtitle })} max={200} description="Invita a las personas a conocer tu equipo. Es opcional." error={error("subtitle")} multiline />
       {SECTIONS_V2_ENABLED && block.variant === "collage" ? <CollageField block={block} fieldErrors={fieldErrors} onChange={images => change({ images })} />
         : <ImageField kind="cover" label="Imagen de portada" description="Una imagen que represente a tu empresa. Es opcional." value={block.content.cover} onChange={cover => change({ cover })} previewUrl={mediaUrl} error={error("cover")} />}
@@ -53,7 +53,7 @@ export function SimpleForm({ block, dispatch, fieldErrors }: FormProps) {
       const count = [...(deriveDraftDescriptionPlain(block.content.body) ?? "")].length;
       return <>
         <TextField label="Título" value={block.content.title} onChange={title => change({ title })} max={80} description={titleHelp} error={error("title")} />
-        <DraftDescriptionEditor value={block.content.body} onChange={body => change({ body })} ariaLabel="Historia de la empresa" label="Historia de la empresa" toolbarLabel="Formato de la historia" compactToolbar error={error("body") ?? (count > 5000 ? "Usa hasta 5000 caracteres." : undefined)} publicationRequired />
+        <CompleteTarget name="story-body"><DraftDescriptionEditor value={block.content.body} onChange={body => change({ body })} ariaLabel="Historia de la empresa" label="Historia de la empresa" toolbarLabel="Formato de la historia" compactToolbar error={error("body") ?? (count > 5000 ? "Usa hasta 5000 caracteres." : undefined)} publicationRequired /></CompleteTarget>
         <div className="flex flex-wrap items-start justify-between gap-2"><FieldDescription className="min-w-0 flex-1">Cuenta tu historia con texto, listas y enlaces. Agrega contenido para publicar.</FieldDescription><Counter count={count} max={5000} /></div>
         <ImageField kind="story" label="Imagen de la historia" description="Acompaña tu historia con una imagen. Es opcional." value={block.content.image} onChange={image => change({ image })} previewUrl={mediaUrl} error={error("image")} />
       </>;
@@ -61,7 +61,7 @@ export function SimpleForm({ block, dispatch, fieldErrors }: FormProps) {
     case "video": return <>
       <TextField label="Título" value={block.content.title} onChange={title => change({ title })} max={80} description={titleHelp} error={error("title")} />
       <TextField label="Descripción" value={block.content.description} onChange={description => change({ description })} max={200} description="Explica qué van a conocer en el video. Es opcional." error={error("description")} multiline />
-      <VideoField value={block.content.video} onChange={video => change({ video })} error={error("video")} />
+      <CompleteTarget name="video"><VideoField value={block.content.video} onChange={video => change({ video })} error={error("video")} /></CompleteTarget>
     </>;
     case "jobs": return <>
       <TextField label="Título" value={block.content.title} onChange={title => change({ title })} max={80} description="Si lo dejas vacío, mostramos «Vacantes abiertas»." error={error("title")} />
@@ -70,18 +70,18 @@ export function SimpleForm({ block, dispatch, fieldErrors }: FormProps) {
       <a className={cn(buttonVariants({ variant: "outline" }), "min-h-10 self-start")} href="/empresa/vacantes">Administrar vacantes</a>
     </>;
     case "closing": return <>
-      <TextField label="Título" value={block.content.title} onChange={title => change({ title })} max={80} description="Cierra con una invitación. Es necesario para publicar." error={error("title")} />
+      <CompleteTarget name="title"><TextField label="Título" value={block.content.title} onChange={title => change({ title })} max={80} description="Cierra con una invitación. Es necesario para publicar." error={error("title")} /></CompleteTarget>
       <TextField label="Texto" value={block.content.text} onChange={text => change({ text })} max={240} description="Anima a las personas a sumarse a tu equipo. Es opcional." error={error("text")} multiline />
       <FieldDescription>El botón «Ver vacantes» lleva a las vacantes de este sitio. Los enlaces sociales se toman del perfil de tu empresa.</FieldDescription>
     </>;
     case "areas": return <>
-      <TextField label="Título" value={block.content.title} onChange={title => change({ title })} max={80} description="Por ejemplo, «Encuentra tu lugar». Es necesario para publicar." error={error("title")} />
+      <CompleteTarget name="title"><TextField label="Título" value={block.content.title} onChange={title => change({ title })} max={80} description="Por ejemplo, «Encuentra tu lugar». Es necesario para publicar." error={error("title")} /></CompleteTarget>
       <TextField label="Introducción" value={block.content.intro} onChange={intro => change({ intro })} max={200} description="Invita a explorar las vacantes por área. Es opcional." error={error("intro")} multiline />
       <FieldDescription>Se arma sola con las áreas de tus vacantes publicadas. Al tocar un área, la lista de vacantes se filtra.</FieldDescription>
       <AreaOverrides block={block} fieldErrors={fieldErrors} onChange={overrides => change({ overrides })} />
     </>;
     case "talent_cta": return <>
-      <TextField label="Título" value={block.content.title} onChange={title => change({ title })} max={80} description="Invita a dejar su CV aunque no haya una vacante para su perfil. Es necesario para publicar." error={error("title")} />
+      <CompleteTarget name="title"><TextField label="Título" value={block.content.title} onChange={title => change({ title })} max={80} description="Invita a dejar su CV aunque no haya una vacante para su perfil. Es necesario para publicar." error={error("title")} /></CompleteTarget>
       <TextField label="Texto" value={block.content.text} onChange={text => change({ text })} max={240} description="Cuenta qué pasa con su CV. Es opcional." error={error("text")} multiline />
       <TextField label="Texto del botón" value={block.content.button_label} onChange={button_label => change({ button_label })} max={24} description="Por ejemplo, «Dejar mi CV»." error={error("button_label")} />
       <FieldDescription>El formulario para dejar el CV llega en una próxima entrega.</FieldDescription>

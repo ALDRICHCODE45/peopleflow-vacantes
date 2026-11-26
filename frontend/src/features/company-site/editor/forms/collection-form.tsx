@@ -25,7 +25,7 @@ import { parseVideoUrl } from "../../video";
 import { SECTIONS_V2_ENABLED } from "../../sections-v2";
 import { mediaUrl } from "../../public/media";
 import { ImageField } from "../media";
-import { fieldMessage, TextField } from "./fields";
+import { CompleteTarget, fieldMessage, TextField } from "./fields";
 import { IconPicker } from "../icon-picker/icon-picker";
 import { ItemList } from "./item-list";
 import type { FormProps } from "./section-form";
@@ -34,13 +34,13 @@ function ConsentField({ value, onChange, error, label = "Tengo permiso para publ
   const id = useId();
   return <Field data-invalid={!!error} orientation="horizontal"><FieldContent><FieldLabel htmlFor={id}>{label}</FieldLabel><FieldDescription id={`${id}-help`}>{description}</FieldDescription>{error && <FieldError id={`${id}-error`}>{error}</FieldError>}</FieldContent><Switch id={id} checked={value} onCheckedChange={onChange} aria-invalid={!!error} aria-describedby={`${id}-help${error ? ` ${id}-error` : ""}`} /></Field>;
 }
-export function CollectionForm({ block, dispatch, fieldErrors }: FormProps) {
+export function CollectionForm({ block, dispatch, fieldErrors, reveal }: FormProps) {
   const error = (path: string) => fieldMessage(fieldErrors, block.id, `content.${path}`);
   function list<T>(items: T[], blank: () => T, min: number, max: number, summary: (item: T) => string | null, fields: (item: T, index: number, update: (patch: Partial<T>) => void) => ReactNode) {
     // Each switch branch supplies its own item type and complete blank template.
     const set = (next: T[]) => dispatch({ type: "content", id: block.id, content: { ...block.content, items: next } as SiteBlockV2["content"] });
     const copy = COLLECTION_EMPTY[block.type as keyof typeof COLLECTION_EMPTY];
-    return <ItemList empty={{ title: `Todavía no hay ${copy.noun}`, description: copy.description, action: copy.action, icon: SECTION_ICONS[block.type] }} items={items} create={blank} min={min} max={max} onChange={set} error={error("items")} summary={(item, i) => summary(item)?.trim() || `Elemento ${i + 1}`}>
+    return <ItemList empty={{ title: `Todavía no hay ${copy.noun}`, description: copy.description, action: copy.action, icon: SECTION_ICONS[block.type] }} items={items} create={blank} min={min} max={max} onChange={set} error={error("items")} summary={(item, i) => summary(item)?.trim() || `Elemento ${i + 1}`} reveal={reveal}>
       {(item, i) => fields(item, i, patch => set(items.map((entry, j) => j === i ? { ...entry, ...patch } : entry)))}
     </ItemList>;
   }
@@ -50,64 +50,64 @@ export function CollectionForm({ block, dispatch, fieldErrors }: FormProps) {
       <TextField label="Misión" value={block.content.mission} onChange={mission => dispatch({ type: "content", id: block.id, content: { ...block.content, mission } })} max={300} description="Comparte lo que guía a tu empresa. Es opcional." error={error("mission")} multiline />
       {list(block.content.items, () => ({ icon: "heart" as const, emoji: null, title: null, description: null }), 1, 8, item => item.title, (item, i, update) => <>
         <IconPicker value={item} onChange={decoration => update(decoration)} error={itemError(i, "icon") ?? itemError(i, "emoji")} />
-        <TextField label="Título" value={item.title} onChange={title => update({ title })} max={60} description="Nombra este valor. Es necesario para publicar." error={itemError(i, "title")} />
+        <CompleteTarget name="item:title"><TextField label="Título" value={item.title} onChange={title => update({ title })} max={60} description="Nombra este valor. Es necesario para publicar." error={itemError(i, "title")} /></CompleteTarget>
         <TextField label="Descripción" value={item.description} onChange={description => update({ description })} max={240} description="Cuenta cómo lo viven en tu equipo. Es opcional." error={itemError(i, "description")} multiline />
       </>)}
     </>;
     case "benefits": return list(block.content.items, () => ({ icon: "gift" as const, emoji: null, title: null, description: null }), 1, 24, item => item.title, (item, i, update) => <>
       <IconPicker value={item} onChange={decoration => update(decoration)} error={itemError(i, "icon") ?? itemError(i, "emoji")} />
-      <TextField label="Título" value={item.title} onChange={title => update({ title })} max={60} description="Nombra este beneficio. Es necesario para publicar." error={itemError(i, "title")} />
+      <CompleteTarget name="item:title"><TextField label="Título" value={item.title} onChange={title => update({ title })} max={60} description="Nombra este beneficio. Es necesario para publicar." error={itemError(i, "title")} /></CompleteTarget>
       <TextField label="Descripción" value={item.description} onChange={description => update({ description })} max={160} description="Explica qué incluye. Es opcional." error={itemError(i, "description")} multiline />
     </>);
     case "stats": return list(block.content.items, () => ({ value: null, label: null }), 1, 6, item => item.label || item.value, (item, i, update) => <>
-      <TextField label="Valor" value={item.value} onChange={value => update({ value })} max={12} description="Escribe una cifra real, por ejemplo «120+». Es necesaria para publicar." error={itemError(i, "value")} />
-      <TextField label="Etiqueta" value={item.label} onChange={label => update({ label })} max={60} description="Explica qué representa la cifra. Es necesaria para publicar." error={itemError(i, "label")} />
+      <CompleteTarget name="item:value"><TextField label="Valor" value={item.value} onChange={value => update({ value })} max={12} description="Escribe una cifra real, por ejemplo «120+». Es necesaria para publicar." error={itemError(i, "value")} /></CompleteTarget>
+      <CompleteTarget name="item:label"><TextField label="Etiqueta" value={item.label} onChange={label => update({ label })} max={60} description="Explica qué representa la cifra. Es necesaria para publicar." error={itemError(i, "label")} /></CompleteTarget>
     </>);
     case "process": return list(block.content.items, () => ({ title: null, description: null, duration: null }), 2, 8, item => item.title, (item, i, update) => <>
-      <TextField label="Título" value={item.title} onChange={title => update({ title })} max={60} description="Nombra este paso. Es necesario para publicar." error={itemError(i, "title")} />
+      <CompleteTarget name="item:title"><TextField label="Título" value={item.title} onChange={title => update({ title })} max={60} description="Nombra este paso. Es necesario para publicar." error={itemError(i, "title")} /></CompleteTarget>
       <TextField label="Descripción" value={item.description} onChange={description => update({ description })} max={200} description="Explica qué puede esperar la persona. Es opcional." error={itemError(i, "description")} multiline />
       <TextField label="Duración" value={item.duration} onChange={duration => update({ duration })} max={30} description="Indica un tiempo aproximado. Es opcional." error={itemError(i, "duration")} />
     </>);
     case "gallery": return list(block.content.items, () => ({ image: null, alt: null, caption: null }), 2, 12, item => item.caption || item.alt, (item, i, update) => <>
-      <ImageField kind="gallery" label="Imagen" description="Comparte una foto de tu cultura. Es necesaria para publicar." value={item.image} onChange={image => update({ image })} previewUrl={mediaUrl} error={itemError(i, "image")} />
-      <TextField label="Texto alternativo" value={item.alt} onChange={alt => update({ alt })} max={160} description="Describe lo que aparece para quienes no pueden ver la imagen. Es necesario para publicar." error={itemError(i, "alt")} />
+      <CompleteTarget name="item:image"><ImageField kind="gallery" label="Imagen" description="Comparte una foto de tu cultura. Es necesaria para publicar." value={item.image} onChange={image => update({ image })} previewUrl={mediaUrl} error={itemError(i, "image")} /></CompleteTarget>
+      <CompleteTarget name="item:alt"><TextField label="Texto alternativo" value={item.alt} onChange={alt => update({ alt })} max={160} description="Describe lo que aparece para quienes no pueden ver la imagen. Es necesario para publicar." error={itemError(i, "alt")} /></CompleteTarget>
       <TextField label="Pie de foto" value={item.caption} onChange={caption => update({ caption })} max={120} description="Agrega contexto a la foto. Es opcional." error={itemError(i, "caption")} />
     </>);
     case "testimonials": return list(block.content.items, () => ({ quote: null, name: null, role: null, photo: null, consent: false, video_url: null }), 1, 6, item => item.name, (item, i, update) => <>
-      <TextField label="Testimonio" value={item.quote} onChange={quote => update({ quote })} max={400} description="Comparte las palabras de esta persona. Es necesario para publicar." error={itemError(i, "quote")} multiline />
-      <TextField label="Nombre" value={item.name} onChange={name => update({ name })} max={80} description="Indica quién comparte el testimonio. Es necesario para publicar." error={itemError(i, "name")} />
+      <CompleteTarget name="item:quote"><TextField label="Testimonio" value={item.quote} onChange={quote => update({ quote })} max={400} description="Comparte las palabras de esta persona. Es necesario para publicar." error={itemError(i, "quote")} multiline /></CompleteTarget>
+      <CompleteTarget name="item:name"><TextField label="Nombre" value={item.name} onChange={name => update({ name })} max={80} description="Indica quién comparte el testimonio. Es necesario para publicar." error={itemError(i, "name")} /></CompleteTarget>
       <TextField label="Puesto" value={item.role} onChange={role => update({ role })} max={80} description="Agrega su puesto o área. Es opcional." error={itemError(i, "role")} />
       <ImageField kind="portrait" label="Foto" description="Agrega un retrato autorizado. Es opcional." value={item.photo} onChange={photo => update({ photo })} previewUrl={mediaUrl} error={itemError(i, "photo")} />
       {SECTIONS_V2_ENABLED && <TextField label="Video del testimonio" value={item.video_url} onChange={video_url => update({ video_url })} max={500} description="Pega un enlace de YouTube o Vimeo. Es opcional." error={itemError(i, "video_url") ?? (item.video_url && !parseVideoUrl(item.video_url) ? "Pega un enlace de YouTube o Vimeo." : undefined)} url />}
-      <ConsentField value={item.consent} onChange={consent => update({ consent })} error={itemError(i, "consent")} />
+      <CompleteTarget name="item:consent"><ConsentField value={item.consent} onChange={consent => update({ consent })} error={itemError(i, "consent")} /></CompleteTarget>
     </>);
     case "team": return <>
       <TextField label="Título" value={block.content.title} onChange={title => dispatch({ type: "content", id: block.id, content: { ...block.content, title } })} max={80} description="Dale un título breve a esta sección. Es opcional." error={error("title")} />
       <TextField label="Introducción" value={block.content.intro} onChange={intro => dispatch({ type: "content", id: block.id, content: { ...block.content, intro } })} max={200} description="Cuenta quiénes son y qué hacen. Es opcional." error={error("intro")} multiline />
       {list(block.content.items, () => ({ name: null, role: null, photo: null, consent: false }), 1, 12, item => item.name, (item, i, update) => <>
-        <TextField label="Nombre" value={item.name} onChange={name => update({ name })} max={80} description="Indica el nombre de la persona. Es necesario para publicar." error={itemError(i, "name")} />
+        <CompleteTarget name="item:name"><TextField label="Nombre" value={item.name} onChange={name => update({ name })} max={80} description="Indica el nombre de la persona. Es necesario para publicar." error={itemError(i, "name")} /></CompleteTarget>
         <TextField label="Puesto" value={item.role} onChange={role => update({ role })} max={80} description="Agrega su puesto o área. Es opcional." error={itemError(i, "role")} />
         <ImageField kind="portrait" label="Foto" description="Agrega un retrato autorizado. Es opcional." value={item.photo} onChange={photo => update({ photo })} previewUrl={mediaUrl} error={itemError(i, "photo")} />
-        <ConsentField label="Tengo permiso para publicar a esta persona" description="Confirma que la persona autorizó publicar su nombre, puesto y foto. Es necesario para publicar." value={item.consent} onChange={consent => update({ consent })} error={itemError(i, "consent")} />
+        <CompleteTarget name="item:consent"><ConsentField label="Tengo permiso para publicar a esta persona" description="Confirma que la persona autorizó publicar su nombre, puesto y foto. Es necesario para publicar." value={item.consent} onChange={consent => update({ consent })} error={itemError(i, "consent")} /></CompleteTarget>
       </>)}
     </>;
     case "logos": return <>
       <TextField label="Título" value={block.content.title} onChange={title => dispatch({ type: "content", id: block.id, content: { ...block.content, title } })} max={80} description="Por ejemplo, «Reconocimientos». Es opcional." error={error("title")} />
       {list(block.content.items, () => ({ name: null, image: null, caption: null }), 1, 12, item => item.name, (item, i, update) => <>
-        <TextField label="Nombre" value={item.name} onChange={name => update({ name })} max={80} description="Nombra el premio, la certificación o el aliado; también describe el logo. Es necesario para publicar." error={itemError(i, "name")} />
-        <ImageField kind="logo" label="Logo" description="Usa un PNG o WebP, de preferencia con fondo transparente. Es necesario para publicar." value={item.image} onChange={image => update({ image })} previewUrl={mediaUrl} error={itemError(i, "image")} />
+        <CompleteTarget name="item:name"><TextField label="Nombre" value={item.name} onChange={name => update({ name })} max={80} description="Nombra el premio, la certificación o el aliado; también describe el logo. Es necesario para publicar." error={itemError(i, "name")} /></CompleteTarget>
+        <CompleteTarget name="item:image"><ImageField kind="logo" label="Logo" description="Usa un PNG o WebP, de preferencia con fondo transparente. Es necesario para publicar." value={item.image} onChange={image => update({ image })} previewUrl={mediaUrl} error={itemError(i, "image")} /></CompleteTarget>
         <TextField label="Detalle" value={item.caption} onChange={caption => update({ caption })} max={80} description="Por ejemplo, el año o la categoría. Es opcional." error={itemError(i, "caption")} />
       </>)}
     </>;
     case "offices": return list(block.content.items, () => ({ name: null, location: null, address: null, map_url: null }), 1, 20, item => item.name, (item, i, update) => <>
-      <TextField label="Nombre de la oficina" value={item.name} onChange={name => update({ name })} max={80} description="Identifica esta sede. Es necesario para publicar." error={itemError(i, "name")} />
-      <LocationField label="Ubicación" depth="municipality" postalCode defaultCountry={null} value={{ country: item.location?.country ?? null, state: item.location?.state ?? null, municipality: item.location?.municipality ?? null, postal_code: item.location?.postal_code ?? null }} onChange={value => update({ location: locationValueToWrite(value) })} required={["country"]} description="Elige el país para publicar esta oficina. En México puedes detallar estado y municipio." errors={(["country", "state", "municipality", "postal_code"] as const).flatMap(field => { const message = itemError(i, `location.${field}`) ?? (field === "country" ? itemError(i, "location") : undefined); return message ? [{ field, reason: "unknown" as const, message }] : []; })} />
+      <CompleteTarget name="item:name"><TextField label="Nombre de la oficina" value={item.name} onChange={name => update({ name })} max={80} description="Identifica esta sede. Es necesario para publicar." error={itemError(i, "name")} /></CompleteTarget>
+      <CompleteTarget name="item:location"><LocationField label="Ubicación" depth="municipality" postalCode defaultCountry={null} value={{ country: item.location?.country ?? null, state: item.location?.state ?? null, municipality: item.location?.municipality ?? null, postal_code: item.location?.postal_code ?? null }} onChange={value => update({ location: locationValueToWrite(value) })} required={["country"]} description="Elige el país para publicar esta oficina. En México puedes detallar estado y municipio." errors={(["country", "state", "municipality", "postal_code"] as const).flatMap(field => { const message = itemError(i, `location.${field}`) ?? (field === "country" ? itemError(i, "location") : undefined); return message ? [{ field, reason: "unknown" as const, message }] : []; })} /></CompleteTarget>
       <TextField label="Dirección" value={item.address} onChange={address => update({ address })} max={200} description="Agrega calle y referencias. Es opcional." error={itemError(i, "address")} multiline />
       <TextField label="Enlace del mapa" value={item.map_url} onChange={map_url => update({ map_url })} max={500} description="Usa un enlace que empiece con https://. Es opcional." error={itemError(i, "map_url") ?? (item.map_url && !/^https:\/\/[^\s]+$/.test(item.map_url) ? "Usa un enlace que empiece con https://." : undefined)} url />
     </>);
     case "faq": return list(block.content.items, () => ({ question: null, answer: null }), 1, 20, item => item.question, (item, i, update) => <>
-      <TextField label="Pregunta" value={item.question} onChange={question => update({ question })} max={160} description="Escribe una duda frecuente. Es necesaria para publicar." error={itemError(i, "question")} />
-      <TextField label="Respuesta" value={item.answer} onChange={answer => update({ answer })} max={1000} description="Da una respuesta clara y útil. Es necesaria para publicar." error={itemError(i, "answer")} multiline />
+      <CompleteTarget name="item:question"><TextField label="Pregunta" value={item.question} onChange={question => update({ question })} max={160} description="Escribe una duda frecuente. Es necesaria para publicar." error={itemError(i, "question")} /></CompleteTarget>
+      <CompleteTarget name="item:answer"><TextField label="Respuesta" value={item.answer} onChange={answer => update({ answer })} max={1000} description="Da una respuesta clara y útil. Es necesaria para publicar." error={itemError(i, "answer")} multiline /></CompleteTarget>
     </>);
     default: return null;
   }

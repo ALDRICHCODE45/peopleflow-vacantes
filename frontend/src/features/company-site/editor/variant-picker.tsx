@@ -58,7 +58,7 @@ export function VariantPicker({ block, onChange, labelHidden = false }: { block:
   const marked = (variant: string) => SECTIONS_V2_ENABLED && NEW_VARIANTS.has(variant) && !["portraits", "strip", "icon_cards", "photo_cards"].includes(variant);
   return <Field><FieldLabel id={`variants-${block.id}`} className={labelHidden ? "sr-only" : undefined}>Diseño de sección</FieldLabel>
     <ToggleGroup aria-labelledby={`variants-${block.id}`} value={[block.variant]} onValueChange={values => { if (values[0]) onChange(values[0]); }} className="grid w-full grid-cols-2 items-stretch" variant="outline">
-      {options.map(variant => <ToggleGroupItem key={variant} value={variant} aria-label={`Diseño ${VARIANT_LABELS[variant]}`} className="h-auto min-w-0 flex-col data-pressed:ring-2 data-pressed:ring-primary">
+      {options.map(variant => <ToggleGroupItem key={variant} value={variant} aria-label={`Diseño ${VARIANT_LABELS[variant]}`} className="h-auto min-w-0 flex-col data-pressed:inset-ring-2 data-pressed:inset-ring-primary">
         <span data-variant-content="" className="flex w-full min-w-0 flex-col gap-2 py-3"><span data-variant-thumbnail="" className="pointer-events-none block h-18 w-full"><VariantThumbnail variant={variant} /></span><span className={SECTIONS_V2_ENABLED ? "flex min-w-0 flex-wrap items-center justify-center gap-1 text-center whitespace-normal" : undefined}>{VARIANT_LABELS[variant]}{marked(variant) && <Badge variant="secondary">Nuevo</Badge>}</span></span>
       </ToggleGroupItem>)}
     </ToggleGroup>

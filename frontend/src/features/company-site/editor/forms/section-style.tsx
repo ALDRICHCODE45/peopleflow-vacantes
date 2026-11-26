@@ -13,7 +13,7 @@ import { SCRIM_ALPHA, SITE_SCRIM } from "../../public/section-style";
 import { mediaUrl } from "../../public/media";
 import { siteBrandTokens, siteTintTokens } from "../../public/theme-tokens";
 import { ImageField } from "../media";
-import { fieldMessage } from "./fields";
+import { CompleteTarget, fieldMessage } from "./fields";
 
 type Overlay = keyof typeof SCRIM_ALPHA;
 type Tone = "success" | "review" | "destructive";
@@ -79,7 +79,7 @@ export function SectionStyleControls({ blockId, style, theme, fieldErrors, onCha
       image: <Swatch><ImageIcon className="size-4" aria-hidden="true" /></Swatch>,
     }} />
     {style.background === "image" && <>
-      <ImageField kind="cover" label="Imagen de fondo" description="Se ve detrás del contenido de la sección. Es necesaria para publicar." value={style.image} onChange={image => set({ image })} previewUrl={mediaUrl} error={error("style.image")} />
+      <CompleteTarget name="style-image"><ImageField kind="cover" label="Imagen de fondo" description="Se ve detrás del contenido de la sección. Es necesaria para publicar." value={style.image} onChange={image => set({ image })} previewUrl={mediaUrl} error={error("style.image")} /></CompleteTarget>
       <Choice label="Intensidad del velo" options={SECTION_OVERLAYS} value={style.overlay ?? "medium"} labels={SECTION_STYLE_LABELS.overlay} onChange={overlay => set({ overlay })}
         description={<p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{contrast ? <><Badge variant={contrast.tone}>{contrast.label}</Badge><span className="min-w-0">Contraste {formatRatio(contrast.ratio)} si la foto es muy clara.</span></> : <span>Un velo más fuerte hace que el texto se lea mejor sobre la foto.</span>}</p>} />
       {error("style.overlay") && <FieldError>{error("style.overlay")}</FieldError>}

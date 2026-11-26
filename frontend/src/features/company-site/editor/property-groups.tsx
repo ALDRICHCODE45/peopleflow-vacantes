@@ -25,8 +25,15 @@ function saveClosedGroups(closed: PropertyGroupId[]) {
  * by every section and remembered across sessions; a group a section lacks (Botones
  * outside Portada) keeps its remembered state.
  */
-export function PropertyGroups({ groups }: { groups: PropertyGroup[] }) {
+export function PropertyGroups({ groups, reveal = null }: { groups: PropertyGroup[]; reveal?: { group: PropertyGroupId; nonce: number } | null }) {
   const [closed, setClosed] = useState(readClosedGroups);
+  // «Completar sección» opens the group that holds what's missing (one request per nonce).
+  // Not remembered: the person's own open/closed choice stays theirs.
+  const [revealed, setRevealed] = useState(reveal?.nonce);
+  if (reveal && reveal.nonce !== revealed) {
+    setRevealed(reveal.nonce);
+    if (closed.includes(reveal.group)) setClosed(closed.filter(id => id !== reveal.group));
+  }
   const open = groups.map(group => group.id).filter(id => !closed.includes(id));
   return <Accordion multiple value={open} data-property-groups="" className="min-w-0" onValueChange={values => {
     const shown = groups.map(group => group.id);
@@ -35,7 +42,8 @@ export function PropertyGroups({ groups }: { groups: PropertyGroup[] }) {
   }}>
     {groups.map(group => <AccordionItem key={group.id} value={group.id} data-property-group={group.id} className="min-w-0">
       <AccordionTrigger>{group.title}</AccordionTrigger>
-      <AccordionContent className="flex min-w-0 flex-col gap-6 [&_p:not(:last-child)]:mb-0">{group.content}</AccordionContent>
+      {/* pt-1: the panel clips its overflow; selection and focus rings of the first row need room. */}
+      <AccordionContent className="flex min-w-0 flex-col gap-6 pt-1 [&_p:not(:last-child)]:mb-0">{group.content}</AccordionContent>
     </AccordionItem>)}
   </Accordion>;
 }

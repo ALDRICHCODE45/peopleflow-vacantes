@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CloudUpload, Eye, LayoutTemplate, Lock, Monitor, PanelLeft, PanelRight, SlidersHorizontal, Smartphone, Tablet, RefreshCw, Maximize2, Minimize2 } from "lucide-react";
+import { CircleAlert, CloudUpload, Eye, LayoutTemplate, Lock, Monitor, PanelLeft, PanelRight, SlidersHorizontal, Smartphone, Tablet, RefreshCw, Maximize2, Minimize2 } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +40,9 @@ import { VariantPicker } from "./variant-picker";
 import { SectionForm } from "./forms/section-form";
 import { SectionStyleControls } from "./forms/section-style";
 import { HeroButtons } from "./forms/v2-fields";
+import { CompleteTarget } from "./forms/fields";
 import { PropertyGroups } from "./property-groups";
+import { focusCompletion, missingContent, type MissingContent } from "./section-completion";
 import { SectionLibraryPanel, SectionLibrarySheet, type LibraryPreview } from "./section-library";
 import { useWorkspaceHeight } from "./use-workspace-height";
 import { BrandSettings, SiteSettings } from "./site-settings";
@@ -91,7 +93,8 @@ function PreviewScroll({ desktop, children }: { desktop: boolean; children: Reac
 }
 type PanelControls = { sectionsToggle?: ReactNode; propertiesToggle?: ReactNode };
 type PreviewContent = (controls: PanelControls) => ReactNode;
-function DesktopPanels({ sections, properties, children, focused: previewFocused, library, mode }: { sections: ReactNode; properties: ReactNode; children: PreviewContent; focused: boolean; library?: ReactNode; mode: EditorPanelMode }) {
+/** `revealProperties`: a new value shows the properties panel (folding the list when only one fits). */
+function DesktopPanels({ sections, properties, children, focused: previewFocused, library, mode, revealProperties = 0 }: { sections: ReactNode; properties: ReactNode; children: PreviewContent; focused: boolean; library?: ReactNode; mode: EditorPanelMode; revealProperties?: number }) {
   // The docked library (sections v2) borrows the focus mechanics: side panes fold away
   // while it is open and come back exactly as they were, never persisted.
   const focused = previewFocused || Boolean(library);
@@ -156,6 +159,21 @@ function DesktopPanels({ sections, properties, children, focused: previewFocused
       fit();
     }
   }, [focused, group]); // eslint-disable-line react-hooks/exhaustive-deps -- `fit` follows the mode; only focus changes restore
+  /** Same rule as the toolbar toggle: show a side panel, folding the other when only one fits. */
+  const show = useCallback((id: SidePanel) => {
+    const layout = group.current?.getLayout();
+    const shown = layout ? { sections: layout.sections > 0, properties: layout.properties > 0 } : { sections: !collapsed.sections, properties: !collapsed.properties };
+    const panel = id === "sections" ? left : right;
+    if (shown[id] && !panel.current?.isCollapsed()) return;
+    apply(arrangeSidePanels(mode, { shown, remembered: remembered.current }, { type: "show", panel: id }), true);
+  }, [group, collapsed, left, right, apply, mode]);
+  const revealed = useRef(revealProperties);
+  // After the focus effect above, so a preview that just left focus mode is restored first.
+  useLayoutEffect(() => {
+    if (revealed.current === revealProperties) return;
+    revealed.current = revealProperties;
+    if (!focusing.current) show("properties");
+  }, [revealProperties, show]);
   function persistReset() {
     // The registry's native double-click reset uses the imperative API, so it
     // isn't tagged as user interaction by the library's persistence callback.
@@ -198,13 +216,13 @@ function DesktopPanels({ sections, properties, children, focused: previewFocused
     </ResizablePanelGroup>
   </div>;
 }
-function EditorSurface({ desktop, mode, sections, properties, focused, library, children }: { desktop: boolean; mode: EditorPanelMode; sections: ReactNode; properties: ReactNode; focused: boolean; library?: ReactNode; children: PreviewContent }) {
-  return desktop ? <DesktopPanels sections={sections} properties={properties} focused={focused} library={library} mode={mode}>{children}</DesktopPanels> : children({});
+function EditorSurface({ desktop, mode, sections, properties, focused, library, revealProperties, children }: { desktop: boolean; mode: EditorPanelMode; sections: ReactNode; properties: ReactNode; focused: boolean; library?: ReactNode; revealProperties?: number; children: PreviewContent }) {
+  return desktop ? <DesktopPanels sections={sections} properties={properties} focused={focused} library={library} mode={mode} revealProperties={revealProperties}>{children}</DesktopPanels> : children({});
 }
 /** The live preview follows a section drag from the list: an insertion line at
  * the landing gap (scrolled into view) and the dragged section dimmed. Kept
  * apart so each drag step re-renders only the preview, not the whole editor. */
-function LivePreview({ editor, preview, viewportWidth, onSelect, onScaleChange, insertion = null }: { editor: EditorState; preview: CompanySitePreviewData; viewportWidth: number; onSelect: (id: string) => void; onScaleChange: (scale: number) => void; insertion?: { block: SiteBlockV2; index: number } | null }) {
+function LivePreview({ editor, preview, viewportWidth, onSelect, onComplete, onScaleChange, insertion = null }: { editor: EditorState; preview: CompanySitePreviewData; viewportWidth: number; onSelect: (id: string) => void; onComplete: (id: string) => void; onScaleChange: (scale: number) => void; insertion?: { block: SiteBlockV2; index: number } | null }) {
   const drag = useSectionDragPreview();
   // Library insertion (S4): the new section drawn at its landing index, selected and
   // framed with the drag mark. It never enters the draft until «Agregar».
@@ -213,7 +231,7 @@ function LivePreview({ editor, preview, viewportWidth, onSelect, onScaleChange, 
   const selected = insertion ? insertion.block.id : editor.selectedId;
   const dragPreview = insertion ? { activeId: insertion.block.id, toIndex: insertion.index, allowed: true } : drag;
   return <PreviewFrame title="Vista previa del sitio" viewportWidth={viewportWidth} selectedBlockId={selected} revealKey={drag?.allowed ? `${drag.activeId}:${drag.toIndex}` : null} onScaleChange={onScaleChange}>
-    <CompanySitePresentation site={site} {...preview} selectedBlockId={selected} onSelectBlock={id => { if (id !== insertion?.block.id) onSelect(id); }} dragPreview={dragPreview} />
+    <CompanySitePresentation site={site} {...preview} selectedBlockId={selected} onSelectBlock={id => { if (id !== insertion?.block.id) onSelect(id); }} onCompleteBlock={id => { if (id !== insertion?.block.id) onComplete(id); }} dragPreview={dragPreview} />
   </PreviewFrame>;
 }
 function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<CareersSiteEditorProps, "initialSite"> & { controller: AutosaveController; onLoadSite: (site: SiteState) => void }) {
@@ -294,21 +312,51 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
     if (target.library) setLibrary(true);
     if (!desktop && !target.library) { setSectionsOpen(!target.blockId); setPropertiesOpen(Boolean(target.blockId)); }
   }
+  // «Completar sección» (preview) and «Ir a lo que falta» (properties): select the section, show
+  // its properties (docked panel or Sheet), open the group that holds what's missing and focus it.
+  const [completion, setCompletion] = useState<{ blockId: string; missing: MissingContent | null; nonce: number } | null>(null);
+  const complete = useCallback((id: string) => {
+    const blocks = controller.getSnapshot().editor.draft.blocks;
+    const block = blocks.find(item => item.id === id);
+    if (!block) return;
+    select(id); setPreviewFocused(false); setLibrary(false); setLibraryPreview(null);
+    setSectionsOpen(false); if (!desktop) setPropertiesOpen(true);
+    setCompletion(current => ({ blockId: id, missing: missingContent(block, blocks), nonce: (current?.nonce ?? 0) + 1 }));
+  }, [controller, select, desktop]);
+  useEffect(() => {
+    if (!completion) return;
+    // The panel, its group and the list item open over the next frames (Sheet portal, accordion).
+    let frame = 0; let tries = 0;
+    const attempt = () => {
+      const root = document.querySelector<HTMLElement>("[data-properties-root]");
+      if (root && focusCompletion(root, completion.missing)) return;
+      if (++tries < 60) frame = requestAnimationFrame(attempt);
+    };
+    frame = requestAnimationFrame(attempt);
+    return () => cancelAnimationFrame(frame);
+  }, [completion]);
   const selected = editor.draft.blocks.find(block => block.id === editor.selectedId);
+  const selectedMissing = selected ? missingContent(selected, editor.draft.blocks) : null;
+  const reveal = completion && selected && completion.blockId === selected.id ? completion : null;
   const deviceWidth = device === "desktop" ? 1280 : device === "tablet" ? 768 : 390;
   const url = editor.draft.slug ? `/empresas/${editor.draft.slug}` : "Elige la dirección de tu sitio";
   const visibility = selected && <Field orientation="horizontal" data-disabled={selected.type === "hero" || selected.type === "jobs"}><FieldContent><FieldLabel htmlFor={`visible-${selected.id}`}>Visible en el sitio</FieldLabel>{(selected.type === "hero" || selected.type === "jobs") && <FieldDescription>Esta sección siempre está visible.</FieldDescription>}</FieldContent><Switch id={`visible-${selected.id}`} checked={!selected.hidden} disabled={selected.type === "hero" || selected.type === "jobs"} onCheckedChange={checked => controller.dispatch({ type: "hidden", id: selected.id, hidden: !checked })} /></Field>;
-  const properties = <div className="flex min-w-0 flex-col gap-6">{selected ? <>
+  const properties = <div data-properties-root="" className="flex min-w-0 flex-col gap-6">{selected ? <>
     {desktop && <div className="flex flex-col gap-2"><h2 className="text-base font-semibold">Propiedades de {BLOCK_LIBRARY_V2[selected.type].label}</h2><p className="text-sm text-muted-foreground">Cambia la composición sin perder contenido.</p></div>}
-    {SECTIONS_V2_ENABLED ? <PropertyGroups groups={[
-      { id: "layout", title: "Diseño de sección", content: <><VariantPicker block={selected} labelHidden onChange={variant => controller.dispatch({ type: "variant", id: selected.id, variant })} />{visibility}</> },
+    {SECTIONS_V2_ENABLED && selectedMissing && <div role="note" aria-label="Para publicar esta sección" className="flex min-w-0 items-start gap-3 rounded-2xl border border-status-review/40 bg-status-review/10 p-3 text-sm">
+      <CircleAlert className="mt-0.5 size-4 shrink-0 text-status-review" aria-hidden="true" />
+      <div className="flex min-w-0 flex-1 flex-col gap-2"><p className="font-medium">Para publicar esta sección</p><p className="text-muted-foreground">{selectedMissing.hint}</p>
+        <Button variant="outline" size="sm" className="min-h-10 self-start" onClick={() => complete(selected.id)}>Ir a lo que falta</Button></div>
+    </div>}
+    {SECTIONS_V2_ENABLED ? <PropertyGroups reveal={reveal?.missing ? { group: reveal.missing.group, nonce: reveal.nonce } : null} groups={[
+      { id: "layout", title: "Diseño de sección", content: <><CompleteTarget name="variants"><VariantPicker block={selected} labelHidden onChange={variant => controller.dispatch({ type: "variant", id: selected.id, variant })} /></CompleteTarget>{visibility}</> },
       { id: "style", title: "Estilo de sección", content: <SectionStyleControls blockId={selected.id} style={selected.style} fixedAlign={fixedSectionAlign(selected)} theme={editor.draft.theme} fieldErrors={editor.fieldErrors} onChange={style => controller.dispatch({ type: "style", id: selected.id, style })} /> },
-      { id: "content", title: "Contenido", content: <SectionForm block={selected} dispatch={controller.dispatch} fieldErrors={editor.fieldErrors} /> },
+      { id: "content", title: "Contenido", content: <SectionForm block={selected} dispatch={controller.dispatch} fieldErrors={editor.fieldErrors} reveal={reveal?.missing?.item !== undefined ? { item: reveal.missing.item, nonce: reveal.nonce } : null} /> },
       ...(selected.type === "hero" ? [{ id: "buttons" as const, title: "Botones", content: <HeroButtons block={selected} blocks={editor.draft.blocks} fieldErrors={editor.fieldErrors} onChange={content => controller.dispatch({ type: "content", id: selected.id, content })} /> }] : []),
     ]} /> : <>
       <VariantPicker block={selected} onChange={variant => controller.dispatch({ type: "variant", id: selected.id, variant })} />
       {visibility}
-      <Separator /><SectionForm block={selected} dispatch={controller.dispatch} fieldErrors={editor.fieldErrors} />
+      <Separator /><SectionForm block={selected} dispatch={controller.dispatch} fieldErrors={editor.fieldErrors} reveal={reveal?.missing?.item !== undefined ? { item: reveal.missing.item, nonce: reveal.nonce } : null} />
     </>}
     {editor.fieldErrors.some(error => error.blockId === selected.id) && <p role="status" className="text-sm text-muted-foreground">Esta sección tiene campos que revisar.</p>}
   </> : <SectionEmpty title="Selecciona una sección para verla aquí" description="Elige una sección de la lista o de la vista previa para cambiar su contenido y diseño." icon={LayoutTemplate} tone="info" />}</div>;
@@ -333,7 +381,7 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
     </div>}
     {/* A single editor surface. Sidebars own independent desktop scroll; mobile
         uses the page, with only the currently open Sheet owning a scroll area. */}
-    <EditorSurface desktop={desktop} mode={panelMode} sections={sections} properties={properties} focused={previewFocused} library={libraryDocked ? <SectionLibraryPanel editor={editor} onAdd={addFromLibrary} onClose={closeLibrary} onPreview={setLibraryPreview} /> : undefined}>
+    <EditorSurface desktop={desktop} mode={panelMode} sections={sections} properties={properties} focused={previewFocused} revealProperties={completion?.nonce} library={libraryDocked ? <SectionLibraryPanel editor={editor} onAdd={addFromLibrary} onClose={closeLibrary} onPreview={setLibraryPreview} /> : undefined}>
       {({ sectionsToggle, propertiesToggle }) => <div data-editor-region="preview" className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted">
         <div role="group" aria-label="Herramientas de vista previa" className="flex items-center gap-2 border-b border-border p-2 xl:p-3">{sectionsToggle}<p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Vista previa en vivo</p>
           <div className="flex flex-wrap items-center gap-2"><span aria-label="Zoom de la vista previa" className="text-xs text-muted-foreground tabular-nums">{Math.round(zoom * 100)} %</span>
@@ -347,7 +395,7 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
         <PreviewScroll desktop={desktop}>
           <Card className="mx-auto w-full overflow-hidden [--card-spacing:--spacing(2)]" style={{ maxWidth: deviceWidth }} data-device={device}>
             <CardHeader className="border-b"><CardTitle className="flex items-center gap-2"><Lock className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate text-xs text-muted-foreground">{url}</span></CardTitle><CardDescription className="sr-only">Vista privada del borrador</CardDescription></CardHeader>
-            <CardContent className="-mx-(--card-spacing) -mb-(--card-spacing)"><LivePreview editor={editor} preview={preview} viewportWidth={deviceWidth} onSelect={select} onScaleChange={setZoom} insertion={insertion} /></CardContent>
+            <CardContent className="-mx-(--card-spacing) -mb-(--card-spacing)"><LivePreview editor={editor} preview={preview} viewportWidth={deviceWidth} onSelect={select} onComplete={complete} onScaleChange={setZoom} insertion={insertion} /></CardContent>
           </Card>
           <p className="mt-4 text-center text-xs text-muted-foreground">Haz clic en una sección para seleccionarla.</p>
         </PreviewScroll>

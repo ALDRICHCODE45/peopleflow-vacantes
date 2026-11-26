@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,10 @@ export function fieldMessage(errors: MappedFieldError[], blockId: string, path: 
     case "not_allowed": return "Este dato no está permitido.";
     default: return "Revisa este dato.";
   }
+}
+/** Marks the control «Completar sección» / «Ir a lo que falta» focuses (see section-completion.ts). Layout-neutral. */
+export function CompleteTarget({ name, children }: { name: string; children: ReactNode }) {
+  return <div data-complete-target={name} className="contents">{children}</div>;
 }
 export function Counter({ count, max }: { count: number; max: number }) {
   return <Badge variant={count > max ? "danger" : count >= Math.ceil(max * .9) ? "review" : "secondary"} aria-label={`${count} de ${max} caracteres`}>{count}/{max}</Badge>;

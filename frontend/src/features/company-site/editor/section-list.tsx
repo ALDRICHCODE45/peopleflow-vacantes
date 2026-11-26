@@ -18,6 +18,7 @@ import type { AutosaveController } from "../autosave";
 import { publishIssuesV2, type BlockType, type BlockTypeV2, type SiteBlockV2 } from "../model";
 import { VARIANT_LABELS } from "./variant-picker";
 import { SECTION_ICONS } from "./section-icons";
+import { missingContent } from "./section-completion";
 import { dragMessages, positionText, sectionPlacementError } from "./dnd/reorder";
 import { useReportSectionDragPreview } from "./dnd/section-drag-preview";
 import { DRAG_ROW_MOTION, SortableList, useListDrag, type DragSession } from "./dnd/use-list-drag";
@@ -43,6 +44,9 @@ function BlockedHint({ reason }: { reason: string }) {
   return <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-destructive"><Ban className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{reason}</span></span>;
 }
 function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps, "onAdd"> & { block: SiteBlockV2; index: number; incomplete: boolean; drag: Drag }) {
+  // What «Incompleta» means for this section, e.g. «Falta: al menos 1 persona con permiso».
+  const hint = incomplete ? missingContent(block, props.editor.draft.blocks)?.hint ?? "Falta información para publicar" : null;
+  const hintId = useId();
   const { editor, controller, onSelect, onDelete, onReorder } = props;
   const label = BLOCK_LIBRARY_V2[block.type].label;
   const blocks = editor.draft.blocks; const count = blocks.length;
@@ -73,7 +77,7 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
       "data-drag-blocked:border-destructive/60 data-drag-blocked:bg-destructive/5 data-[drag=lifted]:data-drag-blocked:ring-destructive")}>
     {/* Stretched native hit area: hover and focus-visible belong to the whole
         Item, with no inner pill. Drag/menu remain independent sibling controls. */}
-    <Button variant="ghost" className="absolute inset-0 size-full" aria-label={`Seleccionar ${label}`} aria-pressed={selected} onClick={() => onSelect(block.id)} onKeyDown={event => {
+    <Button variant="ghost" className="absolute inset-0 size-full" aria-label={`Seleccionar ${label}`} aria-pressed={selected} title={hint ?? undefined} aria-describedby={hint ? hintId : undefined} onClick={() => onSelect(block.id)} onKeyDown={event => {
       if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) { event.preventDefault(); step(event.key === "ArrowUp" ? -1 : 1); }
     }} />
     {/* Quiet handle laid over the row's left padding, so it never takes width
@@ -95,7 +99,7 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
               <span data-section-indicators="" className="flex shrink-0 items-center gap-1">
                 {required && <Badge variant="neutral" title="Fija: siempre forma parte de tu sitio" className="h-[18px] px-1.5"><Lock role="img" aria-label="Sección obligatoria" /><span aria-hidden="true">Fija</span></Badge>}
                 {block.hidden && <Badge variant="neutral" className="h-[18px] px-1.5"><EyeOff aria-hidden="true" />Oculta</Badge>}
-                {incomplete && <Badge variant="review" dot className="h-[18px] px-1.5">Incompleta</Badge>}
+                {incomplete && <Badge variant="review" dot className="h-[18px] px-1.5">Incompleta<span id={hintId} className="sr-only">{`. ${hint}`}</span></Badge>}
               </span>
             </div>}
           </div>

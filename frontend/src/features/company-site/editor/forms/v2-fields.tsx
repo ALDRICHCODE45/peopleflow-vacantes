@@ -12,7 +12,7 @@ import { HERO_COLLAGE_MAX, HERO_COLLAGE_MIN_TO_PUBLISH, type SiteBlockV2 } from 
 import { mediaUrl } from "../../public/media";
 import { IconPicker } from "../icon-picker/icon-picker";
 import { ImageField } from "../media";
-import { fieldMessage, TextField } from "./fields";
+import { CompleteTarget, fieldMessage, TextField } from "./fields";
 import { ItemList } from "./item-list";
 
 type Hero = Extract<SiteBlockV2, { type: "hero" }>;
@@ -47,7 +47,7 @@ export function HeroButtons({ block, blocks, fieldErrors, onChange }: { block: H
     <Field orientation="horizontal"><FieldContent><FieldLabel htmlFor={`${id}-secondary`}>Mostrar botón secundario</FieldLabel></FieldContent><Switch id={`${id}-secondary`} checked={content.secondary_visible} onCheckedChange={secondary_visible => change({ secondary_visible })} /></Field>
     {content.secondary_visible && <>
       <TextField label="Botón secundario" value={content.secondary_label} onChange={secondary_label => change({ secondary_label })} max={24} description="Invita a conocer más de tu empresa." error={error("secondary_label")} />
-      <Field data-invalid={!!targetError}>
+      <CompleteTarget name="secondary-target"><Field data-invalid={!!targetError}>
         <FieldLabel htmlFor={`${id}-target`}>Lleva a</FieldLabel>
         <Select items={items} value={content.secondary_target ?? FIRST_AFTER_HERO} onValueChange={value => change({ secondary_target: !value || value === FIRST_AFTER_HERO ? null : String(value) })}>
           <SelectTrigger id={`${id}-target`} className="min-h-10 w-full min-w-0" aria-invalid={!!targetError} aria-describedby={`${id}-target-help${targetError ? ` ${id}-target-error` : ""}`}><SelectValue /></SelectTrigger>
@@ -55,7 +55,7 @@ export function HeroButtons({ block, blocks, fieldErrors, onChange }: { block: H
         </Select>
         <FieldDescription id={`${id}-target-help`}>Al tocarlo, la página baja hasta esa sección.</FieldDescription>
         {targetError && <FieldError id={`${id}-target-error`}>{targetError}</FieldError>}
-      </Field>
+      </Field></CompleteTarget>
     </>}
   </FieldGroup>;
 }
@@ -67,9 +67,10 @@ export function CollageField({ block, fieldErrors, onChange }: { block: Hero; fi
   const error = fieldMessage(fieldErrors, block.id, "content.images");
   return <Field data-invalid={!!error}>
     <FieldDescription>Fotos del collage: para publicar, al menos {HERO_COLLAGE_MIN_TO_PUBLISH} de {HERO_COLLAGE_MAX}.</FieldDescription>
-    {Array.from({ length: slots }, (_, index) => <ImageField key={index} kind="gallery" label={`Foto ${index + 1} del collage`} value={images[index] ?? null}
+    {/* The first empty slot is what «Completar sección» focuses. */}
+    {Array.from({ length: slots }, (_, index) => <CompleteTarget key={index} name={index === images.length ? "collage" : `collage-${index}`}><ImageField kind="gallery" label={`Foto ${index + 1} del collage`} value={images[index] ?? null}
       onChange={value => onChange(value ? images.length > index ? images.map((image, i) => i === index ? value : image) : [...images, value] : images.filter((_, i) => i !== index))}
-      previewUrl={mediaUrl} error={fieldMessage(fieldErrors, block.id, `content.images[${index}]`)} />)}
+      previewUrl={mediaUrl} error={fieldMessage(fieldErrors, block.id, `content.images[${index}]`)} /></CompleteTarget>)}
     {error && <FieldError>{error}</FieldError>}
   </Field>;
 }

@@ -8,7 +8,11 @@ import { SimpleForm } from "./simple-form";
 import { CollectionForm } from "./collection-form";
 import { fieldMessage } from "./fields";
 
-export type FormProps = { block: SiteBlockV2; dispatch: Dispatch<Extract<EditorAction, { type: "content" }>>; fieldErrors: MappedFieldError[] };
+export type FormProps = {
+  block: SiteBlockV2; dispatch: Dispatch<Extract<EditorAction, { type: "content" }>>; fieldErrors: MappedFieldError[];
+  /** «Completar sección»: open this list item (a new nonce each request) so its missing field can take focus. */
+  reveal?: { item: number; nonce: number } | null;
+};
 /** The only write boundary is the existing content action; autosave owns I/O. */
 export function SectionForm(props: FormProps) {
   return <FieldGroup key={props.block.id}>

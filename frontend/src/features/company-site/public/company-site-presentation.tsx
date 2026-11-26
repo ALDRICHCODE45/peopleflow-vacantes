@@ -25,6 +25,7 @@ import { deriveSiteAreas } from "./site-areas";
 import { scrimColor, sectionAlign, sectionInnerClass, sectionSurface } from "./section-style";
 import { SectionAlignContext, SiteEditingContext } from "./site-heading";
 import { mediaUrl } from "./media";
+import { EditorPlaceholderContext, hasDraftContent } from "./editor-placeholder";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
 import styles from "./site-theme.module.css";
 import editorStyles from "./editor-affordances.module.css";
@@ -35,10 +36,23 @@ const blankDescriptions: Partial<Record<SiteBlockV2["type"], string>> = {
   story: "Cuenta cómo empezó tu empresa y qué la mueve.",
   areas: "Las áreas salen de tus vacantes publicadas que tienen un área profesional.",
 };
-function BlankSection({ block, onSelect }: { block: SiteBlockV2; onSelect?: (id: string) => void }) {
-  const title = ("title" in block.content && block.content.title) || (block.type === "story" ? "Nuestra historia" : BLOCK_LIBRARY_V2[block.type].label);
+/** Only for a section with nothing typed yet (anything typed renders as on the page, see
+ * ItemsSlot). Named by the section type, never by what the person wrote. */
+function BlankSection({ block, onComplete }: { block: SiteBlockV2; onComplete?: () => void }) {
+  const title = block.type === "story" ? "Nuestra historia" : BLOCK_LIBRARY_V2[block.type].label;
   const description = blankDescriptions[block.type] ?? BLOCK_LIBRARY_V2[block.type].description;
-  return <SectionEmpty icon={blockIcons[block.type]} tone="info" title={<span id={`${anchor(block)}-title`}>{title} todavía no tiene contenido</span>} description={`${description} Completa esta sección para verla en tu sitio.`} primaryAction={onSelect ? { label: "Completar sección", onClick: () => onSelect(block.id) } : undefined} />;
+  return <div data-editor-placeholder="blank"><SectionEmpty icon={blockIcons[block.type]} tone="info" title={<span id={`${anchor(block)}-title`}>{title} todavía no tiene contenido</span>} description={`${description} Completa esta sección para verla en tu sitio.`} primaryAction={onComplete ? { label: "Completar sección", onClick: onComplete } : undefined} /></div>;
+}
+/** Preview clicks select their section. Buttons (carousel arrows, FAQ, pause, area cards) keep
+ * working and select it too; the editor's own «Completar sección» acts alone. Links never
+ * navigate (the preview frame holds them). */
+function selectOnClick(event: React.MouseEvent, select: () => void) {
+  const control = (event.target as Element | null)?.closest?.("button");
+  if (control && event.currentTarget.contains(control)) {
+    if (!control.closest("[data-editor-placeholder]")) select();
+    return;
+  }
+  event.preventDefault(); event.stopPropagation(); select();
 }
 /** Legacy (v1) blocks render exactly like their v2 read: default style and hero buttons. */
 export function toSiteBlockV2(block: SiteBlock | SiteBlockV2): SiteBlockV2 {
@@ -107,7 +121,7 @@ export function heroSecondaryHref(hero: Extract<SiteBlockV2, { type: "hero" }>, 
 
 /** No reads, server imports or alternate rendering tree: the editor uses this exact page.
  * Editor affordances are opt-in; without onSelectBlock public markup is unchanged. */
-export function CompanySitePresentation({ site, company, jobs, jobsAvailable = true, officeLabels, selectedBlockId, onSelectBlock, dragPreview = null }: CompanySitePresentationProps & { dragPreview?: DragPreview }) {
+export function CompanySitePresentation({ site, company, jobs, jobsAvailable = true, officeLabels, selectedBlockId, onSelectBlock, onCompleteBlock, dragPreview = null }: CompanySitePresentationProps & { dragPreview?: DragPreview }) {
   const previewContainer = useContext(SitePortalContext);
   const [portalRoot, setPortalRoot] = useState<HTMLDivElement | null>(null);
   const [previewRoot, setPreviewRoot] = useState<HTMLDivElement | null>(null);
@@ -157,7 +171,7 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
       {...(surface === "tint" ? { style: tintStyle } : {})}
       {...(onSelectBlock ? {
         tabIndex: 0, "data-editor-selected": selectedBlockId === block.id, ...(dragging === block.id ? { "data-editor-dragging": true } : {}),
-        onClickCapture: (event: React.MouseEvent) => { event.preventDefault(); event.stopPropagation(); onSelectBlock(block.id); },
+        onClickCapture: (event: React.MouseEvent) => selectOnClick(event, () => onSelectBlock(block.id)),
         onKeyDown: (event: React.KeyboardEvent) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelectBlock(block.id); } },
       } : {})}
       className={cn("scroll-mt-6", surface === "band" && "bg-(--site-band)", surface === "scrim" && "relative isolate", onSelectBlock && editorStyles.section, onSelectBlock && dragMark)}>
@@ -167,7 +181,7 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
         <div data-scrim="" className="absolute inset-0" style={{ backgroundColor: scrimColor(block.style.overlay) }} />
       </div>}
       {onSelectBlock && selectedBlockId === block.id && <Badge data-editor-label="" className={editorStyles.label}>{BLOCK_LIBRARY_V2[block.type].label}</Badge>}
-      <SectionAlignContext value={sectionAlign(block)}><div className={sectionInnerClass(block.style.spacing)}>{!hasSiteBlockContent(block, jobs) ? <BlankSection block={block} onSelect={onSelectBlock} /> : block.type === "jobs" && !jobsAvailable ? <StateCard icon={Briefcase} tone="error" title={<span id={`${anchor(block)}-title`}>No pudimos cargar las vacantes</span>} description="La vista previa de las vacantes no está disponible. El contenido del sitio no cambió." /> : <SiteBlockContent block={block} company={company} jobs={jobs} offices={officeLabels} jobsHref={jobsHref} secondaryHref={block.type === "hero" ? heroSecondaryHref(block, blocks) : undefined} />}</div></SectionAlignContext>
+      <SectionAlignContext value={sectionAlign(block)}><EditorPlaceholderContext value={onSelectBlock ? { block, icon: blockIcons[block.type], onComplete: () => (onCompleteBlock ?? onSelectBlock)(block.id) } : null}><div className={sectionInnerClass(block.style.spacing)}>{!hasSiteBlockContent(block, jobs) && !(onSelectBlock && hasDraftContent(block)) ? <BlankSection block={block} onComplete={onSelectBlock ? () => (onCompleteBlock ?? onSelectBlock)(block.id) : undefined} /> : block.type === "jobs" && !jobsAvailable ? <StateCard icon={Briefcase} tone="error" title={<span id={`${anchor(block)}-title`}>No pudimos cargar las vacantes</span>} description="La vista previa de las vacantes no está disponible. El contenido del sitio no cambió." /> : <SiteBlockContent block={block} company={company} jobs={jobs} offices={officeLabels} jobsHref={jobsHref} secondaryHref={block.type === "hero" ? heroSecondaryHref(block, blocks) : undefined} />}</div></EditorPlaceholderContext></SectionAlignContext>
     </section></Fragment>;
     })}
     {drop === "" && <DropLine id={dragPreview!.activeId} />}

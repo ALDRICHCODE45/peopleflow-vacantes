@@ -14,4 +14,7 @@ export type CompanySitePresentationProps = CompanySitePreviewData & {
   site: PublicSiteV2["site"] | PublicSite["site"];
   selectedBlockId?: string | null;
   onSelectBlock?: (id: string) => void;
+  /** Editor only: «Completar sección» in the preview (select the section and lead to what's missing).
+   * Without it the button just selects the section. */
+  onCompleteBlock?: (id: string) => void;
 };
