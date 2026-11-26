@@ -6,6 +6,12 @@ import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+// The bell reads the company inbox through server actions; the header tests only need a stable count.
+vi.mock("@/features/notifications/actions", () => ({
+  getUnreadCountAction: vi.fn(async () => ({ ok: true, data: { unread_count: 4, unread_notifications: 6 } })),
+  listNotificationsAction: vi.fn(async () => ({ ok: false, reason: "no_response", reference: {} })),
+}));
+
 import { SiteHeader } from "./site-header";
 import { SidebarProvider } from "./ui/sidebar";
 
@@ -268,6 +274,36 @@ describe("company dashboard header phone breadcrumb", () => {
   });
 });
 
+describe("company dashboard header notification bell", () => {
+  beforeEach(stubBrowserApis);
+
+  it("mounts one bell in the header with the unread count, opening a dialog", async () => {
+    renderHeader();
+
+    const header = document.querySelector("header")!;
+    const bell = await within(header).findByRole("button", { name: "Notificaciones, 4 sin leer" });
+    expect(within(header).getAllByRole("button", { name: /^Notificaciones/ })).toHaveLength(1);
+    expect(bell).toHaveAttribute("aria-haspopup", "dialog");
+    expect(bell).toHaveAttribute("aria-expanded", "false");
+    expect(bell).toHaveTextContent("4");
+  });
+
+  it("uses the shared 40x40 header icon target, reachable at every breakpoint", async () => {
+    renderHeader();
+
+    const bell = await screen.findByRole("button", { name: /^Notificaciones/ });
+    expect(bell.className).toMatch(/(^|\s)size-10(\s|$)/);
+    expect(bell.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+    expect(bell.className).not.toContain("sm:hidden");
+  });
+
+  it("keeps the bell when the route drops the heading", async () => {
+    renderHeaderWith({ title: null, parent: { label: "Vacantes", href: "/empresa/vacantes" } });
+
+    expect(await screen.findByRole("button", { name: /^Notificaciones/ })).toBeInTheDocument();
+  });
+});
+
 describe("company dashboard header theme control", () => {
   beforeEach(stubBrowserApis);
 
@@ -293,16 +329,17 @@ describe("company dashboard header theme control", () => {
     ).toBe(controls[0]);
   });
 
-  it("keeps the control in the top-right group as its only member", () => {
+  it("keeps the control last in the top-right group, after the notification bell", async () => {
     renderHeader();
 
     const toggle = screen.getByRole("button", { name: "Cambiar tema" });
+    const bell = await screen.findByRole("button", { name: "Notificaciones, 4 sin leer" });
     const group = toggle.parentElement;
 
     expect(group).not.toBeNull();
     expect(group!.className).toContain("ml-auto");
     expect(group!.className).toContain("items-center");
-    expect(group!.children).toHaveLength(1);
+    expect(Array.from(group!.children)).toEqual([bell, toggle]);
   });
 
   it("keeps both header icon controls on the shared 40x40 target", () => {
