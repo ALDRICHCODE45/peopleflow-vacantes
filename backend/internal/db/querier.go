@@ -221,6 +221,9 @@ type Querier interface {
 	// DEFAULT now(), the same transaction clock as the audit row. payload holds
 	// ids/enums only.
 	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
+	// Scheduled notification (D21): each (recipient, type, job, date) fires at
+	// most once; a renegotiated date is a new key. No actor, no source event.
+	InsertScheduledNotification(ctx context.Context, arg InsertScheduledNotificationParams) (int64, error)
 	// Atomic liveness probe for the RequireCompanyRole middleware
 	// (require-company-role-tombstone-gate slice). Returns `deleted_at IS NULL`
 	// for the exact company id WITHOUT filtering away tombstones:
@@ -301,6 +304,17 @@ type Querier interface {
 	// lists per item: the root first (sequence 0), then the replacements by sequence.
 	// can_open is the lifecycle read rule: the owner, or an active tramo on that draft.
 	ListReplacementChainItems(ctx context.Context, arg ListReplacementChainItemsParams) ([]ListReplacementChainItemsRow, error)
+	// Per-recruiter deadlines (Q7): active assignments with a recruiter_deadline
+	// up to today + 1, same process filter, whose user is still a non-stakeholder
+	// member of the company (company not deleted). function is the open function
+	// of the assignment (NULL if none is open).
+	ListScheduledAssignmentDeadlines(ctx context.Context, until pgtype.Date) ([]ListScheduledAssignmentDeadlinesRow, error)
+	// Scheduler (notifications-v1 §Scheduler, D20, Q1): every team recipient of
+	// an active published or paused process with a commitment date up to
+	// today + 1 and no fulfillment row. Recipients at run time, same rules as the
+	// fan-out team relation (active assignment, non-stakeholder member, company
+	// not deleted); the caller applies the date rule.
+	ListScheduledDeliveryRecipients(ctx context.Context, until pgtype.Date) ([]ListScheduledDeliveryRecipientsRow, error)
 	// ListStartableReplacementCredits with the hired candidate and the departure time.
 	// The name is the board's company view: the company's correction of an organic
 	// candidate's name wins over the account's.
@@ -329,6 +343,14 @@ type Querier interface {
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.
 	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error)
+	// Resolution (D20, §Scheduler): an open deadline item stops being true when
+	// the process is no longer active published/paused (closed with any process
+	// value, finished, gone) or has a fulfillment row; a delivery item when the
+	// current commitment_date differs (renegotiated or cleared); an assignment
+	// item when its assignment ended or its recruiter_deadline differs (changed
+	// or cleared); a due-soon item when an overdue item exists for the same
+	// recipient, job and date.
+	ResolveStaleScheduledNotifications(ctx context.Context) (int64, error)
 	// Only a pending invitation of the caller's company changes; anything else
 	// affects no row and the DELETE still answers 204.
 	RevokeStakeholderInvitation(ctx context.Context, arg RevokeStakeholderInvitationParams) (int64, error)

@@ -174,6 +174,55 @@ func (q *Queries) InsertNotificationEvent(ctx context.Context, arg InsertNotific
 	return err
 }
 
+const insertScheduledNotification = `-- name: InsertScheduledNotification :execrows
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, commitment_date, payload)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    'member',
+    $3::text,
+    $4::uuid,
+    $5::text,
+    $6::text,
+    $7::uuid,
+    $8::date,
+    $9::jsonb
+)
+ON CONFLICT (recipient_user_id, type, job_id, commitment_date) WHERE commitment_date IS NOT NULL DO NOTHING
+`
+
+type InsertScheduledNotificationParams struct {
+	ID              uuid.UUID   `json:"id"`
+	RecipientUserID uuid.UUID   `json:"recipient_user_id"`
+	RecipientReason string      `json:"recipient_reason"`
+	CompanyID       uuid.UUID   `json:"company_id"`
+	Type            string      `json:"type"`
+	GroupKey        string      `json:"group_key"`
+	JobID           uuid.UUID   `json:"job_id"`
+	CommitmentDate  pgtype.Date `json:"commitment_date"`
+	Payload         []byte      `json:"payload"`
+}
+
+// Scheduled notification (D21): each (recipient, type, job, date) fires at
+// most once; a renegotiated date is a new key. No actor, no source event.
+func (q *Queries) InsertScheduledNotification(ctx context.Context, arg InsertScheduledNotificationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertScheduledNotification,
+		arg.ID,
+		arg.RecipientUserID,
+		arg.RecipientReason,
+		arg.CompanyID,
+		arg.Type,
+		arg.GroupKey,
+		arg.JobID,
+		arg.CommitmentDate,
+		arg.Payload,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const isNotificationActiveAssignee = `-- name: IsNotificationActiveAssignee :one
 SELECT EXISTS (
     SELECT 1
@@ -265,6 +314,114 @@ func (q *Queries) ListNotificationTeamRecipients(ctx context.Context, arg ListNo
 	return items, nil
 }
 
+const listScheduledAssignmentDeadlines = `-- name: ListScheduledAssignmentDeadlines :many
+SELECT va.id AS assignment_id, vp.id AS job_id, vp.company_id, va.user_id, va.recruiter_deadline::date AS recruiter_deadline, vaf.function
+FROM vacancy_assignments va
+JOIN vacancy_processes vp ON vp.id = va.draft_id
+JOIN companies c ON c.id = vp.company_id AND c.deleted_at IS NULL
+JOIN company_members cm ON cm.user_id = va.user_id AND cm.company_id = vp.company_id AND cm.role <> 'stakeholder'
+LEFT JOIN vacancy_assignment_functions vaf ON vaf.assignment_id = va.id AND vaf.ended_at IS NULL
+WHERE va.ended_at IS NULL
+  AND va.recruiter_deadline IS NOT NULL
+  AND va.recruiter_deadline <= $1::date
+  AND vp.process_status = 'active'
+  AND vp.status IN ('published', 'paused')
+  AND NOT EXISTS (SELECT 1 FROM process_delivery_fulfillments f WHERE f.process_id = vp.id)
+ORDER BY vp.id, va.user_id
+`
+
+type ListScheduledAssignmentDeadlinesRow struct {
+	AssignmentID      uuid.UUID   `json:"assignment_id"`
+	JobID             uuid.UUID   `json:"job_id"`
+	CompanyID         uuid.UUID   `json:"company_id"`
+	UserID            uuid.UUID   `json:"user_id"`
+	RecruiterDeadline pgtype.Date `json:"recruiter_deadline"`
+	Function          pgtype.Text `json:"function"`
+}
+
+// Per-recruiter deadlines (Q7): active assignments with a recruiter_deadline
+// up to today + 1, same process filter, whose user is still a non-stakeholder
+// member of the company (company not deleted). function is the open function
+// of the assignment (NULL if none is open).
+func (q *Queries) ListScheduledAssignmentDeadlines(ctx context.Context, until pgtype.Date) ([]ListScheduledAssignmentDeadlinesRow, error) {
+	rows, err := q.db.Query(ctx, listScheduledAssignmentDeadlines, until)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListScheduledAssignmentDeadlinesRow
+	for rows.Next() {
+		var i ListScheduledAssignmentDeadlinesRow
+		if err := rows.Scan(
+			&i.AssignmentID,
+			&i.JobID,
+			&i.CompanyID,
+			&i.UserID,
+			&i.RecruiterDeadline,
+			&i.Function,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScheduledDeliveryRecipients = `-- name: ListScheduledDeliveryRecipients :many
+SELECT vp.id AS job_id, vp.company_id, dc.commitment_date::date AS commitment_date, va.user_id
+FROM vacancy_processes vp
+JOIN job_draft_delivery_configs dc ON dc.draft_id = vp.id
+JOIN companies c ON c.id = vp.company_id AND c.deleted_at IS NULL
+JOIN vacancy_assignments va ON va.draft_id = vp.id AND va.ended_at IS NULL
+JOIN company_members cm ON cm.user_id = va.user_id AND cm.company_id = vp.company_id AND cm.role <> 'stakeholder'
+WHERE vp.process_status = 'active'
+  AND vp.status IN ('published', 'paused')
+  AND dc.commitment_date IS NOT NULL
+  AND dc.commitment_date <= $1::date
+  AND NOT EXISTS (SELECT 1 FROM process_delivery_fulfillments f WHERE f.process_id = vp.id)
+ORDER BY vp.id, va.user_id
+`
+
+type ListScheduledDeliveryRecipientsRow struct {
+	JobID          uuid.UUID   `json:"job_id"`
+	CompanyID      uuid.UUID   `json:"company_id"`
+	CommitmentDate pgtype.Date `json:"commitment_date"`
+	UserID         uuid.UUID   `json:"user_id"`
+}
+
+// Scheduler (notifications-v1 §Scheduler, D20, Q1): every team recipient of
+// an active published or paused process with a commitment date up to
+// today + 1 and no fulfillment row. Recipients at run time, same rules as the
+// fan-out team relation (active assignment, non-stakeholder member, company
+// not deleted); the caller applies the date rule.
+func (q *Queries) ListScheduledDeliveryRecipients(ctx context.Context, until pgtype.Date) ([]ListScheduledDeliveryRecipientsRow, error) {
+	rows, err := q.db.Query(ctx, listScheduledDeliveryRecipients, until)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListScheduledDeliveryRecipientsRow
+	for rows.Next() {
+		var i ListScheduledDeliveryRecipientsRow
+		if err := rows.Scan(
+			&i.JobID,
+			&i.CompanyID,
+			&i.CommitmentDate,
+			&i.UserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markNotificationEventProcessed = `-- name: MarkNotificationEventProcessed :exec
 UPDATE notification_events SET processed_at = now()
 WHERE id = $1::uuid AND processed_at IS NULL
@@ -327,4 +484,48 @@ func (q *Queries) RecordNotificationEventFailure(ctx context.Context, arg Record
 	var i RecordNotificationEventFailureRow
 	err := row.Scan(&i.Attempts, &i.Failed)
 	return i, err
+}
+
+const resolveStaleScheduledNotifications = `-- name: ResolveStaleScheduledNotifications :execrows
+UPDATE notifications n
+SET resolved_at = now()
+WHERE n.resolved_at IS NULL
+  AND n.commitment_date IS NOT NULL
+  AND (
+    NOT EXISTS (
+        SELECT 1 FROM vacancy_processes vp
+        WHERE vp.id = n.job_id AND vp.process_status = 'active' AND vp.status IN ('published', 'paused'))
+    OR EXISTS (SELECT 1 FROM process_delivery_fulfillments f WHERE f.process_id = n.job_id)
+    OR (n.type IN ('delivery_due_soon', 'delivery_overdue') AND NOT EXISTS (
+        SELECT 1 FROM job_draft_delivery_configs dc
+        WHERE dc.draft_id = n.job_id AND dc.commitment_date = n.commitment_date))
+    OR (n.type IN ('assignment_deadline_due_soon', 'assignment_deadline_overdue') AND NOT EXISTS (
+        SELECT 1 FROM vacancy_assignments va
+        WHERE va.id::text = n.payload->>'assignment_id'
+          AND va.draft_id = n.job_id
+          AND va.user_id = n.recipient_user_id
+          AND va.ended_at IS NULL
+          AND va.recruiter_deadline = n.commitment_date))
+    OR (n.type IN ('delivery_due_soon', 'assignment_deadline_due_soon') AND EXISTS (
+        SELECT 1 FROM notifications o
+        WHERE o.recipient_user_id = n.recipient_user_id
+          AND o.job_id = n.job_id
+          AND o.commitment_date = n.commitment_date
+          AND o.type = CASE n.type WHEN 'delivery_due_soon' THEN 'delivery_overdue' ELSE 'assignment_deadline_overdue' END))
+  )
+`
+
+// Resolution (D20, §Scheduler): an open deadline item stops being true when
+// the process is no longer active published/paused (closed with any process
+// value, finished, gone) or has a fulfillment row; a delivery item when the
+// current commitment_date differs (renegotiated or cleared); an assignment
+// item when its assignment ended or its recruiter_deadline differs (changed
+// or cleared); a due-soon item when an overdue item exists for the same
+// recipient, job and date.
+func (q *Queries) ResolveStaleScheduledNotifications(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, resolveStaleScheduledNotifications)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
