@@ -53,7 +53,7 @@ confirms through a server action, so a link scanner's GET never unsubscribes any
 | T10 🔒 | Venció tu fecha límite en {{job_title}} | Venció tu fecha límite | Tu entrega como {{function}} de {{job_title}} era el {{commitment_date_local}}. | Ver entrega |
 | T11 🔒 | Te asignaron {{job_title}} | Te asignaron una vacante | Ahora eres responsable de {{job_title}} en {{company_name}}. | Abrir vacante |
 | T12 🔒 | Ahora eres responsable de {{job_title}} | Te reasignaron una vacante | Ahora eres responsable de {{job_title}}. Motivo: {{reason}}. | Abrir vacante |
-| T13 🔒 | Ya no eres responsable de {{job_title}} | Se reasignó una vacante | {{job_title}} ahora está a cargo de otra persona. Motivo: {{reason}}. | Ir a PeopleFlow |
+| T13 🔒 | Ya no eres responsable de {{job_title}} | Se reasignó una vacante | Otra persona quedó a cargo de {{job_title}}. Motivo: {{reason}}. | Ir a PeopleFlow |
 | T14 🔒 | Te agregaron al equipo de {{job_title}} | Te agregaron a un equipo | Formas parte del equipo de {{job_title}} como {{function}}. | Abrir vacante |
 | T15 | Tu postulación a {{job_title}} cambió de estado | Tu postulación ahora está «{{status}}» | {{company_name}} actualizó tu proceso para {{job_title}}. | Ver postulación |
 | T16 | {{company_name}} te dejó un mensaje | Tienes un mensaje sobre tu postulación | {{company_name}} te escribió sobre {{job_title}}. Por privacidad no lo incluimos aquí; léelo en PeopleFlow. | Leer mensaje |

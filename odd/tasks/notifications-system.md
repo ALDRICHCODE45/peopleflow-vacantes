@@ -203,3 +203,8 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   `app_url` fallback `/empresa` when the link is null; landing and one-click need two paths), Q3 path map, Q4 frontend
   origin with a POST-only pass-through route, and the copy for T1–T17, F1–F2 and enum labels — all in
   `odd/tasks/notifications-stage2-email-copy.md`. Candidate email on by default (Q1) recorded as the user's decision.
+- **L20** (2026-11-26) Backend contract v2 Agreed (feat/notifications-v2-backend 07bd4d5a) with every L19 item. Backend
+  additions: candidate items with a null link use app_url = /candidato/postulaciones; unsubscribe per-IP limit uses the
+  client IP forwarded by the trusted frontend proxy (E7). T13 body changed to «Otra persona quedó a cargo de
+  {{job_title}}. Motivo: {{reason}}.» so the «una vacante» fallback never starts the sentence. Backend E1 started; E2
+  (preferences GET/PUT) next. T4.1 done.
