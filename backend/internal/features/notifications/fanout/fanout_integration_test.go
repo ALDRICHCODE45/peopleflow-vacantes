@@ -268,6 +268,39 @@ func TestReprocessingAnEventIsIdempotent(t *testing.T) {
 	}
 }
 
+// A delayed fan-out keeps the event's time: created_at (latest_at of the group,
+// retention clock) equals occurred_at, so a group dated by occurred_at never
+// shows up under a later day (L24).
+func TestDelayedFanOutKeepsTheEventTime(t *testing.T) {
+	pool := disposableDB(t)
+	ctx := context.Background()
+	w := newWorld(t, pool)
+	occurred := time.Now().Add(-8 * 24 * time.Hour).UTC().Truncate(time.Microsecond)
+	event := w.insertEvent(t, pool, pending{eventType: audit.EventVacancyApplicationSubmitted, participation: &w.participation, occurredAt: occurred})
+	if _, err := newTestProcessor(pool, nil).Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := pool.Query(ctx, `SELECT created_at FROM notifications WHERE source_event_id = $1`, event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var created time.Time
+		if err := rows.Scan(&created); err != nil {
+			t.Fatal(err)
+		}
+		if !created.Equal(occurred) {
+			t.Fatalf("created_at=%s want occurred_at=%s", created.UTC(), occurred)
+		}
+		n++
+	}
+	if n == 0 {
+		t.Fatal("no notification rows")
+	}
+}
+
 // readBackoff is next_attempt_at - now(), nil when there is no next attempt.
 func readBackoff(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) *time.Duration {
 	t.Helper()

@@ -237,6 +237,8 @@ type Querier interface {
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error
 	// Immediate notification (D21): a re-processed event inserts nothing twice.
+	// created_at is the event's occurred_at, so a delayed fan-out keeps the group's
+	// day and the retention clock aligned with the event (L24).
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) error
 	// Capture row written by the audit-port decorator inside the caller's tx,
 	// right after the audit event (notifications-v1 D1–D3). occurred_at is the DB

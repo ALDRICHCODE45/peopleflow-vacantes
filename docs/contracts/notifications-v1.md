@@ -169,7 +169,7 @@ CREATE TABLE notifications (
     source_event_id  uuid NULL REFERENCES notification_events(id) ON DELETE SET NULL,
     commitment_date  date NULL,
     payload          jsonb NOT NULL DEFAULT '{}',            -- ids/enums only (D24)
-    created_at       timestamptz NOT NULL DEFAULT now(),
+    created_at       timestamptz NOT NULL DEFAULT now(),       -- immediate rows: the event's occurred_at (L24); scheduled rows: run time
     read_at          timestamptz NULL,
     resolved_at      timestamptz NULL,                       -- deadline items no longer true (D20)
     CHECK ((recipient_kind = 'candidate') = (company_id IS NULL)),

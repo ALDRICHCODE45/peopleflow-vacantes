@@ -200,7 +200,7 @@ func (q *Queries) GetNotificationParticipationCandidate(ctx context.Context, arg
 }
 
 const insertNotification = `-- name: InsertNotification :exec
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload)
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, created_at)
 VALUES (
     $1::uuid,
     $2::uuid,
@@ -213,7 +213,8 @@ VALUES (
     $9::uuid,
     $10::uuid,
     $11::uuid,
-    $12::jsonb
+    $12::jsonb,
+    (SELECT e.occurred_at FROM notification_events e WHERE e.id = $11::uuid)
 )
 ON CONFLICT (recipient_user_id, source_event_id, type) WHERE source_event_id IS NOT NULL DO NOTHING
 `
@@ -234,6 +235,8 @@ type InsertNotificationParams struct {
 }
 
 // Immediate notification (D21): a re-processed event inserts nothing twice.
+// created_at is the event's occurred_at, so a delayed fan-out keeps the group's
+// day and the retention clock aligned with the event (L24).
 func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) error {
 	_, err := q.db.Exec(ctx, insertNotification,
 		arg.ID,

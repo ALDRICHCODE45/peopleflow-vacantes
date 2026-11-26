@@ -101,7 +101,9 @@ WHERE id = sqlc.arg('participation_id')::uuid AND process_id = sqlc.arg('job_id'
 
 -- name: InsertNotification :exec
 -- Immediate notification (D21): a re-processed event inserts nothing twice.
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload)
+-- created_at is the event's occurred_at, so a delayed fan-out keeps the group's
+-- day and the retention clock aligned with the event (L24).
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, created_at)
 VALUES (
     sqlc.arg('id')::uuid,
     sqlc.arg('recipient_user_id')::uuid,
@@ -114,7 +116,8 @@ VALUES (
     sqlc.narg('participation_id')::uuid,
     sqlc.narg('actor_user_id')::uuid,
     sqlc.arg('source_event_id')::uuid,
-    sqlc.arg('payload')::jsonb
+    sqlc.arg('payload')::jsonb,
+    (SELECT e.occurred_at FROM notification_events e WHERE e.id = sqlc.arg('source_event_id')::uuid)
 )
 ON CONFLICT (recipient_user_id, source_event_id, type) WHERE source_event_id IS NOT NULL DO NOTHING;
 
