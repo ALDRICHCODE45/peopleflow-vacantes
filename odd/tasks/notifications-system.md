@@ -133,3 +133,11 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   to_user {user_id, name} (name null if the user no longer exists); participation_id == /v2/me/applications item.id
   (no application_id); reason ∈ workload | recruiter_departure | performance | client_request | other (free note of
   other never included). T2 done. Backend started N1; it will notify when N4 is usable locally (T3 waits on it).
+- **L12** (2026-11-26) Backend N4 usable locally (branch feat/notifications-backend, worktree peopleflow-vacantes-notif,
+  HEAD a9e48d8a; not in main; needs migration 00068, down/up if run before it stabilized): GET
+  /v2/me/company/notifications and GET …/unread-count behind the owner/recruiter/stakeholder gate. Shape notes:
+  from_user / to_user are top-level fields of the item (not inside latest) and are omitted (not null) when the payload
+  has no user id; single-candidate groups link `participation {job_id, participation_id}`; with a cursor, attention and
+  attention_total are null; invalid filter → 400 invalid_filter with fields[] reasons invalid|too_many|duplicate;
+  mismatched cursor → 400 invalid_cursor. Reference payload: backend test
+  TestNotificationsRead_GroupedListShapesAndUnreadCount. Next: N5 (read/unread/read-all, facets), N6 (candidate), N7.
