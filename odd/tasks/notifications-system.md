@@ -71,3 +71,12 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   165 runs): 0 axe violations, no horizontal overflow, visible focus, reduced motion respected; deviations from
   `design/system.md` (popover 420 px, sheet 460 px, bell count pill, sticky day headers, among others) listed in
   `design/notifications/self-check.md`.
+- **L5** (2026-11-26) User, verbatim: «1. me gusta mas la opcion 02. Hoja lateral con filtros pero los filtros nunca me han
+  gustado asi, se ven desordenados, hay que pensar en otro diseno para los filtros. 2. me parece bien. 3. si, esta bien,
+  peroo el stake holder no puede estar en el equipo de una vacante, el no puede hacer nada, el solo ve metricas,
+  desempeno, reportes, vacantes, usuarios, en fin, ve tooodo pero no hace nada, no puede hacer nada. 4. encendida. Y con
+  respecto a las preferencias, vamos por la 05. alguna duda?» → bell + inbox = 02 (side sheet) with a new filter design
+  (options to be drawn); mandatory events fixed as drawn (owner can only add recipients); stakeholders are read-only and
+  never on vacancy teams, so they get no vacancy events by default — the owner may enable events for the Stakeholder
+  role, in-app only (agent's proposal, stated to the user); company-side «Prueba pendiente del candidato» ON by
+  default; personal preferences = 05; 06 kept as the stage-3 basis, corrected for stakeholders.
