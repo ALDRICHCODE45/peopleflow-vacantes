@@ -12,6 +12,9 @@ import (
 )
 
 type Querier interface {
+	// Fan-out claim (notifications-v1 D4): the oldest pending event not already
+	// tried in this tick, locked for the caller's tx; other instances skip it.
+	ClaimNextNotificationEvent(ctx context.Context, skip []uuid.UUID) (ClaimNextNotificationEventRow, error)
 	// Inline close of all non-closed, non-tombstoned jobs of a company
 	// (companies-write slice, design D5). Runs in the SAME pgx.Tx as the
 	// `SoftDeleteCompany` write so the soft-delete + the inline close are
@@ -183,6 +186,9 @@ type Querier interface {
 	// pgx.ErrNoRows when the user has no membership, which the service maps to
 	// ErrNotAMember.
 	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (CompanyMember, error)
+	// Relation candidate: the account behind an organic participation of the job;
+	// NULL for a manual candidate (no account).
+	GetNotificationParticipationCandidate(ctx context.Context, arg GetNotificationParticipationCandidateParams) (pgtype.UUID, error)
 	// Publication status and the reason of the latest close event (empty when never
 	// closed or closed without reason): the inputs of the closed-covered predicate.
 	GetProcessCloseState(ctx context.Context, arg GetProcessCloseStateParams) (GetProcessCloseStateRow, error)
@@ -207,6 +213,8 @@ type Querier interface {
 	InsertCandidateEducation(ctx context.Context, arg InsertCandidateEducationParams) error
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error
+	// Immediate notification (D21): a re-processed event inserts nothing twice.
+	InsertNotification(ctx context.Context, arg InsertNotificationParams) error
 	// Capture row written by the audit-port decorator inside the caller's tx,
 	// right after the audit event (notifications-v1 D1–D3). occurred_at is the DB
 	// DEFAULT now(), the same transaction clock as the audit row. payload holds
@@ -235,6 +243,12 @@ type Querier interface {
 	// semantics used by every other read in this file. A missing row
 	// surfaces as pgx.ErrNoRows at the adapter boundary.
 	IsCompanyLive(ctx context.Context, id uuid.UUID) (bool, error)
+	// Relation assignee: the user still holds an active assignment on the job and
+	// is a non-stakeholder member of the company, company not deleted.
+	IsNotificationActiveAssignee(ctx context.Context, arg IsNotificationActiveAssigneeParams) (bool, error)
+	// Relation previous_assignee: still a non-stakeholder member of the company,
+	// company not deleted (no assignment required, D10).
+	IsNotificationCompanyMember(ctx context.Context, arg IsNotificationCompanyMemberParams) (bool, error)
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
 	// Recruiter queue read (design D5 second step). Same-company scope
 	// enforced inside the same statement. NO deleted_at / status filter on
@@ -273,6 +287,9 @@ type Querier interface {
 	//
 	// Hard cap 100 (no pagination in this slice).
 	ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]ListMyApplicationsRow, error)
+	// Relation team (§Recipients): users with an active assignment on the job who
+	// are still non-stakeholder members of the event's company, company not deleted.
+	ListNotificationTeamRecipients(ctx context.Context, arg ListNotificationTeamRecipientsParams) ([]uuid.UUID, error)
 	ListPendingStakeholderInvitations(ctx context.Context, arg ListPendingStakeholderInvitationsParams) ([]ListPendingStakeholderInvitationsRow, error)
 	// The whole chain of the logical vacancy `process_id` belongs to: the root first
 	// (sequence 0, it has no vacancy_replacements row), then the replacements by
@@ -298,10 +315,14 @@ type Querier interface {
 	LockCompanyForMemberMutation(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// A soft-deleted company accepts no new member.
 	LockLiveCompanyForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	MarkNotificationEventProcessed(ctx context.Context, id uuid.UUID) error
 	MarkStakeholderInvitationUsed(ctx context.Context, arg MarkStakeholderInvitationUsedParams) error
 	// D3: the discard's candidate message is never copied; capture records only
 	// whether it exists, read in the same tx after the discard UPDATE.
 	ParticipationHasCandidateMessage(ctx context.Context, id uuid.UUID) (bool, error)
+	// One failed attempt, in its own tx after the processing tx rolled back; at
+	// max_attempts the event is given up (failed, processed).
+	RecordNotificationEventFailure(ctx context.Context, arg RecordNotificationEventFailureParams) (RecordNotificationEventFailureRow, error)
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.
 	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error)

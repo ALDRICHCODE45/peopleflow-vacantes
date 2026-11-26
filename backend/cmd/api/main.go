@@ -331,6 +331,10 @@ func run() error {
 	// shutdown before the storage and the pool are closed (deferred calls run last-in first); nil storage = disabled.
 	stopDocumentReconcile := startDocumentReconcile(ctx, newDocumentReconcileScheduler(pool, documentStorage))
 	defer stopDocumentReconcile()
+	// notifications-v1 D4: fan-out of captured notification events, every 2 s in every instance (SKIP LOCKED). Stopped, and
+	// waited for, on shutdown before the pool is closed (deferred calls run last-in first).
+	stopNotificationFanOut := startNotificationFanOut(ctx, newNotificationFanOut(pool))
+	defer stopNotificationFanOut()
 	slog.Info("document storage", "enabled", documentConfig.Enabled(), "mode", documentConfig.Mode, "bucket", documentConfig.Bucket, "region", documentConfig.Region, "prefix", documentConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)
 	// Carried replacement candidates trigger the same stage-entry effects (psychometric auto-send) as an intake.

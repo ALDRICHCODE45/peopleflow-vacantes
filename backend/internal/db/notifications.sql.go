@@ -12,6 +12,120 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimNextNotificationEvent = `-- name: ClaimNextNotificationEvent :one
+SELECT id, company_id, event_type, actor_user_id, job_id, participation_id, subject_user_id, payload, occurred_at
+FROM notification_events
+WHERE processed_at IS NULL
+  AND NOT (id = ANY ($1::uuid[]))
+ORDER BY occurred_at, id
+LIMIT 1
+FOR UPDATE SKIP LOCKED
+`
+
+type ClaimNextNotificationEventRow struct {
+	ID              uuid.UUID          `json:"id"`
+	CompanyID       uuid.UUID          `json:"company_id"`
+	EventType       string             `json:"event_type"`
+	ActorUserID     pgtype.UUID        `json:"actor_user_id"`
+	JobID           uuid.UUID          `json:"job_id"`
+	ParticipationID pgtype.UUID        `json:"participation_id"`
+	SubjectUserID   pgtype.UUID        `json:"subject_user_id"`
+	Payload         []byte             `json:"payload"`
+	OccurredAt      pgtype.Timestamptz `json:"occurred_at"`
+}
+
+// Fan-out claim (notifications-v1 D4): the oldest pending event not already
+// tried in this tick, locked for the caller's tx; other instances skip it.
+func (q *Queries) ClaimNextNotificationEvent(ctx context.Context, skip []uuid.UUID) (ClaimNextNotificationEventRow, error) {
+	row := q.db.QueryRow(ctx, claimNextNotificationEvent, skip)
+	var i ClaimNextNotificationEventRow
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.EventType,
+		&i.ActorUserID,
+		&i.JobID,
+		&i.ParticipationID,
+		&i.SubjectUserID,
+		&i.Payload,
+		&i.OccurredAt,
+	)
+	return i, err
+}
+
+const getNotificationParticipationCandidate = `-- name: GetNotificationParticipationCandidate :one
+SELECT candidate_id
+FROM process_participations
+WHERE id = $1::uuid AND process_id = $2::uuid
+`
+
+type GetNotificationParticipationCandidateParams struct {
+	ParticipationID uuid.UUID `json:"participation_id"`
+	JobID           uuid.UUID `json:"job_id"`
+}
+
+// Relation candidate: the account behind an organic participation of the job;
+// NULL for a manual candidate (no account).
+func (q *Queries) GetNotificationParticipationCandidate(ctx context.Context, arg GetNotificationParticipationCandidateParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getNotificationParticipationCandidate, arg.ParticipationID, arg.JobID)
+	var candidate_id pgtype.UUID
+	err := row.Scan(&candidate_id)
+	return candidate_id, err
+}
+
+const insertNotification = `-- name: InsertNotification :exec
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    $5::uuid,
+    $6::text,
+    $7::text,
+    $8::uuid,
+    $9::uuid,
+    $10::uuid,
+    $11::uuid,
+    $12::jsonb
+)
+ON CONFLICT (recipient_user_id, source_event_id, type) WHERE source_event_id IS NOT NULL DO NOTHING
+`
+
+type InsertNotificationParams struct {
+	ID              uuid.UUID   `json:"id"`
+	RecipientUserID uuid.UUID   `json:"recipient_user_id"`
+	RecipientKind   string      `json:"recipient_kind"`
+	RecipientReason string      `json:"recipient_reason"`
+	CompanyID       pgtype.UUID `json:"company_id"`
+	Type            string      `json:"type"`
+	GroupKey        string      `json:"group_key"`
+	JobID           uuid.UUID   `json:"job_id"`
+	ParticipationID pgtype.UUID `json:"participation_id"`
+	ActorUserID     pgtype.UUID `json:"actor_user_id"`
+	SourceEventID   uuid.UUID   `json:"source_event_id"`
+	Payload         []byte      `json:"payload"`
+}
+
+// Immediate notification (D21): a re-processed event inserts nothing twice.
+func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) error {
+	_, err := q.db.Exec(ctx, insertNotification,
+		arg.ID,
+		arg.RecipientUserID,
+		arg.RecipientKind,
+		arg.RecipientReason,
+		arg.CompanyID,
+		arg.Type,
+		arg.GroupKey,
+		arg.JobID,
+		arg.ParticipationID,
+		arg.ActorUserID,
+		arg.SourceEventID,
+		arg.Payload,
+	)
+	return err
+}
+
 const insertNotificationEvent = `-- name: InsertNotificationEvent :exec
 INSERT INTO notification_events (id, audit_event_id, company_id, event_type, actor_user_id, job_id, participation_id, subject_user_id, payload)
 VALUES (
@@ -58,6 +172,107 @@ func (q *Queries) InsertNotificationEvent(ctx context.Context, arg InsertNotific
 	return err
 }
 
+const isNotificationActiveAssignee = `-- name: IsNotificationActiveAssignee :one
+SELECT EXISTS (
+    SELECT 1
+    FROM vacancy_assignments va
+    JOIN company_members cm ON cm.user_id = va.user_id AND cm.company_id = $1::uuid
+    JOIN companies c ON c.id = cm.company_id AND c.deleted_at IS NULL
+    WHERE va.draft_id = $2::uuid
+      AND va.user_id = $3::uuid
+      AND va.ended_at IS NULL
+      AND cm.role <> 'stakeholder'
+)::boolean AS active
+`
+
+type IsNotificationActiveAssigneeParams struct {
+	CompanyID uuid.UUID `json:"company_id"`
+	JobID     uuid.UUID `json:"job_id"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+// Relation assignee: the user still holds an active assignment on the job and
+// is a non-stakeholder member of the company, company not deleted.
+func (q *Queries) IsNotificationActiveAssignee(ctx context.Context, arg IsNotificationActiveAssigneeParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isNotificationActiveAssignee, arg.CompanyID, arg.JobID, arg.UserID)
+	var active bool
+	err := row.Scan(&active)
+	return active, err
+}
+
+const isNotificationCompanyMember = `-- name: IsNotificationCompanyMember :one
+SELECT EXISTS (
+    SELECT 1
+    FROM company_members cm
+    JOIN companies c ON c.id = cm.company_id AND c.deleted_at IS NULL
+    WHERE cm.company_id = $1::uuid
+      AND cm.user_id = $2::uuid
+      AND cm.role <> 'stakeholder'
+)::boolean AS member
+`
+
+type IsNotificationCompanyMemberParams struct {
+	CompanyID uuid.UUID `json:"company_id"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+// Relation previous_assignee: still a non-stakeholder member of the company,
+// company not deleted (no assignment required, D10).
+func (q *Queries) IsNotificationCompanyMember(ctx context.Context, arg IsNotificationCompanyMemberParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isNotificationCompanyMember, arg.CompanyID, arg.UserID)
+	var member bool
+	err := row.Scan(&member)
+	return member, err
+}
+
+const listNotificationTeamRecipients = `-- name: ListNotificationTeamRecipients :many
+SELECT DISTINCT va.user_id
+FROM vacancy_assignments va
+JOIN company_members cm ON cm.user_id = va.user_id AND cm.company_id = $1::uuid
+JOIN companies c ON c.id = cm.company_id AND c.deleted_at IS NULL
+WHERE va.draft_id = $2::uuid
+  AND va.ended_at IS NULL
+  AND cm.role <> 'stakeholder'
+ORDER BY va.user_id
+`
+
+type ListNotificationTeamRecipientsParams struct {
+	CompanyID uuid.UUID `json:"company_id"`
+	JobID     uuid.UUID `json:"job_id"`
+}
+
+// Relation team (§Recipients): users with an active assignment on the job who
+// are still non-stakeholder members of the event's company, company not deleted.
+func (q *Queries) ListNotificationTeamRecipients(ctx context.Context, arg ListNotificationTeamRecipientsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listNotificationTeamRecipients, arg.CompanyID, arg.JobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markNotificationEventProcessed = `-- name: MarkNotificationEventProcessed :exec
+UPDATE notification_events SET processed_at = now()
+WHERE id = $1::uuid AND processed_at IS NULL
+`
+
+func (q *Queries) MarkNotificationEventProcessed(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markNotificationEventProcessed, id)
+	return err
+}
+
 const participationHasCandidateMessage = `-- name: ParticipationHasCandidateMessage :one
 SELECT (candidate_message IS NOT NULL)::boolean AS has_message
 FROM process_participations
@@ -71,4 +286,32 @@ func (q *Queries) ParticipationHasCandidateMessage(ctx context.Context, id uuid.
 	var has_message bool
 	err := row.Scan(&has_message)
 	return has_message, err
+}
+
+const recordNotificationEventFailure = `-- name: RecordNotificationEventFailure :one
+UPDATE notification_events
+SET attempts = attempts + 1,
+    failed = attempts + 1 >= $1::integer,
+    processed_at = CASE WHEN attempts + 1 >= $1::integer THEN now() END
+WHERE id = $2::uuid AND processed_at IS NULL
+RETURNING attempts, failed
+`
+
+type RecordNotificationEventFailureParams struct {
+	MaxAttempts int32     `json:"max_attempts"`
+	ID          uuid.UUID `json:"id"`
+}
+
+type RecordNotificationEventFailureRow struct {
+	Attempts int32 `json:"attempts"`
+	Failed   bool  `json:"failed"`
+}
+
+// One failed attempt, in its own tx after the processing tx rolled back; at
+// max_attempts the event is given up (failed, processed).
+func (q *Queries) RecordNotificationEventFailure(ctx context.Context, arg RecordNotificationEventFailureParams) (RecordNotificationEventFailureRow, error) {
+	row := q.db.QueryRow(ctx, recordNotificationEventFailure, arg.MaxAttempts, arg.ID)
+	var i RecordNotificationEventFailureRow
+	err := row.Scan(&i.Attempts, &i.Failed)
+	return i, err
 }
