@@ -55,7 +55,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — done: a9e48d8a and the 4 commits before it; reviewed and verified (L16)
 - T6 — N5: read/unread/read-all + facets (D15–D17, D26) — done: 89a63897 and the 3 commits before it (L18)
 - T7 — N6: candidate route tree (D18) — done: f55e92e8 + 2581d042 and the commits before; reviewed and verified (L21)
-- T8 — N7: `cmd/notifications-purge` (D22) — done by worker, uncommitted (L20)
+- T8 — N7: `cmd/notifications-purge` (D22) — done: 69b8e482 385b9733 5efd0b88; reviewed and verified (L23)
 - Slice boundary: T1 (contract docs, ~720 lines, 5 commits) is its own review slice.
 
 ## Log
@@ -402,3 +402,9 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   them on the run after their last notification expires (normally same day, same tx clock). Follow-ups: operator doc
   backend/docs/notifications-retention.md like audit-retention.md; schedule the purge in deploy; optional index on
   notifications(source_event_id).
+- **L23** 2026-11-26, N7 closed; stage-1 backend complete (N1–N7). Native review `review-bb26f16583b1d7fb` approved
+  (suggestions only: partial counts not printed on failed -execute, unindexed anti-join, dry-run forecast under locks,
+  DSN connect_timeout overridden, cancellation/SKIP LOCKED untested). Independent verify: deletion scope, command behaviour,
+  audit-purge parity all pass; integration 9/0/0, sqlc clean. Stale "becomes NULL" comment fixed in 00068 and contract.
+  Parent final checks: unit 128 packages ok, go vet ok. Pending human decisions: push/PR of feat/notifications-backend
+  (contract + N1..N7 slices) and merge to main. Open follow-ups: see L9–L22.

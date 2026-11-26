@@ -49,7 +49,7 @@ CREATE TABLE notifications (
     CHECK ((source_event_id IS NULL) = (type IN ('delivery_due_soon','delivery_overdue','assignment_deadline_due_soon','assignment_deadline_overdue'))),
     CHECK ((commitment_date IS NULL) <> (type IN ('delivery_due_soon','delivery_overdue','assignment_deadline_due_soon','assignment_deadline_overdue')))
 );
--- Dedupe (D21). source_event_id becomes NULL only after the event is purged, after the notification's own retention.
+-- Dedupe (D21). source_event_id is never set to NULL: the purge keeps an event while any notification references it (the CHECK forbids NULL on immediate types).
 CREATE UNIQUE INDEX notifications_dedupe_immediate ON notifications (recipient_user_id, source_event_id, type)
     WHERE source_event_id IS NOT NULL;
 CREATE UNIQUE INDEX notifications_dedupe_scheduled ON notifications (recipient_user_id, type, job_id, commitment_date)
