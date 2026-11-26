@@ -115,3 +115,15 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   Frontend asked for: server-side groups (group_key per job per local day for applications/psychometrics, count, sample,
   latest_at), unread_count of groups, group read/unread (undo exact), urgency + kind per item, attention outside
   pagination, facets per type/job, stage-3-ready per-role resolver, candidate scope. Contract notifications-v1.md next.
+- **L10** (2026-11-26) Frontend review of backend contract `docs/contracts/notifications-v1.md` (73355dc3, worktree
+  peopleflow-vacantes-notif), approved by the user and sent: OK to shapes with fixes (14 types not 11; attention in
+  §GET B includes assignment_deadline_*; attention overflow beyond 20 falls back into items) and asks (from_user /
+  to_user names resolved at read time; confirm /v2/me/applications item id == participation_id or add application_id
+  to the link; enumerate reassignment reason values). Link mapping: vacancy / vacancy_candidates →
+  /empresa/vacantes/[jobId]/pipeline; participation → same + ?candidato=<pid> (new board param, T3);
+  vacancy_delivery → /empresa/vacantes/[jobId]/configuracion/entrega; application →
+  /candidato/postulaciones?postulacion=<id>; assessment → /candidato/evaluaciones/[invitation_id]. Copy for new types:
+  vacancy_unassigned «Ya no eres responsable de {vacante}» / «{actor} reasignó la vacante a {to_user}. Motivo:
+  {motivo}.»; assignment_deadline_due_soon «Tu fecha límite en {vacante} es {hoy|mañana}» / «Como {función}, tu
+  entrega vence el {fecha}.»; assignment_deadline_overdue «Venció tu fecha límite en {vacante}» / «Tu entrega como
+  {función} era el {fecha}.» Side finding: stage-config/editor.tsx:100 links to /empresa/vacantes/${draftId} (no page).
