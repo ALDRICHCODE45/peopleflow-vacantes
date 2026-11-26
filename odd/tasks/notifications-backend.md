@@ -49,7 +49,14 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 ## Tasks
 
 - T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6), frontend approved (L7)
-- T2+ — implementation slices from the contract — pending
+- T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — worker — pending
+- T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — pending
+- T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — pending
+- T5 — N4: member read API + unread-count (D13, D14, D19, D27) — pending
+- T6 — N5: read/unread/read-all + facets (D15–D17, D26) — pending
+- T7 — N6: candidate route tree (D18) — pending
+- T8 — N7: `cmd/notifications-purge` (D22) — pending
+- Slice boundary: T1 (contract docs, ~720 lines, 5 commits) is its own review slice.
 
 ## Log
 
