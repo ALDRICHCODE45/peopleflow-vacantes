@@ -239,3 +239,21 @@
     animation: none;
   }
 }
+/* Editor-only completion slots sit on any section surface (brand, image scrim, tint):
+   they always use the page's own card and ink so their dashed outline, icon tile and
+   copy stay visible, never the surface they sit on. */
+.site [data-editor-placeholder] {
+  /* «Completar sección» is an editor action: editor ink, never the company brand. */
+  --primary: var(--editor-primary);
+  --primary-foreground: var(--editor-primary-foreground);
+  --card: var(--site-card-light, #FFFFFF);
+  --card-foreground: var(--site-foreground-light, #1A1626);
+  --foreground: var(--site-foreground-light, #1A1626);
+  --muted-foreground: var(--site-secondary-light, #6B6480);
+}
+:global(.dark) .site [data-editor-placeholder] {
+  --card: var(--site-card-dark, #15121F);
+  --card-foreground: var(--site-foreground-dark, #F6F2FF);
+  --foreground: var(--site-foreground-dark, #F6F2FF);
+  --muted-foreground: var(--site-secondary-dark, #A79FBF);
+}
