@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  bellBadge, bellLabel, dayKey, dayLabel, describeNotification, inboxSummary, notificationTarget, participationHref, sampleToggleLabel,
+  activeFiltersLabel, bellBadge, bellLabel, dayKey, dayLabel, describeNotification, FILTER_GROUPS, filterGroupCount, filterSummary,
+  filterTypes, inboxSummary, jobsShownNote, jobTitle, markedAllStatus, noResultsDescription, notificationTarget, participationHref,
+  sampleToggleLabel, showResultsLabel,
 } from "./copy";
 import { NOTIFICATION_TYPES, type NotificationGroup } from "./model";
 import { anaParticipation, applicationsGroup, carmenId, jobId, luisParticipation, olgaId, overdueGroup, reassignedGroup } from "./test-fixtures";
@@ -254,5 +256,62 @@ describe("bell and summary", () => {
     expect(sampleToggleLabel({ count: 2, shown: 2 }, false)).toBe("Ver los 2");
     expect(sampleToggleLabel({ count: 5, shown: 3 }, false)).toBe("Ver los últimos 3");
     expect(sampleToggleLabel({ count: 5, shown: 3 }, true)).toBe("Ocultar");
+  });
+});
+
+describe("filters (T3.5, design 07)", () => {
+  it("maps the four type groups to the backend types", () => {
+    expect(FILTER_GROUPS.map(g => g.label)).toEqual(["Postulaciones", "Entregas", "Vacantes y equipo", "Pruebas"]);
+    expect(filterTypes(["deliveries"])).toEqual(["delivery_due_soon", "delivery_overdue", "assignment_deadline_due_soon", "assignment_deadline_overdue"]);
+    expect(filterTypes(["applications", "tests"])).toEqual(["application_received", "psychometric_completed", "psychometric_pending"]);
+    expect(filterTypes(["team"])).toEqual(["vacancy_assigned", "vacancy_reassigned", "vacancy_unassigned", "vacancy_team_added"]);
+    expect(filterTypes([])).toEqual([]);
+  });
+
+  it("sums the facet counts of a group, ignoring types outside it", () => {
+    const types = [{ type: "delivery_overdue", count: 2 }, { type: "assignment_deadline_due_soon", count: 1 }, { type: "application_received", count: 4 }, { type: "future_type", count: 9 }];
+    expect(filterGroupCount(types, "deliveries")).toBe(3);
+    expect(filterGroupCount(types, "applications")).toBe(4);
+    expect(filterGroupCount(types, "tests")).toBe(0);
+  });
+
+  it("names an untitled vacancy", () => {
+    expect(jobTitle("Analista de Nómina")).toBe("Analista de Nómina");
+    expect(jobTitle(null)).toBe("Vacante sin título");
+    expect(jobTitle("  ")).toBe("Vacante sin título");
+  });
+
+  it("summarises the active filters in one line", () => {
+    expect(filterSummary(["applications"], [{ id: jobId, title: "Analista de Nómina" }])).toBe("Postulaciones · Analista de Nómina");
+    expect(filterSummary(["deliveries", "tests"], [{ id: "a", title: "A" }, { id: "b", title: null }])).toBe("2 tipos · 2 vacantes");
+    expect(filterSummary([], [{ id: "b", title: null }])).toBe("Vacante sin título");
+    expect(filterSummary(["team"], [])).toBe("Vacantes y equipo");
+    expect(filterSummary([], [])).toBe("");
+  });
+
+  it("counts the active filters for screen readers", () => {
+    expect(activeFiltersLabel(1)).toBe(", 1 filtro activo");
+    expect(activeFiltersLabel(3)).toBe(", 3 filtros activos");
+  });
+
+  it("labels the popover's results button", () => {
+    expect(showResultsLabel(1)).toBe("Ver 1 notificación");
+    expect(showResultsLabel(4)).toBe("Ver 4 notificaciones");
+    expect(showResultsLabel(0)).toBe("Ver 0 notificaciones");
+    expect(showResultsLabel(null)).toBe("Ver notificaciones");
+  });
+
+  it("says when the vacancy list is cut", () => {
+    expect(jobsShownNote(50, 63)).toBe("Mostrando 50 de 63 vacantes");
+  });
+
+  it("explains an empty filtered result", () => {
+    expect(noResultsDescription("Pruebas · Ejecutivo", "unread")).toBe("Ninguna notificación sin leer coincide con Pruebas · Ejecutivo. Los filtros se conservan para que ajustes uno.");
+    expect(noResultsDescription("Pruebas", "all")).toBe("Ninguna notificación coincide con Pruebas. Los filtros se conservan para que ajustes uno.");
+  });
+
+  it("reports a read-all", () => {
+    expect(markedAllStatus(1)).toBe("1 marcada como leída");
+    expect(markedAllStatus(7)).toBe("7 marcadas como leídas");
   });
 });

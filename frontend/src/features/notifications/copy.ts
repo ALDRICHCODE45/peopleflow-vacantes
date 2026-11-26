@@ -1,4 +1,4 @@
-import type { NotificationGroup, NotificationLink } from "./model";
+import type { NotificationGroup, NotificationLink, NotificationState, NotificationType } from "./model";
 
 /**
  * Wording, icons and links for the company inbox (design 07, contract notifications-v1). Pure: the backend stores
@@ -217,3 +217,53 @@ export function sampleToggleLabel({ count, shown }: { count: number; shown: numb
   if (open) return "Ocultar";
   return count > shown ? `Ver los últimos ${shown}` : `Ver los ${shown}`;
 }
+
+/** Type groups of the «Filtrar» popover (design 07); an empty selection means every type («Todos»). */
+export const FILTER_GROUPS = [
+  { key: "applications", label: "Postulaciones", types: ["application_received"] },
+  { key: "deliveries", label: "Entregas", types: ["delivery_due_soon", "delivery_overdue", "assignment_deadline_due_soon", "assignment_deadline_overdue"] },
+  { key: "team", label: "Vacantes y equipo", types: ["vacancy_assigned", "vacancy_reassigned", "vacancy_unassigned", "vacancy_team_added"] },
+  { key: "tests", label: "Pruebas", types: ["psychometric_completed", "psychometric_pending"] },
+] as const satisfies readonly { key: string; label: string; types: readonly NotificationType[] }[];
+export type FilterGroupKey = (typeof FILTER_GROUPS)[number]["key"];
+export type FilterJob = { id: string; title: string | null };
+/** Backend cap on `job_ids` per request. */
+export const MAX_FILTER_JOBS = 20;
+
+const filterGroup = (key: FilterGroupKey) => FILTER_GROUPS.find(group => group.key === key)!;
+
+/** Backend `types` for the selected groups, in popover order. */
+export const filterTypes = (keys: readonly FilterGroupKey[]): NotificationType[] =>
+  FILTER_GROUPS.filter(group => keys.includes(group.key)).flatMap(group => [...group.types]);
+
+/** Facet count of a group: the sum of its types' counts. */
+export function filterGroupCount(types: readonly { type: string; count: number }[], key: FilterGroupKey): number {
+  const members: readonly string[] = filterGroup(key).types;
+  return types.reduce((sum, facet) => members.includes(facet.type) ? sum + facet.count : sum, 0);
+}
+
+export const jobTitle = (title: string | null) => title?.trim() ? title.trim() : "Vacante sin título";
+
+/** One-line summary under the tabs: «Postulaciones · Analista de Nómina» or «2 tipos · 2 vacantes». */
+export function filterSummary(groups: readonly FilterGroupKey[], jobs: readonly FilterJob[]): string {
+  const parts: string[] = [];
+  if (groups.length) parts.push(groups.length === 1 ? filterGroup(groups[0]).label : `${groups.length} tipos`);
+  if (jobs.length) parts.push(jobs.length === 1 ? jobTitle(jobs[0].title) : `${jobs.length} vacantes`);
+  return parts.join(" · ");
+}
+
+export const activeFiltersLabel = (n: number) => `, ${n} ${n === 1 ? "filtro activo" : "filtros activos"}`;
+
+/** Popover footer button; `null` when the number of results is not known. */
+export function showResultsLabel(n: number | null): string {
+  if (n === null) return "Ver notificaciones";
+  return `Ver ${n} ${n === 1 ? "notificación" : "notificaciones"}`;
+}
+
+export const jobsShownNote = (shown: number, total: number) => `Mostrando ${shown} de ${total} vacantes`;
+
+export const noResultsDescription = (summary: string, tab: NotificationState) =>
+  `Ninguna notificación${tab === "unread" ? " sin leer" : ""} coincide con ${summary}. Los filtros se conservan para que ajustes uno.`;
+
+/** Status after «Marcar todo como leído»; N = affected notifications. */
+export const markedAllStatus = (n: number) => n === 1 ? "1 marcada como leída" : `${n} marcadas como leídas`;

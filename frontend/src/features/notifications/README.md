@@ -45,3 +45,18 @@ Failure reasons for writes:
 - 413 `payload_too_large` and 400 `invalid_request` → `unrecognized_response`: a locally validated body stays far below
   the 64 KiB cap and only carries contract keys, so either answer is a contract break, not a user error.
 - 401 → `unauthenticated`, 403 → `forbidden`, 5xx → `server_error`, network/timeout → `no_response`, as for reads.
+
+## UI (`ui/`, `copy.ts`)
+
+- `NotificationBell` sits in the company `SiteHeader` right slot, before the theme toggle; it polls `useUnreadCount()`
+  and opens the inbox sheet (design 07 on the 02 sheet base). Every page read or mark pushes `unread_count` into it.
+- `notification-inbox.tsx` wires tabs («No leídas» default, «Todas»), the pinned «Requiere atención» section (first page
+  only), day sections in America/Mexico_City, «Cargar más» (cursor; `invalid_cursor` reloads page 1) and the states.
+- Marks (`use-inbox-marks.ts`): «Marcar como leída» marks one group and keeps the row visible as read until the tab,
+  filters or sheet change; opening a row marks its group without delaying navigation; «Marcar todo como leído» sends the
+  active filters and `before` = the newest `latest_at` shown (server clock; browser time only for an empty list), then
+  offers «Deshacer» through `markUnreadAction({markedAt})`.
+- «Filtrar» (`inbox-filter.tsx`): type groups and vacancies with counts from `getFacetsAction` for the current tab,
+  applied immediately, at most 20 vacancies. Filter tests use `ui/test-popover.tsx` because the real Base UI popover
+  hangs `user.click` in jsdom (same convention as audit-log).
+- `copy.ts` is the only place with wording and links per type (contract D24); unknown types read «Nueva notificación».

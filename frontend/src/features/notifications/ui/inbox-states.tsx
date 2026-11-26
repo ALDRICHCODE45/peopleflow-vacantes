@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import { CheckCheck, CircleAlert, Inbox, RefreshCw, type LucideIcon } from "lucide-react";
+import { CheckCheck, CircleAlert, FunnelX, Inbox, RefreshCw, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Inbox states of design 07 (`ntSkeleton`, `stEmptyUnread`, `stFirstUse`, `stError`). */
+/** Inbox states of design 07 (`ntSkeleton`, `stEmptyUnread`, `stFirstUse`, `stError`, `stNoResults`). */
 
 export function InboxSkeleton() {
   return <div aria-busy="true">
@@ -46,5 +46,12 @@ export function InboxFirstUse() {
 export function InboxError({ onRetry }: { onRetry: () => void }) {
   return <State alert icon={CircleAlert} tone="bg-destructive/10 text-status-danger" title="No pudimos cargar tus notificaciones." description="Revisa tu conexión e inténtalo de nuevo.">
     <Button type="button" variant="outline" className="min-h-10" onClick={onRetry}><RefreshCw aria-hidden="true" data-icon="inline-start" />Reintentar</Button>
+  </State>;
+}
+
+/** Filters with no match: they stay, are named, and can be cleared. */
+export function InboxNoResults({ description, onClear }: { description: string; onClear: () => void }) {
+  return <State icon={FunnelX} tone="bg-muted text-muted-foreground" title="Sin resultados" description={description}>
+    <Button type="button" variant="outline" className="min-h-10" onClick={onClear}>Limpiar filtros</Button>
   </State>;
 }

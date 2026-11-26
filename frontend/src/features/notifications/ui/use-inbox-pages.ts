@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listNotificationsAction } from "../actions";
-import type { NotificationGroup, NotificationListResult, NotificationState } from "../model";
+import type { NotificationGroup, NotificationListResult, NotificationState, NotificationType } from "../model";
 
 export type InboxPages = {
   /** Pinned deadline items; only the first page carries them (L12). */
@@ -10,49 +10,72 @@ export type InboxPages = {
   items: NotificationGroup[];
   nextCursor: string | null;
   unread: number;
+  /** When the first page was requested: the server view the user sees, `before` of «Marcar todo como leído». */
+  loadedAt: string;
 };
 export type InboxView =
   | { status: "loading" }
   | { status: "error" }
   | { status: "ready"; pages: InboxPages; more: "idle" | "loading" | "error" };
+export type InboxFilters = { types: readonly NotificationType[]; jobIds: readonly string[] };
 
-type Entry = { key: string; pages: InboxPages | null; more: "idle" | "loading" | "error" };
+type Entry = { key: string; attempt: number; pages: InboxPages | null; more: "idle" | "loading" | "error" };
 const noResponse: NotificationListResult = { ok: false, reason: "no_response", reference: {} };
-const emptyPages: InboxPages = { attention: [], attentionTotal: 0, items: [], nextCursor: null, unread: 0 };
 
 async function read(query: Parameters<typeof listNotificationsAction>[0]): Promise<NotificationListResult> {
   try { return await listNotificationsAction(query); } catch { return noResponse; }
 }
 
+/** List query; empty filters are left out, never sent. */
+function queryOf(state: NotificationState, filters: InboxFilters, cursor?: string) {
+  return {
+    state,
+    ...(filters.types.length ? { types: [...filters.types] } : {}),
+    ...(filters.jobIds.length ? { jobIds: [...filters.jobIds] } : {}),
+    ...(cursor ? { cursor } : {}),
+  };
+}
+
 /**
- * Grouped inbox for one tab: first page on mount (and on every `state` change or retry), then cursor pages appended.
- * A cursor the API no longer accepts (`invalid_cursor`) reloads from the first page. Every successful page reports its
- * `unread_count` so the bell stays in step. A `forbidden` read (a user with no company yet, on the invitation and
- * account frames that share the company header) is an empty inbox, not an error: there is nothing to retry.
+ * Grouped inbox for one tab and filter set: first page on mount (and on every tab or filter change, retry or reload),
+ * then cursor pages appended. A cursor the API no longer accepts (`invalid_cursor`) reloads from the first page. Every
+ * successful page reports its `unread_count` so the bell stays in step. A `forbidden` read (a user with no company yet,
+ * on the invitation and account frames that share the company header) is an empty inbox, not an error. `reload` keeps
+ * the current list on screen until the fresh first page arrives; `markLocal` shows a group as read in place.
  */
-export function useInboxPages(state: NotificationState, onUnreadCount: (unread: number) => void) {
+export function useInboxPages(state: NotificationState, filters: InboxFilters, onUnreadCount: (unread: number) => void) {
   const [attempt, setAttempt] = useState(0);
   const [entry, setEntry] = useState<Entry | null>(null);
-  const key = `${state}#${attempt}`;
-  const latest = useRef({ key, entry, onUnreadCount });
-  useEffect(() => { latest.current = { key, entry, onUnreadCount }; });
+  const key = JSON.stringify([state, filters.types, filters.jobIds]);
+  const latest = useRef({ key, entry, filters, onUnreadCount });
+  useEffect(() => { latest.current = { key, entry, filters, onUnreadCount }; });
 
   useEffect(() => {
     let current = true;
-    void read({ state }).then(result => {
+    const loadedAt = new Date().toISOString();
+    void read(queryOf(state, latest.current.filters)).then(result => {
       if (!current) return;
-      if (!result.ok) { setEntry({ key, pages: result.reason === "forbidden" ? emptyPages : null, more: "idle" }); return; }
+      if (!result.ok) {
+        const pages = result.reason === "forbidden"
+          ? { attention: [], attentionTotal: 0, items: [], nextCursor: null, unread: 0, loadedAt } : null;
+        setEntry({ key, attempt, pages, more: "idle" });
+        return;
+      }
       latest.current.onUnreadCount(result.data.unread_count);
+      // read-all's `before` uses the server clock: the newest activity the user was shown (browser time only when empty).
+      const shown = [...(result.data.attention ?? []), ...result.data.items]
+        .reduce<string | undefined>((max, group) => (!max || Date.parse(group.latest_at) > Date.parse(max) ? group.latest_at : max), undefined);
       setEntry({
-        key, more: "idle",
+        key, attempt, more: "idle",
         pages: {
           attention: result.data.attention ?? [], attentionTotal: result.data.attention_total ?? 0,
           items: result.data.items, nextCursor: result.data.next_cursor, unread: result.data.unread_count,
+          loadedAt: shown ?? loadedAt,
         },
       });
     });
     return () => { current = false; };
-  }, [state, key]);
+  }, [state, key, attempt]);
 
   const retry = useCallback(() => setAttempt(value => value + 1), []);
 
@@ -62,7 +85,7 @@ export function useInboxPages(state: NotificationState, onUnreadCount: (unread: 
     const owner = at.key;
     const sameOwner = (fn: (e: Entry) => Entry) => setEntry(e => e?.key === owner ? fn(e) : e);
     sameOwner(e => ({ ...e, more: "loading" }));
-    const result = await read({ state, cursor: at.pages.nextCursor });
+    const result = await read(queryOf(state, latest.current.filters, at.pages.nextCursor));
     if (latest.current.key !== owner) return;
     if (!result.ok) {
       if (result.reason === "invalid_cursor") retry();
@@ -84,9 +107,15 @@ export function useInboxPages(state: NotificationState, onUnreadCount: (unread: 
     });
   }, [state, retry]);
 
+  /** Shows `groupKey` as read where it is (it stays listed until the sheet closes) and takes the fresh count. */
+  const markLocal = useCallback((groupKey: string, unread: number) => {
+    const asRead = (group: NotificationGroup) => group.group_key === groupKey ? { ...group, read: true, unread_count: 0 } : group;
+    setEntry(e => e?.pages ? { ...e, pages: { ...e.pages, attention: e.pages.attention.map(asRead), items: e.pages.items.map(asRead), unread } } : e);
+  }, []);
+
   const current = entry?.key === key ? entry : null;
-  const view: InboxView = current === null ? { status: "loading" }
+  const view: InboxView = current === null || (current.pages === null && current.attempt !== attempt) ? { status: "loading" }
     : current.pages === null ? { status: "error" }
     : { status: "ready", pages: current.pages, more: current.more };
-  return { view, retry, loadMore };
+  return { view, retry, reload: retry, loadMore, markLocal };
 }
