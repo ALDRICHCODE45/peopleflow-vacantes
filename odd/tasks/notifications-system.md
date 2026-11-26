@@ -147,3 +147,12 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   attention_total are null; invalid filter → 400 invalid_filter with fields[] reasons invalid|too_many|duplicate;
   mismatched cursor → 400 invalid_cursor. Reference payload: backend test
   TestNotificationsRead_GroupedListShapesAndUnreadCount. Next: N5 (read/unread/read-all, facets), N6 (candidate), N7.
+- **L13** (2026-11-26) Backend N5 ready locally (feat/notifications-backend 89a63897, not in main): POST
+  /v2/me/company/notifications/read and …/unread with exactly one of {group_keys} (≤100), {ids} (≤200) or (unread only)
+  {marked_at}; response {affected_notifications, affected_groups, marked_at, unread_count, unread_notifications};
+  «Deshacer» = POST …/unread {marked_at} (reverts exactly that batch). POST …/read-all {types?, job_ids?, before?}
+  (before defaults to now, includes attention, empty body ok, empty arrays → 400), same response. GET
+  …/facets?state=unread|all (default unread, ignores other filters) → {state, types[{type,count}] count DESC,
+  jobs[{job_id,title|null,count}] by title with untitled last, ≤50, jobs_total}. Foreign ids/group keys → 200 with 0
+  affected; unread never touches resolved rows. Validation fields[] codes: required, invalid, not_allowed, empty,
+  too_many; body cap 64 KiB. T3.5 unblocked. Next backend: N6 (candidate routes).
