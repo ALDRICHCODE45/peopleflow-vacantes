@@ -61,7 +61,7 @@ Three slices, ordered by risk; each one is independently shippable.
   or E.164 phone) for the team to resolve; notification → a «Nuevos desde el sitio» counter + origin filter in Base de
   talento AND an email to the owner. Retention (user, 2026-11-26): «Hasta que el equipo los borre» — no automatic deletion;
   the person can ask for deletion. Owner email: POSTPONED by the user until a full notification system is designed (see
-  odd/tasks/notifications-system-idea.md); slice C ships with the in-app counter + origin filter only.
+  odd/tasks/notifications-system.md); slice C ships with the in-app counter + origin filter only.
 
 ## Backend session adjustments to slice A (2026-11-25, accepted)
 
