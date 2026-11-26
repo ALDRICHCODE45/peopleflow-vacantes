@@ -32,7 +32,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - T2 — E1 — migration 00069, domain defaults/effective preference/locked rule, `AND n.in_app` in the scoped inbox statements + guard test — worker — done (uncommitted, L7)
 - T3 — E2 — preferences store + GET/PUT handlers for both trees, `notification_preference_locked`, routes — worker — done (uncommitted, L9)
 - T4 — E3 — in-app off at creation in fan-out and scheduler, `InsertNotification` → `:execrows` — worker — done (uncommitted, L11)
-- T5 — E4 — config loader, email eligibility, delivery creation with coalescing upsert in both creation paths — worker — pending
+- T5 — E4 — config loader, email eligibility, delivery creation with coalescing upsert in both creation paths — worker — done (uncommitted, L12)
 - T6 — E5 — `Mailer` port, `log`/`smtp` adapters, Mailpit in compose, templates with the S10 copy, headers, dates, path map — worker — pending
 - T7 — E6 — sender loop (claim/lease, re-check/skip, fenced finalize, backoff, throttle), start/stop in `main.go` — worker — pending
 - T8 — E7 — unsubscribe token, public GET/POST, per-IP limit, `unsubscribe_link_invalid` — worker — pending
@@ -226,3 +226,54 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   PKG=./cmd/api/ RUN='^TestNotifications'` ok (20 PASS), `make test PKG='./internal/features/notifications/... ./cmd/api/
   ./internal/tools/archguard/'` ok, `go tool sqlc diff` clean. The override read helper is duplicated (~25 lines) in
   `fanout/process.go` and `schedule/run.go` (each package owns its tx; domain stays DB-free).
+- **L12** 2026-11-26, T5/E4 implemented (uncommitted, worktree only). Config `internal/runtime/config/notifications_email.go`:
+  `NotificationsEmailConfig{Mailer}` (to be extended by E5–E7), `NOTIFICATIONS_MAILER` = `off` (default, also when
+  unset) | `log` | `smtp`; `ses` refused as reserved, anything else (case, padding included) refused; static messages, no
+  value echoed; `Enabled()` false for the zero value. `main.go` loads it after the other runtime configs, logs only the
+  mailer kind, and passes `Enabled()` to `newNotificationFanOut` / `newNotificationScheduler` →
+  `Processor.WithEmailDeliveries` / `Runner.WithEmailDeliveries` (off by default, so existing callers are unchanged). Only
+  `NOTIFICATIONS_MAILER` is loaded: the keys required when mailer ≠ off (`…_EMAIL_FROM`, `…_UNSUBSCRIBE_*`,
+  `APP_BASE_URL`, SMTP host/port, max-per-second) are left to the slices that consume them, so with `log`/`smtp` E4 only
+  queues `pending` deliveries (no sender until E6). Domain `domain/email.go`: `Coalesced(type)` = the three grouped types
+  (D10). New package `internal/features/notifications/emaildelivery` (`Create(ctx, q, rows)`, shared by both paths, no
+  address ever read): one email-channel override read (`ListNotificationPreferenceOverrides`, skipped when every type is
+  mandatory) → rows with the effective email preference on → one `ListNotificationEmailDeliverableUsers` (new: ids of
+  live users with non-empty address whose `lower(btrim(email))` is not in `email_suppressions`) → per eligible row in
+  order `UpsertCoalescedNotificationEmailDelivery` (contract SQL, `send_after = now() + 10 min`, conflict only bumps
+  `updated_at`, returns the open id) or `InsertImmediateNotificationEmailDelivery` (`send_after = now()`), then
+  `LinkNotificationEmailDelivery :execrows` (`… AND email_delivery_id IS NULL`, ≠ 1 row → error). Fan-out: inserted rows
+  are collected and `Create` runs after the insert loop, before the mark (new step `email`); scheduler: `insert` now
+  returns `(id, n, err)`, rows with `n == 1` are collected and `Create` runs before the resolve (step `email`). A failure
+  fails the event's / run's tx. Deviation (shape only): §Creation step 1 describes one combined read before the insert;
+  E3 already reads `in_app` before the inserts, and the email reads run after them, batched, for inserted rows only (a
+  fully deduplicated re-run reads nothing). RED observed: build failures (undefined `LoadNotificationsEmailConfig`,
+  `NotificationsMailer`, `Coalesced`, `WithEmailDeliveries`); then with no-op `WithEmailDeliveries` stubs, 7 integration
+  tests failed with zero deliveries (`TestFanOutEmailEligibilityAtCreation`, `…MandatoryEmailNeedsADeliverableAddress`,
+  `…CoalescesABurstIntoOneWindow`, `…WindowCloseRaceWithAConcurrentClaim`, `TestScheduleCreatesImmediateDeliveries`,
+  `…SuppressedAddressGetsNoDelivery`) while both mailer-off tests passed. GREEN, new tests: config table (off default,
+  log/smtp, ses reserved, case/padding/unknown refused, no value leaked, nil lookup, zero value off); domain coalesced set
+  and email-channel resolution (member operational off, candidate on Q1, mandatory on facing a row, other company
+  ignored); fan-out matrix (owner email on + in_app off → hidden row with a 10-min window delivery; recruiter default off
+  and on only in another company → none; candidate default on → immediate, kind candidate, company NULL, group = the row's
+  `n:<id>`; psychometric_pending default off → none), mailer off → none, mandatory `vacancy_reassigned` with an email-off
+  row (CHECK dropped) → immediate, suppressed normalized address (`'  Owner.Suppressed@Example.TEST '` vs
+  `owner.suppressed@example.test`) → none even mandatory, blank address → none while the in-app row exists, lifting the
+  suppression applies to the next event; burst of 3 → one pending delivery linking 3 rows, a 4th in a later tx joins it
+  with `send_after` unchanged, re-processing all 4 → deliveries identical and events processed with 0 attempts, after the
+  window leaves `pending` → a new pending delivery with the same group linking only the new row; race: a claim
+  (`pending → sending`) held in an open tx, a concurrent tick observed waiting on a `Lock` in `pg_stat_activity`, claim
+  committed → the tick inserts a second delivery (old stays `sending` with its rows), claim rolled back → the row joins
+  the open window. Scheduler: overdue → immediate deliveries for owner and recruiter (an email-off row on the mandatory
+  type ignored), due-soon only for the owner with email on and in_app off (hidden row mailed), stakeholder never, second
+  run `Result{}` with deliveries unchanged; suppressed owner → nothing even for `delivery_overdue`,
+  `assignment_deadline_due_soon` with email on → immediate; mailer off → none. Mutations (each restored byte-identical,
+  sqlc regenerated): deciding email for deduplicated rows fails the re-processing assertion (`attempts:1 processed:false`);
+  a sliding window (`send_after` bumped on conflict) fails the burst test; dropping the deliverability filter fails the
+  suppression/blank-address tests (fan-out and scheduler); dropping `n == 1` in the scheduler fails with `notification
+  not linkable to its email delivery`. Validation: `make test-integration PKG=./internal/features/notifications/...` ok
+  (6 packages, 92 top-level PASS, 0 FAIL, 0 SKIP), `make test-integration PKG=./cmd/api/ RUN='^TestNotifications'` ok
+  (20 PASS), `make test PKG='./internal/features/notifications/... ./internal/runtime/... ./cmd/api/
+  ./internal/tools/archguard/'` ok, `go tool sqlc diff` clean. Not covered: a soft-deleted user as recipient (not
+  tested; the deliverability query filters `deleted_at IS NULL`); the override read is now in three places (fan-out
+  and scheduler in_app, `emaildelivery` email). Scratch logs left in `backend/internal/features/notifications/.e4-logs/`
+  (untracked, to delete before committing).
