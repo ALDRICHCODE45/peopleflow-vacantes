@@ -81,3 +81,6 @@ longer be resolved; absent on member items); actor null, sample `[]`, attention 
   without sample sublists; rows name the company (subtitle or title, per type in `copy.ts`).
 - Contract Q4: marking `candidate_message_received` read does not mark the message read; that stays
   `PUT /v2/me/applications/{id}/message-read`, independent.
+- T4.3: candidate status rows carry the application status badge of design 04 («Enviada» info, «En proceso» review,
+  «Cerrada» neutral; same words as `applicationBadge`), shown only when the row has no urgency badge. The pending-test
+  due-date badge of design 04 is not built: the payload has no due date.

@@ -61,6 +61,20 @@ it("shows company, vacancy and destination per row, with candidate links", async
   expect(test).toHaveTextContent("Evaluación");
 });
 
+it("status rows show the application status badge of design 04 (T4.3)", async () => {
+  const statusGroup = (key: string, status: string) =>
+    candidateGroup({ group_key: key, latest: { id: key, created_at: "2026-11-26T18:00:00Z", actor: null, payload: { status } } });
+  m.listCandidateNotificationsAction.mockResolvedValue({ ok: true, data: candidatePage({ items: [
+    statusGroup("n:s1", "submitted"), statusGroup("n:s2", "in_process"), statusGroup("n:s3", "closed"), statusGroup("n:s4", "archived"),
+  ] }) });
+  const { dialog } = await openCandidateInbox();
+  const row = async (name: RegExp) => (await within(dialog).findByRole("link", { name })).closest("li")!;
+  expect(within(await row(/pasó a Enviada/)).getByText("Enviada", { selector: "[data-slot=badge]" })).toBeInTheDocument();
+  expect(within(await row(/pasó a En proceso/)).getByText("En proceso", { selector: "[data-slot=badge]" })).toBeInTheDocument();
+  expect(within(await row(/se cerró/)).getByText("Cerrada", { selector: "[data-slot=badge]" })).toBeInTheDocument();
+  expect((await row(/cambió de estado/)).querySelector("[data-slot=badge]")).toBeNull();
+});
+
 it("has no attention section, no sample sublist and no «Filtrar» (design 04)", async () => {
   // Even if a page carried them, the candidate inbox would not show them.
   m.listCandidateNotificationsAction.mockResolvedValue({ ok: true, data: candidatePage({

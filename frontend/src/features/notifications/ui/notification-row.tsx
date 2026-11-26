@@ -35,7 +35,7 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2)
 
 /**
  * One inbox row (design 07 `ntRow`): type tile, title (with «No leída.» for screen readers), subtitle and a meta line
- * with the urgency badge, relative time and destination. Rows without a link stay plain text. Grouped rows with a
+ * with the urgency badge (or a candidate status badge, design 04), relative time and destination. Rows without a link stay plain text. Grouped rows with a
  * sample expand to the candidates, each linking to its participation. Unread rows end with «Marcar como leída»;
  * following any of the row's links marks the group read first (`onOpen`, fire and forget) and closes the sheet.
  * Candidate rows never expand: the sample is a company-side list of candidates (L14: always empty there).
@@ -72,6 +72,8 @@ export function NotificationRow({ group, onNavigate, onOpen, onMark }: {
       {copy.subtitle && <span className="break-words text-muted-foreground">{copy.subtitle}</span>}
       <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         {copy.urgency && <Badge variant={copy.urgency.variant}>{copy.urgency.variant === "danger" ? <ClockAlert aria-hidden="true" /> : <Clock aria-hidden="true" />}{copy.urgency.label}</Badge>}
+        {/* Design 04 `urgentBadge`: the status badge (with dot) only when there is no urgency badge. */}
+        {!copy.urgency && copy.badge && <Badge variant={copy.badge.variant} dot>{copy.badge.label}</Badge>}
         <span>{relativeTime(group.latest_at)}</span>
         {target && <><span aria-hidden="true">·</span><span className="inline-flex items-center gap-0.5">{target.destination}<ChevronRight aria-hidden="true" className="size-3" /></span></>}
       </span>

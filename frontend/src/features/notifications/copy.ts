@@ -11,12 +11,16 @@ export type NotificationIcon =
   | "application" | "due-soon" | "overdue" | "assignment" | "team" | "psychometric-done" | "psychometric-pending"
   | "status" | "message" | "test" | "generic";
 export type NotificationUrgency = { label: string; variant: "danger" | "review" };
+/** Application status badge of a candidate row (design 04, T4.3); same words and paint as the applications list. */
+export type NotificationStatusBadge = { label: string; variant: "info" | "review" | "neutral" };
 export type NotificationCopy = {
   title: string;
   subtitle: string | null;
   icon: NotificationIcon;
   tone: NotificationTone;
   urgency: NotificationUrgency | null;
+  /** Present only on `candidate_status_changed` with a known status; company rows never carry it. */
+  badge?: NotificationStatusBadge;
 };
 export type NotificationTarget = { href: string; destination: string };
 
@@ -69,6 +73,16 @@ const REASONS: Record<string, string> = {
  * `features/candidate/dashboard/charts.tsx`); `closed` has its own sentence.
  */
 const CANDIDATE_STATUSES: Record<string, string> = { submitted: "Enviada", in_process: "En proceso" };
+/**
+ * Status badges of design 04 with the words and variants of `applicationBadge`
+ * (`features/candidate/saved/application-status.ts`). Design 04's «Vacante cerrada» needs the vacancy state, which the
+ * payload does not carry; `closed` is the application status, «Cerrada».
+ */
+const STATUS_BADGES: Record<string, NotificationStatusBadge> = {
+  submitted: { label: "Enviada", variant: "info" },
+  in_process: { label: "En proceso", variant: "review" },
+  closed: { label: "Cerrada", variant: "neutral" },
+};
 const lookup = (table: Record<string, string>, value: unknown) => typeof value === "string" && Object.hasOwn(table, value) ? table[value] : null;
 const known = (name: string | null | undefined) => name?.trim() ? name.trim() : null;
 
@@ -165,12 +179,15 @@ function body(group: NotificationGroup, now: Date): Body {
         subtitle: many ? namesLine(group) : known(group.job?.title), icon: "psychometric-pending", tone: "muted",
       };
     // Candidate inbox (T3.6, design 04): one item per notification; company resolved by the API or null (L14).
+    // `candidate_test_pending` has no badge: design 04's due-date badge needs a date the payload ({invitation_id}) lacks.
     case "candidate_status_changed": {
       const label = lookup(CANDIDATE_STATUSES, payload.status);
+      const badge = typeof payload.status === "string" && Object.hasOwn(STATUS_BADGES, payload.status) ? STATUS_BADGES[payload.status] : null;
       return {
         title: payload.status === "closed" ? `Tu postulación a ${vacancy} se cerró`
           : label ? `Tu postulación a ${vacancy} pasó a ${label}` : `Tu postulación a ${vacancy} cambió de estado`,
         subtitle: known(group.company?.name), icon: "status", tone: "info",
+        ...(badge && { badge: { ...badge } }),
       };
     }
     case "candidate_message_received":
@@ -188,7 +205,7 @@ function body(group: NotificationGroup, now: Date): Body {
   }
 }
 
-/** Title, subtitle, icon, tone and urgency badge of one inbox row. */
+/** Title, subtitle, icon, tone, urgency badge and (candidate status rows only) status badge of one inbox row. */
 export function describeNotification(group: NotificationGroup, now: Date = new Date()): NotificationCopy {
   const described = body(group, now);
   return { ...described, urgency: described === generic ? null : urgencyOf(group, now) };

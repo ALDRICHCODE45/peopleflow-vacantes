@@ -200,8 +200,26 @@ describe("candidate types (T3.6)", () => {
   it("status changed names the new candidate-facing status, with the company as subtitle", () => {
     expect(status("in_process")).toEqual({
       title: "Tu postulación a Analista de nómina pasó a En proceso", subtitle: "Grupo Altavista", icon: "status", tone: "info", urgency: null,
+      badge: { label: "En proceso", variant: "review" },
     });
     expect(status("submitted").title).toBe("Tu postulación a Analista de nómina pasó a Enviada");
+  });
+
+  it("status changed carries the application status badge of design 04 (T4.3)", () => {
+    expect(status("submitted").badge).toEqual({ label: "Enviada", variant: "info" });
+    expect(status("in_process").badge).toEqual({ label: "En proceso", variant: "review" });
+    expect(status("closed").badge).toEqual({ label: "Cerrada", variant: "neutral" });
+  });
+
+  it("an unknown or missing status, and every other type, carry no status badge", () => {
+    expect(status("archived")).not.toHaveProperty("badge");
+    expect(status(undefined)).not.toHaveProperty("badge");
+    // candidate_test_pending: design 04 shows a due-date badge, but the payload is only {invitation_id}.
+    expect(ofType("candidate_test_pending")).not.toHaveProperty("badge");
+    expect(ofType("candidate_message_received")).not.toHaveProperty("badge");
+    for (const type of NOTIFICATION_TYPES.filter(t => !t.startsWith("candidate_"))) {
+      expect(copy(single(type, { commitment_date: "2026-11-26", status: "in_process" }))).not.toHaveProperty("badge");
+    }
   });
 
   it("a closed status says the application closed", () => {
