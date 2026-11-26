@@ -12,6 +12,10 @@ import (
 )
 
 type Querier interface {
+	// Fan-out claim (notifications-v1 D4): the oldest pending, due event not
+	// already tried in this tick, locked for the caller's tx; other instances
+	// skip it. An event in retry backoff waits for next_attempt_at.
+	ClaimNextNotificationEvent(ctx context.Context, skip []uuid.UUID) (ClaimNextNotificationEventRow, error)
 	// Inline close of all non-closed, non-tombstoned jobs of a company
 	// (companies-write slice, design D5). Runs in the SAME pgx.Tx as the
 	// `SoftDeleteCompany` write so the soft-delete + the inline close are
@@ -41,10 +45,21 @@ type Querier interface {
 	// ("this company had no non-closed jobs at delete time").
 	CloseCompanyJobs(ctx context.Context, companyID uuid.UUID) (int64, error)
 	CountCompanyOwners(ctx context.Context, companyID uuid.UUID) (int64, error)
+	// Retention (D22): processed (or given-up) events older than 180 days; a
+	// pending event (processed_at NULL) is never selected. Dry-run forecast of
+	// DeleteExpiredNotificationEvents after the notifications pass: an event still
+	// referenced by a notification inside the retention is not counted.
+	CountExpiredNotificationEvents(ctx context.Context) (int64, error)
+	// Retention (notifications-v1 D22): rows older than 180 days, read or not.
+	// The cutoff must stay identical in the four retention queries.
+	CountExpiredNotifications(ctx context.Context) (int64, error)
 	// Stakeholder invitations (stakeholder-metrics-v1 §1.3). Every write runs in
 	// the adapter's transaction together with its audit event.
 	// Run after LockCompanyForMemberMutation so two creates cannot both pass the limit.
 	CountPendingStakeholderInvitations(ctx context.Context, arg CountPendingStakeholderInvitationsParams) (int64, error)
+	// Bell counter (D14): unread groups (attention included) and unread rows of
+	// the caller's scope, from notifications_recipient_unread.
+	CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (CountUnreadNotificationsRow, error)
 	// Atomic apply + eligibility gate for POST /jobs/{jobId}/applications
 	// (design D1).
 	//
@@ -122,6 +137,14 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteCandidateEducations(ctx context.Context, userID uuid.UUID) error
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
+	// Runs after the notifications pass. An event any notification still
+	// references is kept: ON DELETE SET NULL would break the notifications CHECK
+	// (immediate rows require source_event_id), failing the batch. It goes on the
+	// run after its last notification expires.
+	DeleteExpiredNotificationEvents(ctx context.Context, batchSize int32) (int64, error)
+	// One purge batch, oldest first; rows another connection holds are left for
+	// the next batch or run.
+	DeleteExpiredNotifications(ctx context.Context, batchSize int32) (int64, error)
 	GeoCountries(ctx context.Context) ([]GeoCountriesRow, error)
 	GeoCountryExists(ctx context.Context, code string) (bool, error)
 	GeoLatestImport(ctx context.Context) (int64, error)
@@ -183,6 +206,12 @@ type Querier interface {
 	// pgx.ErrNoRows when the user has no membership, which the service maps to
 	// ErrNotAMember.
 	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (CompanyMember, error)
+	// Candidate scope (notifications-v1 D18): the live candidate account of the
+	// session subject, resolved after the candidate gate passed.
+	GetNotificationCandidateUser(ctx context.Context, cognitoSub string) (uuid.UUID, error)
+	// Relation candidate: the account behind an organic participation of the job;
+	// NULL for a manual candidate (no account).
+	GetNotificationParticipationCandidate(ctx context.Context, arg GetNotificationParticipationCandidateParams) (pgtype.UUID, error)
 	// Publication status and the reason of the latest close event (empty when never
 	// closed or closed without reason): the inputs of the closed-covered predicate.
 	GetProcessCloseState(ctx context.Context, arg GetProcessCloseStateParams) (GetProcessCloseStateRow, error)
@@ -207,6 +236,18 @@ type Querier interface {
 	InsertCandidateEducation(ctx context.Context, arg InsertCandidateEducationParams) error
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error
+	// Immediate notification (D21): a re-processed event inserts nothing twice.
+	// created_at is the event's occurred_at, so a delayed fan-out keeps the group's
+	// day and the retention clock aligned with the event (L24).
+	InsertNotification(ctx context.Context, arg InsertNotificationParams) error
+	// Capture row written by the audit-port decorator inside the caller's tx,
+	// right after the audit event (notifications-v1 D1–D3). occurred_at is the DB
+	// DEFAULT now(), the same transaction clock as the audit row. payload holds
+	// ids/enums only.
+	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
+	// Scheduled notification (D21): each (recipient, type, job, date) fires at
+	// most once; a renegotiated date is a new key. No actor, no source event.
+	InsertScheduledNotification(ctx context.Context, arg InsertScheduledNotificationParams) (int64, error)
 	// Atomic liveness probe for the RequireCompanyRole middleware
 	// (require-company-role-tombstone-gate slice). Returns `deleted_at IS NULL`
 	// for the exact company id WITHOUT filtering away tombstones:
@@ -230,6 +271,12 @@ type Querier interface {
 	// semantics used by every other read in this file. A missing row
 	// surfaces as pgx.ErrNoRows at the adapter boundary.
 	IsCompanyLive(ctx context.Context, id uuid.UUID) (bool, error)
+	// Relation assignee: the user still holds an active assignment on the job and
+	// is a non-stakeholder member of the company, company not deleted.
+	IsNotificationActiveAssignee(ctx context.Context, arg IsNotificationActiveAssigneeParams) (bool, error)
+	// Relation previous_assignee: still a non-stakeholder member of the company,
+	// company not deleted (no assignment required, D10).
+	IsNotificationCompanyMember(ctx context.Context, arg IsNotificationCompanyMemberParams) (bool, error)
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
 	// Recruiter queue read (design D5 second step). Same-company scope
 	// enforced inside the same statement. NO deleted_at / status filter on
@@ -254,6 +301,11 @@ type Querier interface {
 	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]ListByCompanyIDRow, error)
 	ListCandidateEducations(ctx context.Context, userID uuid.UUID) ([]ListCandidateEducationsRow, error)
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
+	// Read-time job resolution for candidates (§Endpoints): the title the
+	// candidate sees in /v2/me/applications (public projection; has_title false
+	// when absent) and the company {id, name} of the process, only for processes
+	// the candidate participates in. Jobs gone or foreign are absent.
+	ListCandidateNotificationJobs(ctx context.Context, arg ListCandidateNotificationJobsParams) ([]ListCandidateNotificationJobsRow, error)
 	// The credits each replacement of the chain took, oldest hire first.
 	ListChainReplacedCredits(ctx context.Context, arg ListChainReplacedCreditsParams) ([]VacancyReplacementCredit, error)
 	// Every fallen (did_not_hold) credit of the chain rooted at `root_process_id`, whether or
@@ -261,6 +313,9 @@ type Querier interface {
 	// departure time (the same views as ListStartableCreditDetails). Voided and active credits
 	// are not fallen. Ordered by departure, then hire.
 	ListFallenCreditDetails(ctx context.Context, arg ListFallenCreditDetailsParams) ([]ListFallenCreditDetailsRow, error)
+	// Group sample (§Grouping): per group, the newest distinct participations
+	// (at most sample_limit) of the caller's member-scope rows.
+	ListMemberNotificationSamples(ctx context.Context, arg ListMemberNotificationSamplesParams) ([]ListMemberNotificationSamplesRow, error)
 	// Candidate's GET /me/applications list. Joins jobs (title) + companies
 	// (id, name) to render the embedded job summary. NOT redacted by
 	// jobs.deleted_at on purpose: the candidate's own history persists
@@ -268,6 +323,53 @@ type Querier interface {
 	//
 	// Hard cap 100 (no pagination in this slice).
 	ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]ListMyApplicationsRow, error)
+	// Read and mark queries below run in the caller's scope (notifications-v1
+	// §Data model, D18): recipient_user_id = the session user and either
+	// recipient_kind 'member' with company_id = the gate's company (members) or
+	// recipient_kind 'candidate' with company_id NULL (candidates). The CHECK
+	// (recipient_kind = 'candidate') = (company_id IS NULL) makes any other
+	// combination match nothing.
+	// Attention (notifications-v1 D13), the single source of the selection: the
+	// caller's unread, unresolved items of the attention types (passed by the
+	// caller from the domain type table) in the caller's scope, honouring types /
+	// job_ids (not state), newest first, capped; total counts every qualifying
+	// item. Computed on every page: its ids are excluded from the grouped list.
+	ListNotificationAttention(ctx context.Context, arg ListNotificationAttentionParams) ([]ListNotificationAttentionRow, error)
+	// Read-time candidate names (D19): the name the company currently sees for
+	// each participation of one of its processes (company correction, else the
+	// manual candidate or account name; '' when unknown). The caller gates it by
+	// vacancy access.
+	ListNotificationCandidateNames(ctx context.Context, arg ListNotificationCandidateNamesParams) ([]ListNotificationCandidateNamesRow, error)
+	// GET B/facets (D17): the same groups per job with the current title
+	// (members: the draft title of the company; candidates: the public title they
+	// see in /v2/me/applications, only for a process they participate in;
+	// has_title false when gone or untitled), ordered by count
+	// DESC, title (untitled last), job id; capped at jobs_limit, total = every
+	// job with a group in that state.
+	ListNotificationFacetJobs(ctx context.Context, arg ListNotificationFacetJobsParams) ([]ListNotificationFacetJobsRow, error)
+	// GET B/facets (D17): groups of the caller's scope (attention
+	// included) per type, only groups with an unread member when unread_only;
+	// zero counts are absent.
+	ListNotificationFacetTypes(ctx context.Context, arg ListNotificationFacetTypesParams) ([]ListNotificationFacetTypesRow, error)
+	// Grouped list (D11, D13, D27): the caller's scoped rows matching
+	// types / job_ids, minus the attention ids returned by
+	// ListNotificationAttention for the same filters (so only those are
+	// excluded), grouped by group_key (one type and job per group), optionally
+	// only groups with an unread member, keyset after (at, key) in latest_at DESC,
+	// group_key DESC order. latest is the newest row of the group.
+	ListNotificationGroups(ctx context.Context, arg ListNotificationGroupsParams) ([]ListNotificationGroupsRow, error)
+	// Read-time job resolution (D19): the current draft title of each job of the
+	// company and whether the caller can still open it (owner of the company or
+	// an active assignment on it). Jobs of other companies or gone are absent;
+	// has_title is false when the draft has no title.
+	ListNotificationJobs(ctx context.Context, arg ListNotificationJobsParams) ([]ListNotificationJobsRow, error)
+	// Relation team (§Recipients): users with an active assignment on the job who
+	// are still non-stakeholder members of the event's company, company not deleted.
+	ListNotificationTeamRecipients(ctx context.Context, arg ListNotificationTeamRecipientsParams) ([]uuid.UUID, error)
+	// Read-time names of actors and from/to users (D19): the current account name;
+	// for a candidate account the company's correction wins and is_candidate lets
+	// the caller gate it like a candidate name. Deleted users are absent.
+	ListNotificationUserNames(ctx context.Context, arg ListNotificationUserNamesParams) ([]ListNotificationUserNamesRow, error)
 	ListPendingStakeholderInvitations(ctx context.Context, arg ListPendingStakeholderInvitationsParams) ([]ListPendingStakeholderInvitationsRow, error)
 	// The whole chain of the logical vacancy `process_id` belongs to: the root first
 	// (sequence 0, it has no vacancy_replacements row), then the replacements by
@@ -278,6 +380,17 @@ type Querier interface {
 	// lists per item: the root first (sequence 0), then the replacements by sequence.
 	// can_open is the lifecycle read rule: the owner, or an active tramo on that draft.
 	ListReplacementChainItems(ctx context.Context, arg ListReplacementChainItemsParams) ([]ListReplacementChainItemsRow, error)
+	// Per-recruiter deadlines (Q7): active assignments with a recruiter_deadline
+	// up to today + 1, same process filter, whose user is still a non-stakeholder
+	// member of the company (company not deleted). function is the open function
+	// of the assignment (NULL if none is open).
+	ListScheduledAssignmentDeadlines(ctx context.Context, until pgtype.Date) ([]ListScheduledAssignmentDeadlinesRow, error)
+	// Scheduler (notifications-v1 §Scheduler, D20, Q1): every team recipient of
+	// an active published or paused process with a commitment date up to
+	// today + 1 and no fulfillment row. Recipients at run time, same rules as the
+	// fan-out team relation (active assignment, non-stakeholder member, company
+	// not deleted); the caller applies the date rule.
+	ListScheduledDeliveryRecipients(ctx context.Context, until pgtype.Date) ([]ListScheduledDeliveryRecipientsRow, error)
 	// ListStartableReplacementCredits with the hired candidate and the departure time.
 	// The name is the board's company view: the company's correction of an organic
 	// candidate's name wins over the account's.
@@ -293,10 +406,40 @@ type Querier interface {
 	LockCompanyForMemberMutation(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// A soft-deleted company accepts no new member.
 	LockLiveCompanyForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// POST B/read-all (D16): stamps one statement timestamp on every unread,
+	// unresolved scoped row of the caller matching types / job_ids (empty =
+	// all) created at or before `before` (NULL = the stamp), attention included.
+	MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (MarkAllNotificationsReadRow, error)
+	MarkNotificationEventProcessed(ctx context.Context, id uuid.UUID) error
+	// POST B/read (D15, D26): stamps one statement timestamp on the caller's
+	// unread, unresolved scoped rows selected by group key or id (the
+	// other array is empty); rows of others are not matched. Returns the stamp
+	// and the affected rows / distinct groups.
+	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (MarkNotificationsReadRow, error)
+	// POST B/unread (D15, D26): clears read_at on the caller's read, unresolved
+	// scoped rows selected by group key, id or the exact read_at of an
+	// earlier mark (undo of exactly that batch); a resolved row stays read.
+	MarkNotificationsUnread(ctx context.Context, arg MarkNotificationsUnreadParams) (MarkNotificationsUnreadRow, error)
 	MarkStakeholderInvitationUsed(ctx context.Context, arg MarkStakeholderInvitationUsedParams) error
+	// D3: the discard's candidate message is never copied; capture records only
+	// whether it exists, read in the same tx after the discard UPDATE.
+	ParticipationHasCandidateMessage(ctx context.Context, id uuid.UUID) (bool, error)
+	// One failed attempt, in its own tx after the processing tx rolled back; at
+	// max_attempts the event is given up (failed, processed). Otherwise the next
+	// attempt waits retry_base_ms·2^(attempts-1) after this n-th failure, capped
+	// at retry_cap_ms (computed from the stored count, so racing instances agree).
+	RecordNotificationEventFailure(ctx context.Context, arg RecordNotificationEventFailureParams) (RecordNotificationEventFailureRow, error)
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.
 	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error)
+	// Resolution (D20, §Scheduler): an open deadline item stops being true when
+	// the process is no longer active published/paused (closed with any process
+	// value, finished, gone) or has a fulfillment row; a delivery item when the
+	// current commitment_date differs (renegotiated or cleared); an assignment
+	// item when its assignment ended or its recruiter_deadline differs (changed
+	// or cleared); a due-soon item when an overdue item exists for the same
+	// recipient, job and date.
+	ResolveStaleScheduledNotifications(ctx context.Context) (int64, error)
 	// Only a pending invitation of the caller's company changes; anything else
 	// affects no row and the DELETE still answers 204.
 	RevokeStakeholderInvitation(ctx context.Context, arg RevokeStakeholderInvitationParams) (int64, error)
