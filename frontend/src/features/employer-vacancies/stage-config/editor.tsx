@@ -1,5 +1,6 @@
 "use client";
 
+import { vacancyPipelineHref } from "../model";
 import { useEffect, useRef, useState } from "react";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { ConfigReadOnlyNotice, useConfigLifecycle } from "../vacancy-config/lifecycle";
@@ -97,7 +98,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     if (result.reason === "stage_occupied") {
       const names = result.details?.map(entry => snapshot.editor.baseline.stages.find(stage => stage.id === entry.stage_id)?.name).filter((name): name is string => !!name) ?? [];
       const description = names.length ? `Mueve a los candidatos de ${names.map(name => `«${name}»`).join(", ")} antes de ${names.length === 1 ? "quitarla" : "quitarlas"}.` : "Mueve a los candidatos de las columnas ocupadas antes de quitarlas.";
-      report({ ...pipelineFailureNotice(result.reason), description, link: { title: "Ir al tablero", href: `/empresa/vacantes/${draftId}` } }, result.reference);
+      report({ ...pipelineFailureNotice(result.reason), description, link: { title: "Ir al tablero", href: vacancyPipelineHref(draftId) } }, result.reference);
     } else if (result.reason === "cutoff_stage_in_use") {
       setCutoffRejected(true);
       report({ ...pipelineFailureNotice(result.reason), link: { title: "Ir a Entrega", href: `/empresa/vacantes/${draftId}/configuracion/entrega` } }, result.reference);
