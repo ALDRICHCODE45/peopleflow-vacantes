@@ -82,7 +82,7 @@ export function BrandSettings({ theme, onChange }: { theme: SiteDraft["theme"]; 
     <Separator />
     <Field><FieldLabel id="font-pair">Tipografía</FieldLabel><FieldDescription>Tres combinaciones pensadas para leerse bien en cualquier pantalla.</FieldDescription>
       <ToggleGroup aria-labelledby="font-pair" value={[theme.font_pair]} onValueChange={values => { const pair = values[0]; if (pair && Object.hasOwn(FONT_PAIRS, pair)) onChange({ ...theme, font_pair: pair as SiteDraft["theme"]["font_pair"] }); }} orientation="vertical" className="w-full items-stretch" variant="outline">
-        {Object.entries(FONT_PAIRS).map(([pair, fonts]) => <ToggleGroupItem key={pair} value={pair} aria-label={fonts.label} data-font-pair={pair} className="h-auto w-full min-w-0 flex-col items-stretch whitespace-normal text-left data-pressed:ring-2 data-pressed:ring-ring">
+        {Object.entries(FONT_PAIRS).map(([pair, fonts]) => <ToggleGroupItem key={pair} value={pair} aria-label={fonts.label} data-font-pair={pair} className="h-auto w-full min-w-0 flex-col items-stretch whitespace-normal text-left data-pressed:inset-ring-2 data-pressed:inset-ring-ring">
           <span className={cn("flex flex-col gap-3 py-3", editorial.variable, modern.variable, styles.fontSample)} data-font-pair={pair}><span className="flex items-center justify-between gap-2 text-xs font-medium">{fonts.label}{theme.font_pair === pair && <Check aria-hidden="true" className="size-4" />}</span><span className={cn("text-xl font-semibold", styles.heading)}>Tu próximo gran paso</span><span className="text-sm font-normal">Un equipo donde puedes crecer y dejar huella.</span><span className="text-xs font-normal text-muted-foreground">{fonts.heading}{fonts.heading !== fonts.body ? ` + ${fonts.body}` : ""}</span></span>
         </ToggleGroupItem>)}
       </ToggleGroup>
@@ -92,7 +92,7 @@ export function BrandSettings({ theme, onChange }: { theme: SiteDraft["theme"]; 
 
 type Availability = "empty" | "checking" | "available" | "taken" | "reserved" | "invalid" | "error";
 const AVAILABILITY_LABELS: Record<Availability, string> = { empty: "Elige una dirección para tu sitio", checking: "Verificando…", available: "Disponible", taken: "En uso", reserved: "Reservada", invalid: "Inválida", error: "No pudimos verificar. Vuelve a editar la dirección para reintentar." };
-export function SiteSettings({ draft, company, onSlug, onSeo, savedSlug = null, slugError }: { draft: SiteDraft; company: PublicSite["company"]; onSlug: (slug: string | null) => void; onSeo: (seo: SiteDraft["seo"]) => void; savedSlug?: string | null; slugError?: SiteFieldError }) {
+export function SiteSettings({ draft, company, onSlug, onSeo, savedSlug = null, slugError }: { draft: Pick<SiteDraft, "slug" | "seo">; company: PublicSite["company"]; onSlug: (slug: string | null) => void; onSeo: (seo: SiteDraft["seo"]) => void; savedSlug?: string | null; slugError?: SiteFieldError }) {
   const [slugInput, setSlugInput] = useState(draft.slug ?? "");
   const [availability, setAvailability] = useState<Availability>("empty");
   const acceptSlug = useRef(onSlug);

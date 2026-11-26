@@ -4,10 +4,11 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { SitePublication } from "./publication";
 import { createAutosave, type AutosaveController } from "../autosave";
-import { defaultBlock, defaultSiteDraft } from "../defaults";
+import { defaultBlockV2 as defaultBlock, defaultSiteDraft } from "../defaults";
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { notifyActionResult } from "@/components/feedback/notify";
 import type { SiteState } from "../api/model";
+import { v2Draft } from "./site-state.test-support";
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8080", apiTimeoutMs: 8000 } }));
 vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
@@ -24,7 +25,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); controller?.dispose(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 it.each(["publish", "unpublish"] as const)("surfaces the backend recruiter 403 on the real %s action path despite stale owner UI", async operation => {
-  const draft = defaultSiteDraft(); draft.slug = "nexo";
+  const draft = v2Draft(defaultSiteDraft()); draft.slug = "nexo";
   if (draft.blocks[0].type === "hero") draft.blocks[0].content.title = "Únete";
   const closing = defaultBlock("closing"); if (closing.type === "closing") closing.content.title = "Crece";
   draft.blocks.push(closing);

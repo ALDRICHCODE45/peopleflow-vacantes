@@ -3,11 +3,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { CareersSiteEditor } from "./careers-site-editor";
-import { defaultBlock, defaultSiteDraft } from "../defaults";
+import { defaultBlockV2 as defaultBlock, defaultSiteDraft } from "../defaults";
 import type { SiteState } from "../api/model";
 import { publishedFixture } from "../public/fixtures.test-support";
 import { publishSiteAction, saveDraftAction, unpublishSiteAction, slugAvailabilityAction } from "../api/actions";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { v2Draft } from "./site-state.test-support";
 vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
 vi.mock("../api/actions", () => ({ saveDraftAction: vi.fn(), publishSiteAction: vi.fn(), unpublishSiteAction: vi.fn(), slugAvailabilityAction: vi.fn().mockResolvedValue({ kind: "uncertain" }) }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
@@ -17,7 +18,7 @@ vi.mock("@/components/ui/dropdown-menu", async original => {
   return { ...parts, DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <parts.DropdownMenuGroup>{children}</parts.DropdownMenuGroup> };
 });
 function props() {
-  const draft = defaultSiteDraft(); draft.slug = "nexo";
+  const draft = v2Draft(defaultSiteDraft()); draft.slug = "nexo";
   const hero = draft.blocks[0]; if (hero.type === "hero") hero.content.title = "Únete";
   const closing = defaultBlock("closing"); if (closing.type === "closing") closing.content.title = "Crece";
   draft.blocks.push(closing);

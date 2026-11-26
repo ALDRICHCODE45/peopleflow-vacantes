@@ -4,6 +4,13 @@ export const MEDIA_MAX_BYTES = 5 * 1024 * 1024;
 export const MEDIA_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const mediaKindSchema = z.enum(["cover", "gallery", "portrait", "story"]);
 export type MediaKind = z.infer<typeof mediaKindSchema>;
+/** Sections v2 upload kinds: `logo` (logos block) needs backend slice A (migration 00066); the
+ * upload route keeps `mediaKindSchema` until SECTIONS_V2_ENABLED is switched on. */
+export const mediaKindSchemaV2 = z.enum([...mediaKindSchema.options, "logo"]);
+export type MediaKindV2 = z.infer<typeof mediaKindSchemaV2>;
+/** Logos keep their transparency, so only alpha-capable formats; smaller minimum side than photos. */
+export const LOGO_MEDIA_TYPES = ["image/png", "image/webp"] as const;
+export const LOGO_MIN_PX = 64;
 export const uploadedMediaSchema = mediaSchema.extend({ content_type: z.enum(MEDIA_TYPES) });
 export type UploadedMedia = z.infer<typeof uploadedMediaSchema>;
 export const mediaErrorStatuses: Record<string, number> = {

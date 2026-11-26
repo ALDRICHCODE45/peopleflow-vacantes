@@ -6,11 +6,12 @@ import { getSite, getCompanyProfile } from "@/features/company-site/api/client";
 import * as siteClient from "@/features/company-site/api/client";
 import { loadPreviewData } from "@/features/company-site/public/preview-data";
 import { defaultSiteDraft } from "@/features/company-site/defaults";
+import { siteDraftReadSchemaV2 } from "@/features/company-site/model";
 import { loadCareersEditor } from "./actions";
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
 vi.mock("@/features/employer-company/api/company-client", () => ({ getMyCompany: vi.fn() }));
 vi.mock("@/features/company-site/public/preview-data", () => ({ loadPreviewData: vi.fn() }));
-const site = { draft: defaultSiteDraft(), draft_version: 7, published: null, has_unpublished_changes: true, media: [], updated_at: "2026-10-27T00:00:00Z" };
+const site = { draft: siteDraftReadSchemaV2.parse(defaultSiteDraft()), draft_version: 7, published: null, has_unpublished_changes: true, media: [], updated_at: "2026-10-27T00:00:00Z" };
 const company = { id: "real-company", name: "Empresa real", rfc: "private-rfc", industry_id: "industry", status: "active" as const, location: null, updated_at: site.updated_at };
 beforeEach(() => {
   vi.resetAllMocks();

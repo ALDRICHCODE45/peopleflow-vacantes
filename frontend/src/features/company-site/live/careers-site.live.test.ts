@@ -6,7 +6,7 @@ import { getSite, publishSite, putDraft, unpublishSite } from "../api/client";
 import { uploadMediaFile } from "../api/file-client";
 import type { SiteResult } from "../api/model";
 import { defaultBlock } from "../defaults";
-import { siteDraftSchema } from "../model";
+import { siteDraftSchemaV2 } from "../model";
 import { getPublicSite, listCompanyJobs } from "../public/read";
 
 vi.mock("server-only", () => ({}));
@@ -105,7 +105,7 @@ describe.skipIf(!process.env.PF_LIVE_API)("careers site: isolated live backend",
     const hidden = { ...defaultBlock("closing"), hidden: true };
     // Keep the current document/theme/SEO and required block identities, replacing
     // optional blocks with this run's controlled consent/visibility fixtures.
-    let draft = siteDraftSchema.parse({ ...current.data.draft, slug, blocks: [
+    let draft = siteDraftSchemaV2.parse({ ...current.data.draft, slug, blocks: [
       { ...heroes[0], type: "hero", variant: "photo", content: { title: "Trabaja en Nexo Labs", subtitle: null, cover: null } },
       jobsBlocks[0], story, testimonial, hidden,
     ] });

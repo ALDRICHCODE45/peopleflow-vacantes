@@ -16,25 +16,32 @@ import { loadSiteAction, publishSiteAction, unpublishSiteAction } from "../api/a
 import type { SiteResult, SiteState } from "../api/model";
 import type { AutosaveController } from "../autosave";
 import { useAutosave } from "../use-autosave";
-import { publishIssues, type PublishIssue, type SiteBlock } from "../model";
-import { BLOCK_LIBRARY } from "../defaults";
+import { publishIssuesV2, type PublishIssueV2, type SiteBlockV2 as SiteBlock } from "../model";
+import { BLOCK_LIBRARY_V2 as BLOCK_LIBRARY } from "../defaults";
 import { validateSlug } from "../slug";
 import { canPublish, RECRUITER_PUBLISH_REASON } from "../permissions";
 import { COMPANY_SETTINGS_HREF } from "./site-settings";
 
 export type PublicationTarget = { tab: "sections" | "settings"; blockId?: string; library?: boolean };
 type Props = { controller: AutosaveController; role: string; companyKnown?: boolean; company: { name: string; logo_url: string | null }; published: SiteState["published"]; onState: (state: SiteState) => void; onNavigate: (target: PublicationTarget) => void; onConflict: (current: SiteState) => void };
+/** Client checks and the server checklist share codes; a server issue may omit its field. */
+type PublishIssue = { code: PublishIssueV2["code"]; field: string | null };
 type ChecklistItem = { issue: PublishIssue; label: string; blockId?: string };
 type Notice = { tone: "success" | "error" | "warning"; text: string };
 const ISSUE_LABELS: Record<PublishIssue["code"], string> = {
   slug_missing: "Elige la dirección pública", hero_title_missing: "Agrega el título de la portada",
   no_content_block: "Agrega al menos una sección de contenido", block_incomplete: "Completa esta sección",
   company_logo_missing: "Agrega el logo de la empresa", company_name_missing: "Agrega el nombre de la empresa",
+  // Sections v2 (slice A); unreachable while the flag is off.
+  hero_video_missing: "El fondo en movimiento de la portada todavía no se puede publicar: elige otro diseño",
+  secondary_target_hidden: "Muestra la sección a la que lleva el botón secundario de la portada",
+  hero_collage_images_missing: "Agrega al menos 2 fotos al collage de la portada",
+  style_image_missing: "Sube la imagen de fondo de esta sección",
 };
 export function SitePublication({ controller, role, company, companyKnown = true, published, onState, onNavigate, onConflict }: Props) {
   // Missing profile data is unknown, not evidence of missing company identity.
   // The server remains authoritative and returns its publish_blocked checklist.
-  const clientIssues = (draft: Parameters<typeof publishIssues>[0]) => publishIssues(draft, company).filter(issue => companyKnown || (issue.code !== "company_logo_missing" && issue.code !== "company_name_missing"));
+  const clientIssues = (draft: Parameters<typeof publishIssuesV2>[0]) => publishIssuesV2(draft, company).filter(issue => companyKnown || (issue.code !== "company_logo_missing" && issue.code !== "company_name_missing"));
   const { flush } = useAutosave(controller);
   const [checklist, setChecklist] = useState<ChecklistItem[] | null>(null);
   const [confirmation, setConfirmation] = useState<{ version: number; slug: string } | null>(null);
@@ -65,7 +72,9 @@ export function SitePublication({ controller, role, company, companyKnown = true
     setChecklist(issues.map(issue => {
       const match = /^blocks\[(\d+)\]/.exec(issue.field ?? "");
       const block = match ? blocks[Number(match[1])] : undefined;
-      return { issue, label: issue.code === "block_incomplete" && block ? `Completa ${BLOCK_LIBRARY[block.type].label}` : ISSUE_LABELS[issue.code], blockId: block?.id };
+      const label = issue.code === "block_incomplete" && block ? `Completa ${BLOCK_LIBRARY[block.type].label}`
+        : issue.code === "style_image_missing" && block ? `Sube la imagen de fondo de ${BLOCK_LIBRARY[block.type].label}` : ISSUE_LABELS[issue.code];
+      return { issue, label, blockId: block?.id };
     }));
   }
   async function savedVersion() {

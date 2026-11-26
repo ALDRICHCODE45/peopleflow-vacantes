@@ -4,9 +4,10 @@ import { SaveStatus } from "./editor-feedback";
 import { createAutosave } from "../autosave";
 import { useAutosave } from "../use-autosave";
 import { defaultSiteDraft } from "../defaults";
+import { v2Draft } from "./site-state.test-support";
 
 it("offers retry for a generic error and saves the current draft successfully", async () => {
-  const initial = { draft: defaultSiteDraft(), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" };
+  const initial = { draft: v2Draft(defaultSiteDraft()), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" };
   const save = vi.fn().mockResolvedValueOnce({ kind: "unrecognized" }).mockImplementation(async ({ body }) => ({ kind: "success", data: { ...initial, draft: body, draft_version: 2 }, etag: '\"2\"' }));
   const controller = createAutosave(initial, '\"1\"', save);
   controller.dispatch({ type: "slug", slug: "mi-empresa" });

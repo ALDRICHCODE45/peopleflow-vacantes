@@ -2,7 +2,7 @@ import type { SaveInput } from "./api/client";
 import type { Failure, SiteResult, SiteState } from "./api/model";
 import { createEditorState, editorReducer, sameDraft, type EditorAction, type EditorState } from "./editor-state";
 import { breakStep, createHistory, diffPath, recordStep, redoStep, undoStep, type History, type HistoryFocus } from "./history";
-import type { SiteDraft } from "./model";
+import type { SiteDraftV2 } from "./model";
 
 export type AutosaveStatus =
   | { kind: "idle" | "saving" | "offline" | "invalid" }
@@ -26,7 +26,7 @@ function historyFocus(action: EditAction): HistoryFocus | null {
   }
 }
 /** Same action kind on the same block/field path coalesces; structural edits never do. */
-function historyKey(action: EditAction, before: SiteDraft): string | null {
+function historyKey(action: EditAction, before: SiteDraftV2): string | null {
   const path = (a: unknown, b: unknown) => diffPath(a, b);
   switch (action.type) {
     case "slug": return "slug";
@@ -44,7 +44,7 @@ export type FlushResult = { ok: true; version: number } | { ok: false; reason: "
 
 /** One controller per editor session; its owner calls dispose when leaving the editor. */
 export function createAutosave(initial: SiteState, etag: string, save: SaveDraft, debounceMs = 1500) {
-  let history: History<SiteDraft> = createHistory();
+  let history: History<SiteDraftV2> = createHistory();
   const historyState = (): HistoryState => ({ canUndo: history.past.length > 0, canRedo: history.future.length > 0 });
   let snapshot: AutosaveSnapshot = { editor: createEditorState(initial, etag), status: { kind: "idle" }, history: historyState() };
   let timer: ReturnType<typeof setTimeout> | undefined;

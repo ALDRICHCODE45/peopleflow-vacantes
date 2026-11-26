@@ -4,11 +4,12 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { SitePublication } from "@/features/company-site/editor/publication";
 import { createAutosave, type AutosaveController } from "../autosave";
-import { defaultBlock, defaultSiteDraft } from "../defaults";
+import { defaultBlockV2 as defaultBlock, defaultSiteDraft } from "../defaults";
 import type { SiteResult, SiteState } from "../api/model";
 import { loadSiteAction, publishSiteAction, unpublishSiteAction } from "../api/actions";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { v2Draft } from "./site-state.test-support";
 vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
 vi.mock("../api/actions", () => ({ loadSiteAction: vi.fn(), publishSiteAction: vi.fn(), unpublishSiteAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
@@ -18,7 +19,7 @@ vi.mock("@/components/ui/dropdown-menu", async original => {
 });
 const company = { name: "Nexo", logo_url: "https://example.com/logo.png" };
 function initial(): SiteState {
-  const draft = defaultSiteDraft(); draft.slug = "nexo";
+  const draft = v2Draft(defaultSiteDraft()); draft.slug = "nexo";
   const hero = draft.blocks[0]; if (hero.type === "hero") hero.content.title = "Únete";
   const closing = defaultBlock("closing"); if (closing.type === "closing") closing.content.title = "Crece";
   draft.blocks.push(closing);

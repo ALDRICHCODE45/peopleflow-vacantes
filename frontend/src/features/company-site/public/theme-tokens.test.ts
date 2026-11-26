@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { contrastRatio } from "../brand";
-import { siteBrandTokens } from "./theme-tokens";
+import { SITE_THEME_SURFACES, siteBrandTokens, siteTintTokens } from "./theme-tokens";
 
 // Every authored pixel pair, not just principal ink on the page. No contrast
 // tolerance: rounded sRGB tokens must meet the actual WCAG threshold.
@@ -70,4 +70,27 @@ it("uses opaque focus outlines and stable AA CTA fills rather than alpha hover f
 it("keeps server/client surface definitions synchronized with shared CSS", () => {
   const css = readFileSync("src/features/company-site/public/site-theme.module.css", "utf8");
   for (const mode of ["light", "dark"]) for (const role of ["page", "card", "foreground", "secondary", "accent", "on-accent", "ring"]) expect(css).toContain(`var(--site-${role}-${mode}`);
+});
+describe("«Tinte suave» surface (S3: four visibly different backgrounds)", () => {
+  const palettes: [string, string | null, string | null][] = [["#7835DB", null, null], ["#0F766E", null, null], ["#FFFF00", null, null], ["#000000", null, null], ["#FFFFFF", null, null], ["#808080", null, null], ["#7835DB", "#0F766E", "#F0F9FF"], ["#C2410C", null, "#FFF7ED"], ["#7835DB", "#000000", "#000000"], ["#FFFF00", "#FFFF00", "#FFFF00"]];
+  it.each(palettes)("brand %s (accent %s, page %s) tints apart from the page, the band and the brand fill, keeping AA ink", (brand, accent, background) => {
+    const tokens = siteBrandTokens(brand, accent, background);
+    const tint = siteTintTokens(brand, accent, background);
+    for (const mode of ["light", "dark"] as const) {
+      const surface = tint[`--site-tint-${mode}`];
+      const page = tokens[`--site-page-${mode}`] ?? SITE_THEME_SURFACES[mode].page;
+      const card = tokens[`--site-card-${mode}`] ?? SITE_THEME_SURFACES[mode].card;
+      expect(surface).toMatch(/^#[\dA-F]{6}$/);
+      expect(contrastRatio(surface, page), `${mode} tint/page`).toBeGreaterThanOrEqual(1.1);
+      expect(contrastRatio(surface, tokens[`--site-band-${mode}`]), `${mode} tint/band`).toBeGreaterThanOrEqual(1.06);
+      expect(contrastRatio(surface, tokens[`--site-brand-${mode}`]), `${mode} tint/brand`).toBeGreaterThanOrEqual(1.5);
+      for (const ink of ["foreground", "secondary", "brand-text"]) for (const under of [surface, card]) {
+        expect(contrastRatio(tint[`--site-tint-${ink}-${mode}`], under), `${mode} ${ink}`).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(contrastRatio(tint[`--site-tint-ring-${mode}`], surface), `${mode} ring`).toBeGreaterThanOrEqual(3);
+    }
+  });
+  it("leaves the legacy token object untouched (tint tokens travel only on tinted sections)", () => {
+    expect(Object.keys(siteBrandTokens("#7835DB")).some(key => key.includes("tint"))).toBe(false);
+  });
 });

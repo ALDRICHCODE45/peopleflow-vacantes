@@ -1,7 +1,8 @@
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { BodyTooLarge, readBoundedBody } from "@/features/candidate-cvs/bounded-body";
 import { uploadMediaFile } from "@/features/company-site/api/file-client";
-import { MEDIA_MAX_BYTES, MEDIA_TYPES, mediaKindSchema } from "@/features/company-site/media";
+import { LOGO_MEDIA_TYPES, MEDIA_MAX_BYTES, MEDIA_TYPES, mediaKindSchema, mediaKindSchemaV2 } from "@/features/company-site/media";
+import { SECTIONS_V2_ENABLED } from "@/features/company-site/sections-v2";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Same bounded multipart allowance as the candidate CV route: 5 MiB plus 16 KiB framing.
@@ -25,11 +26,13 @@ export async function POST(request: Request): Promise<Response> {
       form = await new Response(bytes, { headers: { "content-type": type } }).formData();
     } catch (cause) { return error(cause instanceof BodyTooLarge ? 413 : 400, cause instanceof BodyTooLarge ? "payload_too_large" : "invalid_request"); }
     if ([...form.keys()].some(key => key !== "kind" && key !== "file") || form.getAll("kind").length !== 1 || form.getAll("file").length !== 1) return error(400, "invalid_request");
-    const kind = mediaKindSchema.safeParse(form.get("kind"));
+    // `logo` exists only with sections v2 (backend slice A); until then it is an unknown kind.
+    const kind = (SECTIONS_V2_ENABLED ? mediaKindSchemaV2 : mediaKindSchema).safeParse(form.get("kind"));
     const file = form.get("file");
     if (!kind.success || file === null || typeof file === "string" || !file.size) return error(400, "invalid_request");
     if (file.size > MEDIA_MAX_BYTES) return error(413, "payload_too_large");
-    if (!(MEDIA_TYPES as readonly string[]).includes(file.type)) return error(415, "unsupported_media_type");
+    // Logos keep their transparency: PNG/WebP only.
+    if (!((kind.data === "logo" ? LOGO_MEDIA_TYPES : MEDIA_TYPES) as readonly string[]).includes(file.type)) return error(415, "unsupported_media_type");
     const body = new FormData(); body.append("kind", kind.data);
     const filename = file.name.split(/[\\/]/).at(-1)?.replace(/[\u0000-\u001f\u007f]/g, "") || "image";
     body.append("file", file, filename);

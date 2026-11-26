@@ -1,13 +1,20 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { getPublicSite, listCompanyJobs } from "./read";
 import { companyId, publishedFixture } from "./fixtures.test-support";
+import { publicSiteSchemaV2 } from "./schema";
+import { DEFAULT_SECTION_STYLE, HERO_BUTTON_DEFAULTS } from "../model";
 import { listItem, vacancyDetail } from "@/features/jobs/api/public-fixtures";
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8080", apiTimeoutMs: 50 } }));
 const respond = (data: unknown, status = 200) => vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(data), { status })));
 afterEach(() => vi.unstubAllGlobals());
 it("decodes the published projection including media with anonymous no-store transport", async () => {
   const data = publishedFixture(); respond(data);
-  expect(await getPublicSite(data.slug)).toEqual({ kind: "found", data });
+  // Sections v2 read: a legacy document arrives normalized to the slice A defaults.
+  const result = await getPublicSite(data.slug);
+  expect(result).toEqual({ kind: "found", data: publicSiteSchemaV2.parse(data) });
+  const hero = result.kind === "found" ? result.data.site.blocks[0] : null;
+  expect(hero?.style).toEqual(DEFAULT_SECTION_STYLE);
+  expect(hero?.type === "hero" && hero.content).toMatchObject(HERO_BUTTON_DEFAULTS);
   expect(fetch).toHaveBeenCalledWith("http://localhost:8080/v2/company-sites/nexo-labs", expect.objectContaining({ cache: "no-store", redirect: "error" }));
   const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers);
   expect(headers.has("authorization")).toBe(false); expect(headers.has("cookie")).toBe(false);

@@ -6,14 +6,15 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { CareersSiteEditor } from "./index";
 import { publishedFixture } from "../public/fixtures.test-support";
-import { defaultBlock } from "../defaults";
+import { defaultBlockV2 as defaultBlock } from "../defaults";
 import { saveDraftAction } from "../api/actions";
 import type { SiteState } from "../api/model";
+import { v2Draft } from "./site-state.test-support";
 vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
 vi.mock("../api/actions", () => ({ saveDraftAction: vi.fn() }));
 function fixture() {
   const data = publishedFixture();
-  const initialSite: SiteState = { draft: { ...data.site, slug: data.slug }, draft_version: 1, published: null, has_unpublished_changes: false, media: data.media, updated_at: data.published_at };
+  const initialSite: SiteState = { draft: v2Draft({ ...data.site, slug: data.slug }), draft_version: 1, published: null, has_unpublished_changes: false, media: data.media, updated_at: data.published_at };
   return { initialSite, role: "owner", preview: { company: data.company, jobs: [], officeLabels: new Map<string, string>() } };
 }
 beforeEach(() => {

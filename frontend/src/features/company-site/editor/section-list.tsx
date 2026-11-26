@@ -12,20 +12,21 @@ import { Input } from "@/components/ui/input";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { BLOCK_LIBRARY } from "../defaults";
+import { BLOCK_LIBRARY, BLOCK_LIBRARY_V2 } from "../defaults";
 import { addBlockAction, duplicateBlockAction, type EditorState } from "../editor-state";
 import type { AutosaveController } from "../autosave";
-import { publishIssues, type BlockType, type SiteBlock } from "../model";
+import { publishIssuesV2, type BlockType, type BlockTypeV2, type SiteBlockV2 } from "../model";
 import { VARIANT_LABELS } from "./variant-picker";
 import { SECTION_ICONS } from "./section-icons";
+import { missingContent } from "./section-completion";
 import { dragMessages, positionText, sectionPlacementError } from "./dnd/reorder";
 import { useReportSectionDragPreview } from "./dnd/section-drag-preview";
 import { DRAG_ROW_MOTION, SortableList, useListDrag, type DragSession } from "./dnd/use-list-drag";
 
 export { SECTION_ICONS } from "./section-icons";
-const protectedBlock = (block: SiteBlock) => block.type === "hero" || block.type === "jobs";
+const protectedBlock = (block: SiteBlockV2) => block.type === "hero" || block.type === "jobs";
 type ListProps = {
-  editor: EditorState; controller: AutosaveController; onSelect: (id: string) => void; onDelete: (block: SiteBlock) => void; onAdd: () => void;
+  editor: EditorState; controller: AutosaveController; onSelect: (id: string) => void; onDelete: (block: SiteBlockV2) => void; onAdd: () => void;
   /** One call per committed drag (pointer, touch or keyboard) with the final index; never for a no-op, a forbidden spot or a cancel. */
   onReorder: (id: string, toIndex: number) => void;
 };
@@ -33,7 +34,7 @@ type Drag = ReturnType<typeof useListDrag>;
 const INSTRUCTIONS = "Para mover una sección, pulsa Espacio o Enter en su manija, usa las flechas arriba y abajo y vuelve a pulsar Espacio o Enter para soltarla; Escape cancela. También puedes usar Subir y Bajar en el menú de acciones.";
 
 /** The section's identity: a tinted 32 px tile with its own glyph. */
-function SectionTile({ type, selected }: { type: BlockType; selected?: boolean }) {
+export function SectionTile({ type, selected }: { type: BlockTypeV2; selected?: boolean }) {
   const Icon = SECTION_ICONS[type];
   return <span data-section-type-icon="" className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-text transition-colors duration-150 motion-reduce:transition-none dark:bg-primary-text/15", selected && "bg-selection text-selection-foreground dark:bg-selection")}>
     <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
@@ -42,9 +43,12 @@ function SectionTile({ type, selected }: { type: BlockType; selected?: boolean }
 function BlockedHint({ reason }: { reason: string }) {
   return <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-destructive"><Ban className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{reason}</span></span>;
 }
-function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps, "onAdd"> & { block: SiteBlock; index: number; incomplete: boolean; drag: Drag }) {
+function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps, "onAdd"> & { block: SiteBlockV2; index: number; incomplete: boolean; drag: Drag }) {
+  // What «Incompleta» means for this section, e.g. «Falta: al menos 1 persona con permiso».
+  const hint = incomplete ? missingContent(block, props.editor.draft.blocks)?.hint ?? "Falta información para publicar" : null;
+  const hintId = useId();
   const { editor, controller, onSelect, onDelete, onReorder } = props;
-  const label = BLOCK_LIBRARY[block.type].label;
+  const label = BLOCK_LIBRARY_V2[block.type].label;
   const blocks = editor.draft.blocks; const count = blocks.length;
   // Subir/Bajar and Alt+arrows: one step through the same rule and reorder as a drag.
   const stepReason = (to: number) => to < 0 || to >= count ? null : sectionPlacementError(blocks, block.id, to);
@@ -65,7 +69,7 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
   const selected = editor.selectedId === block.id;
   const blocked = drag.session?.id === block.id ? drag.session.blocked : null;
   return <Item role="listitem" size="xs" ref={node => { draggable.setNodeRef(node); rowRef(node); }} {...rowAttrs} data-selected={selected || undefined}
-    className={cn("relative flex-nowrap pl-3.5", DRAG_ROW_MOTION, selected && "bg-card shadow-sm ring-1 ring-primary/40 dark:shadow-none dark:ring-primary-text/50",
+    className={cn("relative flex-nowrap pl-7", DRAG_ROW_MOTION, selected && "bg-card shadow-sm ring-1 ring-primary/40 dark:shadow-none dark:ring-primary-text/50",
       // Pointer drag: the row stays as a dashed placeholder at its landing slot; the overlay carries the copy.
       "data-[drag=placeholder]:border-dashed data-[drag=placeholder]:border-primary/50 data-[drag=placeholder]:bg-primary/5 data-[drag=placeholder]:shadow-none data-[drag=placeholder]:ring-0 data-[drag=placeholder]:*:opacity-0",
       // Keyboard drag: the row itself is lifted and travels to its landing slot.
@@ -73,14 +77,14 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
       "data-drag-blocked:border-destructive/60 data-drag-blocked:bg-destructive/5 data-[drag=lifted]:data-drag-blocked:ring-destructive")}>
     {/* Stretched native hit area: hover and focus-visible belong to the whole
         Item, with no inner pill. Drag/menu remain independent sibling controls. */}
-    <Button variant="ghost" className="absolute inset-0 size-full" aria-label={`Seleccionar ${label}`} aria-pressed={selected} onClick={() => onSelect(block.id)} onKeyDown={event => {
+    <Button variant="ghost" className="absolute inset-0 size-full" aria-label={`Seleccionar ${label}`} aria-pressed={selected} title={hint ?? undefined} aria-describedby={hint ? hintId : undefined} onClick={() => onSelect(block.id)} onKeyDown={event => {
       if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) { event.preventDefault(); step(event.key === "ArrowUp" ? -1 : 1); }
     }} />
     {/* Quiet handle laid over the row's left padding, so it never takes width
         from the title: shown on hover, focus, selection, while dragging and always
         on coarse pointers; it stays a real, named, focusable 24 × 40 control. */}
     <Button variant="ghost" size="icon" ref={node => { draggable.setActivatorNodeRef(node); gripRef(node); }} {...draggable.listeners} {...draggable.attributes} {...grip} aria-label={`Arrastrar ${label}`}
-      className={cn("absolute inset-y-0 -left-1 z-10 my-auto h-10 w-6 cursor-grab touch-manipulation rounded-lg text-muted-foreground opacity-0 select-none [-webkit-touch-callout:none] transition-opacity duration-150 group-hover/item:opacity-100 group-focus-within/item:opacity-100 hover:bg-transparent hover:text-foreground focus-visible:opacity-100 active:cursor-grabbing motion-reduce:transition-none pointer-coarse:opacity-100", (selected || grip["aria-pressed"]) && "opacity-100")}>
+      className={cn("absolute inset-y-0 left-0.5 z-10 my-auto h-10 w-6 cursor-grab touch-manipulation rounded-lg text-muted-foreground opacity-0 select-none [-webkit-touch-callout:none] transition-opacity duration-150 group-hover/item:opacity-100 group-focus-within/item:opacity-100 hover:bg-transparent hover:text-foreground focus-visible:opacity-100 active:cursor-grabbing motion-reduce:transition-none pointer-coarse:opacity-100", (selected || grip["aria-pressed"]) && "opacity-100")}>
       <GripVertical aria-hidden="true" />
     </Button>
     <div className="flex w-full min-w-0 items-center gap-2">
@@ -95,7 +99,7 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
               <span data-section-indicators="" className="flex shrink-0 items-center gap-1">
                 {required && <Badge variant="neutral" title="Fija: siempre forma parte de tu sitio" className="h-[18px] px-1.5"><Lock role="img" aria-label="Sección obligatoria" /><span aria-hidden="true">Fija</span></Badge>}
                 {block.hidden && <Badge variant="neutral" className="h-[18px] px-1.5"><EyeOff aria-hidden="true" />Oculta</Badge>}
-                {incomplete && <Badge variant="review" dot className="h-[18px] px-1.5">Incompleta</Badge>}
+                {incomplete && <Badge variant="review" dot className="h-[18px] px-1.5">Incompleta<span id={hintId} className="sr-only">{`. ${hint}`}</span></Badge>}
               </span>
             </div>}
           </div>
@@ -120,10 +124,10 @@ function SectionRow({ block, index, incomplete, drag, ...props }: Omit<ListProps
   </Item>;
 }
 /** Floating copy that follows the pointer; it names a forbidden or outside drop. */
-function SectionOverlay({ block, session }: { block: SiteBlock; session: DragSession }) {
-  const label = BLOCK_LIBRARY[block.type].label; const refused = session.blocked ?? (session.outside ? "Suelta dentro de la lista para moverla." : null);
-  return <div data-drag-overlay="" className={cn("relative flex size-full cursor-grabbing items-center gap-2 rounded-2xl border border-transparent bg-card py-2 pr-2.5 pl-3.5 text-sm shadow-lg ring-1 ring-border motion-safe:scale-[1.02] dark:ring-foreground/15", refused && "cursor-not-allowed ring-2 ring-destructive/60")}>
-    <span className="absolute inset-y-0 -left-1 my-auto flex h-10 w-6 items-center justify-center text-muted-foreground"><GripVertical className="size-4" aria-hidden="true" /></span>
+function SectionOverlay({ block, session }: { block: SiteBlockV2; session: DragSession }) {
+  const label = BLOCK_LIBRARY_V2[block.type].label; const refused = session.blocked ?? (session.outside ? "Suelta dentro de la lista para moverla." : null);
+  return <div data-drag-overlay="" className={cn("relative flex size-full cursor-grabbing items-center gap-2 rounded-2xl border border-transparent bg-card py-2 pr-2.5 pl-7 text-sm shadow-lg ring-1 ring-border motion-safe:scale-[1.02] dark:ring-foreground/15", refused && "cursor-not-allowed ring-2 ring-destructive/60")}>
+    <span className="absolute inset-y-0 left-0.5 my-auto flex h-10 w-6 items-center justify-center text-muted-foreground"><GripVertical className="size-4" aria-hidden="true" /></span>
     <SectionTile type={block.type} />
     <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="line-clamp-2 font-medium leading-snug">{label}</span>{refused ? <BlockedHint reason={refused} /> : <span className="truncate text-xs text-muted-foreground">{VARIANT_LABELS[block.variant]}</span>}</span>
   </div>;
@@ -134,13 +138,14 @@ export function SectionList(props: ListProps) {
   const report = useReportSectionDragPreview();
   const drag = useListDrag({
     ids: blocks.map(block => block.id), instructions: INSTRUCTIONS,
-    label: id => BLOCK_LIBRARY[blocks.find(block => block.id === id)?.type ?? "hero"].label,
+    label: id => BLOCK_LIBRARY_V2[blocks.find(block => block.id === id)?.type ?? "hero"].label,
     blockedReason: (id, to) => sectionPlacementError(blocks, id, to),
     onMove: onReorder,
     onSessionChange: session => report(session ? { activeId: session.id, toIndex: session.to, allowed: !session.blocked && !session.outside } : null),
   });
-  const incomplete = new Set(publishIssues(editor.draft, { name: null, logo_url: null }).flatMap(issue => {
-    const match = /^blocks\[(\d+)\]$/.exec(issue.field ?? ""); return match ? [Number(match[1])] : [];
+  const incomplete = new Set(publishIssuesV2(editor.draft, { name: null, logo_url: null }).flatMap(issue => {
+    // Slice A issues point inside the block (e.g. `blocks[2].style.image`); the row is still incomplete.
+    const match = /^blocks\[(\d+)\](?:\.|$)/.exec(issue.field ?? ""); return match ? [Number(match[1])] : [];
   }));
   return <div className="flex flex-col gap-4">
     <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold">Tu página</h2><Badge variant="secondary">{blocks.length === 1 ? "1 sección" : `${blocks.length} secciones`}</Badge></div>

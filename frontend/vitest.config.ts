@@ -17,5 +17,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     include: ["src/**/*.test.{ts,tsx}"],
+    // Careers sections v2 is on by default in the app; unit tests pin the pre-v2 behaviour
+    // unless a test turns it on (src/features/company-site/sections-v2.ts).
+    env: { NEXT_PUBLIC_CAREERS_SECTIONS_V2: "false" },
   },
 });

@@ -1,5 +1,5 @@
 import type { PublicJobItem } from "@/features/jobs/types";
-import type { PublicSite } from "./schema";
+import type { PublicSite, PublicSiteV2 } from "./schema";
 
 /** Serializable across the server/client boundary (React supports Map). */
 export type CompanySitePreviewData = {
@@ -9,7 +9,12 @@ export type CompanySitePreviewData = {
   officeLabels: Map<string, string>;
 };
 export type CompanySitePresentationProps = CompanySitePreviewData & {
-  site: PublicSite["site"];
+  /** A sections v2 document (the editor's `SiteDraftV2`, the public v2 read); a legacy
+   * v1 document still renders, as its v2 read (default style and hero buttons). */
+  site: PublicSiteV2["site"] | PublicSite["site"];
   selectedBlockId?: string | null;
   onSelectBlock?: (id: string) => void;
+  /** Editor only: «Completar sección» in the preview (select the section and lead to what's missing).
+   * Without it the button just selects the section. */
+  onCompleteBlock?: (id: string) => void;
 };

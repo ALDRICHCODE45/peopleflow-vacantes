@@ -6,10 +6,11 @@ import "@testing-library/jest-dom/vitest";
 import { EDITOR_LAYOUT_KEY } from "./editor-layout";
 import { CareersSiteEditor, CareersSiteEditorLoading, CareersSiteEditorError } from "./index";
 import { publishedFixture } from "../public/fixtures.test-support";
-import { defaultBlock } from "../defaults";
+import { defaultBlockV2 as defaultBlock } from "../defaults";
 import type { SiteState, SiteResult } from "../api/model";
 import { saveDraftAction } from "../api/actions";
 import { RECRUITER_PUBLISH_REASON } from "../permissions";
+import { v2Draft } from "./site-state.test-support";
 vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
 vi.mock("../api/actions", () => ({ saveDraftAction: vi.fn(), slugAvailabilityAction: vi.fn().mockResolvedValue({ kind: "uncertain" }), publishSiteAction: vi.fn(), unpublishSiteAction: vi.fn() }));
 // Base UI menu portals cannot be positioned by jsdom; keep its actual controller,
@@ -20,7 +21,7 @@ vi.mock("@/components/ui/dropdown-menu", async original => {
 });
 function fixture() {
   const data = publishedFixture();
-  const initialSite: SiteState = { draft: { ...data.site, slug: data.slug }, draft_version: 7, published: null, has_unpublished_changes: false, media: data.media, updated_at: data.published_at };
+  const initialSite: SiteState = { draft: v2Draft({ ...data.site, slug: data.slug }), draft_version: 7, published: null, has_unpublished_changes: false, media: data.media, updated_at: data.published_at };
   return { initialSite, role: "owner", preview: { company: data.company, jobs: [], officeLabels: new Map<string, string>() } };
 }
 async function mount(role = "owner") {
@@ -122,6 +123,52 @@ it.each([[1202, 256, 608, 336], [1002, 256, 448, 296], [972, 234, 448, 288]])("a
   const panels = Array.from(document.querySelectorAll<HTMLElement>('[data-panel]')).map(panel => Number(panel.style.flexGrow));
   [sections, preview, properties].forEach((pixels, index) => expect(panels[index]).toBeCloseTo(pixels / (width - 2) * 100));
   expect(localStorage.getItem(EDITOR_LAYOUT_KEY)).toBeNull();
+});
+function narrowDesktop(panelSpace: number) {
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const size = this.hasAttribute("data-group") || this.hasAttribute("data-editor-workspace") ? panelSpace + 2 : this.hasAttribute("data-separator") ? 1 : 0;
+    return { left: 0, right: size, top: 0, bottom: 600, x: 0, y: 0, width: size, height: 600, toJSON() {} };
+  });
+}
+const flex = (id: string) => Number(document.querySelector<HTMLElement>(`[data-panel][id="${id}"]`)!.style.flexGrow);
+it("at 1280 with the app sidebar open (932 px) a side panel can always be shown: showing one folds the other and hiding it brings it back", async () => {
+  narrowDesktop(932);
+  await mount();
+  expect(screen.getByLabelText("Ocultar secciones")).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByLabelText("Mostrar propiedades")).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(screen.getByLabelText("Ocultar secciones"));
+  fireEvent.click(screen.getByLabelText("Mostrar secciones"));
+  expect(screen.getByLabelText("Ocultar secciones")).toHaveAttribute("aria-expanded", "true");
+  fireEvent.click(screen.getByLabelText("Mostrar propiedades"));
+  expect(screen.getByLabelText("Ocultar propiedades")).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByLabelText("Mostrar secciones")).toHaveAttribute("aria-expanded", "false");
+  expect(document.getElementById("editor-properties")).toBeVisible();
+  expect(flex("preview") / 100 * 932).toBeGreaterThanOrEqual(320);
+  fireEvent.click(screen.getByLabelText("Ocultar propiedades"));
+  expect(screen.getByLabelText("Ocultar secciones")).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByLabelText("Mostrar propiedades")).toHaveAttribute("aria-expanded", "false");
+});
+it("at 1024 with the app sidebar open (676 px) a saved three-pane layout starts with the list so «Agregar sección» is reachable, and properties can come back", async () => {
+  localStorage.setItem(EDITOR_LAYOUT_KEY, JSON.stringify({ v: 1, layout: { sections: 20, preview: 45, properties: 35 } }));
+  narrowDesktop(676);
+  await mount();
+  expect(document.getElementById("editor-sections")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Agregar sección" })).toBeVisible();
+  expect(screen.getByLabelText("Mostrar propiedades")).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(screen.getByLabelText("Mostrar propiedades"));
+  expect(document.getElementById("editor-properties")).toBeVisible();
+  expect(flex("properties")).toBeGreaterThan(0);
+  expect(flex("preview") / 100 * 676).toBeGreaterThanOrEqual(320);
+  fireEvent.click(screen.getByLabelText("Ocultar propiedades"));
+  expect(document.getElementById("editor-sections")).toBeVisible();
+});
+it("opens side panels as Sheets when not even one fits beside the preview", async () => {
+  narrowDesktop(560);
+  render(<CareersSiteEditor {...fixture()} />);
+  expect(await screen.findByRole("button", { name: "Propiedades" })).toBeInTheDocument();
+  expect(document.querySelector('[data-slot="resizable-panel-group"]')).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Secciones" }));
+  expect(await screen.findByRole("dialog", { name: "Tu sitio" })).toBeInTheDocument();
 });
 it("restores requested widths before paint and preserves them across focus", async () => {
   const layout = { sections: 20, preview: 45, properties: 35 };

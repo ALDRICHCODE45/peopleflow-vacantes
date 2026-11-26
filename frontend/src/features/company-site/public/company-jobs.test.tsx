@@ -129,3 +129,12 @@ it("links each job to its vacancy with the careers site origin", () => {
   for (const job of jobs) expect(screen.getByRole("link", { name: job.title })).toHaveAttribute("href", `/vacantes/${job.id}?origen=sitio`);
 });
 
+it.each(["list", "by_area"] as const)("%s keeps only list items inside each job list (axe aria-required-children)", variant => {
+  render(<CompanyJobs jobs={jobs} variant={variant} />);
+  const lists = screen.getAllByRole("list");
+  expect(lists.length).toBeGreaterThan(0);
+  for (const list of lists) for (const child of Array.from(list.children)) {
+    expect(child.getAttribute("role") ?? child.tagName.toLowerCase()).toMatch(/^(listitem|li)$/);
+  }
+  expect(document.querySelector('[role="list"] > [role="separator"], ul > [role="separator"], [role="list"] > [data-slot="separator"]')).toBeNull();
+});

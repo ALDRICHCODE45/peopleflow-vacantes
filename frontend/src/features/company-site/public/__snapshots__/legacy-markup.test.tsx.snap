@@ -1,0 +1,35 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`legacy documents keep their pre-v2 public and editor markup (golden) 1`] = `
+{
+  "benefits/compact": "32ef893ed6d32237",
+  "benefits/grid": "523dd0d072a8a136",
+  "closing/banner": "224ef1a6288b66f4",
+  "closing/simple": "e2168f3e9f758bb6",
+  "faq/accordion": "be9325c70026c41c",
+  "faq/two_columns": "bbcdf5833289f62e",
+  "gallery/carousel": "3b13a51cdc94bb36",
+  "gallery/grid": "c953abca028841be",
+  "gallery/mosaic": "f68b1307c783a5e4",
+  "hero/centered": "b79cb05b4f5a9900",
+  "hero/photo": "1b00ddcbcd623a07",
+  "hero/split": "11d5acc646225efb",
+  "jobs/by_area": "26fa457723e764a5",
+  "jobs/cards": "6af2d0989d2d32a5",
+  "jobs/list": "184217ccca0f12d3",
+  "offices/cards": "ba9a440c4112107b",
+  "offices/list": "aca6ccfc6e3d26bc",
+  "process/steps": "0c945b064e760e3f",
+  "process/timeline": "1711e6db793ef5b9",
+  "stats/cards": "65dfbb3f04942932",
+  "stats/row": "7c68f882a51b866a",
+  "story/text": "c894dd2f1a9809d1",
+  "story/text_image": "f6b81aafab07004d",
+  "testimonials/cards": "e414ca2584bd027a",
+  "testimonials/quote": "3b614c0507aa4623",
+  "values/grid": "9f1fcdf53e474100",
+  "values/list": "3771fc6706ca3ad0",
+  "video/split": "93350cdb028ce451",
+  "video/wide": "376c6830ff123e7e",
+}
+`;

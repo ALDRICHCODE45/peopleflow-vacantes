@@ -4,11 +4,12 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import "../browser-platform.test-support";
-import { defaultBlock, defaultSiteDraft } from "../../defaults";
+import { defaultBlockV2 as defaultBlock, defaultSiteDraft } from "../../defaults";
 import { createEditorState, editorReducer, type MappedFieldError } from "../../editor-state";
-import { blockSchema, type BlockType, type SiteBlock } from "../../model";
+import { blockSchema, blockSchemaV2, type BlockType, type SiteBlockV2 as SiteBlock } from "../../model";
 import type { ImageFieldProps } from "../media/contract";
 import { SectionForm } from "@/features/company-site/editor/forms/section-form";
+import { v2Draft } from "../site-state.test-support";
 vi.mock("../media", () => ({ ImageField: ({ kind, label, value, onChange, error }: ImageFieldProps) => <div data-kind={kind}><button onClick={() => onChange({ media_id: "11111111-1111-4111-8111-111111111111" })}>{label}</button><span>{value?.media_id}</span>{error}</div> }));
 // jsdom has no popup geometry. Keep the real menu controls and keyboard
 // handlers, replacing only the portal/positioner as in the shell tests.
@@ -48,7 +49,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function mount(block: SiteBlock, errors: MappedFieldError[] = []) {
-  const draft = defaultSiteDraft();
+  const draft = v2Draft(defaultSiteDraft());
   draft.blocks = block.type === "hero" || block.type === "jobs" ? draft.blocks.map(b => b.type === block.type ? block : b) : [...draft.blocks, block];
   const initial = createEditorState({ draft, draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-01-01T00:00:00Z" }, '"1"');
   initial.fieldErrors = errors;
@@ -123,7 +124,7 @@ it.each(textFields)("%s displays every text field, codepoint limit, description 
   const values = Object.fromEntries(fields.filter(([, key]) => key !== "mission").map(([, key]) => [key, key === "map_url" ? "https://example.com" : "Actual"]));
   if ("items" in block.content) Object.assign(block.content, { items: [{ ...blanks[type], ...values }], ...(type === "values" ? { mission: "Actual" } : {}) });
   else Object.assign(block.content, values);
-  mount(blockSchema.parse(block));
+  mount(blockSchemaV2.parse(block));
   for (const [label, key, max] of fields) {
     const input = screen.getByLabelText(label);
     const field = input.closest('[data-slot="field"]') as HTMLElement;
@@ -215,7 +216,8 @@ it.each(["icon", "emoji"] as const)("marks a decoration's %s error on the shared
 });
 it("counts Unicode code points, warns near the limit, and associates field errors", () => {
   const block = defaultBlock("hero");
-  block.content = { title: "😀".repeat(72), subtitle: null, cover: null };
+  if (block.type !== "hero") throw new Error("fixture");
+  block.content = { ...block.content, title: "😀".repeat(72), subtitle: null, cover: null };
   mount(block, [{ blockId: block.id, field: "content.title", code: "too_long" }]);
   const input = screen.getByLabelText("Título principal");
   expect(input).toHaveAttribute("aria-invalid", "true");
@@ -243,7 +245,7 @@ function collectionBlock(type: BlockType, count: number): SiteBlock {
   };
   const block = defaultBlock(type);
   const key = collectionKey(type);
-  return blockSchema.parse({ ...block, content: { ...block.content, items: Array.from({ length: count }, (_, i) => ({ ...templates[type], [key]: `Dato ${i + 1}` })) } });
+  return blockSchemaV2.parse({ ...block, content: { ...block.content, items: Array.from({ length: count }, (_, i) => ({ ...templates[type], [key]: `Dato ${i + 1}` })) } });
 }
 function collectionKey(type: BlockType) {
   return type === "values" ? "title" : cases.find(entry => entry[0] === type)![2];

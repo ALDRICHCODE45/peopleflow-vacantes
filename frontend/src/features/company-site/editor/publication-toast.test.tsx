@@ -5,9 +5,10 @@ import "@testing-library/jest-dom/vitest";
 import { sileo } from "sileo";
 import { SitePublication } from "./publication";
 import { createAutosave } from "../autosave";
-import { defaultBlock, defaultSiteDraft } from "../defaults";
+import { defaultBlockV2 as defaultBlock, defaultSiteDraft } from "../defaults";
 import { publishSiteAction } from "../api/actions";
 import type { SiteState } from "../api/model";
+import { v2Draft } from "./site-state.test-support";
 // Keep the real notifyActionResult helper; observe its public Sileo boundary.
 vi.mock("sileo", () => ({ sileo: { success: vi.fn().mockReturnValue("toast"), error: vi.fn(), warning: vi.fn(), info: vi.fn(), dismiss: vi.fn() } }));
 vi.mock("../api/actions", () => ({ publishSiteAction: vi.fn() }));
@@ -15,7 +16,7 @@ vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 it("emits one standard success toast containing title, description and Ver sitio action", async () => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
-  const draft = defaultSiteDraft(); draft.slug = "nexo";
+  const draft = v2Draft(defaultSiteDraft()); draft.slug = "nexo";
   if (draft.blocks[0].type === "hero") draft.blocks[0].content.title = "Únete";
   const closing = defaultBlock("closing"); if (closing.type === "closing") closing.content.title = "Crece";
   draft.blocks.push(closing);

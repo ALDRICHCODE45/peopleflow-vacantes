@@ -6,8 +6,9 @@ import "@testing-library/jest-dom/vitest";
 import { CareersSiteEditor } from "./index";
 import { PreviewFrame } from "./preview-frame";
 import { publishedFixture } from "../public/fixtures.test-support";
-import { defaultBlock } from "../defaults";
+import { defaultBlockV2 as defaultBlock } from "../defaults";
 import type { SiteState } from "../api/model";
+import { v2Draft } from "./site-state.test-support";
 vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
 vi.mock("../api/actions", () => ({ saveDraftAction: vi.fn() }));
 // Floating positioning has no layout in jsdom. Exercise the real root/trigger
@@ -21,7 +22,7 @@ let paneWidth = 415;
 const rect = (top = 0, width = 0, height = 0) => ({ top, left: 0, width, height, bottom: top + height, right: width, x: 0, y: top, toJSON() {} });
 function props() {
   const data = publishedFixture();
-  const initialSite: SiteState = { draft: { ...data.site, slug: data.slug }, draft_version: 1, published: null, has_unpublished_changes: false, media: data.media, updated_at: data.published_at };
+  const initialSite: SiteState = { draft: v2Draft({ ...data.site, slug: data.slug }), draft_version: 1, published: null, has_unpublished_changes: false, media: data.media, updated_at: data.published_at };
   return { initialSite, role: "owner", preview: { company: data.company, jobs: [], officeLabels: new Map<string, string>() } };
 }
 const intoView = vi.fn();

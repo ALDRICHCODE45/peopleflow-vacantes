@@ -132,3 +132,128 @@
 .site[data-site-palette="true"] [data-brand-banner] {
   --muted: var(--site-brand);
 }
+/* Sections v2 (S3). A section painted with the brand fill re-themes every role so
+   existing content keeps its contrast: copy and brand ink use on-brand, the primary
+   CTA inverts (like the closing banner), cards stay on the brand fill. */
+.site [data-site-surface="brand"] {
+  --site-surface-foreground: var(--site-on-brand);
+  --foreground: var(--site-on-brand);
+  --card-foreground: var(--site-on-brand);
+  --muted-foreground: var(--site-on-brand);
+  --background: var(--site-brand);
+  --card: var(--site-brand);
+  --muted: color-mix(in srgb, var(--site-brand), var(--site-on-brand) 10%);
+  --border: color-mix(in srgb, var(--site-brand), var(--site-on-brand) 35%);
+  --primary: var(--site-banner-accent);
+  --primary-foreground: var(--site-on-banner-accent);
+  --primary-text: var(--site-on-brand);
+  --ring: var(--site-on-brand);
+  --site-brand-text: var(--site-on-brand);
+  --site-band: var(--muted);
+  background-color: var(--site-brand);
+  color: var(--foreground);
+}
+/* Photos and dark hero panels: white copy over the scrim (`section-style.ts` keeps
+   every overlay level at >= 4.5:1 over a white photo); surfaces only darken further. */
+.site [data-site-surface="scrim"] {
+  --site-surface-foreground: #FFFFFF;
+  --foreground: #FFFFFF;
+  --card-foreground: #FFFFFF;
+  --muted-foreground: #FFFFFF;
+  --background: #140F1F;
+  --card: rgb(20 15 31 / 0.6);
+  --muted: rgb(20 15 31 / 0.75);
+  --border: rgb(255 255 255 / 0.75);
+  --input: rgb(255 255 255 / 0.75);
+  --primary: #FFFFFF;
+  --primary-foreground: #211B2E;
+  --primary-text: #FFFFFF;
+  --ring: #FFFFFF;
+  --site-brand-text: #FFFFFF;
+  --site-band: rgb(20 15 31 / 0.6);
+  background-color: #140F1F;
+  color: var(--foreground);
+}
+/* «Tinte suave»: a stronger brand tint than the alternating band (`siteTintTokens`), with inks
+   measured on it and on cards; the tokens travel inline on the tinted section only. */
+.site [data-site-surface="tint"] {
+  --site-tint: var(--site-tint-light);
+  --foreground: var(--site-tint-foreground-light);
+  --card-foreground: var(--site-tint-foreground-light);
+  --muted-foreground: var(--site-tint-secondary-light);
+  --site-brand-text: var(--site-tint-brand-text-light);
+  --ring: var(--site-tint-ring-light);
+  --site-band: var(--card);
+  background-color: var(--site-tint);
+  color: var(--foreground);
+}
+:global(.dark) .site [data-site-surface="tint"] {
+  --site-tint: var(--site-tint-dark);
+  --foreground: var(--site-tint-foreground-dark);
+  --card-foreground: var(--site-tint-foreground-dark);
+  --muted-foreground: var(--site-tint-secondary-dark);
+  --site-brand-text: var(--site-tint-brand-text-dark);
+  --ring: var(--site-tint-ring-dark);
+}
+.site[data-site-palette="true"] [data-site-surface] [data-slot="badge"] {
+  --secondary: var(--primary);
+  --secondary-foreground: var(--primary-foreground);
+}
+/* Hero «Fondo en movimiento» stand-in until the background video (slice B). */
+.heroGradient {
+  background:
+    radial-gradient(circle at 18% 28%, var(--site-brand) 0, transparent 55%),
+    radial-gradient(circle at 82% 72%, var(--site-accent) 0, transparent 50%),
+    #140F1F;
+  background-size: 160% 160%;
+}
+.heroLoop {
+  animation: heroDrift 18s ease-in-out infinite alternate;
+}
+.heroLoop[data-paused="true"] {
+  animation-play-state: paused;
+}
+@keyframes heroDrift {
+  from { background-position: 0% 0%; }
+  to { background-position: 100% 100%; }
+}
+/* «Tira de fotos»: two identical sets, so moving by half loops seamlessly (each
+   frame carries its own trailing gap). Pauses on request, hover and focus. */
+.stripViewport {
+  mask-image: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
+}
+.stripTrack {
+  animation: stripMove 60s linear infinite;
+}
+[data-paused="true"] > .stripTrack,
+.stripViewport:hover .stripTrack,
+.stripViewport:focus-within .stripTrack {
+  animation-play-state: paused;
+}
+@keyframes stripMove {
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heroLoop,
+  .stripTrack {
+    animation: none;
+  }
+}
+/* Editor-only completion slots sit on any section surface (brand, image scrim, tint):
+   they always use the page's own card and ink so their dashed outline, icon tile and
+   copy stay visible, never the surface they sit on. */
+.site [data-editor-placeholder] {
+  /* «Completar sección» is an editor action: editor ink, never the company brand. */
+  --primary: var(--editor-primary);
+  --primary-foreground: var(--editor-primary-foreground);
+  --card: var(--site-card-light, #FFFFFF);
+  --card-foreground: var(--site-foreground-light, #1A1626);
+  --foreground: var(--site-foreground-light, #1A1626);
+  --muted-foreground: var(--site-secondary-light, #6B6480);
+}
+:global(.dark) .site [data-editor-placeholder] {
+  --card: var(--site-card-dark, #15121F);
+  --card-foreground: var(--site-foreground-dark, #F6F2FF);
+  --foreground: var(--site-foreground-dark, #F6F2FF);
+  --muted-foreground: var(--site-secondary-dark, #A79FBF);
+}
