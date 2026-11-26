@@ -198,3 +198,8 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   un link (recomendado)». Agent decisions: preferences keyed per company (company_id NULL for candidates); email
   templates live in the backend with copy supplied by the frontend; Mailpit added to dev compose; mandatory emails carry
   only the «Mis preferencias» link, no per-type unsubscribe.
+- **L19** (2026-11-26) Frontend review of backend `docs/contracts/notifications-v2.md` (Draft), approved by the user and
+  sent: fixes (candidate email default table must read on per Q1; drop resolved items from open questions; T13
+  `app_url` fallback `/empresa` when the link is null; landing and one-click need two paths), Q3 path map, Q4 frontend
+  origin with a POST-only pass-through route, and the copy for T1–T17, F1–F2 and enum labels — all in
+  `odd/tasks/notifications-stage2-email-copy.md`. Candidate email on by default (Q1) recorded as the user's decision.
