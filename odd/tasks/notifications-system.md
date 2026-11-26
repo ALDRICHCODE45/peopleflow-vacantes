@@ -101,3 +101,8 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   (recomendado)»; stakeholders «No, solo por rol (recomendado)» — never picked by name. Chosen artboards: 07 (inbox, with
   02 as the sheet base), 04 (phone + candidate), 05 (preferences); 06 is the stage-3 basis. T2 contract proposal drafted
   in `odd/tasks/notifications-system-contract.md`.
+- **L8** (2026-11-26) Backend session took stage 1; mapping where each event happens, audit events in the same
+  transaction (outbox hook), the existing in-process scheduler (advisory lock, used by document Reconcile) and where
+  delivery deadlines live; counter-proposal of the contract to follow. Constraint: candidates added manually by a
+  recruiter have no user account, so in-app candidate events only reach candidates who applied themselves (email in
+  stage 2 could reach the others if they have an email — to decide then).
