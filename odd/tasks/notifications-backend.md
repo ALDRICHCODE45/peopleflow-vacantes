@@ -48,7 +48,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 
 ## Tasks
 
-- T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — pending
+- T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — contract drafted (uncommitted)
 - T2+ — implementation slices from the contract — pending
 
 ## Log
@@ -79,3 +79,21 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   rule. 6. facets: counts per type and per job (with title) over the current state (unread/all), for the 07 filter.
   7. Candidate side: same endpoints under the candidate's session (its own scope), only for candidates with an
   account, as you said.» These override S2 where they differ (urgency enum replaces normal|attention).
+- **L5** 2026-11-26, contract drafted: `docs/contracts/notifications-v1.md` (Draft — pending frontend review,
+  uncommitted). Decisions: D1 capture = audit-port decorator wired in `main.go` (same tx, fail-closed); D2 closed
+  notifiable map; D3 events hold ids only (+ discard `has_message` read in tx); D4 in-process fan-out SKIP LOCKED
+  2 s/100; D5 rule-based resolver with stage-3 `role:` seam; D6 actor excluded, no stakeholders, candidates with
+  account, membership at fan-out and read; D7 candidate_status_changed only on visible status change; D8 discard with
+  message → only candidate_message_received; D9 `vacancy_team_added`; D10 reassigned → new responsible only; D11
+  server-side groups (`applications:`/`psychometrics:<job>:<MX date>`, else `n:<id>`); D12 kind/urgency derived from
+  type; D13 attention outside pagination, filters apply, cap 20; D14 unread_count = groups + unread_notifications;
+  D15 read/unread by group_keys|ids, undo by `marked_at`; D16 read-all with types/job_ids/before; D17 facets = group
+  counts per type/job; D18 routes `/v2/me/company/notifications…` (members, owner/recruiter/stakeholder gate) and
+  `/v2/me/notifications…` (candidates); D19 names/titles at read time, candidate names only with current access;
+  D20 scheduler 15 min, lock `notif_sc`, resolves stale delivery items (`resolved_at`); D21 dedupe uniques; D22
+  retention 180 d + purge command; D23 reads not audited; D24 texts by frontend; D25 no backfill; D26 foreign ids
+  ignored, no 404; D27 keyset cursor over groups bound to filters. Open: Q1 paused/closed-continue in scheduler
+  (rec paused yes, closed no); Q2 notify previous responsible (rec stage 3); Q3 group psychometric_pending (rec
+  yes, `psychometrics_pending:<job>:<date>`); Q4 message notification vs message-read (rec independent); Q5 late team
+  members get past delivery items (rec no); Q6 limits 20/50/20/3/50 (rec ok); Q7 recruiter deadlines (rec stage 3);
+  Q8 overdue flood on first run (rec accept). Slices N1–N7. Next: frontend review.
