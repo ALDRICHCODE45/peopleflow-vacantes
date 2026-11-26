@@ -142,10 +142,10 @@ CREATE TABLE email_suppressions (
 -- One row per email to send (D8, D10, D12). No address column (D19).
 CREATE TABLE notification_email_deliveries (
     id                uuid PRIMARY KEY,                                     -- uuid v7; also the Message-ID local part
-    recipient_user_id uuid NOT NULL REFERENCES users(id),
+    recipient_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- never blocks a user hard delete
     recipient_kind    text NOT NULL CHECK (recipient_kind IN ('member','candidate')),
-    company_id        uuid NULL REFERENCES companies(id),                   -- same rule as notifications
-    type              text NOT NULL,                                        -- same 14 values as notifications.type
+    company_id        uuid NULL REFERENCES companies(id) ON DELETE CASCADE, -- same rule as notifications
+    type              text NOT NULL CHECK (type IN (/* the same 14 values as notifications.type */)),
     group_key         text NOT NULL CHECK (char_length(group_key) BETWEEN 3 AND 120),
     job_id            uuid NOT NULL,
     status            text NOT NULL DEFAULT 'pending'
@@ -163,7 +163,9 @@ CREATE TABLE notification_email_deliveries (
     updated_at        timestamptz NOT NULL DEFAULT now(),
     CHECK ((recipient_kind = 'candidate') = (company_id IS NULL)),
     CHECK ((status = 'skipped') = (skip_reason IS NOT NULL)),
-    CHECK ((status = 'sent') = (sent_at IS NOT NULL))
+    CHECK ((status = 'sent') = (sent_at IS NOT NULL)),
+    CHECK ((status = 'retry') = (next_attempt_at IS NOT NULL)),   -- the claim clears next_attempt_at
+    CHECK ((status = 'sending') = (lease_until IS NOT NULL))      -- every finalize clears lease_until
 );
 -- At most one open window per recipient and group (D10); 'retry'/'sending' rows are outside it on purpose.
 CREATE UNIQUE INDEX notification_email_deliveries_open ON notification_email_deliveries (recipient_user_id, group_key)
@@ -649,7 +651,7 @@ Reused from the catalog plus two new codes:
 
 ## Limits
 
-`PUT` ≤ 28 entries (11 types × 2 channels on the member tree); unsubscribe token ≤ 512 chars, POST body ≤ 1 KiB;
+`PUT` ≤ 28 entries (headroom over 11 member types × 2 channels = 22); unsubscribe token ≤ 512 chars, POST body ≤ 1 KiB;
 coalescing window 10 min; sender 5 s period, 20 claims per tick, lease 2 min, 8 attempts, backoff 1 min … 1 h,
 throttle default 1 email/s per instance; token expiry 365 days.
 

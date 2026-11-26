@@ -193,3 +193,8 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   gates refuse a user whose email is not a valid address), so that branch of `GetNotificationEmailDeliverable` is
   defensive only; no test forces a DB failure mid-PUT (atomicity rests on the single tx; validation and 422 never touch
   the DB).
+- **L10** 2026-11-26, E1+E2 independently verified (all 5 items pass; integration 74/0/0, TestNotifications* 20/20, unit 118 ok,
+  sqlc clean). Native review of E1 `review-4520d90ae9417a62` approved; its advisories fixed in E2 (5b1ccdd1). Contract
+  §Data model synced (delivery FKs cascade, type CHECK, retry/sending timer CHECKs) and the 28-entry limit wording fixed.
+  Follow-ups: guard only fires on `<alias>.recipient_kind =`; preferences PUT has its own strict decoder (duplicate keys
+  inside an entry: last wins); down test checks the index loosely. Next: E3.
