@@ -187,3 +187,14 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   decisions (user): «Email + preferencias personales (recomendado)» — digests stay in stage 3; operational events:
   «Apagado hasta que lo active (recomendado)» — email off by default, mandatory ones (overdue deliveries, assignments)
   always by email; candidates: «Solo los que tienen cuenta (recomendado)».
+- **L18** (2026-11-26) Backend intake for stage 2: the app sends no email today; SES (us-east-1) is decided but not
+  implemented (docs/decision-email-provider.md), no domain verified, and the user's lock «nadie TOQUE NADA DE AWS
+  TODAVIA» stands → stage 2 builds the email channel against a Mailer port with a log/Mailpit adapter in dev; real SES
+  sending waits for AWS. Backend proposal: notification_deliveries (one row per notification × channel, created in the
+  fan-out tx when preferences allow), in-process send loop (SKIP LOCKED, backoff, throttle), preferences stored as
+  exceptions only (defaults from kind; mandatory cannot be turned off → 422), one-click unsubscribe (RFC 8058) with a
+  signed token, suppression table designed now. User decisions: bursts — «Un correo por grupo cada 10 min
+  (recomendado)»; in-app — «Sí, las operativas se pueden apagar (recomendado)»; email content — «No, solo lo mínimo y
+  un link (recomendado)». Agent decisions: preferences keyed per company (company_id NULL for candidates); email
+  templates live in the backend with copy supplied by the frontend; Mailpit added to dev compose; mandatory emails carry
+  only the «Mis preferencias» link, no per-type unsubscribe.
