@@ -27,7 +27,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 
 ## Tasks
 
-- T1 — S1–S9 — contract `docs/contracts/notifications-v2.md` (Draft) for frontend review — worker (docs) — pending
+- T1 — S1–S9 — contract `docs/contracts/notifications-v2.md` (Draft) for frontend review — worker (docs) — drafted (uncommitted)
 - T2+ — implementation slices from the agreed contract — pending
 
 ## Log
@@ -44,3 +44,31 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   (docs/decision-email-provider.md); archguard forbids `outbox`/`worker` paths (internal/tools/archguard/archguard.go:250-282)
   so delivery is DB-backed and in-process like the stage-1 fan-out; no HMAC helper exists; domain status contradictory
   (decision doc «Pendiente» vs ROADMAP.md:251 «ya comprado»).
+- **L3** 2026-11-26, T1 drafted (uncommitted): `docs/contracts/notifications-v2.md`, Status Draft — pending frontend
+  review, D1–D23. Preferences: sparse explicit override rows `notification_preferences(user_id, company_id NULL for
+  candidates, type, channel ∈ in_app|email, enabled, source)`, `UNIQUE NULLS NOT DISTINCT`, mandatory types refused by
+  a DB CHECK and by the API (`422 notification_preference_locked`, new); defaults from kind in code (mandatory on+locked;
+  operational in_app on / email off; informative same as operational); GET returns the caller's full catalog with
+  `default`/`enabled`/`mandatory_locked` + `email_deliverable`; PUT partial, atomic, idempotent, upserts every entry,
+  returns the catalog; not audited (personal, not company data; `source`+`updated_at` kept). In-app off: **row created
+  hidden** (`notifications.in_app = false`, creation-time snapshot, never resurfaced) — keeps v1 D21 dedupe as the only
+  exactly-once record (scheduler re-runs every 15 min), gives email a real anchor for groups/links/resolution, counters
+  stay index-only (unread index rebuilt with `AND in_app`); cost = predicate in ten scoped inbox statements + guard
+  test. Email: `notification_email_deliveries` created in the fan-out/scheduler tx only for inserted rows
+  (`InsertNotification` → `:execrows`) when mailer ≠ off, email pref on, user live with email, address not in
+  `email_suppressions`; coalescing per (recipient, group_key) for the 3 grouped types with a fixed 10-min window (opens
+  at the first eligible row with no `pending` delivery, closes when the sender claims it; partial unique index on
+  `pending`), singles/mandatory immediate; sender loop in every instance (5 s, 20/tick, claim+lease in short tx, send
+  outside tx, fenced finalize, retry 1 min·2^(n−1) cap 1 h ×8, permanent → failed, per-instance throttle default 1/s,
+  at-least-once on crash); skip at send when gone/no address/suppressed/pref off/all resolved/(non-mandatory) all read;
+  Mailer port `off|log|smtp` (`ses` reserved), Mailpit in backend/docker-compose.yml; address never copied. Content
+  minimal (no candidate/actor names, no free text), MX dates, deep link via frontend path map; RFC 8058 headers only on
+  non-mandatory, mandatory footer links only «Mis preferencias». Unsubscribe: stateless HMAC-SHA256 token
+  `<kid>.<payload>.<mac>` {v,u,c,t,x}, 365 d, key list with rotation, hmac.Equal, uniform `422
+  unsubscribe_link_invalid` (new); public GET (no mutation) + POST (one-click/landing) on `/v2/notifications/unsubscribe`,
+  per-IP limit; effect = upsert email off, never mandatory. 17 type templates + 2 footers need copy. Slices E1–E8.
+  Deviation from decision-email-provider.md (queue/Fargate) flagged. Open questions Q1–Q11: Q1 candidate email defaults
+  (S2 literal = off; recommend on), Q2 vacancy title in emails (recommend include), Q3 frontend path map, Q4 public
+  origin for the one-click POST (recommend frontend origin pass-through), Q5 per-instance throttle, Q6 skip if already
+  read (recommend yes), Q7 hide preferences page for stakeholders, Q8 midnight split, Q9 365-day links, Q10 update
+  decision doc, Q11 sender domain.
