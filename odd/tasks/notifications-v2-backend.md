@@ -277,3 +277,11 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   tested; the deliverability query filters `deleted_at IS NULL`); the override read is now in three places (fan-out
   and scheduler in_app, `emaildelivery` email). Scratch logs left in `backend/internal/features/notifications/.e4-logs/`
   (untracked, to delete before committing).
+- **L13** 2026-11-26, E4 committed (58e86742). Native review `review-72a3d51eac3589a6` approved. Parent decisions on its
+  advisories: (1) an email-side failure must not roll back in-app rows or the whole scheduler run — in E6 wrap
+  emaildelivery.Create in a savepoint: on error roll back only the email part, keep the in-app rows, log step `email` with
+  SQLSTATE distinctly, and leave no delivery (the notification simply gets no email); test by breaking the deliveries table in
+  the disposable DB. This refines D8 ("same tx") to "same tx, isolated by a savepoint"; update the contract in E6.
+  (2) `NOTIFICATIONS_MAILER=log|smtp` before the sender exists only queues rows: acceptable because the branch is not
+  released before E6; E6 must make startup refuse a non-off mailer without the required keys. (3) Add a soft-deleted
+  recipient test in E6.
