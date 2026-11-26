@@ -126,6 +126,19 @@ func newWorld(t *testing.T, pool *pgxpool.Pool) world {
 	return w
 }
 
+// addJobWithParticipation adds a second published job of the company with an
+// organic participation of the same candidate.
+func (w world) addJobWithParticipation(t *testing.T, pool *pgxpool.Pool) (job, participation uuid.UUID) {
+	t.Helper()
+	job, participation, cv := uuid.New(), uuid.New(), uuid.New()
+	mustExec(t, pool, `INSERT INTO job_drafts(id,company_id,created_by,fields) VALUES($1,$2,$3,'{}')`, job, w.company, w.owner)
+	mustExec(t, pool, `INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) VALUES($1,$2,'published',now(),$3)`, job, w.company, w.owner)
+	mustExec(t, pool, `INSERT INTO candidate_cv_versions(id,candidate_id,storage_key,size,content_type) VALUES($1,$2,$3,6,'application/pdf')`, cv, w.candidate, strings.Repeat(strings.ReplaceAll(cv.String(), "-", ""), 2))
+	mustExec(t, pool, `INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source) VALUES($1,$2,$3,$4,$5,'[]','[]','organic')`,
+		participation, job, w.candidate, uuid.New(), cv)
+	return job, participation
+}
+
 // pending is one captured event inserted as the capture decorator would.
 type pending struct {
 	eventType                     string

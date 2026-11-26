@@ -24,11 +24,13 @@ FROM process_participations
 WHERE id = sqlc.arg('id')::uuid;
 
 -- name: ClaimNextNotificationEvent :one
--- Fan-out claim (notifications-v1 D4): the oldest pending event not already
--- tried in this tick, locked for the caller's tx; other instances skip it.
+-- Fan-out claim (notifications-v1 D4): the oldest pending, due event not
+-- already tried in this tick, locked for the caller's tx; other instances
+-- skip it. An event in retry backoff waits for next_attempt_at.
 SELECT id, company_id, event_type, actor_user_id, job_id, participation_id, subject_user_id, payload, occurred_at
 FROM notification_events
 WHERE processed_at IS NULL
+  AND (next_attempt_at IS NULL OR next_attempt_at <= now())
   AND NOT (id = ANY (sqlc.arg('skip')::uuid[]))
 ORDER BY occurred_at, id
 LIMIT 1
@@ -40,11 +42,15 @@ WHERE id = sqlc.arg('id')::uuid AND processed_at IS NULL;
 
 -- name: RecordNotificationEventFailure :one
 -- One failed attempt, in its own tx after the processing tx rolled back; at
--- max_attempts the event is given up (failed, processed).
+-- max_attempts the event is given up (failed, processed). Otherwise the next
+-- attempt waits retry_base_ms·2^(attempts-1) after this n-th failure, capped
+-- at retry_cap_ms (computed from the stored count, so racing instances agree).
 UPDATE notification_events
 SET attempts = attempts + 1,
     failed = attempts + 1 >= sqlc.arg('max_attempts')::integer,
-    processed_at = CASE WHEN attempts + 1 >= sqlc.arg('max_attempts')::integer THEN now() END
+    processed_at = CASE WHEN attempts + 1 >= sqlc.arg('max_attempts')::integer THEN now() END,
+    next_attempt_at = CASE WHEN attempts + 1 < sqlc.arg('max_attempts')::integer
+        THEN now() + interval '1 millisecond' * LEAST(sqlc.arg('retry_base_ms')::bigint * power(2, attempts), sqlc.arg('retry_cap_ms')::bigint) END
 WHERE id = sqlc.arg('id')::uuid AND processed_at IS NULL
 RETURNING attempts, failed;
 

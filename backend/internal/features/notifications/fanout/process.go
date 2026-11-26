@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/google/uuid"
@@ -19,6 +20,10 @@ const (
 	BatchSize = 100
 	// MaxAttempts is when a failing event is given up (§Scheduler).
 	MaxAttempts = 10
+	// RetryBase and RetryCap shape the backoff after the n-th failed attempt:
+	// RetryBase·2^(n-1), at most RetryCap (30 s … 30 min; ~2 h over 10 attempts).
+	RetryBase = 30 * time.Second
+	RetryCap  = 30 * time.Minute
 )
 
 // Processor claims and fans out pending events. Every instance runs one; the
@@ -40,11 +45,12 @@ func NewProcessor(pool *pgxpool.Pool, planner Planner, logger *slog.Logger) *Pro
 	return &Processor{pool: pool, planner: planner, batch: BatchSize, maxAttempts: MaxAttempts, logger: logger}
 }
 
-// Tick processes up to BatchSize events, oldest first. Each event is claimed,
-// resolved, inserted and marked processed in its own tx; a failed event is
-// rolled back, its attempt is recorded in a separate tx, and it is not retried
-// before the next tick. It returns the number of events claimed and stops
-// early only when the claim itself fails (database unavailable, shutdown).
+// Tick processes up to BatchSize due events, oldest first. Each event is
+// claimed, resolved, inserted and marked processed in its own tx; a failed or
+// panicking event is rolled back, its attempt is recorded in a separate tx
+// (with backoff), and it is not retried in the same tick, so it never blocks
+// later events. It returns the number of events claimed and stops early only
+// when the claim itself fails (database unavailable, shutdown).
 func (p *Processor) Tick(ctx context.Context) (int, error) {
 	tried := []uuid.UUID{}
 	for len(tried) < p.batch {
@@ -57,19 +63,21 @@ func (p *Processor) Tick(ctx context.Context) (int, error) {
 			if ctx.Err() != nil {
 				return len(tried), ctx.Err() // shutdown: not an attempt
 			}
-			p.recordFailure(ctx, event)
+			p.recordFailure(ctx, event, err)
 		}
 	}
 	return len(tried), nil
 }
 
 // processNext claims one event and runs it in the claiming tx. claimed=false
-// with err=nil means nothing is pending; claimed=false with an error means
-// the claim failed; claimed=true with an error is a failed attempt.
-func (p *Processor) processNext(ctx context.Context, skip []uuid.UUID) (Event, bool, error) {
+// with err=nil means nothing is due; claimed=false with an error means the
+// claim failed; claimed=true with an error is a failed attempt. A panic while
+// processing is recovered here (the deferred rollback still runs) and becomes
+// a failed attempt; its value is dropped.
+func (p *Processor) processNext(ctx context.Context, skip []uuid.UUID) (event Event, claimed bool, err error) {
 	tx, err := p.pool.Begin(ctx)
 	if err != nil {
-		return Event{}, false, fmt.Errorf("begin fan-out tx: %w", err)
+		return Event{}, false, stepErr(stepBegin, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	q := db.New(tx)
@@ -78,44 +86,59 @@ func (p *Processor) processNext(ctx context.Context, skip []uuid.UUID) (Event, b
 		return Event{}, false, nil
 	}
 	if err != nil {
-		return Event{}, false, fmt.Errorf("claim notification event: %w", err)
+		return Event{}, false, stepErr(stepClaim, err)
 	}
+	event = Event{ID: row.ID, EventType: row.EventType}
+	defer func() {
+		if recover() != nil {
+			claimed, err = true, stepErr(stepPanic, errPanic)
+		}
+	}()
+	return p.process(ctx, tx, q, row)
+}
+
+func (p *Processor) process(ctx context.Context, tx pgx.Tx, q *db.Queries, row db.ClaimNextNotificationEventRow) (Event, bool, error) {
 	event, err := toEvent(row)
 	if err != nil {
-		return event, true, err
+		return event, true, stepErr(stepDecode, err)
 	}
 	notifications, err := p.planner.Plan(ctx, directory{q}, event)
 	if err != nil {
-		return event, true, err
+		return event, true, stepErr(stepPlan, err)
 	}
 	for _, n := range notifications {
 		if err := insert(ctx, q, n); err != nil {
-			return event, true, fmt.Errorf("insert %s notification: %w", n.Type, err)
+			return event, true, stepErr(stepInsert, fmt.Errorf("insert %s notification: %w", n.Type, err))
 		}
 	}
 	if err := q.MarkNotificationEventProcessed(ctx, event.ID); err != nil {
-		return event, true, fmt.Errorf("mark processed: %w", err)
+		return event, true, stepErr(stepMark, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return event, true, fmt.Errorf("commit fan-out tx: %w", err)
+		return event, true, stepErr(stepCommit, err)
 	}
 	return event, true, nil
 }
 
-// recordFailure counts one attempt in its own tx; at MaxAttempts the event is
-// failed and processed. Logs carry the event type and id only (no payload, no
-// cause: a constraint error can quote values).
-func (p *Processor) recordFailure(ctx context.Context, event Event) {
-	res, err := db.New(p.pool).RecordNotificationEventFailure(ctx, db.RecordNotificationEventFailureParams{ID: event.ID, MaxAttempts: int32(p.maxAttempts)})
+// recordFailure counts one attempt in its own tx and schedules the next one
+// with backoff; at MaxAttempts the event is failed and processed. Logs carry
+// the event type, id, failing step and SQLSTATE only (no payload, no message:
+// a constraint error can quote values).
+func (p *Processor) recordFailure(ctx context.Context, event Event, cause error) {
+	step, sqlstate := classify(cause)
+	attrs := []any{"event_type", event.EventType, "notification_event_id", event.ID.String(), "step", step, "sqlstate", sqlstate}
+	res, err := db.New(p.pool).RecordNotificationEventFailure(ctx, db.RecordNotificationEventFailureParams{ID: event.ID, MaxAttempts: int32(p.maxAttempts),
+		RetryBaseMs: RetryBase.Milliseconds(), RetryCapMs: RetryCap.Milliseconds()})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		// Processed meanwhile by another instance.
 	case err != nil:
-		p.logger.Error("notification fan-out attempt not recorded", "event_type", event.EventType, "notification_event_id", event.ID.String())
+		_, recordState := classify(err)
+		p.logger.Error("notification fan-out attempt not recorded", append(attrs, "record_sqlstate", recordState)...)
 	case res.Failed:
-		p.logger.Error("notification fan-out gave up", "event_type", event.EventType, "notification_event_id", event.ID.String(), "attempts", res.Attempts)
+		p.logger.Error("notification fan-out gave up", append(attrs, "attempts", res.Attempts)...)
 	default:
-		p.logger.Warn("notification fan-out attempt failed", "event_type", event.EventType, "notification_event_id", event.ID.String(), "attempts", res.Attempts)
+		p.logger.Warn("notification fan-out attempt failed", append(attrs, "attempts", res.Attempts)...)
 	}
 }
 

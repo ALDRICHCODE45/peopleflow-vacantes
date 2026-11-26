@@ -16,6 +16,7 @@ const claimNextNotificationEvent = `-- name: ClaimNextNotificationEvent :one
 SELECT id, company_id, event_type, actor_user_id, job_id, participation_id, subject_user_id, payload, occurred_at
 FROM notification_events
 WHERE processed_at IS NULL
+  AND (next_attempt_at IS NULL OR next_attempt_at <= now())
   AND NOT (id = ANY ($1::uuid[]))
 ORDER BY occurred_at, id
 LIMIT 1
@@ -34,8 +35,9 @@ type ClaimNextNotificationEventRow struct {
 	OccurredAt      pgtype.Timestamptz `json:"occurred_at"`
 }
 
-// Fan-out claim (notifications-v1 D4): the oldest pending event not already
-// tried in this tick, locked for the caller's tx; other instances skip it.
+// Fan-out claim (notifications-v1 D4): the oldest pending, due event not
+// already tried in this tick, locked for the caller's tx; other instances
+// skip it. An event in retry backoff waits for next_attempt_at.
 func (q *Queries) ClaimNextNotificationEvent(ctx context.Context, skip []uuid.UUID) (ClaimNextNotificationEventRow, error) {
 	row := q.db.QueryRow(ctx, claimNextNotificationEvent, skip)
 	var i ClaimNextNotificationEventRow
@@ -292,13 +294,17 @@ const recordNotificationEventFailure = `-- name: RecordNotificationEventFailure 
 UPDATE notification_events
 SET attempts = attempts + 1,
     failed = attempts + 1 >= $1::integer,
-    processed_at = CASE WHEN attempts + 1 >= $1::integer THEN now() END
-WHERE id = $2::uuid AND processed_at IS NULL
+    processed_at = CASE WHEN attempts + 1 >= $1::integer THEN now() END,
+    next_attempt_at = CASE WHEN attempts + 1 < $1::integer
+        THEN now() + interval '1 millisecond' * LEAST($2::bigint * power(2, attempts), $3::bigint) END
+WHERE id = $4::uuid AND processed_at IS NULL
 RETURNING attempts, failed
 `
 
 type RecordNotificationEventFailureParams struct {
 	MaxAttempts int32     `json:"max_attempts"`
+	RetryBaseMs int64     `json:"retry_base_ms"`
+	RetryCapMs  int64     `json:"retry_cap_ms"`
 	ID          uuid.UUID `json:"id"`
 }
 
@@ -308,9 +314,16 @@ type RecordNotificationEventFailureRow struct {
 }
 
 // One failed attempt, in its own tx after the processing tx rolled back; at
-// max_attempts the event is given up (failed, processed).
+// max_attempts the event is given up (failed, processed). Otherwise the next
+// attempt waits retry_base_ms·2^(attempts-1) after this n-th failure, capped
+// at retry_cap_ms (computed from the stored count, so racing instances agree).
 func (q *Queries) RecordNotificationEventFailure(ctx context.Context, arg RecordNotificationEventFailureParams) (RecordNotificationEventFailureRow, error) {
-	row := q.db.QueryRow(ctx, recordNotificationEventFailure, arg.MaxAttempts, arg.ID)
+	row := q.db.QueryRow(ctx, recordNotificationEventFailure,
+		arg.MaxAttempts,
+		arg.RetryBaseMs,
+		arg.RetryCapMs,
+		arg.ID,
+	)
 	var i RecordNotificationEventFailureRow
 	err := row.Scan(&i.Attempts, &i.Failed)
 	return i, err

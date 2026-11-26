@@ -456,6 +456,7 @@ type NotificationEvent struct {
 	Attempts        int32              `json:"attempts"`
 	ProcessedAt     pgtype.Timestamptz `json:"processed_at"`
 	Failed          bool               `json:"failed"`
+	NextAttemptAt   pgtype.Timestamptz `json:"next_attempt_at"`
 }
 
 type ParticipationChecklistMark struct {

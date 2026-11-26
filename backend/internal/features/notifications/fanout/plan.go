@@ -264,6 +264,9 @@ func (p Planner) row(e Event, spec domain.Spec, reason domain.Relation, user uui
 	if spec.RecipientKind == domain.RecipientMember {
 		company := e.CompanyID
 		n.CompanyID = &company
+	} else {
+		// A candidate never receives the acting member's id (D19, D24).
+		n.ActorUserID = nil
 	}
 	n.GroupKey = GroupKey(spec.Group, e.JobID, e.OccurredAt.In(p.Location), n.ID)
 	return n

@@ -17,9 +17,10 @@ CREATE TABLE notification_events (
     occurred_at      timestamptz NOT NULL DEFAULT now(),     -- same clock as the audit row (same tx)
     attempts         integer NOT NULL DEFAULT 0,
     processed_at     timestamptz NULL,
-    failed           boolean NOT NULL DEFAULT false          -- given up after 10 attempts (processed_at set too)
+    failed           boolean NOT NULL DEFAULT false,         -- given up after 10 attempts (processed_at set too)
+    next_attempt_at  timestamptz NULL                        -- retry backoff after a failed attempt; NULL = due now
 );
-CREATE INDEX notification_events_pending ON notification_events (occurred_at, id) WHERE processed_at IS NULL;
+CREATE INDEX notification_events_pending ON notification_events (occurred_at, id) INCLUDE (next_attempt_at) WHERE processed_at IS NULL;
 CREATE INDEX notification_events_processed ON notification_events (processed_at) WHERE processed_at IS NOT NULL;
 
 CREATE TABLE notifications (

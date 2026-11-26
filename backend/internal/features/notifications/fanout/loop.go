@@ -80,6 +80,7 @@ func (l *Loop) runOnce(ctx context.Context) {
 		}
 	}()
 	if _, err := l.Ticker.Tick(ctx); err != nil && ctx.Err() == nil {
-		logger.Error("notification fan-out tick failed", "code_class", "internal_error")
+		step, sqlstate := classify(err)
+		logger.Error("notification fan-out tick failed", "code_class", "internal_error", "step", step, "sqlstate", sqlstate)
 	}
 }

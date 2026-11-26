@@ -12,8 +12,9 @@ import (
 )
 
 type Querier interface {
-	// Fan-out claim (notifications-v1 D4): the oldest pending event not already
-	// tried in this tick, locked for the caller's tx; other instances skip it.
+	// Fan-out claim (notifications-v1 D4): the oldest pending, due event not
+	// already tried in this tick, locked for the caller's tx; other instances
+	// skip it. An event in retry backoff waits for next_attempt_at.
 	ClaimNextNotificationEvent(ctx context.Context, skip []uuid.UUID) (ClaimNextNotificationEventRow, error)
 	// Inline close of all non-closed, non-tombstoned jobs of a company
 	// (companies-write slice, design D5). Runs in the SAME pgx.Tx as the
@@ -321,7 +322,9 @@ type Querier interface {
 	// whether it exists, read in the same tx after the discard UPDATE.
 	ParticipationHasCandidateMessage(ctx context.Context, id uuid.UUID) (bool, error)
 	// One failed attempt, in its own tx after the processing tx rolled back; at
-	// max_attempts the event is given up (failed, processed).
+	// max_attempts the event is given up (failed, processed). Otherwise the next
+	// attempt waits retry_base_ms·2^(attempts-1) after this n-th failure, capped
+	// at retry_cap_ms (computed from the stored count, so racing instances agree).
 	RecordNotificationEventFailure(ctx context.Context, arg RecordNotificationEventFailureParams) (RecordNotificationEventFailureRow, error)
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.

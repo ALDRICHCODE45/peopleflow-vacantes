@@ -51,8 +51,10 @@ func TestFanOutResolvesRecipientsFromCurrentData(t *testing.T) {
 		payload: map[string]any{"from_stage_id": str(later), "to_stage_id": str(later2), "has_message": true}})
 	silentMove := w.insertEvent(t, pool, pending{eventType: audit.EventParticipationMoved, actor: &w.recruiter, participation: &w.participation,
 		payload: map[string]any{"from_stage_id": str(later), "to_stage_id": str(later2)}})
-	otherJob := uuid.New()
-	foreign := w.insertEvent(t, pool, pending{eventType: audit.EventPsychometricInvitationCreated, participation: &otherJob, payload: map[string]any{"invitation_id": "inv"},
+	// Review finding 5: a real organic participation of the same candidate on a
+	// second job of the company; the process_id predicate must keep it out.
+	_, otherParticipation := w.addJobWithParticipation(t, pool)
+	foreign := w.insertEvent(t, pool, pending{eventType: audit.EventPsychometricInvitationCreated, participation: &otherParticipation, payload: map[string]any{"invitation_id": "inv"},
 		occurredAt: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)})
 
 	claimed, err := newTestProcessor(pool, nil).Tick(ctx)
@@ -104,6 +106,11 @@ func TestFanOutResolvesRecipientsFromCurrentData(t *testing.T) {
 	var badSingles int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notifications WHERE group_key LIKE 'n:%' AND group_key <> 'n:' || id::text`).Scan(&badSingles); err != nil || badSingles != 0 {
 		t.Fatalf("single group keys must be n:<id>: %d %v", badSingles, err)
+	}
+	var candidateActors, candidateRows int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE actor_user_id IS NOT NULL), count(*) FROM notifications WHERE recipient_kind = 'candidate'`).
+		Scan(&candidateActors, &candidateRows); err != nil || candidateActors != 0 || candidateRows == 0 {
+		t.Fatalf("candidate rows must store actor_user_id NULL: %d of %d %v", candidateActors, candidateRows, err)
 	}
 }
 
@@ -196,6 +203,26 @@ func TestFailingEventRetriesThenGivesUpAfterTenAttempts(t *testing.T) {
 		if s.attempts != attempt || s.processed != (attempt == MaxAttempts) || s.failed != (attempt == MaxAttempts) {
 			t.Fatalf("attempt %d: %+v", attempt, s)
 		}
+		// Review finding 2: exponential backoff (30 s · 2^(n-1), cap 30 min);
+		// not due → not claimed; given up → no next attempt.
+		delay := readBackoff(t, pool, bad)
+		if attempt == MaxAttempts {
+			if delay != nil {
+				t.Fatalf("given-up event keeps next_attempt_at: %v", *delay)
+			}
+			continue
+		}
+		want := RetryBase << (attempt - 1)
+		if want > RetryCap {
+			want = RetryCap
+		}
+		if delay == nil || *delay < want-5*time.Second || *delay > want+time.Second {
+			t.Fatalf("attempt %d: backoff %v, want %v", attempt, delay, want)
+		}
+		if claimed, err := p.Tick(ctx); err != nil || claimed != 0 {
+			t.Fatalf("attempt %d: event claimed before due: %d %v", attempt, claimed, err)
+		}
+		mustExec(t, pool, `UPDATE notification_events SET next_attempt_at = now() - interval '1 second' WHERE id = $1`, bad)
 	}
 	if s := readEvent(t, pool, good); !s.processed || s.attempts != 0 || len(readNotifications(t, pool, good)) != 2 {
 		t.Fatalf("good event blocked: %+v", s)
@@ -238,5 +265,80 @@ func TestReprocessingAnEventIsIdempotent(t *testing.T) {
 	}
 	if s := readEvent(t, pool, event); !s.processed || s.attempts != 0 {
 		t.Fatalf("state %+v", s)
+	}
+}
+
+// readBackoff is next_attempt_at - now(), nil when there is no next attempt.
+func readBackoff(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) *time.Duration {
+	t.Helper()
+	var ms *float64
+	if err := pool.QueryRow(context.Background(), `SELECT EXTRACT(EPOCH FROM next_attempt_at - now()) * 1000 FROM notification_events WHERE id=$1`, id).Scan(&ms); err != nil {
+		t.Fatal(err)
+	}
+	if ms == nil {
+		return nil
+	}
+	d := time.Duration(*ms * float64(time.Millisecond))
+	return &d
+}
+
+// Review finding 2: the claim skips events whose next attempt is not due yet.
+func TestClaimSkipsEventsNotYetDue(t *testing.T) {
+	pool := disposableDB(t)
+	ctx := context.Background()
+	w := newWorld(t, pool)
+	notDue := w.insertEvent(t, pool, pending{eventType: audit.EventVacancyApplicationSubmitted, participation: &w.participation, occurredAt: time.Now().Add(-time.Hour)})
+	due := w.insertEvent(t, pool, pending{eventType: audit.EventVacancyApplicationSubmitted, participation: &w.participation, occurredAt: time.Now().Add(-time.Minute)})
+	fresh := w.insertEvent(t, pool, pending{eventType: audit.EventVacancyApplicationSubmitted, participation: &w.participation})
+	mustExec(t, pool, `UPDATE notification_events SET attempts = 1, next_attempt_at = now() + interval '1 minute' WHERE id = $1`, notDue)
+	mustExec(t, pool, `UPDATE notification_events SET attempts = 1, next_attempt_at = now() - interval '1 second' WHERE id = $1`, due)
+	if claimed, err := newTestProcessor(pool, nil).Tick(ctx); err != nil || claimed != 2 {
+		t.Fatalf("claimed=%d err=%v", claimed, err)
+	}
+	if s := readEvent(t, pool, notDue); s.processed {
+		t.Fatal("not-yet-due event claimed")
+	}
+	for _, id := range []uuid.UUID{due, fresh} {
+		if s := readEvent(t, pool, id); !s.processed {
+			t.Fatalf("due event %v not processed", id)
+		}
+	}
+}
+
+// panicStatus panics for one stage, standing in for any planner bug.
+type panicStatus struct{ poison uuid.UUID }
+
+func (s panicStatus) Status(_, stage uuid.UUID, discarded bool) string {
+	if stage == s.poison {
+		panic("poison " + stage.String())
+	}
+	return initialStatus{initialStage}.Status(uuid.Nil, stage, discarded)
+}
+
+// Review finding 1: a panicking event is rolled back and recorded as a failed
+// attempt (type + id + step only in logs); later events are still processed.
+func TestPanickingEventIsAFailedAttemptAndDoesNotBlock(t *testing.T) {
+	pool := disposableDB(t)
+	ctx := context.Background()
+	w := newWorld(t, pool)
+	poison := uuid.New()
+	bad := w.insertEvent(t, pool, pending{eventType: audit.EventParticipationMoved, participation: &w.participation, occurredAt: time.Now().Add(-time.Minute),
+		payload: map[string]any{"from_stage_id": poison.String(), "to_stage_id": later.String()}})
+	good := w.insertEvent(t, pool, pending{eventType: audit.EventVacancyApplicationSubmitted, participation: &w.participation})
+	var logs bytes.Buffer
+	p := NewProcessor(pool, NewPlanner(panicStatus{poison}), slog.New(slog.NewJSONHandler(&logs, nil)))
+	claimed, err := p.Tick(ctx)
+	if err != nil || claimed != 2 {
+		t.Fatalf("claimed=%d err=%v", claimed, err)
+	}
+	if s := readEvent(t, pool, bad); s.attempts != 1 || s.processed || s.failed {
+		t.Fatalf("poison state %+v", s)
+	}
+	if s := readEvent(t, pool, good); !s.processed || len(readNotifications(t, pool, good)) != 2 {
+		t.Fatalf("later event blocked: %+v", s)
+	}
+	out := logs.String()
+	if !strings.Contains(out, `"step":"panic"`) || !strings.Contains(out, bad.String()) || strings.Contains(out, poison.String()) {
+		t.Fatalf("logs: %s", out)
 	}
 }

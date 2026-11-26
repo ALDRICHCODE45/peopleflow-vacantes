@@ -132,7 +132,12 @@ func TestPlanRecipientsPerType(t *testing.T) {
 				t.Fatalf("got  %+v\nwant %+v", summary(got), tc.want)
 			}
 			for _, n := range got {
-				if n.SourceEventID != tc.event.ID || n.JobID != job || !reflect.DeepEqual(n.ActorUserID, tc.event.ActorUserID) ||
+				// Review finding 4: a candidate never receives the acting recruiter's id.
+				wantActor := tc.event.ActorUserID
+				if n.RecipientKind == domain.RecipientCandidate {
+					wantActor = nil
+				}
+				if n.SourceEventID != tc.event.ID || n.JobID != job || !reflect.DeepEqual(n.ActorUserID, wantActor) ||
 					!reflect.DeepEqual(n.ParticipationID, tc.event.ParticipationID) {
 					t.Fatalf("row ids: %+v", n)
 				}
