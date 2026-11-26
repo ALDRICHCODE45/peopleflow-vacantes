@@ -42,7 +42,7 @@ allow it, company rules set by the owner and personal preferences within them. D
 | T4 | S1, S3, S5 | Stage 2 (email + personal preferences), branch `feat/notifications-stage2` | |
 | T4.1 | S1, S3, S5 | Stage-2 backend contract with the backend session (email channel, preferences API) | |
 | T4.2 | S3 | «Mis preferencias» page (design 05), company and candidate | |
-| T4.3 | S6 | Candidate status and test due-date badges in inbox rows (design 04) | |
+| T4.3 | S6 | Candidate status and test due-date badges in inbox rows (design 04) | 212cad66 (status badge; test due date needs API) |
 | T4.4 | S3 | «Preferencias» link and «Elegir qué me llega» wired to the new page | |
 
 ## Log
