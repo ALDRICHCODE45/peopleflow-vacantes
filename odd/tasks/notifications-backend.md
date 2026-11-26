@@ -52,7 +52,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 - T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — done: 0f133e1a 6810c32a d12d2139 1f5ed631 c8080b10 b52fbca6 + review correction 07f53042
 - T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — done: 31d04365 0d8168e8 76b60256 fc9270a4; review advisories fixed 7fe1e88f a7209e44 706387df; verified (L12)
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — done: bdd85ef9 f2473e79 235982da 9e446230 e3339a54; reviewed and verified (L14)
-- T5 — N4: member read API + unread-count (D13, D14, D19, D27) — implemented, uncommitted (L15); parent commits and adds the two topology entries
+- T5 — N4: member read API + unread-count (D13, D14, D19, D27) — done: a9e48d8a and the 4 commits before it; reviewed and verified (L16)
 - T6 — N5: read/unread/read-all + facets (D15–D17, D26) — pending
 - T7 — N6: candidate route tree (D18) — pending
 - T8 — N7: `cmd/notifications-purge` (D22) — pending
@@ -282,4 +282,9 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   (`vacancy_candidates`, single member → `participation`); a stakeholder (or a member demoted to stakeholder) passes the gate
   and sees any member rows of the company with candidate names hidden (no assignment, not owner); colleagues' names are not
   gated by membership. Not done: contract status line (docs/contracts outside the surface); `-race`; cmd/api full suite.
-
+- **L16** 2026-11-26, N4 closed. Native review `review-484f9ddb299603a6` approved (advisories: unused SampleLimit, attention
+  selection duplicated in two queries, attention recomputed per page, positional helpers, untested 500 paths). Independent
+  verify: scope, name/access gating, shapes vs §Endpoints, no audit/PII all pass; notifications integration 52/0/0,
+  TestNotificationsRead_ 5/5, unit 127 ok, sqlc clean. Accepted: a member demoted to stakeholder keeps seeing their old
+  member rows with candidate names hidden; from_user/to_user names come from users.full_name; missing ids omit the field;
+  empty `types=` → invalid_filter. Routes added to TestRouteTopology_ExactRegistrations by the parent.
