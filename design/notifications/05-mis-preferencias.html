@@ -759,7 +759,7 @@ const ROWS_CO=[
   {k:'equipo_cambios',icon:'users',tone:'mu',t:'Cambios en el equipo de tus vacantes',d:'Cuando alguien entra o sale del equipo.',kind:'info',why:'Aviso informativo: solo se muestra en la campana.',def:{app:true,mail:'off'}}]],
  ['Pruebas psicométricas',[
   {k:'prueba_ok',t:'Prueba completada',d:'Cuando un candidato de tus vacantes termina su prueba. Se agrupan por vacante.',kind:'op',def:{app:true,mail:'dia'}},
-  {k:'prueba_pend',t:'Prueba pendiente del candidato',d:'Cuando un candidato lleva 3 días sin completar su prueba.',kind:'off',why:'Grupo Altavista desactivó este aviso para todo el equipo.',def:{app:false,mail:'off'}}]],
+  {k:'prueba_pend',t:'Prueba pendiente del candidato',d:'Cuando un candidato lleva 3 días sin completar su prueba.',kind:'info',why:'Encendido por Grupo Altavista; llega solo a la campana.',def:{app:true,mail:'off'}}]],
 ];
 const ROWS_CA=[
  ['Tus postulaciones',[
@@ -863,7 +863,7 @@ function st05(o={}){
 }
 AB.fullToggle=true;AB.defaultFrames=['d','m'];
 AB.scenarios={
- reposo:{label:'Reposo',desc:'Valeria Ortiz en Configuración › Notificaciones. Tabla de avisos × canales: «En la app» con interruptor y «Correo» como Inmediato · Resumen diario · Apagado. Las obligatorias muestran el candado y el motivo; «Prueba pendiente» está desactivada por la empresa; dos filas llevan «Tu ajuste» porque difieren de lo que define Grupo Altavista.',make:()=>st05()},
+ reposo:{label:'Reposo',desc:'Valeria Ortiz en Configuración › Notificaciones. Tabla de avisos × canales: «En la app» con interruptor y «Correo» como Inmediato · Resumen diario · Apagado. Las obligatorias muestran el candado y el motivo; «Prueba pendiente del candidato» llega encendida, solo en la app; dos filas llevan «Tu ajuste» porque difieren de lo que define Grupo Altavista.',make:()=>st05()},
  cambios:{label:'Cambios sin guardar',desc:'Valeria apaga «Prueba completada» en la app y en el correo: la fila avisa que no le llegará por ningún medio y aparece la barra «2 cambios sin guardar» con Descartar y Guardar.',make:()=>{const s=st05();s.draft.prueba_ok={app:false,mail:'off'};s.draft.por_vencer.mail='dia';return s}},
  restablecer:{label:'Restablecer',desc:'«Restablecer a lo que define tu empresa» pide confirmación y lista qué vuelve a su valor (Nueva postulación y Te agregan al equipo).',make:()=>st05({ov:'reset'})},
  restablecido:{label:'Restablecido',desc:'Tras confirmar: se guardan los valores de la empresa, desaparecen los «Tu ajuste» y un aviso lo confirma.',make:()=>{const s=st05();s.saved=defaults(s);s.draft=clone(s.saved);s.toast={t:'Restablecido',d:'Tus avisos siguen lo que define Grupo Altavista.'};return s}},

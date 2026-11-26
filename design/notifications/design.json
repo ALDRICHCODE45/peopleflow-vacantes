@@ -1,6 +1,6 @@
 {
   "title": "Sistema de notificaciones · campana, bandeja, preferencias y reglas",
-  "brief": "T1 · S1–S7. Direcciones para el sistema de notificaciones de PeopleFlow (empresa y candidatos) con datos de Grupo Altavista (Andrea Salinas dueña; Valeria Ortiz y Rodrigo Treviño reclutadores; Mariana Elizondo stakeholder; candidata Ximena Ruiz). 01–03: tres direcciones para la campana + bandeja de la empresa a 1440 (popover, hoja lateral con filtros, bandeja en dos paneles), cada una con contador en el encabezado, pestañas No leídas · Todas, agrupación por día y por objeto («5 postulaciones nuevas en Analista de Nómina»), los eventos de la etapa 1 con su icono y destino, entrega por vencer frente a vencida, marcar una o todas como leídas (con deshacer), primera vez, carga, error y enlace a preferencias. 04: la campana en el teléfono (común a las tres) y la del candidato a 1440 y 390. 05: preferencias personales (avisos × canales, obligatorias con candado y motivo, desactivadas por la empresa, «Tu ajuste» y «Restablecer a lo que define tu empresa»; variante candidato). 06: reglas del dueño (destinatarios, si se puede apagar, correo; valores por rol; vista previa «Así le llega a Valeria»). Claro y oscuro, interactivos, solo tokens de design/system.md. Ninguna dirección está elegida todavía.",
+  "brief": "T1 · S1–S7. Direcciones para el sistema de notificaciones de PeopleFlow (empresa y candidatos) con datos de Grupo Altavista (Andrea Salinas dueña; Valeria Ortiz y Rodrigo Treviño reclutadores; Mariana Elizondo stakeholder; candidata Ximena Ruiz). 01–03: tres direcciones para la campana + bandeja de la empresa a 1440 (popover, hoja lateral con filtros, bandeja en dos paneles), cada una con contador en el encabezado, pestañas No leídas · Todas, agrupación por día y por objeto («5 postulaciones nuevas en Analista de Nómina»), los eventos de la etapa 1 con su icono y destino, entrega por vencer frente a vencida, marcar una o todas como leídas (con deshacer), primera vez, carga, error y enlace a preferencias. 04: la campana en el teléfono (común a las tres) y la del candidato a 1440 y 390. 05: preferencias personales (avisos × canales, obligatorias con candado y motivo, desactivadas por la empresa, «Tu ajuste» y «Restablecer a lo que define tu empresa»; variante candidato). 06: reglas del dueño (destinatarios, si se puede apagar, correo; valores por rol; vista previa «Así le llega a Valeria»). Claro y oscuro, interactivos, solo tokens de design/system.md. L5: el usuario prefiere 02 (hoja lateral) pero no sus filtros («se ven desordenados»); 07–09 son la misma hoja de 02 con tres diseños de filtro distintos, de una fila o ninguna, para elegir. 06 corregido: los stakeholders son de solo lectura y nunca forman parte de un equipo de vacante; «Prueba pendiente del candidato» encendida por defecto (05 y 06).",
   "feature": "odd/tasks/notifications-system.md",
   "artboards": [
     {
@@ -34,16 +34,37 @@
     {
       "file": "05-mis-preferencias.html",
       "title": "05 · Mis preferencias · S1 S3 S5",
-      "tradeoff": "Una tabla avisos × canales (En la app con interruptor; Correo como Inmediato · Resumen diario · Apagado) que hace visible lo que no se puede tocar y por qué, y marca con «Tu ajuste» lo que difiere de la empresa. A cambio, la tabla crece con cada evento nuevo, en el teléfono cada aviso se vuelve una tarjeta larga y el guardado es explícito (barra «Cambios sin guardar»).",
+      "tradeoff": "Una tabla avisos × canales (En la app con interruptor; Correo como Inmediato · Resumen diario · Apagado) que hace visible lo que no se puede tocar y por qué, y marca con «Tu ajuste» lo que difiere de la empresa; «Prueba pendiente del candidato» llega encendida, solo en la app. A cambio, la tabla crece con cada evento nuevo, en el teléfono cada aviso se vuelve una tarjeta larga y el guardado es explícito (barra «Cambios sin guardar»).",
       "width": 1440,
       "height": 2190
     },
     {
       "file": "06-reglas-de-la-empresa.html",
       "title": "06 · Reglas de la empresa · S1 S3 S4",
-      "tradeoff": "El dueño ve en una tabla quién recibe cada aviso, si se puede apagar y el correo, y comprueba el efecto con «Así le llega a Valeria» antes de guardar. A cambio hay dos niveles de configuración (regla por aviso en una hoja y valores por rol en una matriz) que pueden confundirse, y la vista previa ocupa una columna fija.",
+      "tradeoff": "El dueño ve en una tabla quién recibe cada aviso, si se puede apagar y el correo, y comprueba el efecto con «Así le llega a…» antes de guardar. El Stakeholder es de solo lectura y nunca está en un equipo: no recibe nada salvo los avisos que el dueño active para su rol, y solo en la app. A cambio hay dos niveles de configuración (regla por aviso en una hoja y valores por rol en una matriz) que pueden confundirse, y la vista previa ocupa una columna fija.",
       "width": 1440,
-      "height": 2190
+      "height": 2240
+    },
+    {
+      "file": "07-hoja-lateral-boton-filtrar.html",
+      "title": "07 · Hoja lateral · Filtros tras un botón · S6",
+      "tradeoff": "La más tranquila a la vista: una sola fila (pestañas + «Filtrar» con contador) y, con filtros activos, una línea discreta «2 de 10 · Postulaciones · Analista de Nómina» con «Limpiar»; tipo y vacante (con búsqueda y conteos) viven en un panel pequeño. A cambio, filtrar siempre cuesta un clic más, los filtros no se descubren a simple vista y lo activo se lee como texto, no como controles.",
+      "width": 1440,
+      "height": 2460
+    },
+    {
+      "file": "08-hoja-lateral-barra-de-tipos.html",
+      "title": "08 · Hoja lateral · Una barra de tipos · S6",
+      "tradeoff": "La más rápida para cambiar de tipo: un segmentado fijo (Todo · Candidatos · Entregas · Vacantes) se usa con un clic o con las flechas, y la vacante es un botón con icono que abre un combobox con búsqueda; las pestañas suben al renglón del título, así que no hay filas extra. A cambio, para caber junta Postulaciones y Pruebas en «Candidatos», filtra un solo tipo a la vez y la vacante elegida solo se ve en el icono y en la línea de resultados.",
+      "width": 1440,
+      "height": 2480
+    },
+    {
+      "file": "09-hoja-lateral-buscar-y-filtrar.html",
+      "title": "09 · Hoja lateral · Buscar y filtrar · S6",
+      "tradeoff": "La más limpia y la que mejor escala con muchas vacantes: ningún filtro a la vista, solo un buscador que entiende vacantes, candidatos y tipos (sin acentos) y guarda los filtros rápidos por tipo dentro de su lista; el resultado se resume en la misma línea con «Limpiar». A cambio, los tipos no se descubren hasta abrir el buscador, el lector de pantalla depende de un combobox bien hecho y es la más cara de construir.",
+      "width": 1440,
+      "height": 2500
     }
   ]
 }

@@ -80,3 +80,19 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   never on vacancy teams, so they get no vacancy events by default — the owner may enable events for the Stakeholder
   role, in-app only (agent's proposal, stated to the user); company-side «Prueba pendiente del candidato» ON by
   default; personal preferences = 05; 06 kept as the stage-3 basis, corrected for stakeholders.
+- **L6** (2026-11-26) T1 iteration on L5 (gentle-design; 02 itself untouched): three new artboards with the 02 side sheet
+  (same content, states and behaviour, plus a 390 phone frame of the sheet in every state) and three calm filter designs,
+  each one row (or none) at the sheet width, with the result count and «Limpiar» in one quiet line —
+  `07-hoja-lateral-boton-filtrar.html` (tabs + «Filtrar» button with a count; type and vacancy checkboxes with vacancy
+  search in a small panel; calmest, but filters are one click away and active ones read as text),
+  `08-hoja-lateral-barra-de-tipos.html` (single-choice segmented Todo · Candidatos · Entregas · Vacantes + vacancy icon
+  button opening a combobox; tabs move to the title row; fastest type switch, but merges Postulaciones + Pruebas into
+  «Candidatos», one type at a time, vacancy only visible as an icon mark), `09-hoja-lateral-buscar-y-filtrar.html` (no
+  visible filters: a search combobox that understands vacancy, candidate and type names, with quick type toggles in its
+  list; cleanest and scales best, but types are hidden until opened and it is the costliest to build). `06`: stakeholders
+  are read-only and never on a vacancy team (removed from «Equipo de la vacante» wording, not pickable by name, team rows
+  «No aplica»); the Stakeholder role receives nothing by default and the owner may enable chosen events for it, in-app only
+  (no email option); «Así le llega a Mariana» shows nothing by default and explains why; new state «Stakeholder · aviso
+  activado»; «Prueba psicométrica pendiente» ON by default. `05`: only the «Prueba pendiente del candidato» row changed to ON
+  (in-app only). `design.json` and `self-check.md` updated. Browser review (Chromium + axe, 172 runs over 05–09): 0 axe
+  violations, no overflow at 1440/390, visible focus, reduced motion respected; keyboard flows scripted and passing.

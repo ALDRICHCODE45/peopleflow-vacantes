@@ -739,6 +739,9 @@ html[data-theme=dark] .vtabs a[aria-current]{background:color-mix(in srgb,var(--
 .mtx tbody th{font-weight:500}
 .mtx .slw{width:100%}
 .mtx td.chg .slct{box-shadow:inset 0 0 0 1.5px var(--sel)}
+.mtx .thn{display:block;font-weight:400;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.mtx .na{font-size:12px;line-height:16px}
+.stkn{margin-top:12px}
 .prev{position:sticky;top:0;display:grid;gap:16px;padding:20px}
 .prev h2{font-size:15px;line-height:22px;font-weight:600}
 .prev .ctx{font-size:12px;line-height:16px;color:var(--muted-foreground)}
@@ -764,7 +767,7 @@ html[data-theme=dark] .vtabs a[aria-current]{background:color-mix(in srgb,var(--
 .m .vtabs{display:grid;grid-template-columns:1fr 1fr;width:100%}
 .m .vtabs a{justify-content:center;min-height:40px}
 `;document.head.appendChild(css06);
-const RCP=[['resp','Responsable de la vacante','Quien lleva la vacante.'],['equipo','Equipo de la vacante','Las personas agregadas al equipo de esa vacante.'],['todos','Todos los reclutadores','Cualquier reclutador de Grupo Altavista, esté o no en la vacante.'],['duenos','Dueños','Andrea Salinas.'],['personas','Personas específicas','Elige a quién más le llega, por nombre.']];
+const RCP=[['resp','Responsable de la vacante','Quien lleva la vacante.'],['equipo','Equipo de la vacante','Reclutadores y dueños agregados al equipo de esa vacante. Los stakeholders nunca forman parte de un equipo.'],['todos','Todos los reclutadores','Cualquier reclutador de Grupo Altavista, esté o no en la vacante.'],['duenos','Dueños','Andrea Salinas.'],['personas','Personas específicas','Elige a quién más le llega, por nombre (reclutadores y dueños).']];
 const RNAME={resp:'Responsable',equipo:'Equipo de la vacante',todos:'Todos los reclutadores',duenos:'Dueños',personas:'Personas específicas',afectada:'La persona asignada',agregada:'La persona agregada'};
 const EV6=[
  {k:'postulacion',t:'Nueva postulación',kind:'op'},
@@ -784,23 +787,30 @@ const RULES0={
  equipo:{active:true,rcp:['agregada'],ppl:[],canOff:true,mail:'dia'},
  equipo_cambios:{active:true,rcp:['equipo'],ppl:[],canOff:true,mail:'no'},
  prueba_ok:{active:true,rcp:['resp','equipo'],ppl:[],canOff:true,mail:'dia'},
- prueba_pend:{active:false,rcp:['resp'],ppl:[],canOff:true,mail:'no'},
+ prueba_pend:{active:true,rcp:['resp'],ppl:[],canOff:true,mail:'no'},
 };
 const ROLES=[['owner','Dueño'],['rec','Reclutador'],['stk','Stakeholder']];
 const RDEF=[['app_mail','En la app y por correo'],['app','Solo en la app'],['off','Apagado']];
-const ROLEDEF0={postulacion:{owner:'off',rec:'app_mail',stk:'app'},por_vencer:{owner:'app',rec:'app_mail',stk:'off'},equipo:{owner:'app',rec:'app_mail',stk:'app'},equipo_cambios:{owner:'off',rec:'app',stk:'off'},prueba_ok:{owner:'off',rec:'app_mail',stk:'app'}};
+const ROLEDEF0={postulacion:{owner:'off',rec:'app_mail',stk:'off'},por_vencer:{owner:'app',rec:'app_mail',stk:'off'},equipo:{owner:'app',rec:'app_mail',stk:'na'},equipo_cambios:{owner:'off',rec:'app',stk:'na'},prueba_ok:{owner:'off',rec:'app_mail',stk:'off'},prueba_pend:{owner:'off',rec:'app',stk:'off'}};
+/* Stakeholder: read-only role, never on a vacancy team. Nothing by default; the owner may switch on chosen events for the role, in the app only. */
+const STK_NA='No aplica · no forma parte de equipos';
 const MAILR={no:'No se envía por correo',inm:'Permitido · inmediato por defecto',dia:'Permitido · resumen diario por defecto',siempre:'Siempre, inmediato'};
 const MAILS={no:'No se envía',inm:'Inmediato',dia:'Resumen diario',siempre:'Siempre, inmediato'};
 const PP={
  valeria:{p:'valeria',role:'rec',ctx:'Reclutadora · responsable de Analista de Nómina, Ejecutivo(a) de Cobranza y Coordinador(a) de Reclutamiento · en el equipo de Supervisor(a) de Almacén y Auxiliar Contable',resp:true,team:true,own:{postulacion:'dia',equipo:'off'}},
  rodrigo:{p:'rodrigo',role:'rec',ctx:'Reclutador · responsable de Supervisor(a) de Almacén y Auxiliar Contable',resp:true,team:true,own:{}},
  andrea:{p:'andrea',role:'owner',ctx:'Dueña · no está en el equipo de ninguna vacante',resp:false,team:false,own:{}},
- mariana:{p:'mariana',role:'stk',ctx:'Stakeholder · en el equipo de Supervisor(a) de Almacén (solo lectura)',resp:false,team:true,own:{}},
+ mariana:{p:'mariana',role:'stk',ctx:'Stakeholder · solo lectura: ve vacantes, métricas y reportes, pero no forma parte de ningún equipo de vacante',resp:false,team:false,own:{}},
 };
 function evMeta(e){const T=TYPES[e.k]||{};return {icon:e.icon||T.icon,tone:e.tone||T.tone}}
 function receives(s,e,who){
   const r=s.rules[e.k],P=PP[who];if(!r.active)return [false,'Aviso desactivado para toda la empresa'];
   const rc=r.rcp;
+  if(P.role==='stk'){
+    if(e.kind==='oblig'||e.k==='asignacion'||e.k==='equipo'||e.k==='equipo_cambios')return [false,'Los stakeholders no llevan vacantes ni forman parte de equipos'];
+    const v=(s.roleDef[e.k]||{}).stk;
+    return v==='app'?[true,'Activado para el rol Stakeholder: de todas las vacantes']:[false,'Apagado para stakeholders (rol de solo lectura); el dueño puede activarlo para su rol'];
+  }
   if(e.k==='asignacion'||e.k==='equipo'){if(P.role==='rec')return [true,`Cuando ${e.k==='equipo'?'la agregan a un equipo':'le asignan o quitan una vacante'}`];return [false,'Solo le llega a la persona asignada o agregada']}
   if(rc.includes('duenos')&&P.role==='owner')return [true,'Es dueña'];
   if(rc.includes('todos')&&P.role==='rec')return [true,'Es reclutador(a)'];
@@ -811,6 +821,7 @@ function receives(s,e,who){
 }
 function channels(s,e,who){
   const r=s.rules[e.k],P=PP[who];
+  if(P.role==='stk')return ['Solo en la app'];
   if(e.kind==='oblig')return ['En la app','Correo inmediato','Obligatoria'];
   const def=(s.roleDef[e.k]||{})[P.role]||'app_mail';
   if(def==='off'&&!(r.rcp.includes('personas')&&r.ppl.includes(who))&&!(r.rcp.includes('duenos')&&P.role==='owner'))return ['Apagado por defecto para su rol'];
@@ -821,9 +832,9 @@ function channels(s,e,who){
 function rulesTable(s,f){
   const ro=s.readonly;
   if(f.m)return `<div class="card" style="overflow:hidden">${EV6.map(e=>{const r=s.rules[e.k],M=evMeta(e);return `<div class="rc"><div class="ev" style="display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px"><span class="nt-ic tone-${M.tone}" aria-hidden="true">${ic(M.icon)}</span><span><b style="font-weight:500">${e.t}</b>${kindBadges(e,r)}</span></div>
-<dl><dt>Lo reciben</dt><dd>${whoPills(r)}</dd><dt>Pueden apagarlo</dt><dd>${offTxt(e,r)}</dd><dt>Correo</dt><dd>${MAILR[r.mail]}</dd></dl>${ro?'':`<button class="btn outline" data-act="edit" data-k="${e.k}" data-fk="ed-${e.k}" aria-haspopup="dialog">${ic('pencil')}Editar regla</button>`}</div>`}).join('')}</div>`;
+<dl><dt>Lo reciben</dt><dd>${whoPills(r,e,s)}</dd><dt>Pueden apagarlo</dt><dd>${offTxt(e,r)}</dd><dt>Correo</dt><dd>${MAILR[r.mail]}</dd></dl>${ro?'':`<button class="btn outline" data-act="edit" data-k="${e.k}" data-fk="ed-${e.k}" aria-haspopup="dialog">${ic('pencil')}Editar regla</button>`}</div>`}).join('')}</div>`;
   return `<div class="card" style="overflow:hidden"><table class="rtab"><caption class="sr">Reglas por aviso</caption><thead><tr><th scope="col">Aviso</th><th scope="col" style="width:180px">Quién lo recibe</th><th scope="col" style="width:118px">¿Se puede apagar?</th><th scope="col" style="width:128px">Correo por defecto</th>${ro?'':'<th scope="col" style="width:56px"><span class="sr">Acciones</span></th>'}</tr></thead><tbody>
-${EV6.map(e=>{const r=s.rules[e.k],M=evMeta(e);return `<tr class="${r.active?'':'off'}"><th scope="row"><span class="ev"><span class="nt-ic tone-${M.tone}" aria-hidden="true">${ic(M.icon)}</span><span><b id="rt-${e.k}">${e.t}</b>${kindBadges(e,r)}</span></span></th><td>${whoPills(r)}</td><td>${offTxt(e,r)}</td><td>${MAILS[r.mail]}</td>${ro?'':`<td><button class="btn ghost icon" data-act="edit" data-k="${e.k}" data-fk="ed-${e.k}" aria-haspopup="dialog" aria-label="Editar regla: ${e.t}" title="Editar regla">${ic('pencil')}</button></td>`}</tr>`}).join('')}</tbody></table></div>`;
+${EV6.map(e=>{const r=s.rules[e.k],M=evMeta(e);return `<tr class="${r.active?'':'off'}"><th scope="row"><span class="ev"><span class="nt-ic tone-${M.tone}" aria-hidden="true">${ic(M.icon)}</span><span><b id="rt-${e.k}">${e.t}</b>${kindBadges(e,r)}</span></span></th><td>${whoPills(r,e,s)}</td><td>${offTxt(e,r)}</td><td>${MAILS[r.mail]}</td>${ro?'':`<td><button class="btn ghost icon" data-act="edit" data-k="${e.k}" data-fk="ed-${e.k}" aria-haspopup="dialog" aria-label="Editar regla: ${e.t}" title="Editar regla">${ic('pencil')}</button></td>`}</tr>`}).join('')}</tbody></table></div>`;
 }
 function kindBadges(e,r){
   const b=[];
@@ -833,22 +844,24 @@ function kindBadges(e,r){
   if(!b.length)return '';
   return `<span class="bdg" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${b.join('')}</span>`;
 }
-function whoPills(r){if(!r.active)return '<span class="mut">Nadie</span>';return `<span class="who">${r.rcp.map(x=>`<span class="pill${x==='equipo'||x==='resp'?' pr':''}">${RNAME[x]}${x==='personas'&&r.ppl.length?` (${r.ppl.length})`:''}</span>`).join('')}</span>`}
+function whoPills(r,e,s){if(!r.active)return '<span class="mut">Nadie</span>';const stk=s&&e&&(s.roleDef[e.k]||{}).stk==='app';return `<span class="who">${r.rcp.map(x=>`<span class="pill${x==='equipo'||x==='resp'?' pr':''}">${RNAME[x]}${x==='personas'&&r.ppl.length?` (${r.ppl.length})`:''}</span>`).join('')}${stk?`<span class="pill" title="Activado para el rol Stakeholder, solo en la app">${ic('eyeview','s12')}Stakeholders</span>`:''}</span>`}
 function offTxt(e,r){if(e.kind==='oblig')return `<span class="yn mut">${ic('lock')}No</span>`;return r.canOff?`<span class="yn">${ic('check')}Sí</span>`:`<span class="yn">${ic('x')}No</span>`}
 function roleMatrix(s,f){
   const ro=s.readonly,evs=EV6.filter(e=>ROLEDEF0[e.k]);
   const sel=(e,role)=>{const v=s.roleDef[e.k][role],chg=v!==s.roleSaved[e.k][role];const id=`rd-${e.k}-${role}`;
+    if(v==='na')return `<td><span class="mut na">${STK_NA}</span></td>`;
     if(ro)return `<td>${RDEF.find(x=>x[0]===v)[1]}</td>`;
-    const opts=RDEF.filter(([k])=>!(k==='app_mail'&&s.rules[e.k].mail==='no'));
+    const opts=RDEF.filter(([k])=>!(k==='app_mail'&&(s.rules[e.k].mail==='no'||role==='stk')));
     return `<td class="${chg?'chg':''}"><label class="sr" for="${id}">${e.t} · ${ROLES.find(r=>r[0]===role)[1]}</label><span class="slw"><select class="slct" id="${id}" data-act="rdef" data-on="change" data-k="${e.k}" data-r="${role}" data-fk="${id}">${opts.map(([k,l])=>`<option value="${k}" ${v===k?'selected':''}>${l}</option>`).join('')}</select>${ic('down')}</span></td>`};
   if(f.m){const role=s.mRole;return `<div class="card" style="padding:16px;display:grid;gap:12px"><div class="seg" role="radiogroup" aria-label="Rol" style="display:grid;grid-template-columns:repeat(3,1fr)">${ROLES.map(([k,l])=>`<button role="radio" aria-checked="${role===k}" ${role===k?'':'tabindex="-1"'} data-act="mrole" data-v="${k}" data-fk="mr-${k}" style="min-height:40px">${l}</button>`).join('')}</div>
 <table class="mtx" style="margin:0 -12px"><caption class="sr">Valores por defecto para ${ROLES.find(r=>r[0]===role)[1]}</caption><tbody>${evs.map(e=>`<tr><th scope="row" style="padding-left:12px">${e.t}</th></tr><tr style="border:0">${sel(e,role).replace('<td','<td style="padding-left:12px;padding-right:12px;border-top:0"')}</tr>`).join('')}</tbody></table></div>`}
-  return `<div class="card" style="overflow:hidden"><table class="mtx"><caption class="sr">Valores por defecto por rol</caption><thead><tr><th scope="col">Aviso</th>${ROLES.map(([k,l])=>`<th scope="col" style="width:210px">${l}</th>`).join('')}</tr></thead><tbody>${evs.map(e=>`<tr><th scope="row">${e.t}</th>${ROLES.map(([k])=>sel(e,k)).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="card" style="overflow:hidden"><table class="mtx"><caption class="sr">Valores por defecto por rol</caption><thead><tr><th scope="col">Aviso</th>${ROLES.map(([k,l])=>`<th scope="col" style="width:${{owner:200,rec:224,stk:172}[k]}px">${l}${k==='stk'?'<small class="thn">Solo lectura · solo en la app</small>':''}</th>`).join('')}</tr></thead><tbody>${evs.map(e=>`<tr><th scope="row">${e.t}</th>${ROLES.map(([k])=>sel(e,k)).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function preview(s,f){
   const who=s.who6,P=PP[who],per=PEOPLE[P.p],first=per.name.split(' ')[0];
-  const sample=clone(N_CO[0]);
-  const ok=receives(s,EV6[0],who)[0];
+  const se=EV6.find(e=>receives(s,e,who)[0]&&N_CO.some(n=>n.type===e.k));
+  const sample=se?clone(N_CO.find(n=>n.type===se.k)):null;
+  const ok=!!sample;
   return `<section class="card prev" aria-labelledby="pv-h"><h2 id="pv-h">Así le llega a ${first}</h2>
 <div class="fld"><label class="lb" for="pvsel">Ver como</label><span class="slw"><select class="slct" id="pvsel" data-act="pv" data-on="change" data-fk="pvsel">${Object.keys(PP).map(k=>`<option value="${k}" ${k===who?'selected':''}>${PEOPLE[PP[k].p].name} · ${PEOPLE[PP[k].p].role}</option>`).join('')}</select>${ic('down')}</span></div>
 <p class="ctx">${P.ctx}</p>
@@ -862,7 +875,7 @@ function editSheet(s,f){
   const cl=(name,legend,multiple,options,value,hideLegend=false)=>`<fieldset class="ch" style="border:0;margin:0;padding:0;min-width:0" ${multiple?'':'role="radiogroup"'}><legend class="${hideLegend?'sr':'lb'}" style="padding:0;margin-bottom:8px">${legend}</legend><div class="lst">${options.map(o=>{const on=multiple?value.includes(o.v):value===o.v;return `<label class="li">${o.lead||''}<input type="${multiple?'checkbox':'radio'}" name="${name}" value="${o.v}" ${on?'checked':''} ${o.dis?'disabled':''} data-act="${o.act}" data-on="change" data-v="${o.v}" data-fk="${name}-${o.v}" ${o.dis?`aria-describedby="${name}-${o.v}-why"`:''}><span class="tx2"><b>${o.t}</b>${o.d?`<small ${o.dis?`id="${name}-${o.v}-why"`:''}>${o.d}</small>`:''}</span><span class="tr${multiple?' sq':''}" aria-hidden="true">${ic('check')}</span></label>`}).join('')}</div></fieldset>`;
   const active=obl?'':`<label class="sw" style="justify-content:space-between"><span class="tx2"><b>Aviso activo</b><small>Si lo apagas, nadie en Grupo Altavista lo recibe.</small></span><input type="checkbox" role="switch" ${d.active?'checked':''} data-act="d-active" data-on="change" data-fk="d-active" data-autofocus></label>`;
   const rc=fixed?`<div class="lockr">${ic('lock')}<span>Le llega a la persona asignada o agregada; no se puede cambiar.</span></div>`:cl('rcp','Quién lo recibe',true,rcpOpts.map(([v,t,dd])=>({v,t,d:dd,act:'d-rcp'})),d.rcp);
-  const ppl=!fixed&&d.rcp.includes('personas')?`<div class="fld"><label class="lb" for="pplq">Personas específicas</label><span class="ic l">${ic('search')}<input class="inp" id="pplq" type="search" placeholder="Busca por nombre o correo" data-fk="pplq"></span>${cl('ppl','Personas elegidas',true,['rodrigo','mariana','andrea'].map(k=>({v:k,t:PEOPLE[k].name,d:`${PEOPLE[k].role} · ${PEOPLE[k].email}`,act:'d-ppl',lead:`<span class="av" aria-hidden="true">${ini(PEOPLE[k].name)}</span>`})),d.ppl,true)}</div>`:'';
+  const ppl=!fixed&&d.rcp.includes('personas')?`<div class="fld"><label class="lb" for="pplq">Personas específicas</label><span class="ic l">${ic('search')}<input class="inp" id="pplq" type="search" placeholder="Busca por nombre o correo" data-fk="pplq"></span>${cl('ppl','Personas elegidas',true,['rodrigo','andrea','mariana'].map(k=>{const stk=PP[k].role==='stk';return {v:k,t:PEOPLE[k].name,d:stk?'Stakeholder · no se elige por nombre: actívale avisos desde «Valores por defecto por rol» (solo en la app)':`${PEOPLE[k].role} · ${PEOPLE[k].email}`,dis:stk,act:'d-ppl',lead:`<span class="av" aria-hidden="true">${ini(PEOPLE[k].name)}</span>`}}),d.ppl,true)}</div>`:'';
   const off=obl?`<div class="lockr">${ic('lock')}<span><b style="font-weight:600">Nadie puede apagarla.</b> ${e.why}</span></div>`:`<label class="sw" style="justify-content:space-between"><span class="tx2"><b>Cada persona puede apagarlo</b><small>Si lo desactivas, el aviso queda fijo para quienes lo reciben (como en «Entrega vencida»).</small></span><input type="checkbox" role="switch" ${d.canOff?'checked':''} data-act="d-off" data-on="change" data-fk="d-off"></label>`;
   const mail=obl?`<div class="lockr">${ic('mail')}<span>Correo: siempre, inmediato.</span></div>`:cl('mail','Correo',false,[{v:'no',t:'No se envía por correo',d:'Solo aparece en la campana.',act:'d-mail'},{v:'inm',t:'Permitido · inmediato por defecto',d:'Cada persona puede pasarlo a resumen diario o apagarlo.',act:'d-mail'},{v:'dia',t:'Permitido · resumen diario por defecto',d:'Llega en un solo correo al día; cada persona puede cambiarlo.',act:'d-mail'}],d.mail);
   const n=Object.keys(PP).filter(k=>receives({rules:Object.assign({},s.rules,{[e.k]:d}),roleDef:s.roleDef},e,k)[0]).length;
@@ -884,7 +897,7 @@ function body06(f){
   const bar=dirty?`<div class="tbbar stk"><p class="status inf" role="status"><span class="badge b-review dot">${plural(nchg,'cambio sin guardar','cambios sin guardar')}</span></p><div class="tbbtn"><button class="btn ghost" data-act="rd-discard" data-fk="rd-discard">Descartar</button><button class="btn primary" data-act="rd-save" data-fk="rd-save">Guardar valores por rol</button></div></div>`:'';
   const cand=`<div class="card" style="padding:16px 20px;display:grid;gap:10px"><p style="display:flex;gap:10px;align-items:flex-start">${ic('info')}<span>Los candidatos siempre reciben en su campana los <b>cambios de estado</b>, los <b>mensajes</b> de tu equipo y las <b>pruebas pendientes</b>. Ellos eligen si también les llegan por correo; tu empresa no puede apagarlos.</span></p></div>`;
   const main=`<div class="colm"><section aria-labelledby="s-rules"><div class="sech"><h2 id="s-rules">Avisos al equipo</h2><p>Por defecto, los avisos de una vacante le llegan a su equipo (S4).</p></div>${rulesTable(s,f)}</section>
-<section aria-labelledby="s-roles"><div class="sech"><h2 id="s-roles">Valores por defecto por rol</h2><p>Para personas nuevas y para quien no ha cambiado sus preferencias.</p></div>${roleMatrix(s,f)}</section>${bar}
+<section aria-labelledby="s-roles"><div class="sech"><h2 id="s-roles">Valores por defecto por rol</h2><p>Para personas nuevas y para quien no ha cambiado sus preferencias.</p></div>${roleMatrix(s,f)}<p class="note mu stkn">${ic('eyeview')}<span><b style="font-weight:600">Stakeholder es un rol de solo lectura:</b> ve vacantes, métricas y reportes, pero no forma parte de ningún equipo de vacante. Por defecto no recibe ningún aviso; puedes activar avisos concretos para su rol, y le llegan solo en la app (nunca por correo).</span></p></section>${bar}
 <section aria-labelledby="s-cand"><div class="sech"><h2 id="s-cand">Avisos a candidatos</h2></div>${cand}</section></div>`;
   return `<div class="pw6">${head}${ro?`<p class="note mu">${ic('lock')}<span>Vista de solo lectura: solo Andrea Salinas (dueña) puede cambiar las reglas.</span></p>`:''}<div class="g6">${main}${preview(s,f)}</div></div>`;
 }
@@ -916,10 +929,11 @@ AB.fullToggle=true;AB.defaultFrames=['d','m'];
 AB.scenarios={
  reglas:{label:'Reglas · reposo',desc:'Andrea Salinas (dueña) en Configuración › Notificaciones › «Reglas de la empresa». Por aviso: quién lo recibe, si cada persona puede apagarlo y si puede llegar por correo; debajo, los valores por defecto de Dueño, Reclutador y Stakeholder. A la derecha, «Así le llega a Valeria» calcula el resultado para una persona real.',make:()=>st06()},
  editar:{label:'Editar regla',desc:'«Editar» en «Nueva postulación» abre una hoja: aviso activo, quién lo recibe (lista de elección múltiple), si cada persona puede apagarlo y el correo (no se envía · inmediato · resumen diario). El pie dice a cuántas personas le llegaría hoy.',make:()=>st06({edit:'postulacion'})},
- personas:{label:'Personas específicas',desc:'Al marcar «Personas específicas» aparece un buscador con las personas del equipo; aquí se suma a los Dueños y a Mariana Elizondo, y el conteo del pie se actualiza.',make:()=>{const s=st06({edit:'postulacion'});s.draft.rcp=['resp','equipo','duenos','personas'];s.draft.ppl=['mariana'];return s}},
+ personas:{label:'Personas específicas',desc:'Al marcar «Personas específicas» aparece un buscador con reclutadores y dueños; aquí se suma a los Dueños y a Rodrigo Treviño, y el conteo del pie se actualiza. Mariana Elizondo (stakeholder) aparece deshabilitada con el motivo: a los stakeholders no se les elige por nombre.',make:()=>{const s=st06({edit:'postulacion'});s.draft.rcp=['resp','equipo','duenos','personas'];s.draft.ppl=['rodrigo'];return s}},
  obligatoria:{label:'Regla obligatoria',desc:'«Entrega vencida» es obligatoria en PeopleFlow: la hoja explica por qué no se puede apagar ni quitar el correo; solo se pueden sumar destinatarios.',make:()=>st06({edit:'vencida'})},
  roles:{label:'Valores por rol sin guardar',desc:'Andrea cambia el valor por defecto de los Dueños para «Nueva postulación» a «Solo en la app»: la celda se marca y aparece la barra «1 cambio sin guardar». La vista previa se actualiza al instante.',make:()=>{const s=st06({who6:'andrea'});s.roleDef.postulacion.owner='app';s.rules.postulacion.rcp=['resp','equipo','duenos'];return s}},
- vista:{label:'Vista previa · stakeholder',desc:'«Ver como» Mariana Elizondo (stakeholder en el equipo de Supervisor(a) de Almacén): recibe las postulaciones solo en la app y nada de entregas ni asignaciones.',make:()=>st06({who6:'mariana'})},
+ vista:{label:'Vista previa · stakeholder',desc:'«Ver como» Mariana Elizondo (stakeholder, solo lectura, sin equipo): por defecto no le llega nada; cada fila dice por qué, y las de vacante y equipo no aplican a su rol.',make:()=>st06({who6:'mariana',mRole:'stk'})},
+ stkon:{label:'Stakeholder · aviso activado',desc:'Andrea activa «Prueba psicométrica completada» para el rol Stakeholder («Solo en la app»; el correo no se ofrece para ese rol). La vista previa de Mariana muestra ese único aviso, solo en la campana, y aparece la barra «1 cambio sin guardar».',make:()=>{const s=st06({who6:'mariana',mRole:'stk'});s.roleDef.prueba_ok.stk='app';return s}},
  reclutador:{label:'Reclutador (solo lectura)',desc:'Valeria (reclutadora) puede ver las reglas, sin «Editar» ni selectores, con el motivo visible; sus canales se cambian en «Mis avisos».',make:()=>st06({readonly:true})},
  cargando:{label:'Cargando',desc:'Esqueleto con la forma de la tabla de reglas y de la vista previa.',make:()=>st06({loading:true})},
 };

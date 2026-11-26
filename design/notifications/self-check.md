@@ -72,3 +72,57 @@ en claro y oscuro. Revisados en Chromium con Playwright y `@axe-core/playwright`
 9. **Celdas de matriz con `select` nativo** (06) con la piel de `Select` (relleno `input/50`, 18 px); en producto sería el `Select` de shadcn.
 10. **«Tu ajuste»** usa la variante `accent` del `Badge` (primario al 12 %, borde al 40 %, texto `--foreground`) con texto que puede ocupar dos líneas
     (el `Badge` del sistema es de una línea, `h-5`).
+
+## Iteración L5 (2026-11-26): filtros para 02 (07–09) y correcciones en 05 y 06
+
+Cambios: tres artboards nuevos con la hoja de 02 (mismo contenido, estados y comportamiento: «Requiere atención» fija,
+agrupación, marcar leída / todo con «Deshacer», primera vez, carga, error, campana en reposo; ahora con un segundo marco de
+teléfono a 390 en cada estado) y tres diseños de filtro distintos. 02 no se tocó. En 05 solo cambia la fila «Prueba pendiente
+del candidato» (y la descripción del estado Reposo). En 06: stakeholders de solo lectura y fuera de los equipos, y «Prueba
+psicométrica pendiente» encendida por defecto.
+
+| Artboard | Filtro | Filas de control a 460 px y a 390 px | Conteo y reinicio |
+|---|---|---|---|
+| 07 | Botón «Filtrar» con contador → panel no modal con casillas de Tipo y Vacante (búsqueda de vacante, conteo por opción) | 1 (pestañas + «Filtrar») | línea «2 de 10 · Postulaciones · Analista de Nómina» + «Limpiar»; con varios valores se resume («2 tipos · 2 vacantes»); «Limpiar» y «Ver N notificaciones» en el panel |
+| 08 | Segmentado de opción única Todo · Candidatos · Entregas · Vacantes + botón de vacante (maletín) que abre un combobox con búsqueda | 1 (las pestañas suben al renglón del título) | misma línea; el maletín se tiñe con un punto y su nombre accesible dice la vacante |
+| 09 | Ninguno visible: buscador combobox que entiende vacante, candidato y tipo (sin acentos), con filtros rápidos por tipo dentro de su lista | 1 (pestañas + buscador) | misma línea; la × del campo borra el texto, «Limpiar» borra todo |
+
+### Qué se ejecutó de verdad (Chromium + Playwright + `@axe-core/playwright` de `frontend/node_modules`)
+
+| Comprobación | Alcance | Resultado |
+|---|---|---|
+| axe (wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) | 05 (6 estados), 06 (9), 07–09 (13 cada uno) × claro y oscuro = 108 corridas, página completa con los dos marcos | 0 violaciones |
+| Desborde horizontal | scroll de la página; elementos fuera de cada marco de 1440 y de 390; cortes por `overflow:hidden`; texto recortado | 0 |
+| Movimiento reducido | `reducedMotion: reduce`, los 54 estados en claro | 0 animaciones o transiciones activas |
+| Foco visible | 28 Tab desde los estados del artboard, claro y oscuro (16–23 dentro del marco) | todos con contorno de 2 px `--primary-text`; la opción activa de los combobox (foco en el campo, `aria-activedescendant`) se pinta con el mismo contorno |
+| Errores de JS | todos los estados | 0 |
+| Flujos con teclado (script) | 07: abrir «Filtrar» (foco en la 1.ª casilla), Espacio filtra (3 de 10), buscar «nóm» deja 1 vacante, Esc cierra el panel y vuelve a «Filtrar» (nombre «Filtrar1, 1 filtro activo»), «Limpiar» vuelve a 10, otro Esc cierra la hoja con foco en la campana. 08: ← → en el segmentado aplican (2 de 10 · Entregas); el maletín abre el combobox, «nom» + Enter elige y devuelve el foco al botón («Vacante: Analista de Nómina»); `aria-activedescendant` apunta a la opción activa; Esc cierra el panel. 09: ↓ abre la lista, Enter marca «Entregas» sin cerrarla, escribir «supervisor» filtra (1 de 10), ↓ + Enter elige la vacante y cierra la lista, Esc cierra la hoja. 06: Mariana no recibe nada por defecto; activar «Prueba completada» para Stakeholder le da 1 aviso «Solo en la app» y la barra de cambios; el selector de Stakeholder solo ofrece «Solo en la app» y «Apagado» | pasan |
+| Revisión visual | capturas de cada estado en claro y oscuro (`/tmp/notif-design/shots/07-*`, `08-*`, `09-*`, `05-*`, `06-*`) | corregido: en la matriz por rol de 06 el texto «En la app y por correo» quedaba cortado dentro del select (ya pasaba antes de este cambio); se repartieron los anchos de columna (Dueño 200, Reclutador 224, Stakeholder 172). La pastilla de stakeholders en la tabla de reglas se acortó a «Stakeholders» (el detalle va en la matriz y en la nota) |
+
+### Autorrevisión de UX
+
+- Jerarquía y calma: ninguno de los tres pinta chips de filtro; lo activo es una línea de texto de 13 px bajo la fila de control,
+  solo cuando hay filtros. A 390 px esa línea puede ocupar dos renglones de texto (no controles).
+- Estados: sin resultados conserva los criterios, los nombra y ofrece «Limpiar filtros»; carga y primera vez no muestran conteos;
+  el error dice que no se marcó nada.
+- Teclado y lector: 07 usa casillas nativas en `fieldset` con leyenda; 08 un `radiogroup` con foco itinerante y un combobox con
+  `aria-activedescendant`; 09 un combobox con `listbox` multiselección y grupos con nombre. Cada artboard trae su tabla
+  «Teclado y lector de pantalla». Escape cierra primero el panel o la lista y después la hoja.
+- 06: el Stakeholder no aparece en ningún texto de «Equipo de la vacante»; no se puede elegir por nombre en «Personas
+  específicas» (opción deshabilitada con el motivo); las filas de equipo dicen «No aplica · no forma parte de equipos»; la vista
+  previa explica por qué no le llega cada aviso.
+
+### Autorrevisión del sistema (design/system.md)
+
+- Colores: los mismos 12 hex de los tokens y `oklch()` solo en las dos líneas de definición, en los cinco archivos; tintes por
+  `color-mix` de tokens; sombras negras al 10–16 % (60 % en el panel oscuro, para separarlo de la hoja).
+- Familias: la pila del sistema; monoespaciada solo en `kbd` de la tabla de teclado del artboard (fuera del producto).
+
+### Desviaciones nuevas (para decidir)
+
+11. **Panel flotante dentro de la hoja** (07–09, 320–340 px, o el ancho de la fila en 09): `Popover` del sistema (288 px) sobre un `Sheet`;
+    en el teléfono ocupa el ancho de la hoja menos 24 px.
+12. **Combobox con lista** (08, 09): no existe en el sistema; se dibujó con las filas de `ChoiceList` compactas (40 px) y la marca final
+    redonda o cuadrada.
+13. **Segmentado de cuatro opciones a todo el ancho** (08): el `seg` del sistema es `inline-flex`; aquí ocupa la fila con `flex:1`.
+14. **ChoiceList compacta** (07): filas de 44 px en lugar de 56 px dentro del panel.
