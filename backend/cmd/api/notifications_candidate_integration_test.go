@@ -76,7 +76,10 @@ func TestNotificationsCandidate_ListShapesAndUnreadCount(t *testing.T) {
 	test := w.notify(t, notifRow{recipient: w.candidate.id, candidate: true, typ: "candidate_test_pending", job: w.otherJob, part: ptr(w.partOther),
 		payload: `{"invitation_id":"` + invitation + `"}`, at: ts(-2 * time.Hour)})
 	gone := uuid.New()
-	goneRow := w.notify(t, notifRow{recipient: w.candidate.id, candidate: true, typ: "candidate_status_changed", job: gone, payload: `{"status":"closed"}`, at: ts(-3 * time.Hour)})
+	// A row that still holds a participation id on a job the candidate can no
+	// longer see must not carry a dangling application link (review R3).
+	gonePart := uuid.New()
+	goneRow := w.notify(t, notifRow{recipient: w.candidate.id, candidate: true, typ: "candidate_status_changed", job: gone, part: &gonePart, payload: `{"status":"closed"}`, at: ts(-3 * time.Hour)})
 	// Never visible on the candidate routes: the candidate's own member row, another
 	// candidate's row and a member's row.
 	w.notify(t, notifRow{recipient: w.candidate.id, typ: "vacancy_assigned", job: w.jobA, at: ts(time.Hour)})

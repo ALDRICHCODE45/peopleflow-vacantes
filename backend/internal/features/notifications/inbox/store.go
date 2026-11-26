@@ -432,11 +432,14 @@ func resolveCandidate(ctx context.Context, qs *db.Queries, scope Scope, groups [
 	items := make([]Item, len(groups))
 	for i, g := range groups {
 		item := g.item
-		job := jobs[g.jobID]
+		job, visible := jobs[g.jobID]
 		item.Job.Title = job.title
 		item.Company = CompanyField{Present: true, Value: job.company}
 		item.Latest.Actor = nil
-		item.Link = linkFor(item.Type, g.jobID, item.Count, g.participation, g.payload, true)
+		item.Link = nil // a job the candidate no longer participates in gets no link
+		if visible {
+			item.Link = linkFor(item.Type, g.jobID, item.Count, g.participation, g.payload, true)
+		}
 		items[i] = item
 	}
 	done(items)
