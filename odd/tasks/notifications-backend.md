@@ -49,7 +49,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 ## Tasks
 
 - T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6), frontend approved (L7)
-- T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — worker — pending
+- T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — worker — implemented 0f133e1a, 6810c32a, d12d2139, 1f5ed631, c8080b10; unit green, integration tests written but **not run** (L8) — pending integration run
 - T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — pending
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — pending
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — pending
@@ -115,3 +115,20 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   rest appear in normal order; `from_user` / `to_user {user_id, name}` resolved at read time on `vacancy_reassigned` /
   `vacancy_unassigned`; `participation_id` = `/v2/me/applications` item id (no extra field); reassignment `reason`
   enum listed. Link routes and the three new texts confirmed by the frontend. Contract approved; next N1.
+- **L8** 2026-11-26, N1 (T2) by worker: migration `00068_notifications.sql` (contract §Data model verbatim, Down drops
+  both tables) 0f133e1a; `notifications/domain` type table (14 types: kind, urgency, recipient kind, relation, group
+  rule, scheduled) 6810c32a; closed notifiable map with §Capture id sources + `BuildEvent` (missing ids →
+  `ErrMissingID`, fail-closed) and catalog-closure test (keys in the audit catalog, company-scoped, every read
+  metadata key in the type's closed set) d12d2139; `notifications/capture.Decorator` (inner Append, then one
+  `notification_events` row in the same tx; `has_message` read for ParticipationDiscarded; errors wrapped
+  `capture notification event …`) wired around both production audit adapters in `cmd/api/main.go` (helpers now take
+  the audit port interface), sqlc `db/queries/notifications.sql` 1f5ed631; integration tests (disposable
+  `draft_test_mig_*` DB: migration CHECKs/dedupe/down-up, one row per notifiable type incl. system actor and discard
+  with/without message, nothing for non-notifiable types, unique and FK capture failures roll back audit row + domain
+  write) c8080b10. RED observed: domain and capture unit tests failed to build before the code (undefined symbols /
+  no package). Evidence: `make test PKG='./cmd/api/ ./internal/tools/archguard/ ./internal/features/notifications/...
+  ./internal/db/...'` ok (4 packages); `make test PKG=./db/migrations/` ok; `go vet -tags=integration` clean.
+  **Not run:** `make test-integration PKG=./internal/features/notifications/...` — the worktree has no `backend/.env`
+  (Makefile sources it), so the migration/capture/rollback integration tests are unverified. Deviation: none from the
+  contract; payload fields absent from metadata are omitted rather than stored empty. Next: run the integration
+  target with an env, then N2.
