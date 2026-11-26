@@ -27,6 +27,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	metricshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/infrastructure/http"
+	notificationsinbox "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/inbox"
 	profilehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
@@ -59,6 +60,9 @@ type routerDeps struct {
 	requireDocumentReader func(http.Handler) http.Handler
 	// documentHandler serves the documents routes; its store re-checks the vacancy access.
 	documentHandler *documentshttp.Handler
+	// notificationsHandler serves the member notifications read API (notifications-v1 N4)
+	// behind requireDocumentReader; its store scopes every read to the session user and company.
+	notificationsHandler *notificationsinbox.Handler
 	// stakeholderInvitationHandler serves the invitation routes (§1.3).
 	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
 	companyHandler               *companieshttp.CompanyHandler
@@ -296,6 +300,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/metrics/applications", d.metricsHandler.ApplicationList)
 		r.Get("/v2/me/company/metrics/candidates/export", d.metricsHandler.Export("candidates"))
 		r.Get("/v2/me/company/metrics/applications/export", d.metricsHandler.Export("applications"))
+	})
+
+	// Member notifications (notifications-v1 D18, N4): owners, recruiters and stakeholders
+	// (the documents read gate); grouped list with attention and the bell counter. Not audited (D23).
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireDocumentReader)
+		r.Get("/v2/me/company/notifications", d.notificationsHandler.List)
+		r.Get("/v2/me/company/notifications/unread-count", d.notificationsHandler.UnreadCount)
 	})
 
 	// The stakeholder's own vacancy list (placement-vacancy-documents-v1, P7c, L20): every vacancy of the company, never-published drafts

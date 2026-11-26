@@ -1548,6 +1548,8 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Put /v2/me/company/talent-base-visibility",
 		"Get /v2/me/company/audit-events",
 		"Get /v2/me/company/audit-events/types",
+		"Get /v2/me/company/notifications",
+		"Get /v2/me/company/notifications/unread-count",
 		"Get /v2/me/company/audit-events/actors",
 		"Get /v2/me/company/audit-events/vacancies",
 		"Post /v2/me/company/audit-events/export",

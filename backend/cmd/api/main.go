@@ -442,6 +442,7 @@ func run() error {
 		requireMetricsViewer:         requireMetricsViewer,
 		requireDocumentReader:        requireDocumentReader,
 		documentHandler:              newDocumentHandler(pool, draftStore, documentStorage),
+		notificationsHandler:         newNotificationsHandler(pool),
 		stakeholderVacanciesHandler:  jobshttp.NewStakeholderVacanciesHandler(draftStore),
 		metricsHandler:               newMetricsHandler(newMetricsService(pool, auditRepo)),
 		stakeholderInvitationHandler: companieshttp.NewStakeholderInvitationHandler(usecases.NewStakeholderInvitationService(postgres.NewStakeholderInvitationRepository(pool, auditRepo), identityUserRepo)),
