@@ -29,7 +29,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 ## Tasks
 
 - T1 — S1–S10 — contract `docs/contracts/notifications-v2.md` — worker (docs) — agreed
-- T2 — E1 — migration 00069, domain defaults/effective preference/locked rule, `AND n.in_app` in the scoped inbox statements + guard test — worker — pending
+- T2 — E1 — migration 00069, domain defaults/effective preference/locked rule, `AND n.in_app` in the scoped inbox statements + guard test — worker — done (uncommitted, L7)
 - T3 — E2 — preferences store + GET/PUT handlers for both trees, `notification_preference_locked`, routes — worker — pending
 - T4 — E3 — in-app off at creation in fan-out and scheduler, `InsertNotification` → `:execrows` — worker — pending
 - T5 — E4 — config loader, email eligibility, delivery creation with coalescing upsert in both creation paths — worker — pending
@@ -135,3 +135,24 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   items with a null link (no participation / invalid invitation) use app_url = APP_BASE_URL + /candidato/postulaciones
   (apply in E5); the per-IP unsubscribe limit behind the frontend pass-through is designed in E7 (trusted forwarded client
   IP, as the existing TRUSTED_PROXY_CIDRS / requestmeta pattern). T13 lowercase start with the fallback kept verbatim.
+- **L7** 2026-11-26, T2/E1 implemented (uncommitted, worktree only). `db/migrations/00069_notifications_email.sql`
+  exactly as §Data model (3 tables, `notifications.in_app` default true + `email_delivery_id` ON DELETE SET NULL, unread
+  index rebuilt with `AND in_app`; Down restores the stage-1 index, drops the columns, then the tables). Domain
+  `notifications/domain/preferences.go`: `Channel` (`in_app`, `email`), kind default table, `DefaultPreference` (candidate
+  types email on, Q1), `Locked` (mandatory), `EffectivePreference(type, channel, override *bool)` (locked → always on,
+  else row, else default), `OverridableTypes` (mirrors the CHECK). `AND <alias>.in_app` added to the ten scope filters
+  in nine statements of `db/queries/notifications.sql` (attention, groups + lateral latest, member samples, unread count,
+  read, unread, read-all, both facets); sqlc regenerated (`internal/db`). Guard `inbox/inapp_guard_test.go`: every
+  statement with `<alias>.recipient_kind =` must carry `AND <alias>.in_app` (`= true` accepted, `= false`/`IS …`/commented
+  out/wrong alias/unqualified rejected; empty exemption list reserved for the E6 sender). RED observed: domain build
+  failure (undefined `Channel`, `DefaultPreference`, …); guard listed exactly 10 missing predicates; capture migration
+  test build failure (`domain.Channels`/`OverridableTypes`); `TestNotificationsHidden_*` failed with `column "in_app"
+  does not exist`. GREEN: `make test-integration PKG=./internal/features/notifications/...` ok (5 packages, 67
+  top-level tests incl. `TestMigration00069NotificationsEmail` and the 00068 Down/Up), `make test-integration
+  PKG=./cmd/api/ RUN='^TestNotifications'` ok (15 tests incl. 2 new `TestNotificationsHidden_*`, member + candidate:
+  hidden rows absent from list/latest/sample/attention/counts/facets, untouched by read/unread/read-all/undo),
+  `make test PKG='./internal/features/notifications/... ./cmd/api/ ./internal/tools/archguard/'` ok, `go tool sqlc diff`
+  clean. Mutation check: dropping `AND x.in_app` (lateral latest) fails both the guard and the member hidden test
+  (latest = the hidden row); restored. Test DB: disposable container `peopleflow-notif-test2` (tmpfs, loopback), DSN in
+  `/tmp/pf-notif-test2-dsn` (0600), left running for later slices.
+- **L8** 2026-11-26, frontend correction (verbatim): «Cambio el body de T13 por: «Otra persona quedó a cargo de {{job_title}}. Motivo: {{reason}}.». Así el fallback «una vacante» nunca abre la oración.» Applied to the contract in b0a2efaa; supersedes the T13 line of L5.
