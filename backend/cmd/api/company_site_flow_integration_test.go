@@ -10,10 +10,10 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
-	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	roles "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companiespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
 	sitesapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/application"
+	sitesdisk "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/disk"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
 	"github.com/google/uuid"
@@ -25,14 +25,14 @@ func newCompanySiteFlowHarness(t *testing.T) *draftFlowHarness {
 	h, _ := newCompanySiteFlowStorageHarness(t)
 	return h
 }
-func newCompanySiteFlowStorageHarness(t *testing.T, siteFiles ...sitesapp.Storage) (*draftFlowHarness, *cvstorage.Local) {
+func newCompanySiteFlowStorageHarness(t *testing.T, siteFiles ...sitesapp.Storage) (*draftFlowHarness, *sitesdisk.Storage) {
 	t.Helper()
 	h := newDraftFlowHarness(t)
 	q := db.New(h.pool)
 	users := identitypostgres.NewUserRepository(q)
 	members := companiespostgres.NewCompanyMemberRepository(h.pool, auditpostgres.NewAuditEventRepository())
 	companies := companiespostgres.NewCompanyRepository(h.pool, auditpostgres.NewAuditEventRepository())
-	files, err := cvstorage.NewLocal(t.TempDir())
+	files, err := sitesdisk.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

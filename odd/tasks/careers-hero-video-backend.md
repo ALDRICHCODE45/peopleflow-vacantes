@@ -35,7 +35,7 @@ it merges only after this is in main.
 
 ## Tasks
 
-- T1 S1-S2 — slice B (writer) — pending
+- T1 S1-S2 — slice B (writer) — done, uncommitted (L3)
 - T2 — suite, review, merge, notify frontend — pending
 
 ## Log
@@ -44,3 +44,19 @@ it merges only after this is in main.
   [...] Questions: (a) can you take it? (b) exact names/codes/limits and whether the upload goes through the same
   multipart endpoint /v2/me/company/site/media with kind=hero_video.»
 - **L2** 2026-11-26, backend: accepted with S2.
+- **L3** 2026-11-26, writer (T1): slice B implemented test-first, uncommitted. Migration 00067
+  `company_site_hero_video_media` (nullable `duration_ms` 1..30000 iff `hero_video`; width/height nullable only for
+  videos, both or neither, 1..16384; `video/mp4` iff `hero_video`; 20 MiB byte size for videos; guarded Down).
+  `application.InspectVideo` (dependency-free MP4 box parser, bounded headers/boxes). Upload streams to a bounded
+  `os.CreateTemp` spool (removed on every path; file-before-kind kept in memory up to 5 MiB); codes 415
+  `unsupported_media_type` (name not `.mp4`, declared type not `video/mp4`/`application/octet-stream`, `ftyp`/brand),
+  413 `payload_too_large`, 422 `video_too_long` `{"data":{"max_ms":30000,"duration_ms":N}}`, 422 `video_invalid`
+  (catalog entries + `httpjson.WriteSiteVideoTooLong`, parent-approved). Storage port: `PutStream`, seekable `Open`,
+  `OpenRange` (+ `Prefetcher`); new disk adapter on `CV_STORAGE_ROOT` (same 64-hex layout; CV Reconcile keeps
+  `company_site_media` keys, parent-approved); S3 `PutStream` and lazy ranged `GetObject` (no 5 MiB buffer for
+  videos, streaming client without whole-request timeout). `GET /media/{id}`: `http.ServeContent` for every kind
+  (206/`Content-Range`/`Accept-Ranges`, 416 `bytes */size` no-store empty body, multi-range → 200 whole). Hero
+  `background_video` (kind `hero_video`, absent stays absent); `background_loop` publishes only with
+  `background_video` and `cover`. Deviations: multi-range requests are served 200 whole; video upload/download
+  deadlines extended to 2 min; media JSON `width`/`height` may be `null` (videos only) and `duration_ms` appears
+  only on videos. Contract §2.4 amendment + `backend/docs/site-media.md` updated.

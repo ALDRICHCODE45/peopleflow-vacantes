@@ -148,7 +148,7 @@ other block (missing strings → `null`, missing lists → `[]`).
 
 | type | added variants | notes |
 | --- | --- | --- |
-| `hero` | `background_loop`, `photo_jobs`, `collage` | `background_loop` is publish-blocked until slice B (hero video); `collage` needs ≥ 2 `images` to publish |
+| `hero` | `background_loop`, `photo_jobs`, `collage` | `background_loop` needs `background_video` and `cover` to publish (§2.4, slice B); `collage` needs ≥ 2 `images` to publish |
 | `values`, `benefits` | `bento`, `big_icons` | |
 | `stats` (Cifras) | `brand_band` | count-up is presentation only |
 | `testimonials` | `carousel` | items may carry `video_url` (below), on any variant |
@@ -256,7 +256,7 @@ YouTube id `^[A-Za-z0-9_-]{11}$`, Vimeo id `^\d{1,12}$`. Anything else → `inva
 | `logos` | `block_incomplete` unless 1–12 items, each `name` and `image` | `blocks[i]` |
 | `areas` | `block_incomplete` unless `title` (overrides never block) | `blocks[i]` |
 | `talent_cta` | `block_incomplete` unless `title` | `blocks[i]` |
-| hero `background_loop` (always, until slice B) | `hero_video_missing` | `blocks[i]` |
+| hero `background_loop` without `background_video` or `cover` (§2.4; before slice B: always) | `hero_video_missing` | `blocks[i]` |
 | hero `collage` with fewer than 2 `images` (absent = `[]`) | `hero_collage_images_missing` | `blocks[i]` |
 | `secondary_target` names a hidden block while `secondary_visible` is `true` (absent = `true`) | `secondary_target_hidden` | `blocks[i].content.secondary_target` |
 | any visible block with `style.background = "image"` and `style.image` null/missing | `style_image_missing` | `blocks[i].style.image` |
@@ -269,6 +269,68 @@ followed by the existing document-level issues. The §2.1 table is otherwise unc
 JPEG → 415 `unsupported_media_type`), 64–6,000 px per side (below → 422 `image_too_small`), ≤ 5 MB, same magic-byte
 detection and metadata stripping. Other kinds are unchanged (JPEG/PNG/WebP, 200–6,000 px). Migration 00066 relaxes the
 `company_site_media` CHECKs accordingly; its Down refuses while any `logo` media exists.
+
+### 2.4 Hero video — amendment 2026-11-26 (slice B; backend branch `feat/careers-hero-video-backend`)
+
+Slice B of the careers site sections v2 (task `odd/tasks/careers-hero-video-backend.md` S1–S2): an uploaded MP4 plays
+behind the hero `background_loop` variant. One media migration (00067); no document migration. Everything in §2–§2.3
+stays valid; the §2.3 wire rule applies to the new key.
+
+**Hero content `background_video`** (optional; absent stays absent — never inserted on PUT, GET draft, publish or GET
+public, so documents stored before slice B re-read byte-identical):
+
+```json
+{ "title": "Únete", "cover": { "media_id": "uuid-of-a-cover" }, "background_video": { "media_id": "uuid-of-a-hero_video" } }
+```
+
+| key | rule | absent means |
+| --- | --- | --- |
+| `background_video` | `null` (kept as `null`) or a media ref of this company's media of kind `hero_video` (ownership and kind checked on save like every ref) | `null` |
+
+Only the hero accepts it (elsewhere `unknown_key`). Validation errors (400 `validation_error`, nothing written):
+not an object → `invalid` at `p.content.background_video`; malformed id → `invalid` at
+`p.content.background_video.media_id`; extra key → `unknown_key`; another company's media or a media of another kind →
+`invalid` at `p.content.background_video`.
+
+**Publish rule** (replaces the §2.3 «always blocked» row): a visible hero with variant `background_loop` needs a
+non-null `background_video` **and** a non-null `cover` (the poster shown before the video plays and under reduced
+motion); otherwise the issue `hero_video_missing` with field `blocks[i]` (same position in the issue order). Other
+variants ignore `background_video`.
+
+**Media kind `hero_video`** (`POST /v2/me/company/site/media`, same multipart endpoint, `kind=hero_video` + `file`):
+
+- MP4 only, validated structurally (no decoding, no ffmpeg; codec and audio are not checked — presentation always plays
+  muted, looped, `playsinline`, paused under reduced motion). The file part's name must end in `.mp4` (any case) and its
+  declared `Content-Type`, when present, must be `video/mp4` or `application/octet-stream`.
+- The first box must be `ftyp` with major or a compatible brand in `isom`, `iso2`, `mp41`, `mp42`, `avc1`; the
+  top-level boxes must tile the file exactly; a `moov` (before or after `mdat` — after is accepted, the first frame is
+  just slower) must contain an `mvhd` with a non-zero timescale and a known, non-zero duration (32- or 64-bit).
+  `duration_ms` = ceil(duration × 1000 / timescale). Width/height come from the `tkhd` of the first track whose
+  `hdlr` is `vide` (integer part of the 16.16 values) when within 1–16,384; otherwise both are `null`.
+- ≤ 20 MiB (20,971,520 bytes; request cap = that + 64 KiB of multipart overhead), ≤ 30,000 ms. The body is streamed
+  to a bounded temporary file (never held in memory) and removed on every path; then stored through the media storage.
+- 201 `{ "id", "kind": "hero_video", "url", "width": 1920 | null, "height": 1080 | null, "duration_ms": 12500,
+  "content_type": "video/mp4" }`. `duration_ms` appears **only** on hero videos (image JSON is unchanged); the same
+  object shape is used in the `media` lists of §3.1 and §4.1.
+- Errors (nothing stored):
+
+  | condition | status | body |
+  | --- | --- | --- |
+  | name not `.mp4`, declared type not MP4, first box not `ftyp`, brand not accepted | 415 | `{"error":"unsupported media type","code":"unsupported_media_type"}` |
+  | file over 20 MiB / request over the cap | 413 | `{"error":"payload too large","code":"payload_too_large"}` |
+  | duration over 30 s | 422 | `{"error":"video too long","code":"video_too_long","data":{"max_ms":30000,"duration_ms":31000}}` |
+  | no parsable `moov`/`mvhd`, zero timescale or duration, malformed/truncated boxes, size fields that lie | 422 | `{"error":"video invalid","code":"video_invalid"}` |
+  | 300 media per company reached | 422 | `{"error":"media limit reached","code":"media_limit_reached"}` |
+
+  `data.duration_ms` is the measured duration (saturated at 2^53 − 1 for absurd files).
+
+**Public media route** `GET /v2/company-sites/media/{id}` (§6.1), every kind: answers a single `Range: bytes=…`
+(first-last, open-ended `N-`, suffix `-N`) with 206, `Content-Range: bytes a-b/size` and the slice; no `Range` → 200 with
+the whole file; both carry `Accept-Ranges: bytes`, `Content-Length`, the DB content type, `nosniff`, CSP
+`default-src 'none'; sandbox` and `public, max-age=31536000, immutable`. An unsatisfiable range → 416 with
+`Content-Range: bytes */size`, `Cache-Control: no-store` and an empty body; a request with several ranges is answered
+200 with the whole file. 404 `not_found` / 500 `internal_error` keep `no-store`. Disk serves the file; S3 issues one
+ranged `GetObject` per response and streams it (videos never go through the 5 MiB buffered image read).
 
 ## 3. Private endpoints (`requireAuth` + `requireRecruiter`, member of the company; `Cache-Control: no-store`)
 
@@ -307,7 +369,7 @@ Body: full site document. `If-Match: "<draft_version>"` required (428 `precondit
 - Changing the slug and publishing moves the public URL; the previous published slug answers a redirect (§4.1).
 
 ### 3.4 `POST /v2/me/company/site/media`
-`multipart/form-data`: `kind` (`cover` | `gallery` | `portrait` | `story` | `logo` — §2.3) and `file`. The frontend crops client-side
+`multipart/form-data`: `kind` (`cover` | `gallery` | `portrait` | `story` | `logo` — §2.3 | `hero_video` — §2.4) and `file`. The frontend crops client-side
 (cover 16:9, gallery 4:3, portrait 1:1, story free) and uploads the result.
 - Accept JPEG, PNG, WebP by **magic bytes**; ≤ 5 MB; 200–6,000 px per side; strip EXIF; store via the existing storage
   port (S3 in production). 201 `{ id, kind, url, width, height, content_type }`.

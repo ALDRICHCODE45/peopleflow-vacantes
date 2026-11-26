@@ -45,6 +45,7 @@ import (
 	sitesapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/application"
 	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
 	sitespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/postgres"
+	sitesdisk "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/disk"
 	sitess3 "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/s3"
 	documentsapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/application"
 	documentshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/http"
@@ -294,7 +295,14 @@ func run() error {
 			return errors.New("initialize private CV storage")
 		}
 		defer privateCVStorage.Close()
-		siteStorage = privateCVStorage
+		// Disk-mode site media (images and hero videos) share the CV root and its flat 64-hex layout through their own
+		// adapter (streamed video writes, seekable reads); the CV reconciliation keeps every company_site_media key.
+		siteDisk, err := sitesdisk.New(cvConfig.Root)
+		if err != nil {
+			return errors.New("initialize site media storage")
+		}
+		defer siteDisk.Close()
+		siteStorage = siteDisk
 		movementStorage = privateCVStorage
 		manualStorage = manualCVStorage{local: privateCVStorage}
 		cvHandler = cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)

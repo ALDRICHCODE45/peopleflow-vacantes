@@ -209,6 +209,7 @@ func (s *Library) File(ctx context.Context, sub string, id uuid.UUID) (app.CV, i
 // A failed lookup fails closed. Used versions survive removal indefinitely.
 // Company-owned CVs (including organic reuse) survive for their row's lifetime. Placement document versions are
 // kept too (D25, docs/contracts/placement-vacancy-documents-v1.md): documents have their own root, but this never deletes their files.
+// Company site media (images and hero videos) live in this same root in disk mode and are always kept.
 func (s *Library) Reconcile(ctx context.Context) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -220,7 +221,7 @@ func (s *Library) Reconcile(ctx context.Context) error {
 	}
 	return app.ReconcileOrphans(ctx, s.storage, func(ctx context.Context, key string) (bool, error) {
 		var keep bool
-		err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM candidate_cv_versions v WHERE v.storage_key=$1 AND (EXISTS(SELECT 1 FROM candidate_cv_library l WHERE l.version_id=v.id AND l.removed_at IS NULL) OR EXISTS(SELECT 1 FROM process_participations p WHERE p.cv_version_id=v.id))) OR EXISTS(SELECT 1 FROM company_candidate_cvs c WHERE c.storage_key=$1) OR EXISTS(SELECT 1 FROM placement_document_versions d WHERE d.storage_key=$1)`, key).Scan(&keep)
+		err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM candidate_cv_versions v WHERE v.storage_key=$1 AND (EXISTS(SELECT 1 FROM candidate_cv_library l WHERE l.version_id=v.id AND l.removed_at IS NULL) OR EXISTS(SELECT 1 FROM process_participations p WHERE p.cv_version_id=v.id))) OR EXISTS(SELECT 1 FROM company_candidate_cvs c WHERE c.storage_key=$1) OR EXISTS(SELECT 1 FROM placement_document_versions d WHERE d.storage_key=$1) OR EXISTS(SELECT 1 FROM company_site_media s WHERE s.storage_key=$1)`, key).Scan(&keep)
 		return keep, err
 	})
 }

@@ -12,8 +12,8 @@ import (
 	"sort"
 	"testing"
 
-	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	sitesapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/application"
+	sitesdisk "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/disk"
 	"github.com/google/uuid"
 )
 
@@ -60,7 +60,7 @@ func siteSecurityMultipart(t *testing.T, data []byte, mode string) (string, stri
 	}
 	return b.String(), mw.FormDataContentType()
 }
-func siteStorageKeys(t *testing.T, files *cvstorage.Local) []string {
+func siteStorageKeys(t *testing.T, files *sitesdisk.Storage) []string {
 	t.Helper()
 	keys, err := files.Keys(context.Background())
 	if err != nil {
@@ -69,7 +69,7 @@ func siteStorageKeys(t *testing.T, files *cvstorage.Local) []string {
 	sort.Strings(keys)
 	return keys
 }
-func siteSeedMedia(t *testing.T, h *draftFlowHarness, files *cvstorage.Local, company, user uuid.UUID, n int, data []byte) {
+func siteSeedMedia(t *testing.T, h *draftFlowHarness, files *sitesdisk.Storage, company, user uuid.UUID, n int, data []byte) {
 	t.Helper()
 	keys := make([]string, n)
 	for i := range keys {

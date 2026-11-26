@@ -37,7 +37,7 @@ func sitePublicKeys(t *testing.T, value map[string]json.RawMessage, keys ...stri
 
 func TestCompanySitePublicAnonymousShapeAndErrors(t *testing.T) {
 	id := uuid.New()
-	stub := &sitePublicStub{out: app.PublicSnapshot{CompanyID: id, Slug: "current-slug", Site: json.RawMessage(`{"theme":{},"seo":{},"blocks":[]}`), PublishedAt: time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC), Media: []app.Media{{ID: id, Kind: "cover", URL: "/v2/company-sites/media/" + id.String(), Width: 400, Height: 300}}}}
+	stub := &sitePublicStub{out: app.PublicSnapshot{CompanyID: id, Slug: "current-slug", Site: json.RawMessage(`{"theme":{},"seo":{},"blocks":[]}`), PublishedAt: time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC), Media: []app.Media{{ID: id, Kind: "cover", URL: "/v2/company-sites/media/" + id.String(), Width: app.Size(400), Height: app.Size(300)}}}}
 	companyErr := error(nil)
 	handler := siteshttp.New(nil, nil, nil).WithPublic(stub, func(context.Context, uuid.UUID) (app.PublicCompany, error) {
 		return app.PublicCompany{ID: id, Name: "Public name"}, companyErr

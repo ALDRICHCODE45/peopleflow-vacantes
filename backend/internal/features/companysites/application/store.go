@@ -25,13 +25,22 @@ type Published struct {
 	Slug        string    `json:"slug"`
 	PublishedAt time.Time `json:"published_at"`
 }
+
+// Media is one upload as listed to clients. Width and height are null only for
+// a hero video whose dimensions are unknown; duration_ms is present only for
+// hero videos (image JSON is unchanged).
 type Media struct {
-	ID     uuid.UUID `json:"id"`
-	Kind   string    `json:"kind"`
-	URL    string    `json:"url"`
-	Width  int       `json:"width"`
-	Height int       `json:"height"`
+	ID         uuid.UUID `json:"id"`
+	Kind       string    `json:"kind"`
+	URL        string    `json:"url"`
+	Width      *int      `json:"width"`
+	Height     *int      `json:"height"`
+	DurationMS *int64    `json:"duration_ms,omitempty"`
 }
+
+// Size returns a pointer to n (image dimensions are always known).
+func Size(n int) *int { return &n }
+
 type Current struct {
 	Draft                 json.RawMessage `json:"draft"`
 	DraftVersion          int64           `json:"draft_version"`

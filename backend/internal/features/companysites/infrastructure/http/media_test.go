@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/png"
 	"io"
@@ -25,6 +26,11 @@ type mediaStub struct {
 	calls int
 	puts  int
 	rows  int
+	// hero video: the reader handed to the route by OpenRange, the store/put
+	// errors and the bytes received through PutStream.
+	object   io.ReadSeekCloser
+	putErr   error
+	streamed []byte
 }
 
 func (s *mediaStub) InsertMedia(ctx context.Context, _, _ uuid.UUID, m app.StoredMedia, b []byte, files app.Storage) (app.StoredMedia, error) {
@@ -44,6 +50,22 @@ func (s *mediaStub) InsertMedia(ctx context.Context, _, _ uuid.UUID, m app.Store
 	s.m = m
 	return m, s.err
 }
+func (s *mediaStub) InsertMediaStream(ctx context.Context, _, _ uuid.UUID, m app.StoredMedia, body io.ReadSeeker, size int64, files app.Storage) (app.StoredMedia, error) {
+	s.calls++
+	if s.err != nil {
+		return app.StoredMedia{}, s.err
+	}
+	if _, err := files.PutStream(ctx, body, size); err != nil {
+		return app.StoredMedia{}, err
+	}
+	s.rows++
+	m.ID = uuid.New()
+	m.URL = "/v2/company-sites/media/" + m.ID.String()
+	m.StorageKey = "key"
+	m.ByteSize = size
+	s.m = m
+	return m, nil
+}
 func (s *mediaStub) FindMedia(_ context.Context, id uuid.UUID) (app.StoredMedia, error) {
 	if id != s.m.ID {
 		return app.StoredMedia{}, app.ErrMediaNotFound
@@ -51,9 +73,30 @@ func (s *mediaStub) FindMedia(_ context.Context, id uuid.UUID) (app.StoredMedia,
 	return s.m, nil
 }
 func (s *mediaStub) Put(context.Context, []byte) (string, error) { s.puts++; return "key", nil }
-func (s *mediaStub) Open(context.Context, string) (io.ReadCloser, error) {
-	return io.NopCloser(bytes.NewReader(s.data)), nil
+func (s *mediaStub) PutStream(_ context.Context, body io.ReadSeeker, size int64) (string, error) {
+	s.puts++
+	if s.putErr != nil {
+		return "", s.putErr
+	}
+	s.streamed, _ = io.ReadAll(body)
+	if int64(len(s.streamed)) != size {
+		return "", errors.New("size mismatch")
+	}
+	return "key", nil
 }
+func (s *mediaStub) Open(context.Context, string) (io.ReadSeekCloser, error) {
+	return readSeekNopCloser{bytes.NewReader(s.data)}, nil
+}
+func (s *mediaStub) OpenRange(context.Context, string, int64) (io.ReadSeekCloser, error) {
+	if s.object != nil {
+		return s.object, nil
+	}
+	return readSeekNopCloser{bytes.NewReader(s.data)}, nil
+}
+
+type readSeekNopCloser struct{ *bytes.Reader }
+
+func (readSeekNopCloser) Close() error                    { return nil }
 func (s *mediaStub) Delete(context.Context, string) error { return nil }
 func testPNG(t *testing.T, w, h int) []byte {
 	t.Helper()

@@ -30,7 +30,14 @@ func (s *siteCompensationStorage) Delete(ctx context.Context, key string) error 
 	s.deleted = ctx.Err() == nil && key == "test-key"
 	return nil
 }
-func (s *siteCompensationStorage) Open(context.Context, string) (io.ReadCloser, error) {
+func (s *siteCompensationStorage) PutStream(context.Context, io.ReadSeeker, int64) (string, error) {
+	s.put = true
+	return "test-key", nil
+}
+func (s *siteCompensationStorage) Open(context.Context, string) (io.ReadSeekCloser, error) {
+	return nil, errors.New("not used")
+}
+func (s *siteCompensationStorage) OpenRange(context.Context, string, int64) (io.ReadSeekCloser, error) {
 	return nil, errors.New("not used")
 }
 func TestCompanySiteMediaInsertCompensates(t *testing.T) {
@@ -41,7 +48,7 @@ func TestCompanySiteMediaInsertCompensates(t *testing.T) {
 	siteFlowDraft(t, h.do(t, "GET", "/v2/me/company/site", "", actor.token, nil))
 	store := sitespostgres.New(h.pool, draftjson.Decode, companySiteValidator(), nil, nil)
 	files := &siteCompensationStorage{}
-	_, err := store.InsertMedia(context.Background(), a.companyID, uuid.New(), sitesapp.StoredMedia{Media: sitesapp.Media{Kind: "cover", Width: 200, Height: 200}, ContentType: "image/png"}, []byte("test"), files)
+	_, err := store.InsertMedia(context.Background(), a.companyID, uuid.New(), sitesapp.StoredMedia{Media: sitesapp.Media{Kind: "cover", Width: sitesapp.Size(200), Height: sitesapp.Size(200)}, ContentType: "image/png"}, []byte("test"), files)
 	if err == nil || !files.put || !files.deleted {
 		t.Fatalf("err=%v put=%v deleted=%v", err, files.put, files.deleted)
 	}
