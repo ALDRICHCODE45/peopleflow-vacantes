@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listNotificationsAction } from "../actions";
 import type { NotificationGroup, NotificationListResult, NotificationState, NotificationType } from "../model";
+import { useNotificationActions, useNotificationScope, type NotificationActions } from "./scope";
 
 export type InboxPages = {
   /** Pinned deadline items; only the first page carries them (L12). */
@@ -22,8 +22,8 @@ export type InboxFilters = { types: readonly NotificationType[]; jobIds: readonl
 type Entry = { key: string; attempt: number; pages: InboxPages | null; more: "idle" | "loading" | "error" };
 const noResponse: NotificationListResult = { ok: false, reason: "no_response", reference: {} };
 
-async function read(query: Parameters<typeof listNotificationsAction>[0]): Promise<NotificationListResult> {
-  try { return await listNotificationsAction(query); } catch { return noResponse; }
+async function read(list: NotificationActions["list"], query: Parameters<NotificationActions["list"]>[0]): Promise<NotificationListResult> {
+  try { return await list(query); } catch { return noResponse; }
 }
 
 /** List query; empty filters are left out, never sent. */
@@ -41,9 +41,12 @@ function queryOf(state: NotificationState, filters: InboxFilters, cursor?: strin
  * then cursor pages appended. A cursor the API no longer accepts (`invalid_cursor`) reloads from the first page. Every
  * successful page reports its `unread_count` so the bell stays in step. A `forbidden` read (a user with no company yet,
  * on the invitation and account frames that share the company header) is an empty inbox, not an error. `reload` keeps
- * the current list on screen until the fresh first page arrives; `markLocal` shows a group as read in place.
+ * the current list on screen until the fresh first page arrives; `markLocal` shows a group as read in place. The
+ * candidate scope never pins attention (L14: always empty there), whatever the page says.
  */
 export function useInboxPages(state: NotificationState, filters: InboxFilters, onUnreadCount: (unread: number) => void) {
+  const { list } = useNotificationActions();
+  const pinsAttention = useNotificationScope() === "company";
   const [attempt, setAttempt] = useState(0);
   const [entry, setEntry] = useState<Entry | null>(null);
   const key = JSON.stringify([state, filters.types, filters.jobIds]);
@@ -53,7 +56,7 @@ export function useInboxPages(state: NotificationState, filters: InboxFilters, o
   useEffect(() => {
     let current = true;
     const loadedAt = new Date().toISOString();
-    void read(queryOf(state, latest.current.filters)).then(result => {
+    void read(list, queryOf(state, latest.current.filters)).then(result => {
       if (!current) return;
       if (!result.ok) {
         const pages = result.reason === "forbidden"
@@ -68,14 +71,14 @@ export function useInboxPages(state: NotificationState, filters: InboxFilters, o
       setEntry({
         key, attempt, more: "idle",
         pages: {
-          attention: result.data.attention ?? [], attentionTotal: result.data.attention_total ?? 0,
+          attention: pinsAttention ? result.data.attention ?? [] : [], attentionTotal: pinsAttention ? result.data.attention_total ?? 0 : 0,
           items: result.data.items, nextCursor: result.data.next_cursor, unread: result.data.unread_count,
           loadedAt: shown ?? loadedAt,
         },
       });
     });
     return () => { current = false; };
-  }, [state, key, attempt]);
+  }, [state, key, attempt, list, pinsAttention]);
 
   const retry = useCallback(() => setAttempt(value => value + 1), []);
 
@@ -85,7 +88,7 @@ export function useInboxPages(state: NotificationState, filters: InboxFilters, o
     const owner = at.key;
     const sameOwner = (fn: (e: Entry) => Entry) => setEntry(e => e?.key === owner ? fn(e) : e);
     sameOwner(e => ({ ...e, more: "loading" }));
-    const result = await read(queryOf(state, latest.current.filters, at.pages.nextCursor));
+    const result = await read(list, queryOf(state, latest.current.filters, at.pages.nextCursor));
     if (latest.current.key !== owner) return;
     if (!result.ok) {
       if (result.reason === "invalid_cursor") retry();
@@ -105,7 +108,7 @@ export function useInboxPages(state: NotificationState, filters: InboxFilters, o
         },
       };
     });
-  }, [state, retry]);
+  }, [state, retry, list]);
 
   /** Shows `groupKey` as read where it is (it stays listed until the sheet closes) and takes the fresh count. */
   const markLocal = useCallback((groupKey: string, unread: number) => {

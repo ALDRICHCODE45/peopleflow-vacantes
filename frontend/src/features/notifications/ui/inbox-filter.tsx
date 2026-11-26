@@ -7,21 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
-import { getFacetsAction } from "../actions";
 import {
   activeFiltersLabel, FILTER_GROUPS, filterGroupCount, jobsShownNote, jobTitle, MAX_FILTER_JOBS, showResultsLabel,
   type FilterGroupKey, type FilterJob,
 } from "../copy";
 import type { NotificationFacets, NotificationState } from "../model";
+import { useNotificationActions, type NotificationActions } from "./scope";
 
 export type InboxFilterValue = { groups: FilterGroupKey[]; jobs: FilterJob[] };
 type Facets = { state: NotificationState; data: NotificationFacets | null };
 
 const normalize = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-async function readFacets(state: NotificationState): Promise<NotificationFacets | null> {
+async function readFacets(facets: NotificationActions["facets"], state: NotificationState): Promise<NotificationFacets | null> {
   try {
-    const result = await getFacetsAction(state);
+    const result = await facets(state);
     return result.ok ? result.data : null;
   } catch { return null; }
 }
@@ -41,6 +41,7 @@ type Props = {
  * be searched and are capped at the backend's 20 `job_ids`.
  */
 export function InboxFilter({ tab, value, onChange, results, triggerRef }: Props) {
+  const { facets: facetsAction } = useNotificationActions();
   const [open, setOpen] = useState(false);
   const [facets, setFacets] = useState<Facets | null>(null);
   const [query, setQuery] = useState("");
@@ -50,9 +51,9 @@ export function InboxFilter({ tab, value, onChange, results, triggerRef }: Props
   useEffect(() => {
     if (!open) return;
     let current = true;
-    void readFacets(tab).then(data => { if (current) setFacets({ state: tab, data }); });
+    void readFacets(facetsAction, tab).then(data => { if (current) setFacets({ state: tab, data }); });
     return () => { current = false; };
-  }, [open, tab]);
+  }, [open, tab, facetsAction]);
 
   const data = facets?.state === tab ? facets.data : null;
   const loading = facets?.state !== tab;

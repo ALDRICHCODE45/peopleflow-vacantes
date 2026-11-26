@@ -8,6 +8,8 @@ type ClientFailure = {
 const SAFE_CODES = new Set([
   "unauthenticated", "forbidden", "company_inactive", "invalid_filter", "invalid_cursor", "validation_error",
   "invalid_request", "payload_too_large", "internal_error",
+  // Candidate routes (L14): no candidate account / a company user on the candidate gate; both 403 → forbidden.
+  "account_required", "wrong_role",
 ]);
 const isValidationIssue = ({ field, code }: FilterIssue) =>
   (VALIDATION_FIELDS as readonly string[]).includes(field) && (VALIDATION_CODES as readonly string[]).includes(code);

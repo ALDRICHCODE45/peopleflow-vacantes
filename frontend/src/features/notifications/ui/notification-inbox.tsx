@@ -13,6 +13,7 @@ import { InboxError, InboxFirstUse, InboxNoResults, InboxSkeleton, InboxUpToDate
 import { InboxFilterSummary, InboxFooter, InboxMarkStatus } from "./inbox-status";
 import { NotificationRow } from "./notification-row";
 import { useInboxMarks } from "./use-inbox-marks";
+import { useNotificationScope } from "./scope";
 import { useInboxPages, type InboxPages } from "./use-inbox-pages";
 
 type Props = {
@@ -31,8 +32,11 @@ const noFilters: InboxFilterValue = { groups: [], jobs: [] };
  * and «Todas» with «Filtrar» (type + vacancy popover) and a one-line summary of active filters, pinned «Requiere
  * atención», day sections, cursor paging, per-row «Marcar como leída» and the «Marcar todo como leído» footer with
  * «Deshacer». «Preferencias» joins the footer in stage 2 (needs /empresa/configuracion/notificaciones).
+ * Candidate scope (design 04): same sheet without «Filtrar» (design 04 shows tabs, rows and «Marcar todo» only) and
+ * without attention or candidate samples; rows name the company.
  */
 export function NotificationInbox({ knownUnread, onUnreadCount, onNavigate }: Props) {
+  const candidate = useNotificationScope() === "candidate";
   const [tab, setTab] = useState<NotificationState>("unread");
   const [filter, setFilter] = useState<InboxFilterValue>(noFilters);
   const filterButton = useRef<HTMLButtonElement>(null);
@@ -55,7 +59,7 @@ export function NotificationInbox({ knownUnread, onUnreadCount, onNavigate }: Pr
 
   const body = view.status === "loading" ? <InboxSkeleton />
     : view.status === "error" ? <InboxError onRetry={retry} />
-    : <InboxList pages={view.pages} tab={tab} more={view.more} onMore={loadMore} onShowAll={() => changeTab("all")}
+    : <InboxList pages={view.pages} tab={tab} candidate={candidate} more={view.more} onMore={loadMore} onShowAll={() => changeTab("all")}
         noResults={filterText ? { description: noResultsDescription(filterText, tab), onClear: clearFilters } : null} actions={rowActions} />;
   const panel = "min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pt-1 pb-2";
   const results = ready && !ready.nextCursor ? ready.attention.length + ready.items.length : null;
@@ -71,7 +75,7 @@ export function NotificationInbox({ knownUnread, onUnreadCount, onNavigate }: Pr
           <TabsTrigger value="unread" className="min-h-8 max-sm:min-h-9">No leídas{ready && ready.unread > 0 && <Badge variant="secondary">{ready.unread}</Badge>}</TabsTrigger>
           <TabsTrigger value="all" className="min-h-8 max-sm:min-h-9">Todas</TabsTrigger>
         </TabsList>
-        <InboxFilter tab={tab} value={filter} onChange={changeFilter} results={results} triggerRef={filterButton} />
+        {!candidate && <InboxFilter tab={tab} value={filter} onChange={changeFilter} results={results} triggerRef={filterButton} />}
       </div>
       {filterText && <InboxFilterSummary summary={filterText} onClear={clearFilters} />}
       <InboxMarkStatus status={marks.status} busy={marks.busy} onUndo={() => void marks.undo()} />
@@ -82,13 +86,13 @@ export function NotificationInbox({ knownUnread, onUnreadCount, onNavigate }: Pr
   </>;
 }
 
-function InboxList({ pages, tab, more, onMore, onShowAll, noResults, actions }: {
-  pages: InboxPages; tab: NotificationState; more: "idle" | "loading" | "error";
+function InboxList({ pages, tab, candidate, more, onMore, onShowAll, noResults, actions }: {
+  pages: InboxPages; tab: NotificationState; candidate: boolean; more: "idle" | "loading" | "error";
   onMore: () => void; onShowAll: () => void; noResults: { description: string; onClear: () => void } | null; actions: RowActions;
 }) {
   if (pages.attention.length === 0 && pages.items.length === 0) {
     if (noResults) return <InboxNoResults {...noResults} />;
-    return tab === "unread" ? <InboxUpToDate onShowAll={onShowAll} /> : <InboxFirstUse />;
+    return tab === "unread" ? <InboxUpToDate onShowAll={onShowAll} /> : <InboxFirstUse candidate={candidate} />;
   }
   return <>
     {pages.attention.length > 0 && <Attention groups={pages.attention} total={pages.attentionTotal} actions={actions} />}

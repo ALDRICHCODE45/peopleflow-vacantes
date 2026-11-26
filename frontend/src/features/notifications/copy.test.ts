@@ -5,7 +5,7 @@ import {
   sampleToggleLabel, showResultsLabel,
 } from "./copy";
 import { NOTIFICATION_TYPES, type NotificationGroup } from "./model";
-import { anaParticipation, applicationsGroup, carmenId, jobId, luisParticipation, olgaId, overdueGroup, reassignedGroup } from "./test-fixtures";
+import { anaParticipation, applicationsGroup, candidateGroup, carmenId, jobId, luisParticipation, olgaId, overdueGroup, reassignedGroup } from "./test-fixtures";
 
 // 2026-11-26 14:00 in Mexico City.
 const now = new Date("2026-11-26T20:00:00Z");
@@ -187,14 +187,53 @@ describe("generic types", () => {
     expect(copy(single("something_new"))).toEqual({ title: "Nueva notificación", subtitle: null, icon: "generic", tone: "muted", urgency: null });
   });
 
-  it("candidate-side types stay generic until T3.6", () => {
-    for (const type of ["candidate_status_changed", "candidate_message_received", "candidate_test_pending"]) {
-      expect(copy(single(type))).toMatchObject({ title: "Nueva notificación", subtitle: null });
-    }
-  });
-
   it("every stage-1 type has a non-empty title", () => {
     for (const type of NOTIFICATION_TYPES) expect(copy(single(type, { commitment_date: "2026-11-26" })).title).not.toBe("");
+  });
+});
+
+describe("candidate types (T3.6)", () => {
+  const status = (value: unknown, overrides: Partial<NotificationGroup> = {}) =>
+    copy(candidateGroup({ latest: { id: "c1", created_at: "2026-11-26T18:00:00Z", actor: null, payload: { status: value } }, ...overrides }));
+  const ofType = (type: string, overrides: Partial<NotificationGroup> = {}) => copy(candidateGroup({ type, ...overrides }));
+
+  it("status changed names the new candidate-facing status, with the company as subtitle", () => {
+    expect(status("in_process")).toEqual({
+      title: "Tu postulación a Analista de nómina pasó a En proceso", subtitle: "Grupo Altavista", icon: "status", tone: "info", urgency: null,
+    });
+    expect(status("submitted").title).toBe("Tu postulación a Analista de nómina pasó a Enviada");
+  });
+
+  it("a closed status says the application closed", () => {
+    expect(status("closed")).toMatchObject({ title: "Tu postulación a Analista de nómina se cerró", subtitle: "Grupo Altavista" });
+  });
+
+  it("an unknown or missing status still reads as a status change", () => {
+    expect(status("archived").title).toBe("Tu postulación a Analista de nómina cambió de estado");
+    expect(status(undefined).title).toBe("Tu postulación a Analista de nómina cambió de estado");
+  });
+
+  it("message received names the company and the vacancy and sends to the application", () => {
+    expect(ofType("candidate_message_received")).toEqual({
+      title: "Grupo Altavista te dejó un mensaje sobre Analista de nómina", subtitle: "Abre tu postulación para leerlo.",
+      icon: "message", tone: "primary", urgency: null,
+    });
+  });
+
+  it("test pending names vacancy and company in the subtitle", () => {
+    expect(ofType("candidate_test_pending")).toEqual({
+      title: "Tienes una prueba psicométrica pendiente", subtitle: "Analista de nómina · Grupo Altavista",
+      icon: "test", tone: "review", urgency: null,
+    });
+  });
+
+  it("an unresolved company or vacancy degrades to «una empresa» / «una vacante»", () => {
+    const orphan = { company: null, job: null };
+    expect(status("in_process", orphan)).toMatchObject({ title: "Tu postulación a una vacante pasó a En proceso", subtitle: null });
+    expect(ofType("candidate_message_received", orphan).title).toBe("Una empresa te dejó un mensaje sobre una vacante");
+    expect(ofType("candidate_test_pending", orphan).subtitle).toBeNull();
+    expect(ofType("candidate_test_pending", { company: null }).subtitle).toBe("Analista de nómina");
+    expect(ofType("candidate_test_pending", { company: undefined, job: { id: jobId, title: " " } }).subtitle).toBeNull();
   });
 });
 

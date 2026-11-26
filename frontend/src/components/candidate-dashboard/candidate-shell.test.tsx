@@ -14,6 +14,11 @@ vi.mock("next/link", async (importOriginal) => ({ ...(await importOriginal<typeo
 // Auth is covered by identity/flow.test.tsx; this suite tests the shared frame
 // with an API identity, not the old prototype candidate.
 vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ result: { ok: true, data: { role: "candidate", user: { id: "id", full_name: "Ana Pérez", email: "ana@example.com" } } } }) }));
+// The header bell (T3.6) reads the candidate inbox through server actions; the frame only needs a stable count.
+vi.mock("@/features/notifications/actions", () => ({
+  getCandidateUnreadCountAction: vi.fn(async () => ({ ok: true, data: { unread_count: 0, unread_notifications: 0 } })),
+  listCandidateNotificationsAction: vi.fn(async () => ({ ok: false, reason: "no_response", reference: {} })),
+}));
 
 import { CandidateShell } from "./candidate-shell";
 import { CandidateHeader } from "./candidate-header";
@@ -252,6 +257,7 @@ describe("candidate route header", () => {
     expect(within(header).getByRole("button", { name: /toggle sidebar/i })).toBeInTheDocument();
     expect(header.querySelector("[data-slot='separator']")).not.toBeNull();
     expect(document.querySelectorAll("[data-pf-theme-toggle]")).toHaveLength(1);
+    expect(within(header).getAllByRole("button", { name: /^Notificaciones/ })).toHaveLength(1);
     expect(HEADER).toContain('import { ThemeToggle } from "@/components/theme/theme-toggle"');
     expect(HEADER).not.toMatch(/useState|localStorage|pf-theme/);
   });

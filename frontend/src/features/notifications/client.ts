@@ -5,10 +5,17 @@ import {
   errorEnvelopeSchema, facetsSchema, isKnownNotificationType, markResultSchema, NOTIFICATION_STATES, NOTIFICATION_TYPES,
   notificationPageSchema, unreadCountSchema,
   type FilterIssue, type MarkAllInput, type MarkResult, type MarkTarget, type NotificationErrorEnvelope, type NotificationFacets,
-  type NotificationPage, type NotificationState, type NotificationType, type UnmarkTarget, type UnreadCount,
+  type NotificationPage, type NotificationScope, type NotificationState, type NotificationType, type UnmarkTarget, type UnreadCount,
 } from "./model";
 
-const PATH = "/v2/me/company/notifications";
+/** Fixed base path per scope (L14); anything outside the enum is refused before a request. Default: company. */
+const PATHS: Readonly<Record<NotificationScope, string>> = Object.freeze({
+  company: "/v2/me/company/notifications",
+  candidate: "/v2/me/notifications",
+});
+const basePath = (scope: unknown = "company"): string | null =>
+  typeof scope === "string" && Object.hasOwn(PATHS, scope) ? PATHS[scope as NotificationScope] : null;
+type Scoped = { scope?: NotificationScope };
 export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 50;
 export const MAX_JOB_IDS = 20;
@@ -131,36 +138,43 @@ function toMarkAllBody(input: unknown): { body: object } | { fields: FilterIssue
   return issues.length ? { fields: sorted(issues) } : { body };
 }
 
-export async function listNotifications(input: NotificationQuery & { token: string }): ClientResult<NotificationPage> {
+export async function listNotifications(input: NotificationQuery & Scoped & { token: string }): ClientResult<NotificationPage> {
   if (!hasToken(input.token)) return noToken;
+  const path = basePath(input.scope);
   const query = toQuery(input);
-  return query ? call(PATH, input.token, notificationPageSchema, { query }) : invalidRequest;
+  return path && query ? call(path, input.token, notificationPageSchema, { query }) : invalidRequest;
 }
 
-export const getUnreadCount = (token: string): ClientResult<UnreadCount> => call(`${PATH}/unread-count`, token, unreadCountSchema);
+export const getUnreadCount = (token: string, scope: NotificationScope = "company"): ClientResult<UnreadCount> => {
+  const path = basePath(scope);
+  return path ? call(`${path}/unread-count`, token, unreadCountSchema) : Promise.resolve(hasToken(token) ? invalidRequest : noToken);
+};
 
-async function mark(path: string, token: string, built: { body: object } | { fields: FilterIssue[] }): ClientResult<MarkResult> {
+async function mark(scope: unknown, action: string, token: string, built: { body: object } | { fields: FilterIssue[] }): ClientResult<MarkResult> {
   if (!hasToken(token)) return noToken;
-  return "fields" in built ? invalidBody(built.fields) : call(path, token, markResultSchema, { body: built.body });
+  const path = basePath(scope);
+  if (!path) return invalidRequest;
+  return "fields" in built ? invalidBody(built.fields) : call(`${path}/${action}`, token, markResultSchema, { body: built.body });
 }
 
 /** `POST …/read` with `{group_keys}` (1–100) or `{ids}` (1–200). */
-export const markRead = (input: { token: string; target: MarkTarget }): ClientResult<MarkResult> =>
-  mark(`${PATH}/read`, input.token, toMarkBody(input.target, false));
+export const markRead = (input: Scoped & { token: string; target: MarkTarget }): ClientResult<MarkResult> =>
+  mark(input.scope, "read", input.token, toMarkBody(input.target, false));
 
 /** `POST …/unread` with `{group_keys}`, `{ids}` or `{marked_at}` (exact undo of an earlier mark). */
-export const markUnread = (input: { token: string; target: UnmarkTarget }): ClientResult<MarkResult> =>
-  mark(`${PATH}/unread`, input.token, toMarkBody(input.target, true));
+export const markUnread = (input: Scoped & { token: string; target: UnmarkTarget }): ClientResult<MarkResult> =>
+  mark(input.scope, "unread", input.token, toMarkBody(input.target, true));
 
 /** `POST …/read-all` with optional `types`, `job_ids`, `before`. */
-export const markAllRead = (input: MarkAllInput & { token: string }): ClientResult<MarkResult> => {
-  const { token, ...filters } = input;
-  return mark(`${PATH}/read-all`, token, toMarkAllBody(filters));
+export const markAllRead = (input: MarkAllInput & Scoped & { token: string }): ClientResult<MarkResult> => {
+  const { token, scope, ...filters } = input;
+  return mark(scope, "read-all", token, toMarkAllBody(filters));
 };
 
 /** `GET …/facets?state=unread|all`; the backend ignores every other filter. */
-export async function getFacets(input: { token: string; state: NotificationState }): ClientResult<NotificationFacets> {
+export async function getFacets(input: Scoped & { token: string; state: NotificationState }): ClientResult<NotificationFacets> {
   if (!hasToken(input.token)) return noToken;
-  if (!(NOTIFICATION_STATES as readonly string[]).includes(input.state)) return invalidRequest;
-  return call(`${PATH}/facets`, input.token, facetsSchema, { query: new URLSearchParams({ state: input.state }) });
+  const path = basePath(input.scope);
+  if (!path || !(NOTIFICATION_STATES as readonly string[]).includes(input.state)) return invalidRequest;
+  return call(`${path}/facets`, input.token, facetsSchema, { query: new URLSearchParams({ state: input.state }) });
 }

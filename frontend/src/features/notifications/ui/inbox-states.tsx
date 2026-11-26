@@ -37,10 +37,12 @@ export function InboxUpToDate({ onShowAll }: { onShowAll: () => void }) {
   </State>;
 }
 
-/** No preferences action yet: `/empresa/configuracion/notificaciones` does not exist (stage 2). */
-export function InboxFirstUse() {
+/** No preferences action yet: `/empresa/configuracion/notificaciones` does not exist (stage 2). Candidate wording: design 04. */
+export function InboxFirstUse({ candidate = false }: { candidate?: boolean }) {
   return <State icon={Inbox} tone="bg-primary/10 text-primary" title="Aún no tienes notificaciones"
-    description="Aquí llegan las postulaciones nuevas, las entregas por vencer, las vacantes que te asignan y las pruebas de tus candidatos." />;
+    description={candidate
+      ? "Aquí te avisaremos cuando una empresa cambie el estado de tu postulación, te escriba o te pida una prueba."
+      : "Aquí llegan las postulaciones nuevas, las entregas por vencer, las vacantes que te asignan y las pruebas de tus candidatos."} />;
 }
 
 export function InboxError({ onRetry }: { onRetry: () => void }) {

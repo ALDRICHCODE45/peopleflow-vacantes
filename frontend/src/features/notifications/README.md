@@ -60,3 +60,24 @@ Failure reasons for writes:
   applied immediately, at most 20 vacancies. Filter tests use `ui/test-popover.tsx` because the real Base UI popover
   hangs `user.click` in jsdom (same convention as audit-log).
 - `copy.ts` is the only place with wording and links per type (contract D24); unknown types read «Nueva notificación».
+
+## Candidate inbox (T3.6)
+
+Contract L14: `GET /v2/me/notifications`, `…/unread-count`, `…/facets`, `POST …/read`, `…/unread`, `…/read-all`, behind
+the `/v2/me/applications` gate, same shapes as members. Items carry `company {id, name}` (null when the vacancy can no
+longer be resolved; absent on member items); actor null, sample `[]`, attention `[]` / `attention_total` 0; link is
+`application` or `assessment`, null when the candidate no longer participates.
+
+- Scope is a closed enum (`NOTIFICATION_SCOPES`: `company` | `candidate`) that `client.ts` maps to a fixed base path;
+  any other value is refused before a request. The browser never picks it: `actions.ts` exports a separate fixed set
+  per scope (`listCandidateNotificationsAction`, `getCandidateUnreadCountAction`, `markCandidateReadAction`,
+  `markCandidateUnreadAction`, `markAllCandidateReadAction`, `getCandidateFacetsAction`), each setting its own scope
+  after the caller's input, so a smuggled `scope` key is overwritten.
+- 403 `account_required` (no candidate account) / `wrong_role` (company user) → `forbidden`: empty inbox, polling stops.
+- UI: `NotificationBell scope="candidate"` provides `NotificationScopeContext` (`ui/scope.tsx`), which picks the action
+  set for `useInboxPages`, `useInboxMarks` and the filter. `useUnreadCount(scope)` takes it as an argument.
+  `CandidateNotificationBell` mounts it in `CandidateHeader` before the theme toggle, only for a signed-in candidate.
+- Candidate inbox = the same sheet without «Filtrar» (design 04 shows no filter), without «Requiere atención» and
+  without sample sublists; rows name the company (subtitle or title, per type in `copy.ts`).
+- Contract Q4: marking `candidate_message_received` read does not mark the message read; that stays
+  `PUT /v2/me/applications/{id}/message-read`, independent.

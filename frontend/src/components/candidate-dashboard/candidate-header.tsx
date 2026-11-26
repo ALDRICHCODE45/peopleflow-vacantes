@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ArrowLeftIcon } from "lucide-react"
 
 import { CandidateMobileLogin } from "./candidate-visitor"
+import { CandidateNotificationBell } from "@/features/notifications/ui/candidate-notification-bell"
 import { ThemeToggle } from "@/components/theme/theme-toggle"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/company-dashboard/ui/sidebar"
@@ -35,6 +36,8 @@ export function CandidateHeader({ title = "Dashboard", parent, heading = true }:
         </nav>}
         <div className="ml-auto flex items-center gap-2">
           <CandidateMobileLogin />
+          {/* Design 04: the candidate bell sits right before the theme control, as in the company header. */}
+          <CandidateNotificationBell />
           <ThemeToggle />
         </div>
       </div>

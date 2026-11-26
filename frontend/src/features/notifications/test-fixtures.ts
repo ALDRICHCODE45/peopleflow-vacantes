@@ -109,3 +109,53 @@ export function notificationPage(overrides: Partial<NotificationPage> = {}): Not
     ...overrides,
   };
 }
+
+export const companyId = "50000000-0000-4000-8000-000000000001";
+export const invitationId = "80000000-0000-4000-8000-000000000001";
+
+/** Item of `GET /v2/me/notifications` (L14): one per notification, company resolved, no actor, no sample, no attention. */
+export function candidateGroup(overrides: Partial<NotificationGroup> = {}): NotificationGroup {
+  return {
+    group_key: "n:01937d00-0000-7000-8000-000000000001",
+    type: "candidate_status_changed",
+    kind: "operational",
+    urgency: "normal",
+    count: 1,
+    unread_count: 1,
+    read: false,
+    resolved: false,
+    latest_at: "2026-11-26T18:30:00Z",
+    first_at: "2026-11-26T18:30:00Z",
+    job: { id: jobId, title: "Analista de nómina" },
+    latest: { id: "01937d00-0000-7000-8000-000000000001", created_at: "2026-11-26T18:30:00Z", actor: null, payload: { status: "in_process" } },
+    sample: [],
+    link: { kind: "application", job_id: jobId, participation_id: anaParticipation },
+    company: { id: companyId, name: "Grupo Altavista" },
+    ...overrides,
+  };
+}
+
+export function candidatePage(overrides: Partial<NotificationPage> = {}): NotificationPage {
+  return {
+    attention: [],
+    attention_total: 0,
+    items: [
+      candidateGroup({
+        group_key: "n:01937d00-0000-7000-8000-000000000002", type: "candidate_message_received",
+        latest: { id: "01937d00-0000-7000-8000-000000000002", created_at: "2026-11-26T18:40:00Z", actor: null, payload: { status: "closed" } },
+        latest_at: "2026-11-26T18:40:00Z", first_at: "2026-11-26T18:40:00Z",
+      }),
+      candidateGroup(),
+      candidateGroup({
+        group_key: "n:01937d00-0000-7000-8000-000000000003", type: "candidate_test_pending", read: true, unread_count: 0,
+        latest: { id: "01937d00-0000-7000-8000-000000000003", created_at: "2026-11-26T15:00:00Z", actor: null, payload: { invitation_id: invitationId } },
+        latest_at: "2026-11-26T15:00:00Z", first_at: "2026-11-26T15:00:00Z",
+        link: { kind: "assessment", invitation_id: invitationId },
+      }),
+    ],
+    next_cursor: null,
+    unread_count: 2,
+    unread_notifications: 2,
+    ...overrides,
+  };
+}

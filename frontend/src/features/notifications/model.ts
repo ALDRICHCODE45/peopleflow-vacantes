@@ -15,6 +15,13 @@ export const NOTIFICATION_TYPES = [
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export const isKnownNotificationType = (type: string): type is NotificationType => (NOTIFICATION_TYPES as readonly string[]).includes(type);
 
+/**
+ * Whose inbox: members on `/v2/me/company/notifications`, candidates on `/v2/me/notifications` (L14). A closed enum —
+ * the server maps it to a fixed path; the browser never sends a path.
+ */
+export const NOTIFICATION_SCOPES = ["company", "candidate"] as const;
+export type NotificationScope = (typeof NOTIFICATION_SCOPES)[number];
+
 export const NOTIFICATION_STATES = ["all", "unread"] as const;
 export type NotificationState = (typeof NOTIFICATION_STATES)[number];
 
@@ -49,8 +56,8 @@ export const notificationGroupSchema = z.object({
   // Omitted (not null) when the payload carries no user id (L12).
   from_user: userRef.optional(),
   to_user: userRef.optional(),
-  // Candidate side only.
-  company: z.object({ id: uuid, name: z.string() }).optional(),
+  // Candidate side only (L14): null when the vacancy can no longer be resolved; absent on member items.
+  company: z.object({ id: uuid, name: z.string() }).nullable().optional(),
 });
 
 /** With a cursor, `attention` and `attention_total` are null (L12). */

@@ -2,7 +2,8 @@
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import Link from "next/link";
 import {
-  Bell, Check, ChevronDown, ChevronRight, ClipboardCheck, Clock, ClockAlert, Hourglass, UserCheck, UserPlus, Users, type LucideIcon,
+  Bell, Check, ChevronDown, ChevronRight, ClipboardCheck, Clock, ClockAlert, Hourglass, MessageSquare, Route, UserCheck, UserPlus, Users,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "cn";
 
@@ -12,10 +13,13 @@ import {
   describeNotification, notificationTarget, participationHref, sampleToggleLabel, type NotificationIcon, type NotificationTone,
 } from "../copy";
 import type { NotificationGroup } from "../model";
+import { useNotificationScope } from "./scope";
 
 const ICONS: Record<NotificationIcon, LucideIcon> = {
   application: UserPlus, "due-soon": Clock, overdue: ClockAlert, assignment: UserCheck, team: Users,
-  "psychometric-done": ClipboardCheck, "psychometric-pending": Hourglass, generic: Bell,
+  "psychometric-done": ClipboardCheck, "psychometric-pending": Hourglass,
+  // Candidate types (design 04 `c_estado`, `c_mensaje`, `c_prueba`).
+  status: Route, message: MessageSquare, test: ClipboardCheck, generic: Bell,
 };
 /** Icon tile tones of design 07 (`tone-pr|rv|dg|in|ok|mu`): token text on an 11 % wash of itself. */
 const TONES: Record<NotificationTone, string> = {
@@ -34,10 +38,12 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2)
  * with the urgency badge, relative time and destination. Rows without a link stay plain text. Grouped rows with a
  * sample expand to the candidates, each linking to its participation. Unread rows end with «Marcar como leída»;
  * following any of the row's links marks the group read first (`onOpen`, fire and forget) and closes the sheet.
+ * Candidate rows never expand: the sample is a company-side list of candidates (L14: always empty there).
  */
 export function NotificationRow({ group, onNavigate, onOpen, onMark }: {
   group: NotificationGroup; onNavigate: () => void; onOpen: (group: NotificationGroup) => void; onMark: (group: NotificationGroup) => void;
 }) {
+  const company = useNotificationScope() === "company";
   const [open, setOpen] = useState(false);
   const subId = useId();
   const titleId = useId();
@@ -55,7 +61,7 @@ export function NotificationRow({ group, onNavigate, onOpen, onMark }: {
     rowRef.current?.focus();
   }, [unread]);
   const jobId = group.job?.id ?? (group.link && "job_id" in group.link ? group.link.job_id : null);
-  const sample = jobId && group.count > 1 && group.sample.length > 1 ? group.sample : [];
+  const sample = company && jobId && group.count > 1 && group.sample.length > 1 ? group.sample : [];
 
   const content = <>
     <span aria-hidden="true" className={cn("grid size-9 place-items-center rounded-xl", TONES[copy.tone])}><Icon className="size-[18px]" /></span>

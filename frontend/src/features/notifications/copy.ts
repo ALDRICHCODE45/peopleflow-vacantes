@@ -1,14 +1,15 @@
 import type { NotificationGroup, NotificationLink, NotificationState, NotificationType } from "./model";
 
 /**
- * Wording, icons and links for the company inbox (design 07, contract notifications-v1). Pure: the backend stores
- * ids and enums only (D24) and every visible sentence is composed here from `type` + resolved names + payload.
+ * Wording, icons and links for the company inbox (design 07) and the candidate inbox (design 04), contract
+ * notifications-v1. Pure: the backend stores ids and enums only (D24) and every visible sentence is composed here from `type` + resolved names + payload.
  * Dates follow the backend rule: calendar days in America/Mexico_City.
  */
 
 export type NotificationTone = "primary" | "review" | "danger" | "info" | "success" | "muted";
 export type NotificationIcon =
-  | "application" | "due-soon" | "overdue" | "assignment" | "team" | "psychometric-done" | "psychometric-pending" | "generic";
+  | "application" | "due-soon" | "overdue" | "assignment" | "team" | "psychometric-done" | "psychometric-pending"
+  | "status" | "message" | "test" | "generic";
 export type NotificationUrgency = { label: string; variant: "danger" | "review" };
 export type NotificationCopy = {
   title: string;
@@ -63,6 +64,11 @@ const REASONS: Record<string, string> = {
   workload: "carga de trabajo", recruiter_departure: "salida del reclutador", performance: "desempeño",
   client_request: "solicitud del cliente", other: "otro motivo",
 };
+/**
+ * Candidate-facing status words of the applications list (`features/candidate/saved/application-status.ts`,
+ * `features/candidate/dashboard/charts.tsx`); `closed` has its own sentence.
+ */
+const CANDIDATE_STATUSES: Record<string, string> = { submitted: "Enviada", in_process: "En proceso" };
 const lookup = (table: Record<string, string>, value: unknown) => typeof value === "string" && Object.hasOwn(table, value) ? table[value] : null;
 const known = (name: string | null | undefined) => name?.trim() ? name.trim() : null;
 
@@ -158,7 +164,25 @@ function body(group: NotificationGroup, now: Date): Body {
         title: many ? `${group.count} pruebas psicométricas pendientes en ${vacancy}` : `Prueba psicométrica pendiente de ${firstName}`,
         subtitle: many ? namesLine(group) : known(group.job?.title), icon: "psychometric-pending", tone: "muted",
       };
-    // candidate_* types render generically until the candidate inbox (T3.6).
+    // Candidate inbox (T3.6, design 04): one item per notification; company resolved by the API or null (L14).
+    case "candidate_status_changed": {
+      const label = lookup(CANDIDATE_STATUSES, payload.status);
+      return {
+        title: payload.status === "closed" ? `Tu postulación a ${vacancy} se cerró`
+          : label ? `Tu postulación a ${vacancy} pasó a ${label}` : `Tu postulación a ${vacancy} cambió de estado`,
+        subtitle: known(group.company?.name), icon: "status", tone: "info",
+      };
+    }
+    case "candidate_message_received":
+      return {
+        title: `${known(group.company?.name) ?? "Una empresa"} te dejó un mensaje sobre ${vacancy}`,
+        subtitle: "Abre tu postulación para leerlo.", icon: "message", tone: "primary",
+      };
+    case "candidate_test_pending":
+      return {
+        title: "Tienes una prueba psicométrica pendiente",
+        subtitle: [known(group.job?.title), known(group.company?.name)].filter(Boolean).join(" · ") || null, icon: "test", tone: "review",
+      };
     default:
       return generic;
   }

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { markAllReadAction, markReadAction, markUnreadAction } from "../actions";
 import type { MarkResultResult, NotificationGroup } from "../model";
+import { useNotificationActions } from "./scope";
 import type { InboxFilters } from "./use-inbox-pages";
 
 /** Polite line above the list: a failure, or the read-all result with its «Deshacer». */
@@ -28,6 +28,7 @@ type Options = {
  * returned `unread_count` into the bell.
  */
 export function useInboxMarks({ filters, loadedAt, onUnreadCount, markLocal, reload }: Options) {
+  const { markRead: markReadAction, markUnread: markUnreadAction, markAllRead: markAllReadAction } = useNotificationActions();
   const [status, setStatus] = useState<MarkStatus>(null);
   const [busy, setBusy] = useState(false);
   const mounted = useRef(true);
@@ -40,7 +41,7 @@ export function useInboxMarks({ filters, loadedAt, onUnreadCount, markLocal, rel
     if (!result.ok) { setStatus({ kind: "message", text: "No se pudo marcar como leída." }); return; }
     markLocal(group.group_key, result.data.unread_count);
     setStatus(null);
-  }, [onUnreadCount, markLocal]);
+  }, [onUnreadCount, markLocal, markReadAction]);
 
   const openGroup = useCallback((group: NotificationGroup) => {
     if (!group.read) void markGroup(group);
@@ -60,7 +61,7 @@ export function useInboxMarks({ filters, loadedAt, onUnreadCount, markLocal, rel
     onUnreadCount(result.data.unread_count);
     setStatus({ kind: "undo", affected: result.data.affected_notifications, markedAt: result.data.marked_at });
     reload();
-  }, [filters, loadedAt, onUnreadCount, reload]);
+  }, [filters, loadedAt, onUnreadCount, reload, markAllReadAction]);
 
   const undo = useCallback(async () => {
     if (status?.kind !== "undo") return;
@@ -72,7 +73,7 @@ export function useInboxMarks({ filters, loadedAt, onUnreadCount, markLocal, rel
     onUnreadCount(result.data.unread_count);
     setStatus(null);
     reload();
-  }, [status, onUnreadCount, reload]);
+  }, [status, onUnreadCount, reload, markUnreadAction]);
 
   const clearStatus = useCallback(() => setStatus(null), []);
   return { status, busy, markGroup, openGroup, markAll, undo, clearStatus };
