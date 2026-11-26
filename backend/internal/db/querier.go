@@ -58,7 +58,8 @@ type Querier interface {
 	// Run after LockCompanyForMemberMutation so two creates cannot both pass the limit.
 	CountPendingStakeholderInvitations(ctx context.Context, arg CountPendingStakeholderInvitationsParams) (int64, error)
 	// Bell counter (D14): unread groups (attention included) and unread rows of
-	// the caller's scope, from notifications_recipient_unread.
+	// the caller's visible scope, from notifications_recipient_unread (whose
+	// predicate includes in_app since migration 00069).
 	CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (CountUnreadNotificationsRow, error)
 	// Atomic apply + eligibility gate for POST /jobs/{jobId}/applications
 	// (design D1).
@@ -328,7 +329,9 @@ type Querier interface {
 	// recipient_kind 'member' with company_id = the gate's company (members) or
 	// recipient_kind 'candidate' with company_id NULL (candidates). The CHECK
 	// (recipient_kind = 'candidate') = (company_id IS NULL) makes any other
-	// combination match nothing.
+	// combination match nothing. Every scope also filters `AND <alias>.in_app`
+	// (notifications-v2 D6): a row created with the in-app channel off is never
+	// listed, counted, faceted or marked (guarded by inbox/inapp_guard_test.go).
 	// Attention (notifications-v1 D13), the single source of the selection: the
 	// caller's unread, unresolved items of the attention types (passed by the
 	// caller from the domain type table) in the caller's scope, honouring types /

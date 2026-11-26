@@ -94,6 +94,7 @@ FROM notifications n
 WHERE n.recipient_user_id = $1::uuid
   AND n.recipient_kind = $2::text
   AND n.company_id IS NOT DISTINCT FROM $3::uuid
+  AND n.in_app
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL
 `
@@ -110,7 +111,8 @@ type CountUnreadNotificationsRow struct {
 }
 
 // Bell counter (D14): unread groups (attention included) and unread rows of
-// the caller's scope, from notifications_recipient_unread.
+// the caller's visible scope, from notifications_recipient_unread (whose
+// predicate includes in_app since migration 00069).
 func (q *Queries) CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (CountUnreadNotificationsRow, error) {
 	row := q.db.QueryRow(ctx, countUnreadNotifications, arg.UserID, arg.RecipientKind, arg.CompanyID)
 	var i CountUnreadNotificationsRow
@@ -469,6 +471,7 @@ FROM (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = 'member'
       AND n.company_id = $2::uuid
+      AND n.in_app
       AND n.group_key = ANY ($3::text[])
       AND n.participation_id IS NOT NULL
     GROUP BY n.group_key, n.participation_id
@@ -524,6 +527,7 @@ FROM notifications n
 WHERE n.recipient_user_id = $1::uuid
   AND n.recipient_kind = $2::text
   AND n.company_id IS NOT DISTINCT FROM $3::uuid
+  AND n.in_app
   AND n.type = ANY ($4::text[])
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL
@@ -560,7 +564,9 @@ type ListNotificationAttentionRow struct {
 // recipient_kind 'member' with company_id = the gate's company (members) or
 // recipient_kind 'candidate' with company_id NULL (candidates). The CHECK
 // (recipient_kind = 'candidate') = (company_id IS NULL) makes any other
-// combination match nothing.
+// combination match nothing. Every scope also filters `AND <alias>.in_app`
+// (notifications-v2 D6): a row created with the in-app channel off is never
+// listed, counted, faceted or marked (guarded by inbox/inapp_guard_test.go).
 // Attention (notifications-v1 D13), the single source of the selection: the
 // caller's unread, unresolved items of the attention types (passed by the
 // caller from the domain type table) in the caller's scope, honouring types /
@@ -660,6 +666,7 @@ WITH jobs AS (
         WHERE n.recipient_user_id = $2::uuid
           AND n.recipient_kind = $3::text
           AND n.company_id IS NOT DISTINCT FROM $4::uuid
+          AND n.in_app
         GROUP BY n.group_key, n.job_id
     ) g
     WHERE NOT $5::boolean OR g.unread
@@ -746,6 +753,7 @@ FROM (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
     GROUP BY n.group_key, n.type
 ) g
 WHERE NOT $4::boolean OR g.unread
@@ -805,6 +813,7 @@ WITH grouped AS (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
       AND (cardinality($8::text[]) = 0 OR n.type = ANY ($8::text[]))
       AND (cardinality($9::uuid[]) = 0 OR n.job_id = ANY ($9::uuid[]))
       AND NOT (n.id = ANY ($10::uuid[]))
@@ -820,6 +829,7 @@ CROSS JOIN LATERAL (
     WHERE x.recipient_user_id = $1::uuid
       AND x.recipient_kind = $2::text
       AND x.company_id IS NOT DISTINCT FROM $3::uuid
+      AND x.in_app
       AND x.group_key = g.group_key
     ORDER BY x.created_at DESC, x.id DESC
     LIMIT 1
@@ -1172,6 +1182,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (cardinality($4::text[]) = 0 OR n.type = ANY ($4::text[]))
@@ -1236,6 +1247,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY ($4::text[]) OR n.id = ANY ($5::uuid[]))
@@ -1287,6 +1299,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
       AND n.read_at IS NOT NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY ($4::text[])

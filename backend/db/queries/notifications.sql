@@ -217,7 +217,9 @@ WHERE n.resolved_at IS NULL
 -- recipient_kind 'member' with company_id = the gate's company (members) or
 -- recipient_kind 'candidate' with company_id NULL (candidates). The CHECK
 -- (recipient_kind = 'candidate') = (company_id IS NULL) makes any other
--- combination match nothing.
+-- combination match nothing. Every scope also filters `AND <alias>.in_app`
+-- (notifications-v2 D6): a row created with the in-app channel off is never
+-- listed, counted, faceted or marked (guarded by inbox/inapp_guard_test.go).
 
 -- name: ListNotificationAttention :many
 -- Attention (notifications-v1 D13), the single source of the selection: the
@@ -231,6 +233,7 @@ FROM notifications n
 WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
   AND n.recipient_kind = sqlc.arg('recipient_kind')::text
   AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+  AND n.in_app
   AND n.type = ANY (sqlc.arg('attention_types')::text[])
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL
@@ -257,6 +260,7 @@ WITH grouped AS (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
       AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
       AND (cardinality(sqlc.arg('job_ids')::uuid[]) = 0 OR n.job_id = ANY (sqlc.arg('job_ids')::uuid[]))
       AND NOT (n.id = ANY (sqlc.arg('exclude_ids')::uuid[]))
@@ -272,6 +276,7 @@ CROSS JOIN LATERAL (
     WHERE x.recipient_user_id = sqlc.arg('user_id')::uuid
       AND x.recipient_kind = sqlc.arg('recipient_kind')::text
       AND x.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND x.in_app
       AND x.group_key = g.group_key
     ORDER BY x.created_at DESC, x.id DESC
     LIMIT 1
@@ -293,6 +298,7 @@ FROM (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = 'member'
       AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.in_app
       AND n.group_key = ANY (sqlc.arg('group_keys')::text[])
       AND n.participation_id IS NOT NULL
     GROUP BY n.group_key, n.participation_id
@@ -346,12 +352,14 @@ WHERE u.id = ANY (sqlc.arg('user_ids')::uuid[])
 
 -- name: CountUnreadNotifications :one
 -- Bell counter (D14): unread groups (attention included) and unread rows of
--- the caller's scope, from notifications_recipient_unread.
+-- the caller's visible scope, from notifications_recipient_unread (whose
+-- predicate includes in_app since migration 00069).
 SELECT count(DISTINCT n.group_key)::integer AS unread_groups, count(*)::integer AS unread_notifications
 FROM notifications n
 WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
   AND n.recipient_kind = sqlc.arg('recipient_kind')::text
   AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+  AND n.in_app
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL;
 
@@ -368,6 +376,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY (sqlc.arg('group_keys')::text[]) OR n.id = ANY (sqlc.arg('ids')::uuid[]))
@@ -390,6 +399,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
       AND n.read_at IS NOT NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY (sqlc.arg('group_keys')::text[])
@@ -414,6 +424,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
@@ -437,6 +448,7 @@ FROM (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
     GROUP BY n.group_key, n.type
 ) g
 WHERE NOT sqlc.arg('unread_only')::boolean OR g.unread
@@ -458,6 +470,7 @@ WITH jobs AS (
         WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
           AND n.recipient_kind = sqlc.arg('recipient_kind')::text
           AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+          AND n.in_app
         GROUP BY n.group_key, n.job_id
     ) g
     WHERE NOT sqlc.arg('unread_only')::boolean OR g.unread
