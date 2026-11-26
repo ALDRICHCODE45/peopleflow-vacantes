@@ -16,6 +16,11 @@ export function vacancyPipelineHref(jobId: string): string {
   return `/empresa/vacantes/${jobId}/pipeline`;
 }
 
+/** The pipeline board opened on one candidate's sheet (`?candidato=<participation_id>`, read by the board). */
+export function vacancyCandidateHref(jobId: string, participationId: string): string {
+  return `${vacancyPipelineHref(jobId)}?${new URLSearchParams({ candidato: participationId })}`;
+}
+
 /** Public page of a published vacancy (the candidate side's route). */
 export function vacancyPublicHref(jobId: string): string {
   return `/vacantes/${jobId}`;

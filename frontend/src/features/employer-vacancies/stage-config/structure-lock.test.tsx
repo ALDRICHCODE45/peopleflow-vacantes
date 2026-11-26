@@ -101,6 +101,6 @@ it("names occupied columns and links to the board without retrying", async () =>
   setup(); vi.mocked(previewPipelineAction).mockResolvedValue({ ok: false, reason: "stage_occupied", details: [{ stage_id: "c" }], reference: { status: 409 } });
   await userEvent.setup().click(screen.getByRole("button", { name: "Guardar cambios" }));
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ description: "Mueve a los candidatos de «Técnica» antes de quitarla." })));
-  expect(screen.getByRole("link", { name: "Ir al tablero" })).toHaveAttribute("href", "/empresa/vacantes/vacancy");
+  expect(screen.getByRole("link", { name: "Ir al tablero" })).toHaveAttribute("href", "/empresa/vacantes/vacancy/pipeline");
   expect(previewPipelineAction).toHaveBeenCalledTimes(1); expect(saveDraftPipelineAction).not.toHaveBeenCalled();
 });

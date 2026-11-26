@@ -19,7 +19,7 @@ import { DraftPipelineState } from "./draft-pipeline-state";
 
 // replacement-processes T4 wiring: the card «⋯» menu and the header «Acciones» both land in the start-replacement dialog of the source board.
 const router = { push: vi.fn(), refresh: vi.fn() };
-vi.mock("next/navigation", () => ({ useRouter: () => router }));
+vi.mock("next/navigation", () => ({ useRouter: () => router, useSearchParams: () => null }));
 // The dialog has its own suite: here only what the screen hands it (and what it does with `onStarted`) matters.
 vi.mock("@/features/vacancy-replacement/start-replacement-dialog", () => ({
   StartReplacementDialog: (props: StartReplacementDialogProps) => props.open

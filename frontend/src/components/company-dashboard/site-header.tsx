@@ -4,6 +4,7 @@ import { ArrowLeftIcon } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/theme/theme-toggle"
+import { NotificationBell } from "@/features/notifications/ui/notification-bell"
 import { SidebarTrigger } from "./ui/sidebar"
 
 /**
@@ -23,8 +24,8 @@ export type SiteHeaderParent = {
  * The dashboard route keeps using it with no props, so `Dashboard` stays the
  * default title. Routes that live under a section can supply their own `title`,
  * an optional linked `parent` crumb, and optional `status` context while still
- * reusing the same shell controls (sidebar trigger, separator, theme toggle)
- * instead of re-implementing them.
+ * reusing the same shell controls (sidebar trigger, separator, notification
+ * bell, theme toggle) instead of re-implementing them.
  *
  * `title={null}` (distinct from omitting it, which keeps «Dashboard») drops the
  * heading and the crumb's trailing separator: the vacancy frame owns the page
@@ -86,15 +87,20 @@ export function SiteHeader({
           <span className="flex shrink-0 items-center gap-1">{status}</span>
         ) : null}
         {/*
-          Canonical PeopleFlow theme control, reused as-is: this header owns no
-          theme state, storage key or bootstrap of its own. Its default 40x40
-          target is the shared global theme-control size, which fits the fixed
-          `h-(--header-height)` header and its untouched padding, and it stays
-          the group's only member, so it keeps the approved top-right position.
-          No visibility gate on purpose: the control must stay reachable at the
+          Top-right group: the notification bell, then the canonical PeopleFlow
+          theme control, which stays last so it keeps the approved top-right
+          position. Both use the shared 40x40 outline icon target, which fits
+          the fixed `h-(--header-height)` header and its untouched padding.
+          The theme control is reused as-is: this header owns no theme state,
+          storage key or bootstrap of its own. The bell (client) polls the
+          company inbox counter and opens the inbox sheet. Stakeholders get an
+          empty inbox; a user with no company yet (invitation and account
+          frames) is refused by the API and sees the same empty inbox. No
+          visibility gate on purpose: both controls must stay reachable at the
           smallest breakpoint.
         */}
         <div className="ml-auto flex items-center gap-2">
+          <NotificationBell />
           <ThemeToggle />
         </div>
       </div>
