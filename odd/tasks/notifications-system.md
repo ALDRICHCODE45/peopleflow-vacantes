@@ -96,3 +96,8 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   activado»; «Prueba psicométrica pendiente» ON by default. `05`: only the «Prueba pendiente del candidato» row changed to ON
   (in-app only). `design.json` and `self-check.md` updated. Browser review (Chromium + axe, 172 runs over 05–09): 0 axe
   violations, no overflow at 1440/390, visible focus, reduced motion respected; keyboard flows scripted and passing.
+- **L7** (2026-11-26) User picked: filters «07 · Botón «Filtrar» (recomendado)» (the bell + inbox = 02 side sheet with 07's
+  filter button/popover and one-line summary); stakeholder events enabled by the owner reach them «De todas las vacantes
+  (recomendado)»; stakeholders «No, solo por rol (recomendado)» — never picked by name. Chosen artboards: 07 (inbox, with
+  02 as the sheet base), 04 (phone + candidate), 05 (preferences); 06 is the stage-3 basis. T2 contract proposal drafted
+  in `odd/tasks/notifications-system-contract.md`.
