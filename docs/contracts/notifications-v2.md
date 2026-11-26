@@ -1,6 +1,6 @@
 # Notifications v2 (stage 2: email channel and personal preferences)
 
-Status: **Draft — pending frontend review** (2026-11-26). Source of the request: the frontend decisions forwarded in
+Status: **Draft — Q1, Q2, Q6, Q7 decided by the user; Q5, Q8, Q9, Q10 accepted as recommended; Q3, Q4 pending frontend; Q11 deferred to the SES work** (2026-11-26). Source of the request: the frontend decisions forwarded in
 `odd/tasks/notifications-v2-backend.md` (S1–S9, L1; frontend feature L17–L18). Builds on
 `docs/contracts/notifications-v1.md` (stage 1, merged e6b2d501): every stage-1 rule stays unless a decision below says
 otherwise. Branch `feat/notifications-v2-backend`. Style follows `notifications-v1.md`. Every `path:line` is a backend path
@@ -90,7 +90,7 @@ digest is stage 3 (S1). The system is not in production and all data is disposab
 | # | Source | Decision — reason |
 | --- | --- | --- |
 | D1 | S7 | **Preferences are keyed `(user_id, company_id, type, channel)` with `company_id NULL` for candidates**; a member's choices belong to their membership in that company — the frontend decision; a user is a member or a candidate, never both. |
-| D2 | S2, S5, S8 | **Defaults come from the type's kind in a closed code table; the table stores only sparse override rows; effective = row if present, else default.** Mandatory: `in_app` and `email` on and locked. Operational: `in_app` on, `email` off (S2; candidate types pending Q1). Informative (none yet): `in_app` on, `email` off. Mandatory rows are refused by the API (422) and by a DB `CHECK` — no way to store an override that would be ignored. |
+| D2 | S2, S5, S8 | **Defaults come from the type's kind in a closed code table; the table stores only sparse override rows; effective = row if present, else default.** Mandatory: `in_app` and `email` on and locked. Operational: `in_app` on, `email` off (S2), **except the three candidate types: `email` on by default** (user decision Q1, 2026-11-26). Informative (none yet): `in_app` on, `email` off. Mandatory rows are refused by the API (422) and by a DB `CHECK` — no way to store an override that would be ignored. |
 | D3 | S8 | **`GET …/preferences` returns the caller's full catalog** (their recipient kind's types × both channels) with `default`, `enabled` (effective) and `mandatory_locked` — the frontend never duplicates the type table. |
 | D4 | S8 | **`PUT …/preferences` takes a partial list, is atomic (all or nothing) and idempotent, writes an explicit row for every entry (even when equal to the default) and returns the full catalog** — an explicit choice survives a later change of defaults, retries are harmless, and the response is directly renderable. |
 | D5 | — | **Preference changes (settings or unsubscribe) are not audited.** The audit log is the company's record of actions on company data (owner screen); personal channel choices are not company data, candidates have no company, and the row keeps `source` + `updated_at` for support. Same reasoning as v1 D23. |
@@ -602,6 +602,14 @@ trace (status, attempts, timestamps, error class) for 180 days.
 | E6 | Sender loop: claim with lease, re-check/skip rules, fenced finalize, backoff, throttle; start/stop in `main.go`. |
 | E7 | Unsubscribe token (sign/verify, rotation, constant-time, uniform failure), public GET/POST, per-IP limit, `unsubscribe_link_invalid`; token issued in E5 templates. |
 | E8 | `cmd/notifications-purge` deletes terminal deliveries older than 180 days (after notifications, `ON DELETE SET NULL` link); follow-up note in `docs/decision-email-provider.md` (Q10). |
+
+## Resolved questions (2026-11-26)
+
+- **Q1** (user): candidate types `candidate_status_changed`, `candidate_message_received`, `candidate_test_pending` have `email` **on by default** (still switchable off by the candidate).
+- **Q2** (user): emails **include the vacancy title** («una vacante» fallback).
+- **Q6** (user): a non-mandatory email is **skipped** if everything it covers was already read in the app before sending.
+- **Q7** (user): the preferences page is **hidden for stakeholders** in the UI until stage 3; the backend still returns the catalog (D23).
+- **Q5, Q8, Q9, Q10**: accepted as recommended below.
 
 ## Open questions (for the frontend / user)
 

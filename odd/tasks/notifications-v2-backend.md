@@ -72,3 +72,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   origin for the one-click POST (recommend frontend origin pass-through), Q5 per-instance throttle, Q6 skip if already
   read (recommend yes), Q7 hide preferences page for stakeholders, Q8 midnight split, Q9 365-day links, Q10 update
   decision doc, Q11 sender domain.
+- **L4** 2026-11-26, user answers: Q1 «Encendido por defecto (Recomendado)» (candidate email on by default); Q2 «Sí, con el
+  título (Recomendado)»; Q6 «Sí, se cancela (Recomendado)»; Q7 «Ocultarla hasta la etapa 3 (Recomendado)». Parent accepts
+  Q5/Q8/Q9/Q10 as recommended; Q3/Q4 go to the frontend; Q11 (sender domain) deferred to the SES work (S9). Contract
+  updated; next: frontend review.
