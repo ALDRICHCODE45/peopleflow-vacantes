@@ -141,3 +141,8 @@ picks a direction, coordinated with the backend session.
   22 MB, .mov/.txt/0-byte pre-checked; fragmented → backend 422 video_invalid), reduced motion paused with poster,
   completion hints, phone fit, no regressions. Orphan dev media from the check are listed in the verifier report.
 
+- **L18** (2026-11-26) Full suite on `a156bd27`: 668 files / 12501 passed, 1 failed — the request-path security guard
+  (`features/jobs/requestPath.test.ts`) forbade any `request.headers` read in the media proxy. Guard tightened instead of
+  bypassed (`<this commit>`): the only allowed read is `request.headers.get("range")`, forwarded as the sole upstream
+  header; cookies/authorization still forbidden (negative check: injecting a cookie read fails the guard). 42/42 pass.
+  Risk: item 2 (security guard changed) — reviewed inline, scope limited to the Range header.
