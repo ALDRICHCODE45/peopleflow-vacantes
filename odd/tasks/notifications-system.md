@@ -156,3 +156,11 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   jobs[{job_id,title|null,count}] by title with untitled last, ≤50, jobs_total}. Foreign ids/group keys → 200 with 0
   affected; unread never touches resolved rows. Validation fields[] codes: required, invalid, not_allowed, empty,
   too_many; body cap 64 KiB. T3.5 unblocked. Next backend: N6 (candidate routes).
+- **L14** (2026-11-26) Backend stage 1 complete (feat/notifications-backend HEAD e1f0affd; not merged, not pushed —
+  user decides). N6 candidate routes behind the /v2/me/applications gate: GET /v2/me/notifications, …/unread-count,
+  POST …/read, …/unread, …/read-all, GET …/facets; same shapes as members except: each item has company {id, name}
+  (null when the vacancy can no longer be resolved); actor always null, sample always []; attention always [] and
+  attention_total 0; link is application {job_id, participation_id} or assessment {invitation_id}, null when the
+  candidate no longer participates; title from the public projection (as /v2/me/applications); no candidate account →
+  403 account_required. N7 = 180-day purge command, no API change. T3.6 unblocked (frontend schema must accept
+  company: null).
