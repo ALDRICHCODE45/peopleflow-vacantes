@@ -49,7 +49,7 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
 ## Tasks
 
 - T1 — contract `docs/contracts/notifications-v1.md` agreed with the frontend — drafted 7cd5df18, Q1–Q8 decided (L6), frontend approved (L7)
-- T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — worker — implemented 0f133e1a, 6810c32a, d12d2139, 1f5ed631, c8080b10; unit green, integration tests written but **not run** (L8) — pending integration run
+- T2 — N1: migration 00068, notifications domain type table, capture decorator + notifiable map wired in `cmd/api/main.go` (contract §Data model, §Capture, D1–D3, D12) — done: 0f133e1a 6810c32a d12d2139 1f5ed631 c8080b10 b52fbca6 + review correction 07f53042
 - T3 — N2: fan-out loop + recipient resolver + group keys (D4–D11) — pending
 - T4 — N3: scheduler for commitment dates and recruiter deadlines + resolution (D20, D21, Q1, Q7) — pending
 - T5 — N4: member read API + unread-count (D13, D14, D19, D27) — pending
@@ -132,3 +132,13 @@ the requested shape): `peopleflow-vacantes-frontend/odd/tasks/notifications-syst
   (Makefile sources it), so the migration/capture/rollback integration tests are unverified. Deviation: none from the
   contract; payload fields absent from metadata are omitted rather than stored empty. Next: run the integration
   target with an env, then N2.
+- **L9** 2026-11-26, N1 closed. Integration on an isolated container (`peopleflow-notif-test`, tmpfs, 127.0.0.1): notifications
+  capture 7 + domain 8 tests pass, none skipped. Native review `review-c525703930525820` (risk, resilience, reliability):
+  correction R3/R4 — absent optional ids (participation/subject) are captured as NULL instead of failing the domain
+  write; present-but-malformed ids still fail (07f53042, RED observed); targeted validator approved; acknowledged.
+  Independent verify: items 1–4 pass (migration, map/type table, decorator, wiring + all 9 emitters supply ids); unit
+  suite 124 packages ok; cmd/api integration 666 pass / 6 fail, all outside N1 by their errors (geo_countries not
+  seeded → test-order-dependent FK/400; `TestRun_StartsOnlyWithValidExplicitMode` fails from the sourced dev .env
+  IDENTITY_* vars) — not re-run on base. Follow-ups for N2: copy actor_user_id only for ActorType user (FK risk);
+  count/log capture failures distinctly; test the StructuredMetadata branch; cmd/api harness uses the wrapped audit
+  repo; seed geo_countries in the harness; deploy N1 together with N2 (events accumulate otherwise).
