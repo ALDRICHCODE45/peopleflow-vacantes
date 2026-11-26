@@ -31,7 +31,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - T1 — S1–S10 — contract `docs/contracts/notifications-v2.md` — worker (docs) — agreed
 - T2 — E1 — migration 00069, domain defaults/effective preference/locked rule, `AND n.in_app` in the scoped inbox statements + guard test — worker — done (uncommitted, L7)
 - T3 — E2 — preferences store + GET/PUT handlers for both trees, `notification_preference_locked`, routes — worker — done (uncommitted, L9)
-- T4 — E3 — in-app off at creation in fan-out and scheduler, `InsertNotification` → `:execrows` — worker — pending
+- T4 — E3 — in-app off at creation in fan-out and scheduler, `InsertNotification` → `:execrows` — worker — done (uncommitted, L11)
 - T5 — E4 — config loader, email eligibility, delivery creation with coalescing upsert in both creation paths — worker — pending
 - T6 — E5 — `Mailer` port, `log`/`smtp` adapters, Mailpit in compose, templates with the S10 copy, headers, dates, path map — worker — pending
 - T7 — E6 — sender loop (claim/lease, re-check/skip, fenced finalize, backoff, throttle), start/stop in `main.go` — worker — pending
@@ -198,3 +198,31 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   §Data model synced (delivery FKs cascade, type CHECK, retry/sending timer CHECKs) and the 28-entry limit wording fixed.
   Follow-ups: guard only fires on `<alias>.recipient_kind =`; preferences PUT has its own strict decoder (duplicate keys
   inside an entry: last wins); down test checks the index loosely. Next: E3.
+- **L11** 2026-11-26, T4/E3 implemented (uncommitted, worktree only). `InsertNotification` → `:execrows` and both inserts
+  take `in_app` (`sqlc.arg('in_app')::boolean`); new `ListNotificationPreferenceOverrides :many` (one channel, `user_id =
+  ANY`, `type = ANY`, `company_id IS NULL OR = ANY`; over-fetches at most the cross product, exact match in Go); sqlc
+  regenerated. Domain `domain/overrides.go`: `PreferenceKey{User, Company (uuid.Nil = candidate, company_id NULL), Type}`,
+  `Overrides.Effective` = `EffectivePreference` of the exact key (mandatory always on, even facing a row),
+  `NewOverrideLookup` (distinct users / non-NULL companies / overridable types; `Empty()` ⇒ no read when every type is
+  mandatory). Fan-out: one override read per event in the claiming tx after `Plan`, before the inserts (new step
+  `preferences`); `insert` returns `inserted bool` (affected rows = 1) and the loop marks the E4 hook (delivery decision
+  only for inserted rows). Scheduler: the date rule now collects every item first, one override read per run in the run
+  tx (step `preferences`), then inserts in the same order; `insert` returns the affected rows with the hook comment;
+  `Result` counts unchanged. RED observed: domain build failure (undefined `NewOverrides`, `PreferenceKey`, …),
+  fanout/schedule build failures (`insert` arity); then, with the new signatures but `in_app` hard-wired true,
+  `TestFanOutWritesInAppFromThePreferenceAtCreation` (application: owner row visible) and
+  `TestScheduleInAppOffCreatesAHiddenDeduplicatedRow` (first run due soon: owner row visible) failed, the affected-rows
+  and mandatory tests passed. GREEN: 6 new integration tests + 2 unit tests — fan-out: owner off in this company →
+  hidden, recruiter off only in another company → visible, explicit on → visible, candidate off with company NULL →
+  hidden; re-processing with the channel back on keeps the old rows hidden, a new event after re-enabling is visible;
+  mandatory `vacancy_reassigned`/`vacancy_unassigned` with override rows (type CHECK dropped in the disposable DB) →
+  visible; `insert` true then false on conflict, in_app written. Scheduler: owner off on `delivery_due_soon` → hidden,
+  recruiter off on `assignment_deadline_due_soon` → hidden, recruiter's other-company row ignored, overdue visible;
+  second run `Result{}` with no re-created row; re-enabling + third run `Result{}` and rows still hidden; mandatory
+  `delivery_overdue` with a row → visible; scheduled `insert` 1 then 0. Mutation: `Overrides.Effective` returning the raw
+  row fails the unit test (2 mandatory cases); the integration mandatory tests still pass because the lookup never
+  fetches locked types (second guard); restored. Validation: `make test-integration
+  PKG=./internal/features/notifications/...` ok (6 packages, 82 top-level PASS, 0 FAIL, 0 SKIP), `make test-integration
+  PKG=./cmd/api/ RUN='^TestNotifications'` ok (20 PASS), `make test PKG='./internal/features/notifications/... ./cmd/api/
+  ./internal/tools/archguard/'` ok, `go tool sqlc diff` clean. The override read helper is duplicated (~25 lines) in
+  `fanout/process.go` and `schedule/run.go` (each package owns its tx; domain stays DB-free).
