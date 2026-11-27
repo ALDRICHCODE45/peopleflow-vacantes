@@ -39,3 +39,17 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 - **L3** (2026-11-27) User, verbatim: «Si, pero lo de pagina propia de login?? eso no tiene que ver con la verificacion
   de la empresa, el login con pantallas propias en lugar de cognito si se debe de hacer, una cosa es la verificacion
   para que puedan subir vacantes, eso es algo mas, pero el tema del login si hay que hacerlo ahora.»
+- **L4** (2026-11-27) A1 map (explorer): NextAuth v4 with only CognitoProvider (OAuth code + PKCE), JWT session holding
+  access/refresh tokens server-side, refresh via /oauth2/token with client secret, logout through Cognito /logout.
+  LoginScreen already has an inert email/password form, «¿Olvidaste tu contraseña?», provider buttons and sign-up
+  links. Candidate accounts are created JIT by the backend (UserInfo, email_verified required); no self-service path
+  creates a recruiter (PostConfirmation group mapping is effectively dead); POST /companies requires user_type
+  recruiter. Backend verifies RS256 via JWKS; users linked by cognito_sub, never by email. No fake auth for e2e
+  (real Cognito capture); login-acceptance.spec asserts the inert shell. Agent decisions (technical): keep the app
+  client with secret and call Cognito only from the Next server with SECRET_HASH; USER_PASSWORD_AUTH from the server
+  (the password reaches our server either way; SRP adds complexity without benefit there); a NextAuth
+  CredentialsProvider puts the Cognito tokens into the same JWT cookie (jwt/refresh/session unchanged); the Cognito
+  OAuth provider stays only for social login with `identity_provider` (no hosted page shown); refresh via
+  InitiateAuth REFRESH_TOKEN_AUTH for both kinds; one app client for both roles; employer role from a new backend
+  onboarding endpoint mirroring the candidate flow (never from a client field); generic errors that never reveal
+  whether an email exists; rate limiting on our auth routes; e2e against a mock Cognito fixture server.
