@@ -1,7 +1,11 @@
 package config
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net"
 	"net/mail"
 	"net/url"
@@ -13,8 +17,8 @@ import (
 // Notification email settings (notifications-v2 §Config keys, D13). E4 loaded
 // the mailer kind, which gates delivery creation; E5 adds the keys the
 // renderer and the adapters need (sender, frontend origin, one-click URL,
-// SMTP host/port). The sender (E6) and unsubscribe (E7) slices add theirs.
-// Values are validated and never echoed or logged.
+// SMTP host/port); E7 the unsubscribe token keys. The sender (E6) adds its
+// own. Values are validated and never echoed or logged.
 
 const (
 	// EnvNotificationsMailer selects the mailer adapter.
@@ -31,7 +35,52 @@ const (
 	// (Mailpit in dev).
 	EnvNotificationsSMTPHost = "NOTIFICATIONS_SMTP_HOST"
 	EnvNotificationsSMTPPort = "NOTIFICATIONS_SMTP_PORT"
+	// EnvNotificationsUnsubscribeKeys holds the unsubscribe token keys
+	// (§Unsubscribe): a comma list of kid:base64key, the first signs and every
+	// listed key verifies (rotation: prepend a new key, drop an old one after
+	// 365 days). Never logged.
+	EnvNotificationsUnsubscribeKeys = "NOTIFICATIONS_UNSUBSCRIBE_KEYS"
 )
+
+// MinUnsubscribeKeyBytes is the minimum decoded length of an unsubscribe key.
+const MinUnsubscribeKeyBytes = 32
+
+// UnsubscribeKey is one HMAC key of the unsubscribe tokens. Its fmt, slog and
+// JSON renderings show the kid only: the key material is never printed.
+type UnsubscribeKey struct {
+	ID     string
+	Secret []byte
+}
+
+func (k UnsubscribeKey) String() string { return k.ID + ":[redacted]" }
+
+// GoString keeps %#v from dumping the key bytes.
+func (k UnsubscribeKey) GoString() string { return "UnsubscribeKey{" + k.String() + "}" }
+
+// LogValue keeps slog from dumping the key bytes.
+func (k UnsubscribeKey) LogValue() slog.Value { return slog.StringValue(k.String()) }
+
+// MarshalJSON keeps encoding/json (and slog's JSON handler, which marshals
+// nested structs) from dumping the key bytes.
+func (k UnsubscribeKey) MarshalJSON() ([]byte, error) { return json.Marshal(k.String()) }
+
+// UnsubscribeKeys renders as its kids only, under every fmt verb and in slog
+// (JSON goes through each UnsubscribeKey's MarshalJSON).
+type UnsubscribeKeys []UnsubscribeKey
+
+func (ks UnsubscribeKeys) String() string {
+	ids := make([]string, len(ks))
+	for i, k := range ks {
+		ids[i] = k.String()
+	}
+	return "[" + strings.Join(ids, " ") + "]"
+}
+
+func (ks UnsubscribeKeys) GoString() string { return "UnsubscribeKeys" + ks.String() }
+
+func (ks UnsubscribeKeys) Format(f fmt.State, verb rune) { _, _ = f.Write([]byte(ks.String())) }
+
+func (ks UnsubscribeKeys) LogValue() slog.Value { return slog.StringValue(ks.String()) }
 
 // NotificationsMailer is the NOTIFICATIONS_MAILER value.
 type NotificationsMailer string
@@ -60,6 +109,9 @@ type NotificationsEmailConfig struct {
 	// SMTPHost and SMTPPort are set only for MailerSMTP.
 	SMTPHost string
 	SMTPPort int
+	// UnsubscribeKeys are the token keys in order (the first signs); set
+	// only when the mailer is not off.
+	UnsubscribeKeys UnsubscribeKeys
 }
 
 // Enabled reports whether email deliveries are created (mailer ≠ off).
@@ -109,6 +161,12 @@ func LoadNotificationsEmailConfig(getenv func(string) string) (NotificationsEmai
 	}
 	c.UnsubscribeURL = unsubscribe
 
+	keys, err := parseUnsubscribeKeys(getenv(EnvNotificationsUnsubscribeKeys))
+	if err != nil {
+		return NotificationsEmailConfig{}, err
+	}
+	c.UnsubscribeKeys = keys
+
 	if c.Mailer == MailerSMTP {
 		if production {
 			return NotificationsEmailConfig{}, errors.New("NOTIFICATIONS_MAILER=smtp (" + EnvNotificationsSMTPHost + ") is dev only and forbidden in production")
@@ -124,6 +182,47 @@ func LoadNotificationsEmailConfig(getenv func(string) string) (NotificationsEmai
 		c.SMTPHost, c.SMTPPort = host, port
 	}
 	return c, nil
+}
+
+var unsubscribeKidPattern = regexp.MustCompile(`^[a-z0-9]{1,16}$`)
+
+// parseUnsubscribeKeys parses kid:base64key entries (standard or URL-safe
+// base64, padded or not; spaces around an entry trimmed). Every entry must be
+// valid: kid [a-z0-9]{1,16}, distinct, key ≥ 32 bytes. The error never quotes
+// any part of the value.
+func parseUnsubscribeKeys(v string) (UnsubscribeKeys, error) {
+	invalid := errors.New(EnvNotificationsUnsubscribeKeys + " is required and must be a comma list of kid:base64key " +
+		"entries (kid [a-z0-9]{1,16}, distinct; each key at least 32 bytes)")
+	if strings.TrimSpace(v) == "" {
+		return nil, invalid
+	}
+	var keys UnsubscribeKeys
+	seen := map[string]bool{}
+	for _, entry := range strings.Split(v, ",") {
+		kid, encoded, ok := strings.Cut(strings.TrimSpace(entry), ":")
+		if !ok || !unsubscribeKidPattern.MatchString(kid) || seen[kid] {
+			return nil, invalid
+		}
+		key, ok := decodeBase64Key(encoded)
+		if !ok || len(key) < MinUnsubscribeKeyBytes {
+			return nil, invalid
+		}
+		seen[kid] = true
+		keys = append(keys, UnsubscribeKey{ID: kid, Secret: key})
+	}
+	return keys, nil
+}
+
+func decodeBase64Key(v string) ([]byte, bool) {
+	if v == "" {
+		return nil, false
+	}
+	for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
+		if key, err := enc.Strict().DecodeString(v); err == nil {
+			return key, true
+		}
+	}
+	return nil, false
 }
 
 // parseSender accepts exactly one RFC 5322 address with a domain.

@@ -1,8 +1,22 @@
 package config
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
+)
+
+// unsubscribeKeyA / B are 32- and 48-byte keys in standard base64.
+var (
+	unsubscribeKeyA = bytes.Repeat([]byte{0xA1}, 32)
+	unsubscribeKeyB = bytes.Repeat([]byte{0xB2}, 48)
+	unsubscribeEnvA = base64.StdEncoding.EncodeToString(unsubscribeKeyA)
+	unsubscribeEnvB = base64.StdEncoding.EncodeToString(unsubscribeKeyB)
 )
 
 // validEmailEnv is the smallest valid non-off environment for a mailer (E5
@@ -13,6 +27,8 @@ func validEmailEnv(mailer string) map[string]string {
 		"NOTIFICATIONS_EMAIL_FROM":      "PeopleFlow <no-reply@peopleflow.test>",
 		"APP_BASE_URL":                  "http://localhost:3000",
 		"NOTIFICATIONS_UNSUBSCRIBE_URL": "http://localhost:3000/api/notificaciones/baja",
+		// E7: kid:base64key list, first signs, all verify.
+		"NOTIFICATIONS_UNSUBSCRIBE_KEYS": "k1:" + unsubscribeEnvA,
 	}
 	if mailer == "smtp" {
 		env["NOTIFICATIONS_SMTP_HOST"] = "localhost"
@@ -92,14 +108,15 @@ func TestLoadNotificationsEmailConfigParsesTheE5Keys(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := NotificationsEmailConfig{
-		Mailer:         MailerSMTP,
-		From:           `"PeopleFlow" <no-reply@peopleflow.test>`,
-		AppBaseURL:     "https://app.peopleflow.test",
-		UnsubscribeURL: "https://app.peopleflow.test/api/notificaciones/baja",
-		SMTPHost:       "localhost",
-		SMTPPort:       1025,
+		Mailer:          MailerSMTP,
+		From:            `"PeopleFlow" <no-reply@peopleflow.test>`,
+		AppBaseURL:      "https://app.peopleflow.test",
+		UnsubscribeURL:  "https://app.peopleflow.test/api/notificaciones/baja",
+		SMTPHost:        "localhost",
+		SMTPPort:        1025,
+		UnsubscribeKeys: []UnsubscribeKey{{ID: "k1", Secret: unsubscribeKeyA}},
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
 	}
 
@@ -118,13 +135,14 @@ func TestLoadNotificationsEmailConfigParsesTheE5Keys(t *testing.T) {
 // Mailer off ignores every other key, even invalid ones: nothing is sent.
 func TestLoadNotificationsEmailConfigOffIgnoresTheOtherKeys(t *testing.T) {
 	got, err := loadEmail(map[string]string{
-		"NOTIFICATIONS_MAILER":          "off",
-		"NOTIFICATIONS_EMAIL_FROM":      "not an address",
-		"APP_BASE_URL":                  "ftp://secret",
-		"NOTIFICATIONS_UNSUBSCRIBE_URL": "nope",
-		"APP_ENV":                       "production",
+		"NOTIFICATIONS_MAILER":           "off",
+		"NOTIFICATIONS_EMAIL_FROM":       "not an address",
+		"APP_BASE_URL":                   "ftp://secret",
+		"NOTIFICATIONS_UNSUBSCRIBE_URL":  "nope",
+		"NOTIFICATIONS_UNSUBSCRIBE_KEYS": "secret",
+		"APP_ENV":                        "production",
 	})
-	if err != nil || got != (NotificationsEmailConfig{Mailer: MailerOff}) {
+	if err != nil || !reflect.DeepEqual(got, NotificationsEmailConfig{Mailer: MailerOff}) {
 		t.Fatalf("got %+v err=%v", got, err)
 	}
 }
@@ -199,5 +217,98 @@ func TestLoadNotificationsEmailConfigProductionLog(t *testing.T) {
 	env["NOTIFICATIONS_UNSUBSCRIBE_URL"] = "https://app.peopleflow.test/api/notificaciones/baja"
 	if _, err := loadEmail(env); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// E7 (§Config keys, §Unsubscribe): NOTIFICATIONS_UNSUBSCRIBE_KEYS is a comma
+// list of kid:base64key, in order (the first signs, every key verifies);
+// standard or URL-safe base64, padded or not; spaces around entries trimmed.
+func TestLoadNotificationsEmailConfigParsesTheUnsubscribeKeys(t *testing.T) {
+	for name, value := range map[string]string{
+		"std padded":   "k2:" + unsubscribeEnvB + ",k1:" + unsubscribeEnvA,
+		"spaces":       " k2:" + unsubscribeEnvB + " , k1:" + unsubscribeEnvA + " ",
+		"url unpadded": "k2:" + base64.RawURLEncoding.EncodeToString(unsubscribeKeyB) + ",k1:" + base64.RawURLEncoding.EncodeToString(unsubscribeKeyA),
+	} {
+		env := validEmailEnv("log")
+		env["NOTIFICATIONS_UNSUBSCRIBE_KEYS"] = value
+		got, err := loadEmail(env)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		want := UnsubscribeKeys{{ID: "k2", Secret: unsubscribeKeyB}, {ID: "k1", Secret: unsubscribeKeyA}}
+		if !reflect.DeepEqual(got.UnsubscribeKeys, want) {
+			t.Fatalf("%s: keys %d", name, len(got.UnsubscribeKeys))
+		}
+	}
+}
+
+// With mailer ≠ off the keys are required and validated: kid [a-z0-9]{1,16},
+// distinct, each key ≥ 32 bytes. Errors name the key, never a value.
+func TestLoadNotificationsEmailConfigRejectsInvalidUnsubscribeKeys(t *testing.T) {
+	short := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("s"), 31))
+	for name, value := range map[string]string{
+		"missing":        "",
+		"blank":          "  ",
+		"no kid":         unsubscribeEnvA,
+		"empty kid":      ":" + unsubscribeEnvA,
+		"upper kid":      "SECRET:" + unsubscribeEnvA,
+		"long kid":       strings.Repeat("s", 17) + ":" + unsubscribeEnvA,
+		"kid symbol":     "k-1:" + unsubscribeEnvA,
+		"empty key":      "k1:",
+		"not base64":     "k1:secret!!secret",
+		"short key":      "k1:" + short,
+		"duplicate kid":  "k1:" + unsubscribeEnvA + ",k1:" + unsubscribeEnvB,
+		"empty entry":    "k1:" + unsubscribeEnvA + ",,k2:" + unsubscribeEnvB,
+		"trailing comma": "k1:" + unsubscribeEnvA + ",",
+		"two colons":     "k1:" + unsubscribeEnvA + ":x",
+	} {
+		for _, mailer := range []string{"log", "smtp"} {
+			env := validEmailEnv(mailer)
+			env["NOTIFICATIONS_UNSUBSCRIBE_KEYS"] = value
+			got, err := loadEmail(env)
+			if err == nil {
+				t.Fatalf("%s %s: accepted %d keys", name, mailer, len(got.UnsubscribeKeys))
+			}
+			if !strings.Contains(err.Error(), "NOTIFICATIONS_UNSUBSCRIBE_KEYS") {
+				t.Fatalf("%s: error does not name the key: %v", name, err)
+			}
+			if strings.Contains(strings.ToLower(err.Error()), "secret") || strings.Contains(err.Error(), unsubscribeEnvA) ||
+				strings.Contains(err.Error(), unsubscribeEnvB) || strings.Contains(err.Error(), short) {
+				t.Fatalf("%s: value leaked: %v", name, err)
+			}
+		}
+	}
+}
+
+// The keys are never printed or logged: fmt verbs and slog render the kid only.
+func TestUnsubscribeKeysAreNeverPrinted(t *testing.T) {
+	env := validEmailEnv("log")
+	env["NOTIFICATIONS_UNSUBSCRIBE_KEYS"] = "k2:" + unsubscribeEnvB + ",k1:" + unsubscribeEnvA
+	cfg, err := loadEmail(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var logged bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logged, nil))
+	logger.Info("cfg", "config", cfg, "keys", cfg.UnsubscribeKeys, "key", cfg.UnsubscribeKeys[0], "ptr", &cfg)
+	slog.New(slog.NewTextHandler(&logged, nil)).Info("cfg", "config", cfg, "key", cfg.UnsubscribeKeys[0])
+	asJSON, err := json.Marshal(map[string]any{"config": cfg, "keys": cfg.UnsubscribeKeys, "key": cfg.UnsubscribeKeys[0]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logged.Write(asJSON)
+	out := fmt.Sprintf("%v|%+v|%#v|%s|%v|%+v|%#v|%x", cfg, cfg, cfg, cfg.UnsubscribeKeys, cfg.UnsubscribeKeys[0],
+		cfg.UnsubscribeKeys, cfg.UnsubscribeKeys, cfg.UnsubscribeKeys[0]) + logged.String()
+	// Every rendering of the key bytes: base64 (std and URL, any slice of it),
+	// raw, hex, decimal.
+	leaks := []string{unsubscribeEnvA[:12], unsubscribeEnvB[:12], base64.RawURLEncoding.EncodeToString(unsubscribeKeyA)[:12],
+		string(unsubscribeKeyA[:4]), "a1a1a1a1", "161 161 161", "0xa1", "b2b2b2b2", "178 178 178", "0xb2"}
+	for _, leak := range leaks {
+		if strings.Contains(out, leak) || strings.Contains(strings.ToLower(out), strings.ToLower(leak)) {
+			t.Fatalf("key material %q printed:\n%s", leak, out)
+		}
+	}
+	if !strings.Contains(out, "k1") || !strings.Contains(out, "k2") {
+		t.Fatalf("kids should stay visible for support:\n%s", out)
 	}
 }
