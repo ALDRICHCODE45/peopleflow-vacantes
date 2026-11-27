@@ -34,7 +34,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - T4 — E3 — in-app off at creation in fan-out and scheduler, `InsertNotification` → `:execrows` — worker — done (uncommitted, L11)
 - T5 — E4 — config loader, email eligibility, delivery creation with coalescing upsert in both creation paths — worker — done (uncommitted, L12)
 - T6 — E5 — `Mailer` port, `log`/`smtp` adapters, Mailpit in compose, templates with the S10 copy, headers, dates, path map — worker — done (uncommitted, L14)
-- T7 — E6 — sender loop (claim/lease, re-check/skip, fenced finalize, backoff, throttle), start/stop in `main.go` — worker — pending
+- T7 — E6 — sender loop (claim/lease, re-check/skip, fenced finalize, backoff, throttle), start/stop in `main.go` — worker — done (uncommitted, L18)
 - T8 — E7 — unsubscribe token, public GET/POST, per-IP limit, `unsubscribe_link_invalid` — worker — done (uncommitted, L16)
 - T9 — E8 — purge of terminal deliveries, follow-up note in `docs/decision-email-provider.md` — worker — pending
 
@@ -444,3 +444,72 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   test-integration PKG=./cmd/api/ RUN='^TestNotifications'` ok (28 PASS); `go tool sqlc diff` clean; `go vet ./...` clean.
   Scratch: `backend/internal/features/notifications/.e7r-logs/` (logs + `backup.go.txt`, untracked, delete before
   committing).
+- **L18** 2026-11-26, T7/E6 implemented (uncommitted, worktree only). New package
+  `internal/features/notifications/sender` (archguard-safe name): `Sender.Tick` claims up to 20 due deliveries one at a
+  time with `ClaimNextNotificationEmailDelivery` (one autocommit `UPDATE … WHERE id = (SELECT … ORDER BY send_after, id
+  LIMIT 1 FOR UPDATE SKIP LOCKED)`: pending past `send_after`, retry past `next_attempt_at`, sending with an expired
+  lease → `sending`, `attempts + 1`, lease now + 2 min, `next_attempt_at = NULL`); then, outside any tx, the D11
+  re-check in order (`GetNotificationEmailRecipient`: missing / soft-deleted / member no longer in the delivery's
+  company or company soft-deleted → `recipient_gone`; blank → `no_address`; normalized address suppressed →
+  `suppressed`; email preference via the shared override read → `preference_off`; `ListNotificationEmailDeliveryRows`:
+  none left or all resolved → `resolved`; non-mandatory all read → `read`), the view (count = linked rows incl. hidden,
+  day = oldest row, payload enums + commitment date of the latest, member title/company/`can_open` from
+  `GetNotificationEmailMemberJob`, candidate public title/company from `ListCandidateNotificationJobs`, link by the now
+  exported `inbox.LinkFor` — the inbox's own rule, not a copy), `Render` (failure → permanent), a throttle slot, `Send`
+  with a 15 s timeout; finalize fenced on `(id, 'sending', lease_until)` with every path clearing `lease_until`:
+  `FinishNotificationEmailDeliverySent` (provider id, `sent_at`), `…Skipped` (`skip_reason`), `…Failed` (permanent),
+  `RetryNotificationEmailDelivery` (backoff 1 min·2^(n−1) cap 1 h, `failed`/transient at 8); 0 rows → value-free
+  `stale` warning. A panic in an attempt is a transient failure; the finalize runs with `WithoutCancel` (shutdown →
+  `retry`). Logs: delivery id, type, attempt, status, step, error class, skip reason, SQLSTATE. `Bucket` throttle:
+  pacing at `NOTIFICATIONS_EMAIL_MAX_PER_SECOND` (new config key, integer 1–1000, default 1, mailer ≠ off only), burst
+  one, taken only before a send. `Loop` (5 s, at start, panic/err-safe). `cmd/api/notifications_email.go`:
+  `newNotificationSender` (mailer adapter + renderer with the unsubscribe signer + bucket; off → nil; non-off without a
+  signer, with settings the renderer refuses or an unknown mailer → error) composed in `main.go` right after the pool
+  ping, before any loop (startup refuses — L13 (2), confirmed through the real loader chain: each missing required key
+  of log/smtp, an invalid throttle), started after the scheduler, stopped first before the pool closes. L13 (1):
+  `emaildelivery.CreateIsolated` runs the email decision in a savepoint (`tx.Begin`) in the fan-out and the scheduler;
+  on error → rollback to the savepoint, in-app rows kept, event processed / run committed, no delivery, log `step email`
+  + SQLSTATE (scheduler `Runner.WithLogger`, default `slog.Default()`); D8 and §Creation updated. L15: race-test lock
+  probe now counts only a backend blocked by the claim's own pid (`pg_blocking_pids`) running the coalescing upsert;
+  the override read is one helper, `preferences.ReadOverrides` (used by fan-out, scheduler, `emaildelivery` and the
+  sender; domain stays DB-free). Verifier findings (parent, added mid-slice): `config.UnsubscribeKey` got `Format`
+  (`%d/%o/%b` printed the key bytes); `email.Message` got `String`/`GoString`/`Format`/`LogValue`/`MarshalJSON`
+  rendering only delivery id, type, template (the sender never logs a Message); contract §Unsubscribe states that a
+  validly signed token whose user/company is gone counts per token, not per IP. Contract also: §Sender (package path,
+  composition, claim clears `next_attempt_at`, re-check order incl. membership and zero rows, render/throttle failure
+  classes, pacing), §Config keys (throttle range). RED observed: unit build failures (undefined `NewBucket`, `Loop`,
+  `Interval`, `New`, `MaxPerSecond`, `DefaultNotificationsEmailMaxPerSecond`, `LinkFor`, `newNotificationSender`,
+  `senderRunner`, `startNotificationSender`, `Message.String`); `TestFanOutEmailFailureKeepsTheInAppRows` failed
+  (`attempts:1 processed:false`); with only the config field added `TestUnsubscribeKeyRedactedUnderEveryVerb` failed
+  (`%b` → `[10100001 …]`); with only `Message.String` `TestMessageIsRedactedEverywhere` failed (`%#v` dumped To/bodies).
+  GREEN: `make test PKG='./internal/features/notifications/... ./internal/runtime/config/ ./cmd/api/
+  ./internal/tools/archguard/'` ok (14 packages, 349 top-level PASS with -v, 0 FAIL, 0 SKIP); `make test-integration
+  PKG=./internal/features/notifications/...` ok (11 packages, 166 PASS, 0 FAIL, 0 SKIP; new: 14 sender tests incl. 14
+  skip subcases and 3 fenced outcomes, fan-out savepoint + soft-deleted, scheduler savepoint + soft-deleted); `make
+  test-integration PKG=./cmd/api/ RUN='^TestNotifications'` ok (28 PASS); `make test PKG=./internal/features/notifications/sender/
+  TEST_FLAGS=-race` ok (unit tests only: the integration tests need the tag); `go tool sqlc diff` clean; `go vet ./...`
+  clean. Tests: mandatory send with no open tx on the sender pool (pg_stat_activity by application_name) and the claim
+  state seen from inside Send; coalesced count 3 → `.many` + vacancy link, 1 → `.one` + participation link; List-Unsubscribe
+  only non-mandatory; only due rows claimed (open window, retry in backoff, live lease, terminal rows); SKIP LOCKED past
+  a row lock + two senders over 12 deliveries each sent once; expired lease reclaimed; fence: A's late finalize while B
+  holds the row → B's lease intact, then B's result; 14 skip/send cases (soft-deleted member and candidate, left the
+  company, company soft-deleted, blank, suppressed even mandatory, pref off member/candidate, operational default off,
+  off only in another company → sent, resolved, read, mandatory read → sent, hidden rows → sent); partial read/resolved
+  group sent with count 3; backoff 1,2,4,8,16,32,60 min then failed at 8; permanent and render failure; throttle taken
+  per send only, refused → retry; real bucket paces 3 sends at 10/s ≥ 180 ms; value-free logs (address/subject/provider
+  text absent); end to end event → fan-out → delivery → log mailer → sent. Mutations (each restored byte-identical):
+  finalize fence on status only (killed by the reworked fenced test; the first version survived because B had already
+  finished), backoff 2^n, claim keeping `next_attempt_at` (CHECK 23514), read skip for mandatory, membership not
+  re-checked, Send inside an open tx, scheduler without the savepoint — all fail their tests. Deviations: (1) throttle
+  paces (waits per slot) instead of "a tick that runs out of tokens stops early" — with a one-second bucket that would
+  cap delivery at one email per 5-s period; (2) `recipient_gone` also covers a member who left the delivery's company /
+  a soft-deleted company (D1 scope; avoids mailing company data to an ex-member); (3) zero linked rows → `resolved`;
+  (4) the claim is a single autocommit statement rather than an explicit BEGIN/COMMIT (same isolation). Not covered:
+  real SMTP/Mailpit (log adapter only); a hard-deleted user mid-send (cascade removes the delivery → stale finalize,
+  logged). Scratch: `backend/internal/features/notifications/.e6-logs/` (logs, mutation backups, and
+  `api-binary-from-go-build` — a binary my `go build ./cmd/api/` wrote to `backend/api`, moved here; untracked, delete
+  before committing).
+- **L19** 2026-11-26, E6 committed by the parent. E5+E7 independently verified (5/5 pass; integration 142+28). Parent accepts the
+  four E6 deviations: pacing waits per slot instead of ending the tick; recipient_gone also covers a member who left the
+  company or a soft-deleted company; a delivery with no linked notifications left is skipped as resolved; the claim is a
+  single statement. Key and Message redaction added after the E5/E7 verifier findings.
