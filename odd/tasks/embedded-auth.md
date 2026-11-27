@@ -53,3 +53,13 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   InitiateAuth REFRESH_TOKEN_AUTH for both kinds; one app client for both roles; employer role from a new backend
   onboarding endpoint mirroring the candidate flow (never from a client field); generic errors that never reveal
   whether an email exists; rate limiting on our auth routes; e2e against a mock Cognito fixture server.
+- **L5** (2026-11-27) User decisions: account linking — «Yo digo que la opcion 2, pero realmente mi idea es que despues
+  de esto, ir ya de lleno a AWS con la creacion del ambiente de pruebas, entonces eso me parece que lo vamos a tocar
+  ahi... pero si esto necesita mucho de aws, podemos adelantar aws ahora y hacemos eso despues, que me recomiendas y
+  por que?»; MFA «Después (recomendado)»; screens «Direcciones en el canvas (recomendado)». Agent recommendation: build
+  the embedded auth now against a mock Cognito plus one console toggle on the existing dev pool (enable
+  ALLOW_USER_PASSWORD_AUTH on the app client) so password sign-in, sign-up, code and reset work end to end; social
+  providers, the PreSignUp linking Lambda and SES go into the AWS test-environment phase as infrastructure as code,
+  avoiding manual console setup that would be redone. Social buttons ship behind a per-provider flag (hidden until the
+  provider exists); until linking exists, a social sign-in with an already registered email shows «Ese correo ya tiene
+  cuenta. Entra con tu contraseña.».
