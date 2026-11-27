@@ -433,7 +433,7 @@ Dev compose: a `mailpit` service added to `backend/docker-compose.yml` (pinned `
 | `NOTIFICATIONS_EMAIL_FROM` | mailer ≠ off | sender, e.g. `PeopleFlow <no-reply@…>` (domain deferred to the SES work, Q11) |
 | `NOTIFICATIONS_SMTP_HOST`, `NOTIFICATIONS_SMTP_PORT` | mailer = smtp | Mailpit `localhost` / `1025` in dev; refused when `APP_ENV=production` |
 | `NOTIFICATIONS_EMAIL_MAX_PER_SECOND` | — | per-instance throttle, default `1` |
-| `NOTIFICATIONS_UNSUBSCRIBE_KEYS` | mailer ≠ off | secret: comma list `kid:base64key`, first signs, all verify; each key ≥ 32 bytes |
+| `NOTIFICATIONS_UNSUBSCRIBE_KEYS` | mailer ≠ off (also loaded and validated when present with the mailer off) | secret: comma list `kid:base64key` (kid `[a-z0-9]{1,16}`, distinct; std or URL-safe base64), first signs, all verify; each key ≥ 32 bytes. **Independent of the mailer**: with `NOTIFICATIONS_MAILER=off` (kill switch) nothing is sent, but present keys still build the verifier so links already in inboxes keep working; keep the keys configured when turning the mailer off |
 | `NOTIFICATIONS_UNSUBSCRIBE_URL` | mailer ≠ off | absolute https URL (http allowed outside production) that receives the one-click POST; value = `APP_BASE_URL` + `/api/notificaciones/baja` (frontend pass-through, Q4); the backend appends `?token=…` |
 | `APP_BASE_URL` | mailer ≠ off | frontend origin for deep links, «Mis preferencias» and the unsubscribe landing (paths in §Templates, Q3) |
 
@@ -482,13 +482,27 @@ values; the keys list is never logged).
   `[A-Za-z0-9_.-]`; three parts; known `kid` (an unknown `kid` is verified against a per-process random key so the
   work is the same); recompute the MAC and compare with `hmac.Equal` (constant time); then decode the payload; `v = 1`;
   `x > now`; `t` is a non-mandatory type of the tree implied by `c` (company → member type, null → candidate type);
-  user exists, live and of the matching `user_type`. The token is never logged (request logs carry the route
-  pattern only, `internal/runtime/middleware/request.go:50-54`).
+  user exists, live and of the matching `user_type`; for a member token, the company exists and is not soft-deleted.
+  **Company membership is not re-checked**: the row is keyed by the token's company (D1), so it only ever affects mail
+  of that company, and a former member can still stop it. A user or company deleted between the check and the upsert
+  (FK violation) is the same invalid outcome. The token is never logged (request logs carry the route pattern only,
+  `internal/runtime/middleware/request.go:50-54`); store failures log their step and SQLSTATE only.
 
 ### Endpoints (public)
 
-Group outside auth: `Cache-Control: no-store`, `Referrer-Policy: no-referrer` (as `AssessmentPrivacy`), per-IP
-in-process limit **60 requests / 10 min per instance** → `429 rate_limited`. No cookies or session are read.
+Group outside auth: `Cache-Control: no-store`, `Referrer-Policy: no-referrer` (as `AssessmentPrivacy`). No cookies or
+session are read. **Limits** (in-process, per instance, fixed 10-minute windows, applied after the token check so a
+limited request never reaches the database), both → `429 rate_limited` with `Retry-After`:
+
+- **invalid token** (any cause the token check refuses): **60 / 10 min per client IP** — the probing vector. The client
+  IP is the one requestmeta resolves before every route: the BFF-attested `X-PF-Client-IP` when `X-PF-Proxy-Secret`
+  matches, else the TCP peer or, only behind `TRUSTED_PROXY_CIDRS`, the forwarded client; IPv6 shares its /64;
+- **valid token**: **10 / 10 min per token** (per `(user, company, type)`; the effect is idempotent) and never counted
+  per IP, so a mail provider or the BFF relaying many people's one-clicks from one address never loses a legitimate
+  unsubscribe.
+
+A full limiter table never refuses a new client: single-request entries are evicted oldest first, clients that already
+spent more keep their budget.
 
 | Method | Path | Effect |
 | --- | --- | --- |
@@ -498,7 +512,9 @@ in-process limit **60 requests / 10 min per instance** → `429 rate_limited`. N
 - **Frontend origin, two paths (Q4)**. Emails only show the frontend origin:
   - **one-click** (`List-Unsubscribe`): `APP_BASE_URL` + `/api/notificaciones/baja?token=…`, a Next route handler that
     accepts **only `POST`** and forwards the token and the body to `POST /v2/notifications/unsubscribe?token=…`, with
-    no cookies, no session and no same-origin check;
+    no cookies, no session and no same-origin check. It **MUST** forward `X-PF-Proxy-Secret` and `X-PF-Client-IP`
+    (requestmeta, as the BFF already does for audit metadata) so the invalid-token per-IP limit sees the real client;
+    without them every invalid request through the frontend shares the Next server's single budget;
   - **landing** (`unsubscribe_url` in the footer): `APP_BASE_URL` + `/notificaciones/baja?token=…`, a Next page that
     calls `GET /v2/notifications/unsubscribe` to show what would be turned off and confirms with a server action that
     calls `POST`.
@@ -506,7 +522,7 @@ in-process limit **60 requests / 10 min per instance** → `429 rate_limited`. N
   both.
 - `POST` accepts the RFC 8058 body `List-Unsubscribe=One-Click` (`application/x-www-form-urlencoded`) from mail
   providers (forwarded by the one-click route), or an empty / `{}` body from the landing's server action; the body is
-  ignored beyond a 1 KiB cap.
+  ignored, capped at 1 KiB: over the cap → `413 payload_too_large`, **before** the token is checked.
 - Valid token, both methods, `200`:
 
 ```json
@@ -647,11 +663,12 @@ Reused from the catalog plus two new codes:
 | 413 | `payload_too_large` | body over the cap |
 | 422 | `notification_preference_locked` (**new**) | PUT entry on a mandatory type; `data.types` |
 | 422 | `unsubscribe_link_invalid` (**new**) | any invalid unsubscribe token, identical response |
-| 429 | `rate_limited` | unsubscribe endpoints over the per-IP limit |
+| 429 | `rate_limited` | unsubscribe: invalid tokens over the per-IP limit, or a valid token over its per-token limit |
 
 ## Limits
 
-`PUT` ≤ 28 entries (headroom over 11 member types × 2 channels = 22); unsubscribe token ≤ 512 chars, POST body ≤ 1 KiB;
+`PUT` ≤ 28 entries (headroom over 11 member types × 2 channels = 22); unsubscribe token ≤ 512 chars, POST body ≤ 1 KiB, invalid tokens 60 / 10 min per IP, valid
+tokens 10 / 10 min per token;
 coalescing window 10 min; sender 5 s period, 20 claims per tick, lease 2 min, 8 attempts, backoff 1 min … 1 h,
 throttle default 1 email/s per instance; token expiry 365 days.
 
