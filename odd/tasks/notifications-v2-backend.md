@@ -35,7 +35,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - T5 — E4 — config loader, email eligibility, delivery creation with coalescing upsert in both creation paths — worker — done (uncommitted, L12)
 - T6 — E5 — `Mailer` port, `log`/`smtp` adapters, Mailpit in compose, templates with the S10 copy, headers, dates, path map — worker — done (uncommitted, L14)
 - T7 — E6 — sender loop (claim/lease, re-check/skip, fenced finalize, backoff, throttle), start/stop in `main.go` — worker — pending
-- T8 — E7 — unsubscribe token, public GET/POST, per-IP limit, `unsubscribe_link_invalid` — worker — pending
+- T8 — E7 — unsubscribe token, public GET/POST, per-IP limit, `unsubscribe_link_invalid` — worker — done (uncommitted, L16)
 - T9 — E8 — purge of terminal deliveries, follow-up note in `docs/decision-email-provider.md` — worker — pending
 
 ## Log
@@ -330,3 +330,75 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - **L15** 2026-11-26, E3+E4 independently verified (6/6 pass; integration 92/0/0; window-close race reasoned correct under
   READ COMMITTED). Follow-ups for E6: soft-deleted recipient test; race-test lock probe scoped to the fan-out connection;
   override-read helper duplicated 3×. E5 committed by the parent (config keys, email package, Mailpit compose).
+- **L16** 2026-11-26, T8/E7 implemented (uncommitted, worktree only; no sender — E6). New package
+  `internal/features/notifications/unsubscribe`: `Signer` (`NewSigner(keys, now)`; satisfies `email.TokenSigner`) issues
+  `<kid>.<payload>.<mac>` exactly as §Unsubscribe (payload compact JSON `{"v":1,"u","c"|null,"t","x"}`, base64url no
+  padding, `mac` = base64url(HMAC-SHA256(key, "pf-notif-unsub:v1:" + kid + "." + payload)), expiry now + 365 d; first key
+  signs, every key verifies); `Sign` refuses mandatory types, a wrong tree (member type ⇔ company), nil user, unknown
+  type; `Verify` in contract order — ≤ 512 chars and `[A-Za-z0-9_.-]`, three parts, unknown kid MAC-checked against a
+  per-process random decoy key, `hmac.Equal` over the MAC text (so a change in the MAC's padding bits also fails), then
+  strict payload (every key required, no unknown/duplicate keys, no trailing data, `v = 1`, `x > now`, uuids non-nil, `t`
+  non-mandatory of the tree implied by `c`) — every failure returns exactly `ErrInvalid`; a nil `*Signer` (mailer off)
+  verifies and signs nothing; `Key`/`Signer` render redacted under fmt, slog and JSON. `Store`: `Target` (one statement,
+  no write) and `TurnOff` (tx: same check + upsert); a key is served only when the user is live and of the tree's
+  `user_type` (`recruiter` / `candidate`) and, for members, the company exists and is not soft-deleted — else
+  `ErrNoTarget`, answered like any invalid token. Queries `GetNotificationUnsubscribeTarget` (user_type, company name,
+  email override; nothing else about the user) and `UnsubscribeNotificationEmail` (upsert `email = false, source =
+  'unsubscribe'`, `DO UPDATE … WHERE enabled`: a row already off — settings or unsubscribe — is untouched, so repeats change
+  nothing); sqlc regenerated. `Handler` GET (effective value via `EffectivePreference`, never writes) / POST (body read
+  up to 1 KiB and ignored → over the cap `413 payload_too_large` before the token check), exactly one `token` query value,
+  200 body `{type, channel:"email", enabled, company:{id,name}|null}`; invalid → `422 unsubscribe_link_invalid` via the
+  catalog (identical bytes, no data); store error → 500 with the code class only (no token/user/company logged).
+  `Privacy` middleware (`Cache-Control: no-store`, `Referrer-Policy: no-referrer`). `Limiter`: fixed window 60 / 10 min
+  per IP per instance (`DefaultLimits`), keyed on requestmeta's resolved client IP (BFF-attested `X-PF-Client-IP` with the
+  proxy secret, else peer / TRUSTED_PROXY_CIDRS forwarded client — L6), IPv6 /64, missing meta → one `unknown` bucket,
+  rejections consume nothing, full key table (100 000) fails closed, `429 rate_limited` + `Retry-After` via
+  `httpjson.WriteRateLimited`. Catalog: `CodeUnsubscribeLinkInvalid` (422, "unsubscribe link invalid") in
+  `httpjson/notification_errors.go`. Config: `NOTIFICATIONS_UNSUBSCRIBE_KEYS` → `NotificationsEmailConfig.UnsubscribeKeys`
+  (required when mailer ≠ off; comma list `kid:base64key`, std/URL base64 padded or not, spaces around entries trimmed,
+  kid `[a-z0-9]{1,16}` distinct, key ≥ 32 bytes; static error naming the key; redacted under fmt/slog/JSON; mailer off
+  ignores it like every other key). Router: public group `unsubscribe.Privacy` + limiter, `Get`/`Post
+  /v2/notifications/unsubscribe` outside every auth gate (added to `TestRouteTopology_ExactRegistrations`); nil deps fail
+  closed (default limiter; a handler without keys refuses every token without touching the DB). `main.go`:
+  `notificationUnsubscribeSigner` from config (`cmd/api/notifications_unsubscribe.go`, nil when off; startup fails on
+  invalid keys), passed to the handler and available for E6's renderer; no sender started. RED observed: unit build
+  failures (undefined `Signer`, `Key`, `Limiter`, `Target`, `CodeUnsubscribeLinkInvalid`, `UnsubscribeKeys`); the 5
+  `TestNotificationsUnsubscribe_*` got `404 page not found` with the deps wired but no routes; topology test drifted
+  with the 2 routes in `want`; `TestUnsubscribeKeysAreNeverPrinted` (after fixing a test bug that lowercased the output)
+  caught slog's JSON handler marshalling the config with the key bytes in base64 → `MarshalJSON` added;
+  `TestKeysAreNeverPrinted` failed vet (`%s` on a non-Stringer `*Signer`). GREEN: unit — token 11 (round trip both trees
+  with the contract formula recomputed independently, expiry at x−1 s / x / later, every single-char mutation, other key
+  under the same kid, swapped payload, truncated/extended MAC, unknown/invalid kid, rotation old verifies/new signs/
+  dropped refuses, length/charset, 24 payload rules, `Sign` refusals, key validation, nil signer, redaction), limiter 5
+  (fixed window + Retry-After, IPv6 /64, BFF-attested vs forged header vs trusted/untrusted XFF, unknown bucket + key cap
+  + zero limits), handler 5 (GET no writes + defaults, POST one-click/empty/{}/ignored/exactly 1 KiB, 1 KiB+1 → 413, 12
+  invalid causes × both methods identical bytes, nil verifier, 500); config 3; httpjson 1; cmd/api 1. Integration (5
+  `TestNotificationsUnsubscribe_*`): member GET default/after settings-on without changing rows, POST one-click with
+  another user's Bearer acts on the token's user only, row `(company, application_received, email, false,
+  unsubscribe)`, in_app row untouched, repeats (one-click / empty / `{}`) change nothing, preferences catalog shows it, a
+  settings-off row stays `settings`, 0 audit rows; candidate token company NULL (GET on by Q1, POST row company NULL,
+  catalog); foreign company token writes only that company's key; 19 invalid causes × GET/POST (missing/empty/two
+  tokens, malformed, 513 chars, bad MAC, unknown kid, other key, expired, mandatory ×2, wrong tree ×2, unknown user,
+  soft-deleted user, member token for a candidate account and vice versa, unknown and soft-deleted company) → identical
+  422 bytes, nothing written; 1025-byte body → 413; PUT/DELETE/PATCH → 405; 60 mixed requests from one BFF client then
+  429 (also for an invalid token), another BFF client 200, forged `X-PF-Client-IP` without the secret shares the peer's
+  bucket. Mutations (each restored byte-identical; generated SQL edited in place for the SQL ones): unknown kid MAC'd with
+  the current key and no `known` guard, MAC never compared, `x >= now` accepted, mandatory types eligible, duplicate JSON
+  keys allowed, GET calling `TurnOff`, duplicated `token` accepted, limiter ignoring requestmeta, key `String`/`Format`
+  leaking, no `MarshalJSON`, short keys accepted, `Signer` without `Format`, store without either `user_type` check,
+  upsert without `WHERE enabled`, soft-deleted company accepted — each fails its test. Survivors, equivalent by design:
+  the decoy key and the `known` guard each alone (redundant guards; together killed). Validation: `make test
+  PKG='./internal/features/notifications/... ./internal/runtime/config/ ./internal/shared/httpjson/ ./cmd/api/
+  ./internal/tools/archguard/'` ok (14 packages, 406 top-level PASS, 0 FAIL, 0 SKIP); `make test-integration
+  PKG=./internal/features/notifications/...` ok (10 packages, 137 PASS, 0 FAIL, 0 SKIP); `make test-integration
+  PKG=./cmd/api/ RUN='^TestNotifications'` ok (25 PASS); `go tool sqlc diff` clean; `go vet ./...` clean. Decisions /
+  deviations: (1) the limiter lives in the feature, not `internal/runtime/ratelimit` (outside the slice's surface and
+  token-path specific; it keys on `clientip.Resolve` only, while behind the BFF the client is requestmeta's attested IP);
+  (2) membership is not re-checked — the row is keyed by the token's company (D1) — but the company must exist and not be
+  soft-deleted; (3) with the mailer off the keys are ignored (consistent with the other keys), so links already sent stop
+  working while the mailer is off; (4) the one-click pass-through must forward `X-PF-Proxy-Secret` + `X-PF-Client-IP` (or
+  arrive through a TRUSTED_PROXY_CIDRS proxy), otherwise every one-click shares the Next server's 60 / 10 min budget —
+  frontend to confirm; (5) a race where the user/company is hard-deleted between the check and the upsert surfaces as a
+  500 (FK), not 422. Contract unchanged (outside the surface): §Unsubscribe could note (2), (4) and the 413 order.
+  Scratch logs and a throwaway probe in `backend/internal/features/notifications/.e7-logs/` (untracked, delete before
+  committing).
