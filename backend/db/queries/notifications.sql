@@ -788,7 +788,7 @@ WHERE notification_preferences.enabled;
 
 -- name: CountExpiredNotifications :one
 -- Retention (notifications-v1 D22): rows older than 180 days, read or not.
--- The cutoff must stay identical in the four retention queries.
+-- The cutoff must stay identical in the six retention queries.
 SELECT count(*) FROM notifications
 WHERE created_at < now() - interval '180 days';
 
@@ -826,6 +826,32 @@ WHERE id IN (
     WHERE e.processed_at < now() - interval '180 days'
       AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.source_event_id = e.id)
     ORDER BY e.processed_at, e.id
+    LIMIT sqlc.arg('batch_size')::integer
+    FOR UPDATE SKIP LOCKED
+);
+
+-- name: CountExpiredNotificationEmailDeliveries :one
+-- Retention (notifications-v2 D20): terminal deliveries (sent, skipped,
+-- failed) created more than 180 days ago; pending, retry and sending rows are
+-- never selected, whatever their age. Exact dry-run forecast of
+-- DeleteExpiredNotificationEmailDeliveries (no other pass changes this set).
+SELECT count(*) FROM notification_email_deliveries
+WHERE status IN ('sent', 'skipped', 'failed')
+  AND created_at < now() - interval '180 days';
+
+-- name: DeleteExpiredNotificationEmailDeliveries :execrows
+-- One purge batch, oldest first, after the notifications pass (most linked
+-- rows are already gone). A notification still inside the retention that
+-- links a purged delivery keeps a valid row: notifications.email_delivery_id
+-- is ON DELETE SET NULL and no CHECK involves it. Rows another connection
+-- holds are left for the next batch or run; the sender only locks
+-- non-terminal rows, which are never selected here.
+DELETE FROM notification_email_deliveries
+WHERE id IN (
+    SELECT id FROM notification_email_deliveries
+    WHERE status IN ('sent', 'skipped', 'failed')
+      AND created_at < now() - interval '180 days'
+    ORDER BY created_at, id
     LIMIT sqlc.arg('batch_size')::integer
     FOR UPDATE SKIP LOCKED
 );

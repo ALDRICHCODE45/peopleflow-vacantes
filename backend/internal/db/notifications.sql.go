@@ -117,6 +117,23 @@ func (q *Queries) ClaimNextNotificationEvent(ctx context.Context, skip []uuid.UU
 	return i, err
 }
 
+const countExpiredNotificationEmailDeliveries = `-- name: CountExpiredNotificationEmailDeliveries :one
+SELECT count(*) FROM notification_email_deliveries
+WHERE status IN ('sent', 'skipped', 'failed')
+  AND created_at < now() - interval '180 days'
+`
+
+// Retention (notifications-v2 D20): terminal deliveries (sent, skipped,
+// failed) created more than 180 days ago; pending, retry and sending rows are
+// never selected, whatever their age. Exact dry-run forecast of
+// DeleteExpiredNotificationEmailDeliveries (no other pass changes this set).
+func (q *Queries) CountExpiredNotificationEmailDeliveries(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countExpiredNotificationEmailDeliveries)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countExpiredNotificationEvents = `-- name: CountExpiredNotificationEvents :one
 SELECT count(*) FROM notification_events e
 WHERE e.processed_at < now() - interval '180 days'
@@ -142,7 +159,7 @@ WHERE created_at < now() - interval '180 days'
 `
 
 // Retention (notifications-v1 D22): rows older than 180 days, read or not.
-// The cutoff must stay identical in the four retention queries.
+// The cutoff must stay identical in the six retention queries.
 func (q *Queries) CountExpiredNotifications(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countExpiredNotifications)
 	var count int64
@@ -180,6 +197,32 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, arg CountUnreadN
 	var i CountUnreadNotificationsRow
 	err := row.Scan(&i.UnreadGroups, &i.UnreadNotifications)
 	return i, err
+}
+
+const deleteExpiredNotificationEmailDeliveries = `-- name: DeleteExpiredNotificationEmailDeliveries :execrows
+DELETE FROM notification_email_deliveries
+WHERE id IN (
+    SELECT id FROM notification_email_deliveries
+    WHERE status IN ('sent', 'skipped', 'failed')
+      AND created_at < now() - interval '180 days'
+    ORDER BY created_at, id
+    LIMIT $1::integer
+    FOR UPDATE SKIP LOCKED
+)
+`
+
+// One purge batch, oldest first, after the notifications pass (most linked
+// rows are already gone). A notification still inside the retention that
+// links a purged delivery keeps a valid row: notifications.email_delivery_id
+// is ON DELETE SET NULL and no CHECK involves it. Rows another connection
+// holds are left for the next batch or run; the sender only locks
+// non-terminal rows, which are never selected here.
+func (q *Queries) DeleteExpiredNotificationEmailDeliveries(ctx context.Context, batchSize int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredNotificationEmailDeliveries, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteExpiredNotificationEvents = `-- name: DeleteExpiredNotificationEvents :execrows

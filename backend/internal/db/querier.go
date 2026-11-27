@@ -56,13 +56,18 @@ type Querier interface {
 	// ("this company had no non-closed jobs at delete time").
 	CloseCompanyJobs(ctx context.Context, companyID uuid.UUID) (int64, error)
 	CountCompanyOwners(ctx context.Context, companyID uuid.UUID) (int64, error)
+	// Retention (notifications-v2 D20): terminal deliveries (sent, skipped,
+	// failed) created more than 180 days ago; pending, retry and sending rows are
+	// never selected, whatever their age. Exact dry-run forecast of
+	// DeleteExpiredNotificationEmailDeliveries (no other pass changes this set).
+	CountExpiredNotificationEmailDeliveries(ctx context.Context) (int64, error)
 	// Retention (D22): processed (or given-up) events older than 180 days; a
 	// pending event (processed_at NULL) is never selected. Dry-run forecast of
 	// DeleteExpiredNotificationEvents after the notifications pass: an event still
 	// referenced by a notification inside the retention is not counted.
 	CountExpiredNotificationEvents(ctx context.Context) (int64, error)
 	// Retention (notifications-v1 D22): rows older than 180 days, read or not.
-	// The cutoff must stay identical in the four retention queries.
+	// The cutoff must stay identical in the six retention queries.
 	CountExpiredNotifications(ctx context.Context) (int64, error)
 	// Stakeholder invitations (stakeholder-metrics-v1 §1.3). Every write runs in
 	// the adapter's transaction together with its audit event.
@@ -149,6 +154,13 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteCandidateEducations(ctx context.Context, userID uuid.UUID) error
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
+	// One purge batch, oldest first, after the notifications pass (most linked
+	// rows are already gone). A notification still inside the retention that
+	// links a purged delivery keeps a valid row: notifications.email_delivery_id
+	// is ON DELETE SET NULL and no CHECK involves it. Rows another connection
+	// holds are left for the next batch or run; the sender only locks
+	// non-terminal rows, which are never selected here.
+	DeleteExpiredNotificationEmailDeliveries(ctx context.Context, batchSize int32) (int64, error)
 	// Runs after the notifications pass. An event any notification still
 	// references is kept: ON DELETE SET NULL would break the notifications CHECK
 	// (immediate rows require source_event_id), failing the batch. It goes on the
