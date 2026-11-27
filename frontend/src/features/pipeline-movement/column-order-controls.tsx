@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, Ellipsis, GripVertical, LockKeyhole } from "lucide-react";
 import type { useDraggable } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { canMove } from "@/features/jobs/drafts/pipeline/editor-model";
 import type { BoardColumnOrder } from "./use-board-column-order";
 import type { Board } from "./model";
@@ -19,10 +19,9 @@ export function ColumnOrderControls({ stage, order, drag, finished = false }: {
     {!finished && <Button type="button" variant="ghost" size="icon" className="size-10 cursor-grab touch-none active:cursor-grabbing focus-visible:opacity-100 motion-reduce:transition-none"
       ref={drag.setActivatorNodeRef} {...drag.attributes} {...drag.listeners} disabled={order.locked} aria-label={`Reordenar ${stage.name}`} aria-describedby={[drag.attributes["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined} id={`column-drag-${stage.id}`}><GripVertical aria-hidden="true" /></Button>}
     <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" disabled={order.locked} aria-label={`Orden de ${stage.name}`} aria-describedby={describedBy} id={`column-menu-${stage.id}`} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
-      <DropdownMenuContent align="end"><DropdownMenuGroup>
-        {!order.locked && !order.notice && <DropdownMenuLabel className="max-w-56 whitespace-normal text-[11px] leading-snug">Reordena columnas y revisa el impacto antes de guardar</DropdownMenuLabel>}
-        <DropdownMenuItem className="min-h-10" disabled={order.locked || !canMove(order.editor, stage.id, "up")} onClick={() => void order.move(stage.id, index - 1)}><ArrowLeft aria-hidden="true" />Mover a la izquierda</DropdownMenuItem>
-        <DropdownMenuItem className="min-h-10" disabled={order.locked || !canMove(order.editor, stage.id, "down")} onClick={() => void order.move(stage.id, index + 1)}><ArrowRight aria-hidden="true" />Mover a la derecha</DropdownMenuItem>
+      <DropdownMenuContent align="end" className="w-auto min-w-48"><DropdownMenuGroup>
+        <DropdownMenuItem className="min-h-10 whitespace-nowrap" disabled={order.locked || !canMove(order.editor, stage.id, "up")} onClick={() => void order.move(stage.id, index - 1)}><ArrowLeft aria-hidden="true" />Mover a la izquierda</DropdownMenuItem>
+        <DropdownMenuItem className="min-h-10 whitespace-nowrap" disabled={order.locked || !canMove(order.editor, stage.id, "down")} onClick={() => void order.move(stage.id, index + 1)}><ArrowRight aria-hidden="true" />Mover a la derecha</DropdownMenuItem>
       </DropdownMenuGroup></DropdownMenuContent>
     </DropdownMenu>
   </div>;
