@@ -513,3 +513,38 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   four E6 deviations: pacing waits per slot instead of ending the tick; recipient_gone also covers a member who left the
   company or a soft-deleted company; a delivery with no linked notifications left is skipped as resolved; the claim is a
   single statement. Key and Message redaction added after the E5/E7 verifier findings.
+- **L20** 2026-11-26, E6 review fixes (native review `review-41c9d13439b666f3` approved E6 at e242c081 with advisories; parent
+  decided to fix now; uncommitted). (1) Attempt cap on lease reclaim (R3/R4): the claim reclaims an expired `sending`
+  lease only while `attempts < max_attempts`; each tick first runs `FailExhaustedNotificationEmailDeliveries` (expired
+  lease ∧ attempts ≥ 8 → `failed`, `error_class transient`, lease cleared, no send; value-free log with the count). (2)
+  Shutdown (R3/R4): `Tick` checks ctx before the sweep and before every claim; the sweep and the claim run under
+  `WithoutCancel` + 5 s, so a committed claim is always followed by its attempt and finalize; the re-check reads (10 s)
+  and `Send` (15 s) run on a context detached from shutdown, so an in-flight email completes and ends `sent`; shutdown
+  only interrupts the throttle wait (nothing sent → `retry`); stop still waits. (3) Savepoint vs transient failures
+  (R4): `emaildelivery.CreateIsolated` isolates only non-transient errors; `transient` = SQLSTATE 40001, 40P01, 55P03,
+  57014, class 08, or any non-database error except `errNotLinked` (cancelled context, lost connection) → returned as
+  err, so the fan-out event fails (v1 backoff) and the scheduler run fails (next run decides again). Contract D8,
+  §Creation and §Sender updated. (4) Candidate without participation (R3): already handled by E5/E6 (no candidate job
+  row → title/company nil → fallbacks, link nil → `/candidato/postulaciones`); now covered end to end. RED observed:
+  `TestSenderExpiredLeaseAtTheAttemptCapFails` (`claimed=2`, the row at the cap re-sent);
+  `TestSenderShutdownLetsTheInFlightSendComplete` (in-flight delivery ended `retry`, the send was cancelled);
+  `TestFanOutTransientEmailFailureRetriesTheEvent` (`attempts:0 processed:true` — the lock timeout was swallowed by the
+  savepoint); `TestScheduleTransientEmailFailureFailsTheRun` (run error nil); emaildelivery unit build failure
+  (undefined `transient`). No RED for (4): `TestSenderCandidateWithoutParticipationUsesTheFallbacks` passed on the E6
+  code; a mutation (view error when the candidate job is absent) makes it fail (`sent 0`). GREEN, new tests: sender —
+  stuck at the cap → failed/transient without a send, attempts 7 with an expired lease still reclaimed and sent, a live
+  lease at the cap left alone; loop context cancelled mid-send (a fake adapter that aborts on its ctx) → `sent` with the
+  provider id, the next due delivery not claimed; candidate status_changed / message_received / test_pending after the
+  participation is deleted → sent through the log adapter, subjects with «una vacante» / «una empresa», app_url
+  `/candidato/postulaciones`, no company name or title; fan-out — `LOCK TABLE email_suppressions` + `lock_timeout
+  200ms` pool → event attempt 1, not processed, no in-app rows, log step email / 55P03, then retried → rows + delivery;
+  scheduler — same lock → run fails with step email / 55P03, nothing committed, next run creates both overdue rows and
+  deliveries; emaildelivery unit — 12 classification cases. The non-transient branch keeps its E6 tests (broken CHECK
+  → isolated). Mutations (restored byte-identical), all killed: no exhausted sweep, Send on the tick ctx, view failing
+  without a candidate job. Validation: `make test PKG='./internal/features/notifications/... ./internal/runtime/config/
+  ./cmd/api/ ./internal/tools/archguard/'` ok (15 packages, 350 top-level PASS with -v, 0 FAIL); `make test-integration
+  PKG=./internal/features/notifications/...` ok (172 PASS, 0 FAIL, 0 SKIP); `make test-integration PKG=./cmd/api/
+  RUN='^TestNotifications'` ok (28 PASS); `make test PKG=./internal/features/notifications/sender/ TEST_FLAGS=-race` ok
+  (unit tests only); `go tool sqlc diff` clean; `go vet ./...` clean. Scratch:
+  `backend/internal/features/notifications/.e6r-logs/` (logs and mutation backups; untracked, delete before
+  committing). No binary written.
