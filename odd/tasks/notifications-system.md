@@ -230,3 +230,11 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   and the landing server action must forward X-PF-Proxy-Secret and X-PF-Client-IP like the rest of the BFF
   (requestmeta) and send no cookies or session. Backend changes the limiter: per-IP counts invalid tokens only, valid
   tokens are limited per token.
+- **L24** (2026-11-27) Unsubscribe slice (6f082786 + 476f8961), Risk item 2: independent verify PASS (no blocking;
+  nits applied in 476f8961: content-type whitespace, production env documented), native review approved and
+  acknowledged (lineage review-a8971f39da2bd509, lenses risk + resilience). Advisory follow-ups (non-blocking, later
+  work): R4-route-strict-parse-after-commit — a 200 whose body fails the strict parse is reported as 502 / «No se
+  cambió nada» although the email is already off (route should treat any 200 as success); R4-ambiguous-post-failure-copy
+  — on timeout/network after commit the landing says «No se cambió nada» (use neutral «no sabemos si se aplicó;
+  reintentar es seguro»); R4-silent-forwarding-and-failures — warn once when AUDIT_PROXY_SECRET is missing outside dev
+  and log token-free lines on 502/error paths.
