@@ -33,7 +33,8 @@ fixes; item 5 is a product conversation before AWS/deployment work.
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
-| U1 | S1 | Email design directions on the canvas (`design/notification-emails/`), then backend applies the chosen one | |
+| U1 | S1 | Email design directions on the canvas (`design/notification-emails/`), then backend applies the chosen one | 8cabf608 (directions) |
+| U1.1 | S1 | Apply direction 03 · Centrada to the 17 email templates + 2 footers (backend session; preview in Mailpit) | backend 2a1d8495 |
 | U2 | S2 | Vacancy header actions into one ⋯ dropdown | b9ff00b3 |
 | U3 | S3 | Kanban column menu: no explanation, one-line options | a4aa3c61 |
 | U4 | S4 | Diagnose and fix the post-login redirect | 7f0ce75b |
@@ -75,3 +76,18 @@ fixes; item 5 is a product conversation before AWS/deployment work.
   later); company sign-up «Cualquiera, autoservicio (recomendado)»; company verification: «No estoy seguro hermano..
   dejame platicarlo con mis socios por favor, dejame tus propuestas y yo se las paso» — pending partners.
   Pre-existing bug noted: vacancy-checklist/compare/ui.tsx:57 links /empresa/login?next=…, which the login ignores.
+- **L3** (2026-11-27) The user chose `design/notification-emails/03-centrada.html` («03 · Centrada · S1») through the
+  canvas handoff: no card, centred column on white, 4 px tone bar, 64 px round seal, 28 px heading, centred 52 px
+  button. Emails are rendered by the backend (Go html/template), so U1.1 is implemented by the backend session from the
+  artboard plus the shared spec `04-sistema-de-correo.html` and `samples/03-*.html`; copy stays as in
+  notifications-stage2-email-copy.md. Open items carried to the backend: the new labels («Postulaciones», «Pruebas»,
+  «Entrega», «Asignación», «Equipo», «Vencida», «Vence pronto», «Obligatorio»), the legal postal address (placeholder
+  until the user provides it), and company_name/initials in every template if 03 needs them.
+- **L4** (2026-11-27) U1.1 implemented by the backend (feat/notifications-email-design 2a1d8495, not merged): closed
+  T1–T17 table of tone/glyph/label/emphasis from the 04 matrix, startup fails if a row is missing or a body diverges from
+  the copy; T2/T8/T12/T15/T17 byte-identical to samples/03-*.html except URLs; postal address via
+  NOTIFICATIONS_EMAIL_POSTAL_ADDRESS (optional, one line ≤200, design placeholder by default); server-derived
+  company_initials (skips connectors) and a «99+» seal cap. 17 previews in Mailpit (to:preview+t10r3@peopleflow.test),
+  mandatory ones without List-Unsubscribe. Agent decisions on the backend's gap fills: candidate email without
+  company_name uses the candidate tone's generic glyph instead of «…» (backend applying); T4/T6 emphasis and initials
+  rule accepted. Canvas handoff marked implemented (preview Mailpit). Dark mode not viewable in Mailpit.
