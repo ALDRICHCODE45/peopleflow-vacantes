@@ -1,6 +1,6 @@
 # Embedded auth v1 (employer onboarding and GetUser identity provider)
 
-Status: **Draft — pending frontend review**. Source of the request: the frontend decisions forwarded in
+Status: **Agreed — reviewed by the frontend (2026-11-27); not implemented yet**. Source of the request: the frontend decisions forwarded in
 `odd/tasks/embedded-auth-backend.md` (S1–S6, L1–L2; frontend feature `odd/tasks/embedded-auth.md`, L4–L5). Builds on the
 candidate onboarding contract `backend/docs/candidate-identity.md`: every rule there stays unless a decision below says
 otherwise. Branch `feat/embedded-auth-backend`. Style follows `notifications-v2.md`. Every `path:line` is a backend path
@@ -462,6 +462,10 @@ On the **existing** user pool and the **existing** app client (the one whose id 
    `GetUser` (backend) needs no secret. Sources: https://docs.aws.amazon.com/cognito/latest/developerguide/signing-up-users-in-your-app.html ,
    https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_InitiateAuth.html ,
    https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html
+2b. **App client → OAuth scopes (hosted UI / social)**: add **`aws.cognito.signin.user.admin`** to the allowed OAuth
+   scopes (keep `openid email profile`). Permanent, not transitional (Q4): social logins keep the OAuth flow with
+   `identity_provider`, so their access tokens must also be accepted by `GetUser`. The frontend requests this scope in
+   its OAuth provider config.
 3. **Sign-up → Self-service sign-up**: enabled.
 4. **Sign-in identifier**: email (email as username, or email alias). Check only — it cannot be changed after the pool
    exists (https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-attributes.html); if the pool
@@ -533,17 +537,17 @@ conflicts are not audited. Provider failures are logged value-free (D11), not au
 | A3 | T3 | `internal/runtime/config/identity.go`: `IDENTITY_PROVIDER`, `IDENTITY_COGNITO_REGION`, `IDENTITY_COGNITO_ENDPOINT`, legacy default, mixed-config errors, production/loopback rules, D14 region check; table tests. |
 | A4 | T3 | `internal/features/identity/infrastructure/cognitogetuser` client (request, strict parse, failure classes, bounded transport, value-free logs) + httptest stub tests for every row of §Failure mapping; `main.go` selection; a cmd/api test proving both onboardings reach the stub. |
 
-## Open questions (with recommendations)
+## Resolved questions (frontend, 2026-11-27)
 
-| # | Question | Recommendation |
-| --- | --- | --- |
-| Q1 | Category of `EmployerAccountCreated` in the audit catalog and its label. | **`members`**, label «Creó su cuenta de empresa». It never shows on a company screen (no company), so the choice only matters for the catalog/annex. |
-| Q2 | Should a GetUser `NotAuthorizedException` (token revoked by global sign-out, or expired between verification and call) be `401 unauthenticated` instead of `503`? | **Keep `503 identity_unavailable`** (S1 fixed the code set; the frontend shows «intentá de nuevo» and its session refresh handles real expiry). Revisit if e2e shows confusion. |
-| Q3 | GetUser answer without `email_verified`: `422` or `503`? | **`422 email_not_verified`** (D10): Cognito omits attributes without a value, retrying cannot fix it, and the UI can send the user to verification. |
-| Q4 | Transition: hosted-UI tokens lack `aws.cognito.signin.user.admin`, embedded tokens lack `openid`. | **Switch provider in the same release as the frontend cutover** (§Deployment order). Alternative if both logins must coexist: allow and request `aws.cognito.signin.user.admin` in the hosted UI client scopes and use `cognito_getuser` for both — a console change, so only on the user's decision. |
-| Q5 | `IDENTITY_COGNITO_ENDPOINT` is loopback-only. Does the frontend e2e run the API and the stub in containers with service hostnames? | **Keep loopback-only** unless the frontend needs otherwise; if so, allow any host only when `APP_ENV=test`. |
-| Q6 | Keep `ALLOW_USER_SRP_AUTH` on the app client? | **Keep it** for now (harmless; the hosted UI does not depend on it, but nothing gains from changing AWS now); remove in the IaC phase. |
-| Q7 | Exact generalized messages. | **«account required»** and **«account role not allowed»** (frontend branches on `code` only; only one fixture holds the text). |
+| # | Decision |
+| --- | --- |
+| Q1 | `members` category, label «Creó su cuenta de empresa». |
+| Q2 | GetUser `NotAuthorizedException` → `503 identity_unavailable`. |
+| Q3 | Missing `email_verified` → `422 email_not_verified`. |
+| Q4 | **Permanent scope**: the app client allows `aws.cognito.signin.user.admin` as an OAuth scope and the frontend requests it, so GetUser works for embedded and OAuth/social tokens alike; `IDENTITY_PROVIDER=cognito_getuser` can be enabled before the frontend cutover without coordinating releases (checklist item 2b). |
+| Q5 | Stub endpoint loopback-only (frontend e2e runs locally, not in containers). |
+| Q6 | Keep `ALLOW_USER_SRP_AUTH` until the AWS/IaC phase. |
+| Q7 | Messages «account required» and «account role not allowed» confirmed (the frontend never shows backend text). |
 
 ## Out of scope (v1)
 
