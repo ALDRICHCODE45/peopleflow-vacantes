@@ -1,16 +1,35 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { boardFixture } from "@/features/pipeline-movement/board-fixture";
 import { VacancyFrame, vacancyTabsFor, type VacancyTab } from "./vacancy-frame";
 import { InVacancyTabRow } from "./vacancy-frame-slot";
+import { notifyActionResult } from "@/components/feedback/notify";
 
 // S9: one frame (identity row + tabs) for Pipeline / Documentos / Configuración. S11: the tab visibility rule.
 vi.mock("@/components/company-dashboard/site-header", () => ({
   SiteHeader: (props: { title?: string | null; parent?: { label: string; href: string }; status?: ReactNode }) => <header data-testid="site-header" data-title={String(props.title)} data-has-status={String(props.status !== undefined)}>{props.parent && <a href={props.parent.href}>{props.parent.label}</a>}</header>,
 }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
+// Only the portal boundary is replaced: the menu content and its callbacks are the product's.
+vi.mock("@/components/ui/dropdown-menu", async () => {
+  const React = await import("react");
+  const Menu = React.createContext(false);
+  const pass = ({ children }: { children?: ReactNode }) => <>{children}</>;
+  return {
+    DropdownMenu: ({ children }: { children: ReactNode }) => { const [open, setOpen] = React.useState(false); return <Menu.Provider value={open}><div onClick={() => setOpen(true)}>{children}</div></Menu.Provider>; },
+    DropdownMenuTrigger: ({ render: trigger, children }: { render: ReactElement; children: ReactNode }) => React.cloneElement(trigger, { "aria-haspopup": "menu", children } as ComponentProps<"button">),
+    DropdownMenuContent: ({ children }: { children: ReactNode }) => React.useContext(Menu) ? <div role="menu">{children}</div> : null,
+    DropdownMenuGroup: ({ children }: { children: ReactNode }) => <div role="group">{children}</div>,
+    DropdownMenuSeparator: () => <hr />,
+    DropdownMenuSub: pass, DropdownMenuSubContent: ({ children }: { children: ReactNode }) => <div role="group" aria-label="Compartir">{children}</div>,
+    DropdownMenuSubTrigger: ({ children }: { children: ReactNode }) => <button role="menuitem" aria-haspopup="menu">{children}</button>,
+    DropdownMenuItem: ({ children, onClick, disabled, render }: ComponentProps<"button"> & { render?: ReactElement<Record<string, unknown>> }) => render
+      ? React.cloneElement(render, { role: "menuitem", children }) : <button role="menuitem" disabled={disabled} onClick={onClick}>{children}</button>,
+  };
+});
 afterEach(cleanup);
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const lifecycle = (extra: Partial<Lifecycle> = {}): Lifecycle => ({ ...boardFixture().lifecycle, publication: "published", process: "active", published_at: "2026-11-05T18:00:00Z", paused_at: null, closed_at: null, process_finished_at: null, close_reason: null, close_reason_note: null, ...extra });
@@ -167,34 +186,65 @@ it("says «Cerrada · proceso finalizado» for a closed vacancy of the overview 
   expect(screen.getByText("Cerrada · proceso finalizado")).toHaveAttribute("data-slot", "badge");
 });
 
-// A-F3/A-F4: the way back to the editor and sharing live in the identity row of a live vacancy.
+// A-F3/A-F4 + S2 (U2): the way back to the editor and sharing live in one ⋯ menu at the right end of a live vacancy's identity row.
 const identity = () => document.querySelector("[data-pf-vacancy-identity]") as HTMLElement;
-it("a published public vacancy offers «Editar publicación», «Compartir» and «Ver página pública» (new tab) in the identity row", () => {
+const ACTIONS = "Acciones de la publicación";
+const openActions = () => { fireEvent.click(within(identity()).getByRole("button", { name: ACTIONS })); return screen.getByRole("menu"); };
+it("S2: a published public vacancy offers one 40px ⋯ trigger, no standalone buttons, at the identity row's right end", () => {
   frame({ lifecycle: lifecycle({ visibility: "public" }) });
   const row = within(identity());
-  expect(row.getByRole("link", { name: "Editar publicación" })).toHaveAttribute("href", `/empresa/vacantes/borradores/${id}`);
-  expect(row.getByRole("button", { name: "Compartir" })).toBeInTheDocument();
-  const publicPage = row.getByRole("link", { name: /Ver página pública/ });
+  const trigger = row.getByRole("button", { name: ACTIONS });
+  expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+  expect(trigger).toHaveClass("size-10");
+  expect(trigger).toHaveTextContent("");
+  expect(row.queryByRole("link", { name: "Editar publicación" })).not.toBeInTheDocument();
+  expect(row.queryByRole("link", { name: /Ver página pública/ })).not.toBeInTheDocument();
+  expect(row.queryByRole("button", { name: "Compartir" })).not.toBeInTheDocument();
+  // Right end: after the dates, the last control of the row.
+  expect(screen.getByText(/Publicada el/).compareDocumentPosition(trigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const buttons = row.getAllByRole("button");
+  expect(buttons[buttons.length - 1]).toBe(trigger);
+});
+it("S2: the menu holds «Editar publicación», «Ver página pública» (new tab) and the «Compartir» submenu with the share items", () => {
+  frame({ lifecycle: lifecycle({ visibility: "public" }) });
+  const menu = openActions();
+  expect(within(menu).getByRole("menuitem", { name: "Editar publicación" })).toHaveAttribute("href", `/empresa/vacantes/borradores/${id}`);
+  const publicPage = within(menu).getByRole("menuitem", { name: /Ver página pública/ });
   expect(publicPage).toHaveAttribute("href", `/vacantes/${id}`);
   expect(publicPage).toHaveAttribute("target", "_blank");
   expect(publicPage).toHaveAttribute("rel", "noopener noreferrer");
+  expect(within(menu).getByRole("menuitem", { name: "Compartir" })).toBeInTheDocument();
+  expect(within(within(menu).getByRole("group", { name: "Compartir" })).getAllByRole("menuitem").map(item => item.textContent)).toEqual(expect.arrayContaining(["Copiar enlace", "WhatsApp", "Correo", "LinkedIn"]));
+});
+it("S2: «Copiar enlace» copies the shared public URL and reports it as a toast and an sr-only status", async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  frame({ lifecycle: lifecycle({ visibility: "public" }) });
+  const menu = openActions();
+  fireEvent.click(within(within(menu).getByRole("group", { name: "Compartir" })).getByRole("menuitem", { name: "Copiar enlace" }));
+  await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/vacantes/${id}?origen=compartido`));
+  await vi.waitFor(() => expect(within(identity()).getByRole("status")).toHaveTextContent("Enlace copiado"));
+  expect(within(identity()).getByRole("status")).toHaveClass("sr-only");
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Enlace copiado" }));
+  Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
 });
 it.each([
   ["a private replacement", { visibility: "private" as const }, true],
   ["a paused vacancy", { publication: "paused" as const, visibility: "public" as const }, true],
   ["a closed vacancy", { publication: "closed" as const, process: "finished" as const, closed_at: "2026-11-10T12:00:00Z", process_finished_at: "2026-11-10T12:00:00Z", visibility: "public" as const }, false],
   ["a draft", { publication: null, process: null, published_at: null, visibility: null }, false],
-])("%s has no public page or share in the identity row (editor: %s)", (_name, extra, editor) => {
+])("%s has no public page or share in the actions menu (editor: %s)", (_name, extra, editor) => {
   frame({ lifecycle: lifecycle(extra) });
   const row = within(identity());
-  expect(row.queryByRole("link", { name: /Ver página pública/ })).not.toBeInTheDocument();
-  expect(row.queryByRole("button", { name: "Compartir" })).not.toBeInTheDocument();
-  expect(Boolean(row.queryByRole("link", { name: "Editar publicación" }))).toBe(editor);
+  if (!editor) { expect(row.queryByRole("button", { name: ACTIONS })).not.toBeInTheDocument(); return; }
+  const menu = openActions();
+  expect(within(menu).getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Editar publicación"]);
+  expect(within(menu).queryByRole("group", { name: "Compartir" })).not.toBeInTheDocument();
 });
-it("a stakeholder, or a frame still loading, gets none of these actions", () => {
+it("a stakeholder, or a frame still loading, gets no actions menu", () => {
   frame({ audience: "stakeholder", lifecycle: lifecycle({ visibility: "public" }) });
-  expect(within(identity()).queryByRole("link", { name: "Editar publicación" })).not.toBeInTheDocument();
+  expect(within(identity()).queryByRole("button", { name: ACTIONS })).not.toBeInTheDocument();
   cleanup();
   frame({ loading: true, lifecycle: lifecycle({ visibility: "public" }) });
-  expect(within(identity()).queryByRole("button", { name: "Compartir" })).not.toBeInTheDocument();
+  expect(within(identity()).queryByRole("button", { name: ACTIONS })).not.toBeInTheDocument();
 });

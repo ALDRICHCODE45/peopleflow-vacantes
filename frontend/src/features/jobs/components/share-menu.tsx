@@ -55,17 +55,19 @@ export function ShareMenu({ title, company, intro, url, label = "Compartir vacan
 }
 
 /**
- * «Compartir» as a submenu of another menu (the vacancy list's row actions): the same items, the outcome only as a toast
- * because the parent menu closes on activation.
+ * «Compartir» as a submenu of another menu (the vacancy list's row actions, the vacancy header's ⋯ menu): the same items, the
+ * outcome as a toast because the parent menu closes on activation; `onOutcome` lets the host also read it out in its own status.
  */
-export function ShareSubmenu({ title, company, intro, url }: Pick<Props, "title" | "company" | "intro"> & { url: string }) {
+export function ShareSubmenu({ title, company, intro, url, onOutcome }: Pick<Props, "title" | "company" | "intro"> & { url: string; onOutcome?: (message: string) => void }) {
   const resolve = () => resolveShareUrl(url);
   async function copy() {
     try {
       await navigator.clipboard.writeText(resolve());
       notifyActionResult({ key: "share-link", type: "success", title: "Enlace copiado" });
+      onOutcome?.("Enlace copiado");
     } catch {
       notifyActionResult({ key: "share-link", type: "error", title: "No pudimos copiar el enlace", description: "Copia la dirección de la vacante para compartirla." });
+      onOutcome?.("No pudimos copiar el enlace. Copia la dirección de la vacante para compartirla.");
     }
   }
   return <DropdownMenuSub>
