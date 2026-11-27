@@ -1,0 +1,35 @@
+{
+  "title": "Correos transaccionales · sistema de diseño de correo de PeopleFlow",
+  "brief": "U1 · S1 (odd/tasks/ui-fixes-email-design.md, L1: «hay que tener un system design en los correos … pulido, presentable, que sea de PeopleFlow»). Tres direcciones para los 17 avisos y los 2 pies de notifications-stage2-email-copy.md, con la copia acordada sin cambios. Cada dirección muestra T8 (obligatorio y urgente, entrega vencida), T2 (operativo agrupado), T12 (obligatorio, reasignación con motivo) y un correo de candidato (T15 en escritorio, T17 en teléfono, con la empresa a la vista), los pies F1 y F2, escritorio (columna de 600 px) y teléfono (375 px), en claro y en oscuro (simulando prefers-color-scheme del cliente). Los correos son HTML de correo real (tablas, estilos en línea, un bloque <style> para teléfono y modo oscuro, botón con VML para Outlook, marca como texto vivo, sin CSS, JS, fuentes ni imágenes externas). Datos mexicanos de ejemplo (Grupo Altavista, Constructora Sierra Madre); ningún nombre de candidato ni de integrante. 04 reúne lo común: anatomía, matriz T1–T17 (tipo, tono, símbolo, urgencia, pie), modo oscuro, compatibilidad, Go html/template y lo que queda por aprobar. Fuente única en _src/ (node design/notification-emails/_src/build.mjs); muestras para Mailpit en samples/.",
+  "feature": "odd/tasks/ui-fixes-email-design.md",
+  "artboards": [
+    {
+      "file": "01-membrete.html",
+      "title": "01 · Membrete · S1",
+      "tradeoff": "La más sobria y la más cercana al panel: marca sobre el fondo lavanda, tarjeta blanca de 24 px, una fila de etiquetas (tipo, «Vencida», «Obligatorio») y botón violeta a la izquierda; escala a los 17 avisos sin piezas nuevas. A cambio es la menos memorable: un obligatorio y un operativo solo se distinguen por las etiquetas, y en Outlook de escritorio la tarjeta queda cuadrada.",
+      "width": 1440,
+      "height": 5086
+    },
+    {
+      "file": "02-encabezado-por-tipo.html",
+      "title": "02 · Encabezado por tipo · S1",
+      "tradeoff": "La que más se distingue de un vistazo: una franja teñida del tono del tipo y un mosaico de 48 px con «!», el conteo, «→» o el monograma de la empresa; la urgencia ocupa toda la franja en rojo y el pie vive dentro de la tarjeta. A cambio es la más cargada, necesita un tono y un símbolo por aviso y depende de fondos teñidos que el modo oscuro forzado de Gmail invierte a su manera.",
+      "width": 1440,
+      "height": 5493
+    },
+    {
+      "file": "03-centrada.html",
+      "title": "03 · Centrada · S1",
+      "tradeoff": "La más editorial y la más robusta: sin tarjeta, columna centrada sobre blanco, barra de 4 px del tono, sello circular de 64 px, título de 28 px y botón centrado de 52 px; casi nada que Outlook o Gmail puedan romper. A cambio, el texto centrado lee peor si pasa de dos líneas, el tipo se reconoce menos que en 02 y es la que menos se parece al panel.",
+      "width": 1440,
+      "height": 5565
+    },
+    {
+      "file": "04-sistema-de-correo.html",
+      "title": "04 · Sistema de correo (común) · S1",
+      "tradeoff": "Lo que comparten las tres: anatomía, tres ejes (tipo → pie y «Obligatorio»; tono por familia como en la campana; urgencia solo en entregas), matriz de las 17 plantillas, tokens claro/oscuro con contraste calculado, estrategia de modo oscuro y Outlook, y el paso a Go html/template (un layout + EmailView). A cambio pide datos nuevos al backend (company_name en todos, iniciales) y aprobar microcopia nueva (antetítulos, «Vencida», «Vence pronto», «Obligatorio»).",
+      "width": 1440,
+      "height": 4850
+    }
+  ]
+}

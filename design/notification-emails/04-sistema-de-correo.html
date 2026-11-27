@@ -1,0 +1,189 @@
+<!doctype html><html lang="es-MX" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=1440"><title>Correos · 04 Sistema de correo</title><style>
+:root{color-scheme:light;--background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--muted:#F1EEF7;--muted-foreground:#6B6480;--border:#E4DFF0;--primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);--primary-text:var(--primary);--status-danger:oklch(0.45 0.2 25);--status-info:oklch(0.45 0.16 250)}
+html[data-theme=dark]{color-scheme:dark;--background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--muted:#171226;--muted-foreground:#A79FBF;--border:#262233;--primary:oklch(0.432 0.232 292.759);--primary-text:oklch(0.70 0.14 292.759);--status-danger:oklch(0.75 0.15 22);--status-info:oklch(0.78 0.12 245)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--background);color:var(--foreground);font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.page{width:1440px;margin:0 auto;padding:48px 64px 72px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:32px}
+.kicker{margin:0 0 6px;font-size:12px;font-weight:500;color:var(--muted-foreground)}
+h1.t{margin:0;font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.01em}
+.lede{margin:8px 0 0;max-width:820px;color:var(--muted-foreground)}
+.seg{display:inline-flex;height:36px;padding:4px;border-radius:14px;background:var(--muted);gap:2px;flex:none}
+.seg button{border:0;background:transparent;color:color-mix(in oklab,var(--foreground) 70%,transparent);font:500 14px/1 inherit;font-family:inherit;padding:0 12px;border-radius:10px;cursor:pointer;min-height:28px}
+.seg button[aria-pressed=true]{background:var(--background);color:var(--foreground);box-shadow:0 1px 2px rgb(0 0 0/.1)}
+html[data-theme=dark] .seg button[aria-pressed=true]{background:color-mix(in oklab,var(--foreground) 10%,transparent);box-shadow:none}
+button:focus-visible,a:focus-visible{outline:2px solid var(--primary-text);outline-offset:2px}
+.card{background:var(--card);border-radius:24px;box-shadow:0 1px 2px rgb(0 0 0/.06);outline:1px solid color-mix(in oklab,var(--foreground) 5%,transparent)}
+.trade{margin-top:24px;padding:20px 24px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px}
+.trade h2{margin:0 0 6px;font-size:14px;font-weight:600}
+.trade p{margin:0;color:var(--muted-foreground)}
+.row{margin-top:48px}
+.row>h2{margin:0 0 4px;font-size:18px;line-height:28px;font-weight:600}
+.row>p{margin:0 0 16px;color:var(--muted-foreground)}
+.pair{display:flex;gap:48px;align-items:flex-start}
+figure{margin:0}
+figcaption{font-size:12px;color:var(--muted-foreground);margin:0 0 8px;font-weight:500}
+.client{width:720px;overflow:hidden;padding:0}
+.inbox{display:flex;gap:12px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border)}
+.av{width:32px;height:32px;border-radius:50%;background:var(--muted);display:grid;place-items:center;font:900 13px/1 "Arial Black",Arial,sans-serif;flex:none}
+.av i{font:italic 400 15px/1 Georgia,serif;color:var(--primary-text)}
+.in-t{min-width:0;flex:1}
+.in-t b{font-weight:600}
+.in-1{display:flex;justify-content:space-between;gap:12px;font-size:13px}
+.in-1 span{color:var(--muted-foreground)}
+.in-2{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted-foreground)}
+.in-2 b{color:var(--foreground)}
+.client iframe{display:block;width:720px;border:0;height:600px;background:transparent}
+.phone{width:399px;border-radius:48px;padding:12px;background:#1A1626;box-shadow:0 12px 32px -16px rgb(0 0 0/.45)}
+html[data-theme=dark] .phone{background:#2B2540}
+.screen{border-radius:36px;overflow:hidden;background:var(--card)}
+.ph-top{padding:14px 18px 10px;border-bottom:1px solid var(--border)}
+.ph-top .back{font-size:13px;color:var(--primary-text);font-weight:500}
+.ph-top .sub{margin:6px 0 2px;font-size:15px;line-height:20px;font-weight:600}
+.ph-top .frm{font-size:12px;color:var(--muted-foreground)}
+.screen iframe{display:block;width:375px;border:0;height:600px}
+.spec{margin-top:64px}
+.spec>h2{margin:0 0 4px;font-size:20px;line-height:28px;font-weight:600}
+.spec>p{margin:0 0 20px;color:var(--muted-foreground);max-width:900px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.box{padding:20px 24px}
+.box h3{margin:0 0 10px;font-size:15px;font-weight:600}
+.box p,.box li{color:var(--muted-foreground);margin:0}
+.box ul{margin:0;padding-left:18px}
+.box li+li{margin-top:4px}
+.box.wide{grid-column:span 3}
+.box.two{grid-column:span 2}
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+table.t th{text-align:left;font-weight:500;color:var(--muted-foreground);padding:8px;border-bottom:1px solid var(--border)}
+table.t td{padding:8px;border-bottom:1px solid var(--border);vertical-align:top}
+.sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;box-shadow:inset 0 0 0 1px rgb(0 0 0/.15)}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+code{background:var(--muted);padding:1px 5px;border-radius:6px}
+pre{margin:0;background:var(--muted);padding:16px;border-radius:14px;overflow:auto;line-height:1.55;white-space:pre}
+.scale div{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border)}
+.scale span{color:var(--muted-foreground);font-size:12px;white-space:nowrap}
+.note{font-size:12px;color:var(--muted-foreground);margin-top:8px}
+</style></head>
+<body><main class="page">
+<header class="top"><div><p class="kicker">Correos transaccionales de PeopleFlow · U1 · S1</p><h1 class="t">04 · Sistema de correo (común a las tres direcciones)</h1><p class="lede">Reglas compartidas: anatomía, cómo se asigna tipo, tono y urgencia a las 17 plantillas, modo oscuro, compatibilidad, privacidad, cómo llevarlo a Go <code>html/template</code> y lo que falta decidir. El interruptor de tema solo afecta a esta página.</p></div>
+<div class="seg" role="group" aria-label="Tema del cliente de correo"><button type="button" data-theme="light" aria-pressed="true">Claro</button><button type="button" data-theme="dark" aria-pressed="false">Oscuro</button></div></header>
+
+<div class="grid" style="margin-top:32px">
+<div class="card box two"><h3>Anatomía común</h3><ol style="margin:0;padding-left:20px;color:var(--muted-foreground)">
+<li><b>Preheader</b> oculto = línea de cuerpo (texto plano).</li>
+<li><b>Marca</b>: «people<i>flow</i>» como texto vivo; nunca depende de una imagen.</li>
+<li><b>Contexto</b>: nombre de la empresa (en correos de empresa, solo 01 lo pinta arriba; en candidato, todas lo muestran como identidad).</li>
+<li><b>Identificador de tipo</b>: etiqueta (01), mosaico + franja (02) o sello + barra (03).</li>
+<li><b>Urgencia</b> («Vencida», «Vence pronto») y <b>«Obligatorio»</b>: siempre con palabra, nunca solo color.</li>
+<li><b>Título</b> = «Heading» de la plantilla, en <code>&lt;h1&gt;</code>.</li>
+<li><b>Línea de cuerpo</b> = «Body line», con las variables en 600.</li>
+<li><b>Un solo botón</b> violeta = «Button».</li>
+<li><b>Pie</b> F1 (opcional, con baja) o F2 (obligatorio, sin baja).</li>
+<li><b>Línea legal</b> con la dirección postal de PeopleFlow.</li></ol></div>
+<div class="card box"><h3>Tres ejes, no diecisiete diseños</h3><p><b>Tipo</b> decide el pie y la marca «Obligatorio» (operativo, obligatorio, candidato). <b>Tono</b> viene de la familia del aviso, igual que en la campana (postulaciones violeta, pruebas completadas verde, asignaciones azul, entregas ámbar/rojo). <b>Urgencia</b> solo existe en entregas: ámbar «Vence pronto», rojo «Vencida».</p><p class="note">El botón siempre es violeta: el color de estado marca qué pasó, no la acción.</p></div>
+<div class="card box wide"><h3>Las 17 plantillas</h3><table class="t"><thead><tr><th>#</th><th>Asunto</th><th>Tipo</th><th>Tono</th><th>Símbolo (02 mosaico · 03 sello)</th><th>Antetítulo / etiqueta</th><th>Urgencia</th><th>Pie</th></tr></thead><tbody><tr><td>T1</td><td>Nueva postulación en {{job_title}}</td><td>Operativo</td><td><span class="sw" style="background:#7008E7"></span>Violeta</td><td><code>+</code></td><td>Postulaciones</td><td>—</td><td>F1</td></tr><tr><td>T2</td><td>{{count}} postulaciones nuevas en {{job_title}}</td><td>Operativo agrupado</td><td><span class="sw" style="background:#7008E7"></span>Violeta</td><td><code>{{count}}</code></td><td>Postulaciones</td><td>—</td><td>F1</td></tr><tr><td>T3</td><td>Prueba psicométrica completada en {{job_title}}</td><td>Operativo</td><td><span class="sw" style="background:#006B30"></span>Verde de estado</td><td><code>✓</code></td><td>Pruebas</td><td>—</td><td>F1</td></tr><tr><td>T4</td><td>{{count}} pruebas psicométricas completadas en {{job_title}}</td><td>Operativo agrupado</td><td><span class="sw" style="background:#006B30"></span>Verde de estado</td><td><code>{{count}}</code></td><td>Pruebas</td><td>—</td><td>F1</td></tr><tr><td>T5</td><td>Prueba psicométrica pendiente en {{job_title}}</td><td>Operativo</td><td><span class="sw" style="background:#7008E7"></span>Violeta</td><td><code>…</code></td><td>Pruebas</td><td>—</td><td>F1</td></tr><tr><td>T6</td><td>{{count}} pruebas psicométricas pendientes en {{job_title}}</td><td>Operativo agrupado</td><td><span class="sw" style="background:#7008E7"></span>Violeta</td><td><code>{{count}}</code></td><td>Pruebas</td><td>—</td><td>F1</td></tr><tr><td>T7</td><td>La entrega de {{job_title}} vence pronto</td><td>Operativo con urgencia</td><td><span class="sw" style="background:#844C00"></span>Ámbar de estado</td><td><code>!</code></td><td>Entrega</td><td>Vence pronto</td><td>F1</td></tr><tr><td>T8</td><td>La entrega de {{job_title}} está vencida</td><td>Obligatorio y urgente</td><td><span class="sw" style="background:#A9000C"></span>Rojo de estado</td><td><code>!</code></td><td>Entrega</td><td>Vencida</td><td>F2</td></tr><tr><td>T9</td><td>Tu fecha límite en {{job_title}} se acerca</td><td>Operativo con urgencia</td><td><span class="sw" style="background:#844C00"></span>Ámbar de estado</td><td><code>!</code></td><td>Entrega</td><td>Vence pronto</td><td>F1</td></tr><tr><td>T10</td><td>Venció tu fecha límite en {{job_title}}</td><td>Obligatorio y urgente</td><td><span class="sw" style="background:#A9000C"></span>Rojo de estado</td><td><code>!</code></td><td>Entrega</td><td>Vencida</td><td>F2</td></tr><tr><td>T11</td><td>Te asignaron {{job_title}}</td><td>Obligatorio</td><td><span class="sw" style="background:#0055A9"></span>Azul de estado</td><td><code>→</code></td><td>Asignación</td><td>—</td><td>F2</td></tr><tr><td>T12</td><td>Ahora eres responsable de {{job_title}}</td><td>Obligatorio</td><td><span class="sw" style="background:#0055A9"></span>Azul de estado</td><td><code>→</code></td><td>Asignación</td><td>—</td><td>F2</td></tr><tr><td>T13</td><td>Ya no eres responsable de {{job_title}}</td><td>Obligatorio</td><td><span class="sw" style="background:#0055A9"></span>Azul de estado</td><td><code>→</code></td><td>Asignación</td><td>—</td><td>F2</td></tr><tr><td>T14</td><td>Te agregaron al equipo de {{job_title}}</td><td>Obligatorio</td><td><span class="sw" style="background:#0055A9"></span>Azul de estado</td><td><code>+</code></td><td>Equipo</td><td>—</td><td>F2</td></tr><tr><td>T15</td><td>Tu postulación a {{job_title}} cambió de estado</td><td>Candidato</td><td><span class="sw" style="background:#7008E7"></span>Violeta</td><td><code>{{company_initials}}</code></td><td>{{company_name}}</td><td>—</td><td>F1</td></tr><tr><td>T16</td><td>{{company_name}} te dejó un mensaje</td><td>Candidato</td><td><span class="sw" style="background:#7008E7"></span>Violeta</td><td><code>{{company_initials}}</code></td><td>{{company_name}}</td><td>—</td><td>F1</td></tr><tr><td>T17</td><td>Tienes una prueba psicométrica pendiente</td><td>Candidato</td><td><span class="sw" style="background:#7008E7"></span>Violeta</td><td><code>{{company_initials}}</code></td><td>{{company_name}}</td><td>—</td><td>F1</td></tr></tbody></table><p class="note">Antetítulos y etiquetas nuevos («Postulaciones», «Pruebas», «Entrega», «Asignación», «Equipo», «Vencida», «Vence pronto», «Obligatorio») son microcopia por aprobar; el resto del texto es el acordado.</p></div>
+<div class="card box"><h3>Modo oscuro</h3><ul>
+<li>Estilos en línea = claro (lo que ve un cliente que ignora <code>&lt;style&gt;</code>).</li>
+<li><code>&lt;meta name="color-scheme" content="light dark"&gt;</code> + <code>supported-color-schemes</code>.</li>
+<li>Clases <code>.pf-*</code> con los valores oscuros del sistema en <code>@media (prefers-color-scheme: dark)</code> (Apple Mail, iOS, Outlook macOS, Thunderbird).</li>
+<li>Las mismas reglas con <code>[data-ogsc]</code> / <code>[data-ogsb]</code> para Outlook.com.</li>
+<li>Gmail app y Outlook Windows invierten por su cuenta: colores sin blanco puro en texto sobre violeta, sin imágenes con fondo, la marca es texto, así que la inversión no rompe nada.</li></ul></div>
+<div class="card box"><h3>Compatibilidad</h3><ul>
+<li>Maquetación en tablas, <code>role="presentation"</code>, ancho máximo 600 con tabla fantasma <code>&lt;!--[if mso]&gt;</code>.</li>
+<li>Botón: <code>v:roundrect</code> en Outlook escritorio; en el resto, enlace con relleno sobre celda con <code>bgcolor</code>.</li>
+<li>Outlook escritorio no pinta radios ni <code>border-radius:50%</code>: tarjetas y sellos quedan cuadrados, el resto se conserva.</li>
+<li>Sin CSS ni JS externos, sin fuentes remotas; Inter solo si está instalada.</li>
+<li>Teléfono: una regla <code>@media (max-width:620px)</code> reduce márgenes, baja el título y pone el botón a todo el ancho; Gmail con cuentas no Google la ignora y ve la versión de escritorio, que ya cabe a 375 por el ancho fluido.</li></ul></div>
+<div class="card box"><h3>Privacidad y datos</h3><ul>
+<li>Ningún correo lleva nombre de candidato ni de integrante (L18); el mensaje de T16 no se incluye.</li>
+<li>Datos nuevos que el backend debe pasar: <code>company_name</code> en todos (hoy solo T11, T15–T17), <code>company_initials</code> para candidato y el conteo como símbolo en agrupados (02 y 03).</li>
+<li>Remitente propuesto: «PeopleFlow &lt;avisos@…&gt;» (dominio por definir).</li></ul></div>
+<div class="card box two"><h3>Go html/template · datos</h3><pre tabindex="0" aria-label="Estructura de datos en Go">// Un solo layout por dirección; las 17 plantillas solo llenan EmailView.
+type EmailView struct {
+    Subject, Preheader      string // Preheader = línea de cuerpo en texto plano
+    Heading                 string
+    Body                    template.HTML // línea de cuerpo con &lt;strong&gt; en las variables
+    ButtonLabel, ButtonURL  string
+    Kind                    string // &quot;operational&quot; | &quot;mandatory&quot; | &quot;candidate&quot;
+    ToneName                string // &quot;primary&quot; | &quot;info&quot; | &quot;success&quot; | &quot;review&quot; | &quot;danger&quot; (sufijo de las clases .pf-*)
+    Tone                    Tone   // tones[ToneName]
+    Eyebrow                 string // &quot;Postulaciones&quot;, &quot;Entrega&quot;, ... o CompanyName (candidato)
+    Glyph                   string // &quot;!&quot;, &quot;→&quot;, &quot;+&quot;, &quot;✓&quot;, &quot;…&quot;, el conteo o CompanyInitials
+    Urgency                 string // &quot;&quot; | &quot;Vencida&quot; | &quot;Vence pronto&quot;
+    CompanyName             string // contexto en correos de empresa; identidad en candidato
+    CompanyInitials         string
+    Mandatory               bool   // true → F2; false → F1
+    PreferencesURL          string
+    UnsubscribeURL          string // vacío si Mandatory
+    LegalAddress            string
+}
+
+type Tone struct{ Text, Tint, Wash, Border, Fill, OnFill string } // hex, claro
+
+var tones = map[string]Tone{
+    &quot;primary&quot;: {&quot;#7008E7&quot;, &quot;#F1E6FD&quot;, &quot;#F6F0FE&quot;, &quot;#C69CF5&quot;, &quot;#7008E7&quot;, &quot;#FFFFFF&quot;},
+    &quot;info&quot;:    {&quot;#0055A9&quot;, &quot;#E6EEF6&quot;, &quot;#F0F5FA&quot;, &quot;#99BBDD&quot;, &quot;#0055A9&quot;, &quot;#FFFFFF&quot;},
+    &quot;success&quot;: {&quot;#006B30&quot;, &quot;#E6F0EA&quot;, &quot;#F0F6F3&quot;, &quot;#99C4AC&quot;, &quot;#006B30&quot;, &quot;#FFFFFF&quot;},
+    &quot;review&quot;:  {&quot;#844C00&quot;, &quot;#F3EDE6&quot;, &quot;#F8F4F0&quot;, &quot;#CEB799&quot;, &quot;#844C00&quot;, &quot;#FFFFFF&quot;},
+    &quot;danger&quot;:  {&quot;#A9000C&quot;, &quot;#F6E6E7&quot;, &quot;#FAF0F0&quot;, &quot;#DD999E&quot;, &quot;#A9000C&quot;, &quot;#FFFFFF&quot;},
+}
+// Los valores oscuros no van en línea: viven en el &lt;style&gt; como clases
+// (.pf-t-danger, .pf-tint-danger, .pf-fill-danger, ...) dentro de
+// @media (prefers-color-scheme: dark), [data-ogsc] y [data-ogsb].</pre></div>
+<div class="card box"><h3>Por qué así en Go</h3><ul>
+<li>Un layout por dirección + 17 definiciones de <code>EmailView</code>; ninguna plantilla repite HTML.</li>
+<li><code>html/template</code> escapa los atributos <code>style</code>: pasar solo hex de la tabla <code>tones</code> (pasa el filtro CSS); nunca concatenar CSS que venga del usuario (saldría <code>ZgotmplZ</code>).</li>
+<li><code>Body</code> se arma en Go con las variables escapadas dentro de <code>&lt;strong&gt;</code> y luego se marca <code>template.HTML</code>.</li>
+<li>El bloque <code>&lt;style&gt;</code> es fijo y va en un <code>{{define "styles"}}</code>.</li>
+<li>Muestras HTML listas para Mailpit: <code>design/notification-emails/samples/</code>.</li></ul></div>
+<div class="card box wide"><h3>Go html/template · esqueleto del layout</h3><pre tabindex="0" aria-label="Esqueleto del layout en Go">{{define &quot;layout&quot;}}&lt;!doctype html&gt;
+&lt;html lang=&quot;es-MX&quot; xmlns:v=&quot;urn:schemas-microsoft-com:vml&quot; xmlns:o=&quot;urn:schemas-microsoft-com:office:office&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;
+  &lt;meta name=&quot;x-apple-disable-message-reformatting&quot;&gt;
+  &lt;meta name=&quot;color-scheme&quot; content=&quot;light dark&quot;&gt;&lt;meta name=&quot;supported-color-schemes&quot; content=&quot;light dark&quot;&gt;
+  &lt;title&gt;{{.Subject}}&lt;/title&gt;
+  {{template &quot;styles&quot;}}  {{/* bloque fijo: teléfono + modo oscuro, igual para los 17 */}}
+&lt;/head&gt;
+&lt;body class=&quot;pf-bg&quot; style=&quot;margin:0;padding:0;background-color:#F7F5FB&quot;&gt;
+  &lt;div style=&quot;display:none;max-height:0;overflow:hidden;mso-hide:all&quot;&gt;{{.Preheader}}&amp;#8199;&amp;#847;…&lt;/div&gt;
+  &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; class=&quot;pf-bg&quot; bgcolor=&quot;#F7F5FB&quot; …&gt;
+    {{template &quot;brand&quot; .}}          {{/* wordmark de texto vivo */}}
+    {{template &quot;kind&quot; .}}           {{/* etiquetas / franja / sello según la dirección */}}
+    &lt;h1 class=&quot;pf-ink pf-h1&quot; style=&quot;margin:0;font-size:24px;line-height:32px;font-weight:700;color:#1A1626&quot;&gt;{{.Heading}}&lt;/h1&gt;
+    &lt;p class=&quot;pf-ink pf-body&quot; style=&quot;margin:0;font-size:16px;line-height:26px;color:#1A1626&quot;&gt;{{.Body}}&lt;/p&gt;
+    {{template &quot;button&quot; .}}         {{/* td bgcolor + &lt;a&gt; + v:roundrect para Outlook */}}
+    {{if .Mandatory}}{{template &quot;footerF2&quot; .}}{{else}}{{template &quot;footerF1&quot; .}}{{end}}
+    {{template &quot;legal&quot; .}}
+  &lt;/table&gt;
+&lt;/body&gt;&lt;/html&gt;{{end}}
+
+{{define &quot;kind&quot;}}&lt;td class=&quot;pf-tint-{{.ToneName}} pf-t-{{.ToneName}}&quot;
+  style=&quot;background-color:{{.Tone.Tint}};color:{{.Tone.Text}};border:1px solid {{.Tone.Border}};…&quot;&gt;{{.Eyebrow}}&lt;/td&gt;
+{{if .Urgency}}&lt;td class=&quot;pf-fill-{{.ToneName}} pf-on-{{.ToneName}}&quot; style=&quot;background-color:{{.Tone.Fill}};color:{{.Tone.OnFill}};…&quot;&gt;{{.Urgency}}&lt;/td&gt;{{end}}
+{{if .Mandatory}}&lt;td class=&quot;pf-tint-neutral pf-t-neutral&quot; …&gt;Obligatorio&lt;/td&gt;{{end}}{{end}}</pre></div>
+<div class="card box two"><h3>Contraste calculado (WCAG 2.x)</h3><table class="t"><thead><tr><th>Par</th><th>Texto</th><th>Fondo</th><th>Contraste</th></tr></thead><tbody><tr><td>Claro · texto / tarjeta</td><td><span class="sw" style="background:#1A1626"></span><code>#1A1626</code></td><td><span class="sw" style="background:#FFFFFF"></span><code>#FFFFFF</code></td><td>17.70 : 1</td></tr><tr><td>Claro · secundario / página (pie de 01)</td><td><span class="sw" style="background:#6B6480"></span><code>#6B6480</code></td><td><span class="sw" style="background:#F7F5FB"></span><code>#F7F5FB</code></td><td>5.16 : 1</td></tr><tr><td>Claro · secundario / superficie tranquila (pie de 02)</td><td><span class="sw" style="background:#6B6480"></span><code>#6B6480</code></td><td><span class="sw" style="background:#F1EEF7"></span><code>#F1EEF7</code></td><td>4.87 : 1</td></tr><tr><td>Claro · enlace / página</td><td><span class="sw" style="background:#7008E7"></span><code>#7008E7</code></td><td><span class="sw" style="background:#F7F5FB"></span><code>#F7F5FB</code></td><td>6.74 : 1</td></tr><tr><td>Claro · enlace / superficie tranquila</td><td><span class="sw" style="background:#7008E7"></span><code>#7008E7</code></td><td><span class="sw" style="background:#F1EEF7"></span><code>#F1EEF7</code></td><td>6.36 : 1</td></tr><tr><td>Claro · texto del botón / botón</td><td><span class="sw" style="background:#F5F3FF"></span><code>#F5F3FF</code></td><td><span class="sw" style="background:#7008E7"></span><code>#7008E7</code></td><td>6.65 : 1</td></tr><tr><td>Claro · danger texto / tinte 10 %</td><td><span class="sw" style="background:#A9000C"></span><code>#A9000C</code></td><td><span class="sw" style="background:#F6E6E7"></span><code>#F6E6E7</code></td><td>6.46 : 1</td></tr><tr><td>Claro · danger texto / franja 6 %</td><td><span class="sw" style="background:#A9000C"></span><code>#A9000C</code></td><td><span class="sw" style="background:#FAF0F0"></span><code>#FAF0F0</code></td><td>6.98 : 1</td></tr><tr><td>Claro · danger relleno / texto</td><td><span class="sw" style="background:#FFFFFF"></span><code>#FFFFFF</code></td><td><span class="sw" style="background:#A9000C"></span><code>#A9000C</code></td><td>7.80 : 1</td></tr><tr><td>Claro · info texto / tinte 10 %</td><td><span class="sw" style="background:#0055A9"></span><code>#0055A9</code></td><td><span class="sw" style="background:#E6EEF6"></span><code>#E6EEF6</code></td><td>6.24 : 1</td></tr><tr><td>Claro · info texto / franja 6 %</td><td><span class="sw" style="background:#0055A9"></span><code>#0055A9</code></td><td><span class="sw" style="background:#F0F5FA"></span><code>#F0F5FA</code></td><td>6.67 : 1</td></tr><tr><td>Claro · info relleno / texto</td><td><span class="sw" style="background:#FFFFFF"></span><code>#FFFFFF</code></td><td><span class="sw" style="background:#0055A9"></span><code>#0055A9</code></td><td>7.31 : 1</td></tr><tr><td>Claro · primary texto / tinte 10 %</td><td><span class="sw" style="background:#7008E7"></span><code>#7008E7</code></td><td><span class="sw" style="background:#F1E6FD"></span><code>#F1E6FD</code></td><td>6.07 : 1</td></tr><tr><td>Claro · primary texto / franja 6 %</td><td><span class="sw" style="background:#7008E7"></span><code>#7008E7</code></td><td><span class="sw" style="background:#F6F0FE"></span><code>#F6F0FE</code></td><td>6.54 : 1</td></tr><tr><td>Claro · primary relleno / texto</td><td><span class="sw" style="background:#FFFFFF"></span><code>#FFFFFF</code></td><td><span class="sw" style="background:#7008E7"></span><code>#7008E7</code></td><td>7.30 : 1</td></tr><tr><td>Claro · review texto / tinte 10 %</td><td><span class="sw" style="background:#844C00"></span><code>#844C00</code></td><td><span class="sw" style="background:#F3EDE6"></span><code>#F3EDE6</code></td><td>5.99 : 1</td></tr><tr><td>Claro · review texto / franja 6 %</td><td><span class="sw" style="background:#844C00"></span><code>#844C00</code></td><td><span class="sw" style="background:#F8F4F0"></span><code>#F8F4F0</code></td><td>6.37 : 1</td></tr><tr><td>Claro · review relleno / texto</td><td><span class="sw" style="background:#FFFFFF"></span><code>#FFFFFF</code></td><td><span class="sw" style="background:#844C00"></span><code>#844C00</code></td><td>6.97 : 1</td></tr><tr><td>Claro · success texto / tinte 10 %</td><td><span class="sw" style="background:#006B30"></span><code>#006B30</code></td><td><span class="sw" style="background:#E6F0EA"></span><code>#E6F0EA</code></td><td>5.73 : 1</td></tr><tr><td>Claro · success texto / franja 6 %</td><td><span class="sw" style="background:#006B30"></span><code>#006B30</code></td><td><span class="sw" style="background:#F0F6F3"></span><code>#F0F6F3</code></td><td>6.10 : 1</td></tr><tr><td>Claro · success relleno / texto</td><td><span class="sw" style="background:#FFFFFF"></span><code>#FFFFFF</code></td><td><span class="sw" style="background:#006B30"></span><code>#006B30</code></td><td>6.68 : 1</td></tr><tr><td>Claro · «Obligatorio» / tinte neutro</td><td><span class="sw" style="background:#6B6480"></span><code>#6B6480</code></td><td><span class="sw" style="background:#F0F0F2"></span><code>#F0F0F2</code></td><td>4.91 : 1</td></tr><tr><td>Oscuro · texto / tarjeta</td><td><span class="sw" style="background:#F6F2FF"></span><code>#F6F2FF</code></td><td><span class="sw" style="background:#15121F"></span><code>#15121F</code></td><td>16.75 : 1</td></tr><tr><td>Oscuro · secundario / página (pie de 01)</td><td><span class="sw" style="background:#A79FBF"></span><code>#A79FBF</code></td><td><span class="sw" style="background:#0C0912"></span><code>#0C0912</code></td><td>7.86 : 1</td></tr><tr><td>Oscuro · secundario / superficie tranquila (pie de 02)</td><td><span class="sw" style="background:#A79FBF"></span><code>#A79FBF</code></td><td><span class="sw" style="background:#171226"></span><code>#171226</code></td><td>7.26 : 1</td></tr><tr><td>Oscuro · enlace / página</td><td><span class="sw" style="background:#A28CED"></span><code>#A28CED</code></td><td><span class="sw" style="background:#0C0912"></span><code>#0C0912</code></td><td>7.06 : 1</td></tr><tr><td>Oscuro · enlace / superficie tranquila</td><td><span class="sw" style="background:#A28CED"></span><code>#A28CED</code></td><td><span class="sw" style="background:#171226"></span><code>#171226</code></td><td>6.53 : 1</td></tr><tr><td>Oscuro · texto del botón / botón</td><td><span class="sw" style="background:#F5F3FF"></span><code>#F5F3FF</code></td><td><span class="sw" style="background:#5D0EC0"></span><code>#5D0EC0</code></td><td>8.36 : 1</td></tr><tr><td>Oscuro · danger texto / tinte 10 %</td><td><span class="sw" style="background:#FF8482"></span><code>#FF8482</code></td><td><span class="sw" style="background:#2C1D29"></span><code>#2C1D29</code></td><td>6.75 : 1</td></tr><tr><td>Oscuro · danger texto / franja 6 %</td><td><span class="sw" style="background:#FF8482"></span><code>#FF8482</code></td><td><span class="sw" style="background:#231925"></span><code>#231925</code></td><td>7.17 : 1</td></tr><tr><td>Oscuro · danger relleno / texto</td><td><span class="sw" style="background:#15121F"></span><code>#15121F</code></td><td><span class="sw" style="background:#FF8482"></span><code>#FF8482</code></td><td>7.80 : 1</td></tr><tr><td>Oscuro · info texto / tinte 10 %</td><td><span class="sw" style="background:#71BFFF"></span><code>#71BFFF</code></td><td><span class="sw" style="background:#1E2335"></span><code>#1E2335</code></td><td>7.87 : 1</td></tr><tr><td>Oscuro · info texto / franja 6 %</td><td><span class="sw" style="background:#71BFFF"></span><code>#71BFFF</code></td><td><span class="sw" style="background:#1B1C2C"></span><code>#1B1C2C</code></td><td>8.49 : 1</td></tr><tr><td>Oscuro · info relleno / texto</td><td><span class="sw" style="background:#15121F"></span><code>#15121F</code></td><td><span class="sw" style="background:#71BFFF"></span><code>#71BFFF</code></td><td>9.31 : 1</td></tr><tr><td>Oscuro · primary texto / tinte 10 %</td><td><span class="sw" style="background:#A28CED"></span><code>#A28CED</code></td><td><span class="sw" style="background:#231E34"></span><code>#231E34</code></td><td>5.75 : 1</td></tr><tr><td>Oscuro · primary texto / franja 6 %</td><td><span class="sw" style="background:#A28CED"></span><code>#A28CED</code></td><td><span class="sw" style="background:#1D192B"></span><code>#1D192B</code></td><td>6.13 : 1</td></tr><tr><td>Oscuro · primary relleno / texto</td><td><span class="sw" style="background:#15121F"></span><code>#15121F</code></td><td><span class="sw" style="background:#A28CED"></span><code>#A28CED</code></td><td>6.60 : 1</td></tr><tr><td>Oscuro · review texto / tinte 10 %</td><td><span class="sw" style="background:#EFBA64"></span><code>#EFBA64</code></td><td><span class="sw" style="background:#2B2326"></span><code>#2B2326</code></td><td>8.66 : 1</td></tr><tr><td>Oscuro · review texto / franja 6 %</td><td><span class="sw" style="background:#EFBA64"></span><code>#EFBA64</code></td><td><span class="sw" style="background:#221C23"></span><code>#221C23</code></td><td>9.44 : 1</td></tr><tr><td>Oscuro · review relleno / texto</td><td><span class="sw" style="background:#15121F"></span><code>#15121F</code></td><td><span class="sw" style="background:#EFBA64"></span><code>#EFBA64</code></td><td>10.44 : 1</td></tr><tr><td>Oscuro · success texto / tinte 10 %</td><td><span class="sw" style="background:#63D18F"></span><code>#63D18F</code></td><td><span class="sw" style="background:#1D252A"></span><code>#1D252A</code></td><td>8.18 : 1</td></tr><tr><td>Oscuro · success texto / franja 6 %</td><td><span class="sw" style="background:#63D18F"></span><code>#63D18F</code></td><td><span class="sw" style="background:#1A1D26"></span><code>#1A1D26</code></td><td>8.85 : 1</td></tr><tr><td>Oscuro · success relleno / texto</td><td><span class="sw" style="background:#15121F"></span><code>#15121F</code></td><td><span class="sw" style="background:#63D18F"></span><code>#63D18F</code></td><td>9.71 : 1</td></tr><tr><td>Oscuro · «Obligatorio» / tinte neutro</td><td><span class="sw" style="background:#A79FBF"></span><code>#A79FBF</code></td><td><span class="sw" style="background:#24202F"></span><code>#24202F</code></td><td>6.32 : 1</td></tr></tbody></table></div>
+<div class="card box"><h3>Por aprobar antes de implementar</h3><ul>
+<li>La dirección (01, 02 o 03).</li>
+<li>Microcopia nueva: antetítulos de familia, «Vencida», «Vence pronto», «Obligatorio».</li>
+<li>Dirección postal de PeopleFlow para la línea legal y dominio del remitente.</li>
+<li>Si se quiere logo en imagen: exportar el wordmark a PNG @2x (256 × 64) claro; la versión oscura no se puede garantizar, por eso el texto vivo es la opción por defecto.</li>
+<li>Opcional (no está en la copia acordada): enlace de respaldo bajo el botón («¿No funciona el botón? Copia este enlace»).</li></ul></div>
+</div>
+</main>
+<script type="application/json" id="emails">{}</script>
+<script>
+const DATA = JSON.parse(document.getElementById('emails').textContent);
+function paint(theme){
+  document.documentElement.dataset.theme = theme;
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.theme===theme)));
+  document.querySelectorAll('iframe[data-mail]').forEach(f=>{
+    let html = DATA[f.dataset.mail];
+    if(theme==='dark') html = html.replace('<html lang="es-MX"', '<html class="pf-dark" lang="es-MX"');
+    f.onload = ()=>{ const d=f.contentDocument; const a=d.querySelector('[role=article]'); f.style.height = Math.ceil(a.getBoundingClientRect().height)+'px'; };
+    f.srcdoc = html;
+  });
+}
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>paint(b.dataset.theme)));
+paint('light');
+</script></body></html>
