@@ -140,7 +140,8 @@ client IP (`X-PF-Proxy-Secret`, `X-PF-Client-IP`, plus the user agent) from `aud
 - `client.ts`: `getUnsubscribe({token, incoming})` (`GET /v2/notifications/unsubscribe?token=`, never mutates) and
   `postUnsubscribe({token, incoming, body, contentType})` (same URL, raw body ≤ 1 KiB, default content type
   `application/x-www-form-urlencoded`). Both answer `{type, channel: "email", enabled, company {id, name} | null}`
-  (`unsubscribeStateSchema`). A token outside 1–512 characters of `[A-Za-z0-9_.-]` (`isUnsubscribeTokenShape`) is
+  (`unsubscribeStateSchema`). The GET parses that strictly; any POST 200 is success (the email is already off), with
+  `data: null` when the body does not parse (R4). A token outside 1–512 characters of `[A-Za-z0-9_.-]` (`isUnsubscribeTokenShape`) is
   refused as an invalid link and a body over 1 KiB as the backend's 413, both without a request. This is the client's
   one direct `fetch` (raw body and Retry-After are beyond the shared JSON transport), listed in `requestPath.test.ts`.
 - `failure.ts`: 422 `unsubscribe_link_invalid` (or a malformed token) → `unsubscribe_link_invalid`; 429 → `rate_limited`
@@ -150,7 +151,7 @@ client IP (`X-PF-Proxy-Secret`, `X-PF-Client-IP`, plus the user agent) from `aud
   methods 405 (`Allow: POST`); no Origin or `sec-fetch-site` check. Answers 200 `{ok: true}`, 422
   `{code: "unsubscribe_link_invalid"}`, 429 `{code: "rate_limited"}` with Retry-After, 413
   `{code: "payload_too_large"}` (oversized bodies never reach the API), 502 `{code: "unavailable"}` for 5xx / network;
-  never the token or the backend body. Every answer: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`.
+  never the token or the backend body. Any backend 200 answers 200 `{ok: true}`, even an unparseable one. Every answer: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`.
 - Landing `/notificaciones/baja?token=` (`ui/unsubscribe-page.tsx` server side, `ui/unsubscribe-landing.tsx` client,
   wording in `unsubscribe-copy.ts`): the GET shows «Dejar de recibir por correo: {tipo}» (+ « de {empresa}») with the
   «Mis preferencias» type titles; «Dejar de recibir» runs an inline Server Action (token kept in the encrypted closure)
@@ -158,7 +159,14 @@ client IP (`X-PF-Proxy-Secret`, `X-PF-Client-IP`, plus the user agent) from `aud
   already off «Ya no recibes este tipo de correo.» (both link «Ajustar mis preferencias» to the company page when the
   link has a company, otherwise the candidate page), invalid «Este enlace ya no es válido.» with both preferences links,
   429 «Demasiados intentos. Inténtalo en unos minutos.», 5xx / network a generic «Reintentar» (page refresh, still GET).
-  A failed confirm keeps the button for a retry. `middleware.ts` sends the page with no-referrer and no-store.
+  A POST 200 whose body does not parse still shows the success (it needs only the GET's scope). A failed confirm keeps
+  the button: a 429 adds «No se cambió nada.», but a timeout, network failure or 5xx (`unconfirmed`, the backend may have
+  applied it) says «No pudimos confirmar si se aplicó. Volver a intentarlo es seguro.» and the button turns «Reintentar»
+  (the POST again; it is idempotent). «No se cambió nada.» appears only where it is certain: 422, 429, the GET.
+- Server logs (`unsubscribe-log.ts`, prefix `[notifications/unsubscribe]`, console — `lib/` has no logger): one
+  `console.error` with `{reason, status}` on the route's 502 and on the landing's read error / unconfirmed confirm, and a
+  one-time `console.warn` when proxy forwarding is disabled (no `AUDIT_PROXY_SECRET`) and `NODE_ENV` is neither
+  `development` nor `test`. Never the token, a body, headers, the client IP or the secret. `middleware.ts` sends the page with no-referrer and no-store.
 - Production requirement: `AUDIT_PROXY_SECRET` (and the right `AUDIT_TRUSTED_PROXY_HOPS`) must be set; without the
   secret no client IP reaches the backend and its per-IP invalid-token limiter would see the BFF address for everyone.
   With several instances, set `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` so the landing's confirm action works across them.

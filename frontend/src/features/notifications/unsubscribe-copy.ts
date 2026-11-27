@@ -33,6 +33,8 @@ export const UNSUBSCRIBE_COPY = {
   rateLimitedNote: "No se cambió nada.",
   loadError: "No pudimos abrir este enlace.",
   retryNote: "No se cambió nada. Inténtalo de nuevo.",
+  /** The confirm POST timed out, lost the network or got a 5xx: the backend may have applied it (R4). */
+  unconfirmed: "No pudimos confirmar si se aplicó. Volver a intentarlo es seguro.",
   retry: "Reintentar",
 } as const;
 

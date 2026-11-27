@@ -1,6 +1,7 @@
 import { BodyTooLarge, readBoundedBody } from "@/features/candidate-cvs/bounded-body";
 import { postUnsubscribe, UNSUBSCRIBE_MAX_BODY_BYTES } from "@/features/notifications/client";
 import { toNotificationFailure } from "@/features/notifications/failure";
+import { logUnsubscribeFailure } from "@/features/notifications/unsubscribe-log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -27,11 +28,13 @@ export async function POST(request: Request) {
     return answer(400, { code: "invalid_request" });
   }
   const result = await postUnsubscribe({ token, incoming: request.headers, body, contentType: request.headers.get("content-type") });
+  // Any backend 200 is committed, even when its body does not parse (R4).
   if (result.ok) return answer(200, { ok: true });
   const failure = toNotificationFailure(result);
   if (failure.reason === "unsubscribe_link_invalid") return answer(422, { code: "unsubscribe_link_invalid" });
   if (failure.reason === "rate_limited") return answer(429, { code: "rate_limited" }, failure.retryAfter ? { "Retry-After": failure.retryAfter } : {});
   if (failure.reference.status === 413) return answer(413, { code: "payload_too_large" });
+  logUnsubscribeFailure("one_click", failure);
   return answer(502, { code: "unavailable" });
 }
 

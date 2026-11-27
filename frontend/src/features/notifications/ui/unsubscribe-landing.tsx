@@ -12,8 +12,11 @@ import { UNSUBSCRIBE_COPY as COPY, unsubscribePreferencesLinks } from "../unsubs
 export type UnsubscribeView =
   | { kind: "ready"; heading: string; scope: NotificationScope; enabled: boolean }
   | { kind: "invalid" } | { kind: "rate_limited" } | { kind: "error" };
-/** What the confirm (server action → backend POST) answered. */
-export type ConfirmOutcome = "done" | "invalid" | "rate_limited" | "error";
+/**
+ * What the confirm (server action → backend POST) answered. `unconfirmed`: timeout, network or 5xx, so the email may
+ * already be off; only `invalid` and `rate_limited` are certain that nothing changed (R4).
+ */
+export type ConfirmOutcome = "done" | "invalid" | "rate_limited" | "unconfirmed";
 
 function InvalidLink() {
   const [company, candidate] = unsubscribePreferencesLinks();
@@ -38,14 +41,13 @@ export function UnsubscribeLanding({ view, confirmAction }: { view: UnsubscribeV
   if (!view.enabled) return <StateCard icon={MailCheck} tone="info" title={COPY.alreadyOff} description={COPY.alreadyOffNote} primaryAction={adjust} />;
   const confirm = () => startTransition(async () => {
     setOutcome(null);
-    const next = await (confirmAction?.() ?? Promise.resolve<ConfirmOutcome>("error")).catch((): ConfirmOutcome => "error");
+    const next = await (confirmAction?.() ?? Promise.resolve<ConfirmOutcome>("unconfirmed")).catch((): ConfirmOutcome => "unconfirmed");
     setOutcome(next);
   });
   return <StateCard icon={MailX} tone="info" title={view.heading}
     description={<><span className="block">{COPY.currentlyOn}</span><span className="block">{COPY.scopeNote}</span></>}
-    primaryAction={{ label: pending ? COPY.confirming : COPY.confirm, onClick: confirm, disabled: pending }}>
-    {(outcome === "rate_limited" || outcome === "error") && <p role="alert" className="text-sm text-destructive">
-      {outcome === "rate_limited" ? COPY.rateLimited : COPY.retryNote}
-    </p>}
+    primaryAction={{ label: pending ? COPY.confirming : outcome === "unconfirmed" ? COPY.retry : COPY.confirm, onClick: confirm, disabled: pending }}>
+    {outcome === "rate_limited" && <p role="alert" className="text-sm text-destructive">{COPY.rateLimited} {COPY.rateLimitedNote}</p>}
+    {outcome === "unconfirmed" && <p role="alert" className="text-sm text-destructive">{COPY.unconfirmed}</p>}
   </StateCard>;
 }

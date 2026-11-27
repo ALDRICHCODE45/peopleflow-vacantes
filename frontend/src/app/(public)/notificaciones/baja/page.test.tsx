@@ -25,7 +25,7 @@ const show = async (...args: [] | [string | string[] | undefined]) => {
 const link = (name: string) => screen.getByRole("link", { name });
 
 beforeEach(() => { vi.clearAllMocks(); fetchMock.mockReset(); vi.stubGlobal("fetch", fetchMock); vi.stubEnv("AUDIT_PROXY_SECRET", SECRET); });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 it("is never indexed, never cached and sends no referrer", () => {
   expect(metadata).toMatchObject({ robots: { index: false, follow: false }, referrer: "no-referrer" });
@@ -80,14 +80,44 @@ describe("valid link", () => {
   });
 
   it.each([
-    [() => envelope(429, "rate_limited", { "retry-after": "60" }), "Demasiados intentos. Inténtalo en unos minutos."],
-    [() => envelope(503, "internal_error"), "No se cambió nada. Inténtalo de nuevo."],
-  ])("keeps the confirm button for a retry when the POST fails", async (answer, message) => {
+    ["a malformed state", () => Response.json(state({ channel: "in_app" }))],
+    ["a body that is not JSON", () => new Response("<html>ok</html>", { status: 200 })],
+  ])("shows the success for a POST 200 with %s, the email is already off (R4)", async (_, answer) => {
     fetchMock.mockResolvedValueOnce(Response.json(state())).mockResolvedValueOnce(answer());
     await show();
     await userEvent.click(screen.getByRole("button", { name: "Dejar de recibir" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(await screen.findByRole("heading", { name: "Listo. Ya no recibirás este tipo de correo." })).toBeInTheDocument();
+    expect(link("Ajustar mis preferencias")).toHaveAttribute("href", "/empresa/configuracion/notificaciones");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps the confirm button and says nothing changed when the POST is rate limited", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(state())).mockResolvedValueOnce(envelope(429, "rate_limited", { "retry-after": "60" }));
+    await show();
+    await userEvent.click(screen.getByRole("button", { name: "Dejar de recibir" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Demasiados intentos. Inténtalo en unos minutos.");
+    expect(alert).toHaveTextContent("No se cambió nada.");
     expect(screen.getByRole("button", { name: "Dejar de recibir" })).toBeEnabled();
+  });
+
+  it.each([
+    ["a 5xx", () => envelope(503, "internal_error")],
+    ["a network failure", () => Promise.reject(new TypeError("fetch failed"))],
+    ["a timeout", () => Promise.reject(new DOMException("The operation timed out.", "TimeoutError"))],
+  ])("does not claim nothing changed after %s on the POST and offers a safe retry (R4)", async (_, answer) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchMock.mockResolvedValueOnce(Response.json(state())).mockImplementationOnce(answer)
+      .mockResolvedValueOnce(Response.json(state({ enabled: false })));
+    await show();
+    await userEvent.click(screen.getByRole("button", { name: "Dejar de recibir" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("No pudimos confirmar si se aplicó. Volver a intentarlo es seguro.");
+    expect(document.body).not.toHaveTextContent("No se cambió nada");
+    expect(JSON.stringify(error.mock.calls)).not.toContain(TOKEN);
+    await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("heading", { name: "Listo. Ya no recibirás este tipo de correo." })).toBeInTheDocument();
+    expect(methods()).toEqual(["GET", "POST", "POST"]);
   });
 
   it("shows the invalid link when the POST says the link is no longer valid", async () => {
@@ -95,6 +125,7 @@ describe("valid link", () => {
     await show();
     await userEvent.click(screen.getByRole("button", { name: "Dejar de recibir" }));
     expect(await screen.findByRole("heading", { name: "Este enlace ya no es válido." })).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("No pudimos confirmar");
   });
 });
 

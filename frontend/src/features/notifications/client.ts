@@ -10,6 +10,7 @@ import {
   type NotificationPage, type NotificationPreferences, type NotificationScope, type NotificationState, type NotificationType,
   type PreferenceEntry, type UnmarkTarget, type UnreadCount, type UnsubscribeState, unsubscribeStateSchema,
 } from "./model";
+import { warnForwardingDisabled } from "./unsubscribe-log";
 
 /** Fixed base path per scope (L14); anything outside the enum is refused before a request. Default: company. */
 const PATHS: Readonly<Record<NotificationScope, string>> = Object.freeze({
@@ -275,9 +276,10 @@ const invalidLink: NotificationClientFailure = { ok: false, error: { kind: "inva
 /** The backend's own answer to an oversized body, given locally without a request. */
 const tooLarge: NotificationClientFailure = { ok: false, error: { kind: "status", retryable: false, status: 413 } };
 
-async function unsubscribeRequest(
-  input: UnsubscribeInput, init: { method: "GET" } | { method: "POST"; body: Uint8Array; contentType?: string | null },
-): ClientResult<UnsubscribeState> {
+type UnsubscribeInit = { method: "GET" } | { method: "POST"; body: Uint8Array; contentType?: string | null };
+async function unsubscribeRequest(input: UnsubscribeInput, init: { method: "GET" }): ClientResult<UnsubscribeState>;
+async function unsubscribeRequest(input: UnsubscribeInput, init: UnsubscribeInit): ClientResult<UnsubscribeState | null>;
+async function unsubscribeRequest(input: UnsubscribeInput, init: UnsubscribeInit): ClientResult<UnsubscribeState | null> {
   if (!isUnsubscribeTokenShape(input.token)) return invalidLink;
   if (init.method === "POST" && init.body.byteLength > UNSUBSCRIBE_MAX_BODY_BYTES) return tooLarge;
   try {
@@ -286,6 +288,7 @@ async function unsubscribeRequest(
     const url = new URL(`${UNSUBSCRIBE_PATH}?${new URLSearchParams({ token: input.token })}`, origin);
     if (url.origin !== origin.origin || !["http:", "https:"].includes(url.protocol)) return invalidRequest;
     const forwarding = parseAuditForwardEnv(process.env);
+    if (!forwarding) warnForwardingDisabled();
     const headers = new Headers({ accept: "application/json", ...(forwarding ? auditForwardHeaders({ ...forwarding, apiOrigin: origin.origin }, input.incoming) : {}) });
     if (init.method === "POST") headers.set("content-type", init.contentType && CONTENT_TYPE.test(init.contentType) ? init.contentType : "application/x-www-form-urlencoded");
     const signal = AbortSignal.timeout(serverEnv.apiTimeoutMs);
@@ -296,7 +299,11 @@ async function unsubscribeRequest(
     const status = response.status;
     if (status === 200) {
       try { return { ok: true, data: unsubscribeStateSchema.parse(await boundedJson(response, 8192, signal)) }; }
-      catch { return { ok: false, error: { kind: "invalid_response", retryable: false } }; }
+      catch {
+        // A POST 200 has already turned the email off: report it as done, only without the state (R4).
+        if (init.method === "POST") { void response.body?.cancel().catch(() => {}); return { ok: true, data: null }; }
+        return { ok: false, error: { kind: "invalid_response", retryable: false } };
+      }
     }
     if (response.ok) { void response.body?.cancel().catch(() => {}); return { ok: false, error: { kind: "invalid_response", retryable: false } }; }
     let envelope: NotificationErrorEnvelope | undefined;
@@ -314,6 +321,9 @@ async function unsubscribeRequest(
 /** `GET …/unsubscribe?token=` — the link's current state; never changes anything. */
 export const getUnsubscribe = (input: UnsubscribeInput): ClientResult<UnsubscribeState> => unsubscribeRequest(input, { method: "GET" });
 
-/** `POST …/unsubscribe?token=` with the raw body (≤ 1 KiB) — turns the email off; idempotent. */
-export const postUnsubscribe = (input: UnsubscribeInput & { body: Uint8Array; contentType?: string | null }): ClientResult<UnsubscribeState> =>
+/**
+ * `POST …/unsubscribe?token=` with the raw body (≤ 1 KiB) — turns the email off; idempotent. Any 200 is success: the
+ * state when it parses, otherwise `null` (the mutation is committed either way).
+ */
+export const postUnsubscribe = (input: UnsubscribeInput & { body: Uint8Array; contentType?: string | null }): ClientResult<UnsubscribeState | null> =>
   unsubscribeRequest(input, { method: "POST", body: input.body, contentType: input.contentType });

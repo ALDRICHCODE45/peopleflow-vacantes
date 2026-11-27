@@ -106,6 +106,20 @@ describe("POST /v2/notifications/unsubscribe", () => {
     expect(!second.ok && toNotificationFailure(second)).toEqual({ ok: false, reason: "rate_limited", reference: { status: 429, code: "rate_limited" } });
   });
 
+  it.each([
+    ["a malformed state", () => Response.json(state({ channel: "in_app" }))],
+    ["a body that is not JSON", () => new Response("<html>ok</html>", { status: 200, headers: { "content-type": "text/html" } })],
+  ])("treats a 200 with %s as committed: success without the state (R4)", async (_, answer) => {
+    fetchMock.mockResolvedValue(answer());
+    expect(await postUnsubscribe({ token: TOKEN, incoming: incoming(), body: new Uint8Array() })).toEqual({ ok: true, data: null });
+  });
+
+  it("keeps the strict parse on the GET 200", async () => {
+    fetchMock.mockResolvedValue(new Response("<html>ok</html>", { status: 200 }));
+    const result = await getUnsubscribe({ token: TOKEN, incoming: incoming() });
+    expect(!result.ok && toNotificationFailure(result).reason).toBe("unrecognized_response");
+  });
+
   it("drops an unknown code and maps a network failure to no_response", async () => {
     fetchMock.mockResolvedValueOnce(envelope(422, "something_else"));
     const unknown = await postUnsubscribe({ token: TOKEN, incoming: incoming(), body: new Uint8Array() });
@@ -113,5 +127,45 @@ describe("POST /v2/notifications/unsubscribe", () => {
     fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
     const network = await postUnsubscribe({ token: TOKEN, incoming: incoming(), body: new Uint8Array() });
     expect(!network.ok && toNotificationFailure(network).reason).toBe("no_response");
+  });
+});
+
+describe("disabled proxy forwarding warning (R4)", () => {
+  const load = async () => { vi.resetModules(); return await import("./client"); };
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("warns once, without the token, when the secret is missing outside development", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("AUDIT_PROXY_SECRET", "");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = await load();
+    fetchMock.mockImplementation(async () => Response.json(state()));
+    await client.getUnsubscribe({ token: TOKEN, incoming: incoming() });
+    await client.postUnsubscribe({ token: TOKEN, incoming: incoming(), body: new Uint8Array() });
+    expect(warn).toHaveBeenCalledOnce();
+    const line = JSON.stringify(warn.mock.calls);
+    expect(line).toContain("[notifications/unsubscribe]");
+    expect(line).toContain("AUDIT_PROXY_SECRET");
+    expect(line).not.toContain(TOKEN);
+    expect(line).not.toContain("203.0.113.7");
+  });
+
+  it.each(["development", "test"])("stays quiet in %s", async env => {
+    vi.stubEnv("NODE_ENV", env);
+    vi.stubEnv("AUDIT_PROXY_SECRET", "");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = await load();
+    fetchMock.mockResolvedValue(Response.json(state()));
+    await client.getUnsubscribe({ token: TOKEN, incoming: incoming() });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet in production when forwarding is configured", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = await load();
+    fetchMock.mockResolvedValue(Response.json(state()));
+    await client.getUnsubscribe({ token: TOKEN, incoming: incoming() });
+    expect(warn).not.toHaveBeenCalled();
   });
 });

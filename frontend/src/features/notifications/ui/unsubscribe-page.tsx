@@ -1,28 +1,31 @@
 import "server-only";
 import { headers } from "next/headers";
-import { getUnsubscribe, isUnsubscribeTokenShape, postUnsubscribe } from "../client";
+import { getUnsubscribe, isUnsubscribeTokenShape, postUnsubscribe, type NotificationClientFailure } from "../client";
 import { toNotificationFailure } from "../failure";
-import type { UnsubscribeResult } from "../model";
+import type { NotificationFailure, UnsubscribeState } from "../model";
 import { unsubscribeHeading, unsubscribeScope } from "../unsubscribe-copy";
+import { logUnsubscribeFailure } from "../unsubscribe-log";
 import { UnsubscribeLanding, type ConfirmOutcome, type UnsubscribeView } from "./unsubscribe-landing";
 
 /** The same RFC 8058 body a mail provider sends, so the backend sees one kind of POST. */
 const ONE_CLICK_BODY = new TextEncoder().encode("List-Unsubscribe=One-Click");
 
-async function settle(run: () => Promise<Awaited<ReturnType<typeof getUnsubscribe>>>): Promise<UnsubscribeResult> {
+type Settled<T> = { ok: true; data: T } | NotificationFailure;
+async function settle<T>(run: () => Promise<{ ok: true; data: T } | NotificationClientFailure>): Promise<Settled<T>> {
   try {
     const result = await run();
     return result.ok ? result : toNotificationFailure(result);
   } catch { return { ok: false, reason: "no_response", reference: {} }; }
 }
 
-function viewOf(result: UnsubscribeResult): UnsubscribeView {
+function viewOf(result: Settled<UnsubscribeState>): UnsubscribeView {
   if (result.ok) {
     const company = result.data.company?.name ?? null;
     return { kind: "ready", heading: unsubscribeHeading(result.data.type, company), scope: unsubscribeScope(company), enabled: result.data.enabled };
   }
   if (result.reason === "unsubscribe_link_invalid") return { kind: "invalid" };
   if (result.reason === "rate_limited") return { kind: "rate_limited" };
+  logUnsubscribeFailure("landing_read", result);
   return { kind: "error" };
 }
 
@@ -37,10 +40,14 @@ export async function UnsubscribePage({ token }: { token: string | null }) {
   const view = valid ? viewOf(await settle(async () => getUnsubscribe({ token, incoming: await headers() }))) : { kind: "invalid" as const };
   async function confirmAction(): Promise<ConfirmOutcome> {
     "use server";
+    // Any backend 200 is done, even without a parsed state: the success screen needs only the GET's scope (R4).
     const result = await settle(async () => postUnsubscribe({ token, incoming: await headers(), body: ONE_CLICK_BODY }));
     if (result.ok) return "done";
     if (result.reason === "unsubscribe_link_invalid") return "invalid";
-    return result.reason === "rate_limited" ? "rate_limited" : "error";
+    if (result.reason === "rate_limited") return "rate_limited";
+    // Timeout, network, 5xx or a contract break: the backend may have applied it, so never «No se cambió nada».
+    logUnsubscribeFailure("landing_confirm", result);
+    return "unconfirmed";
   }
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/30 p-4">

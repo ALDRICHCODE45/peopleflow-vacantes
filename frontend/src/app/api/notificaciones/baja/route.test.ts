@@ -34,7 +34,7 @@ async function expectPrivate(response: Response) {
 }
 
 beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal("fetch", fetchMock); vi.stubEnv("AUDIT_PROXY_SECRET", SECRET); vi.stubEnv("AUDIT_TRUSTED_PROXY_HOPS", "0"); });
-afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 describe("POST /api/notificaciones/baja (RFC 8058 one-click, L23)", () => {
   it("forwards the raw body and proxy headers, never cookies or authorization, and answers 200", async () => {
@@ -104,6 +104,32 @@ describe("POST /api/notificaciones/baja (RFC 8058 one-click, L23)", () => {
     const response = await route.POST(post());
     expect(response.status).toBe(413);
     expect(JSON.parse(await expectPrivate(response))).toEqual({ code: "payload_too_large" });
+  });
+
+  it.each([
+    ["a malformed state", () => Response.json({ ...state, channel: "in_app" })],
+    ["a body that is not JSON", () => new Response("<html>ok</html>", { status: 200 })],
+  ])("answers 200 for a backend 200 with %s: the email is already off (R4)", async (_, answer) => {
+    fetchMock.mockResolvedValue(answer());
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await route.POST(post());
+    expect(response.status).toBe(200);
+    expect(JSON.parse(await expectPrivate(response))).toEqual({ ok: true });
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a 5xx", () => fetchMock.mockResolvedValue(envelope(503, "internal_error")), "server_error"],
+    ["a network failure", () => fetchMock.mockRejectedValue(new TypeError(`fetch failed ${TOKEN}`)), "no_response"],
+  ])("logs %s once with the status or kind only, never the token, body, headers, IP or secret", async (_, arrange, reason) => {
+    arrange();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await route.POST(post())).status).toBe(502);
+    expect(error).toHaveBeenCalledOnce();
+    const line = JSON.stringify(error.mock.calls);
+    expect(line).toContain("[notifications/unsubscribe]");
+    expect(line).toContain(reason);
+    for (const secret of [TOKEN, SECRET, "198.51.100.4", "Gmail", "private", ONE_CLICK]) expect(line).not.toContain(secret);
   });
 
   it.each([
