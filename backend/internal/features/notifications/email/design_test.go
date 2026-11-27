@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 )
 
 // Design «03 · Centrada» (S11; design/notification-emails/03-centrada.html and
@@ -419,4 +421,34 @@ func between(s, from, to string) string {
 		return s[i:]
 	}
 	return s[i : i+j+len(to)]
+}
+
+// Without company_name each candidate template shows its own glyph from the
+// matrix vocabulary instead of initials (frontend decision, seq 16-17):
+// T15 «→», T16 «+», T17 «…».
+func TestRenderCandidateWithoutCompanyGlyphPerType(t *testing.T) {
+	want := map[domain.Type]string{
+		domain.TypeCandidateStatusChanged:   "→",
+		domain.TypeCandidateMessageReceived: "+",
+		domain.TypeCandidateTestPending:     "…",
+	}
+	seen := 0
+	for _, g := range goldens() {
+		glyph, ok := want[g.view.Type]
+		if !ok {
+			continue
+		}
+		seen++
+		g.view.CompanyName = nil
+		m, err := newTestRenderer(t, &fakeSigner{}).Render(g.view)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(html.UnescapeString(m.HTML), `aria-hidden="true">`+glyph+`</td>`) {
+			t.Fatalf("%s seal:\n%s", g.view.Type, between(m.HTML, `width="64"`, `</td>`))
+		}
+	}
+	if seen != len(want) {
+		t.Fatalf("goldens cover %d of %d candidate types", seen, len(want))
+	}
 }

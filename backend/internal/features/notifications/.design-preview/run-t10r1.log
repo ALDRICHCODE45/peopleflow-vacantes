@@ -1,0 +1,18 @@
+t1   application_received.one       F1  Nueva postulación en Analista de Nómina
+t2   application_received.many      F1  5 postulaciones nuevas en Analista de Nómina
+t3   psychometric_completed.one     F1  Prueba psicométrica completada en Ejecutivo de Ventas
+t4   psychometric_completed.many    F1  3 pruebas psicométricas completadas en Ejecutivo de Ventas
+t5   psychometric_pending.one       F1  Prueba psicométrica pendiente en Auxiliar Contable
+t6   psychometric_pending.many      F1  4 pruebas psicométricas pendientes en Auxiliar Contable
+t7   delivery_due_soon              F1  La entrega de Supervisor de Almacén vence pronto
+t8   delivery_overdue               F2  La entrega de Supervisor de Almacén está vencida
+t9   assignment_deadline_due_soon   F1  Tu fecha límite en Coordinador de Logística se acerca
+t10  assignment_deadline_overdue    F2  Venció tu fecha límite en Coordinador de Logística
+t11  vacancy_assigned               F2  Te asignaron Gerente de Recursos Humanos
+t12  vacancy_reassigned             F2  Ahora eres responsable de Coordinador de Logística
+t13  vacancy_unassigned             F2  Ya no eres responsable de Coordinador de Logística
+t14  vacancy_team_added             F2  Te agregaron al equipo de Desarrollador Backend
+t15  candidate_status_changed       F1  Tu postulación a Analista de Nómina cambió de estado
+t16  candidate_message_received     F1  Hotelera del Pacífico te dejó un mensaje
+t17  candidate_test_pending         F1  Tienes una prueba psicométrica pendiente
+sent 17 to preview+t10r1@peopleflow.test (Mailpit http://127.0.0.1:8025, tag design-preview,t10r1)

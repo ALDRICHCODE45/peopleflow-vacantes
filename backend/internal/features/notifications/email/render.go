@@ -219,7 +219,7 @@ func (r *Renderer) Render(v View) (Message, error) {
 	if cs.style.eyebrow == "" && hasCompany {
 		data.Eyebrow = vars["company_name"]
 	}
-	data.Glyph = sealGlyph(cs.style, v.Count, vars["company_name"], hasCompany)
+	data.Glyph = sealGlyph(cs.style, v.Type, v.Count, vars["company_name"], hasCompany)
 	data.GlyphSize = glyphFontSize(data.Glyph)
 	data.Mandatory = domain.Locked(v.Type)
 	data.MandatoryLabel = labelMandatory

@@ -8,6 +8,8 @@ import (
 	"strings"
 	texttemplate "text/template"
 	"unicode"
+
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 )
 
 // Visual design «03 · Centrada» (S11, user-chosen; frontend clone
@@ -60,9 +62,18 @@ const (
 const (
 	glyphCount    = "{count}"
 	glyphInitials = "{initials}"
-	// glyphNeutral stands in for the initials when company_name is missing.
+	// glyphNeutral stands in for initials that cannot be derived.
 	glyphNeutral = "…"
 )
+
+// candidateFallbackGlyphs replace the initials when a candidate email has no
+// company_name, using the matrix vocabulary per type (frontend decision,
+// 2026-11-27): status change «→», message «+», pending test «…» (as T5).
+var candidateFallbackGlyphs = map[domain.Type]string{
+	domain.TypeCandidateStatusChanged:   "→",
+	domain.TypeCandidateMessageReceived: "+",
+	domain.TypeCandidateTestPending:     "…",
+}
 
 // DefaultPostalAddress is the design's placeholder of the legal line, used
 // until NOTIFICATIONS_EMAIL_POSTAL_ADDRESS carries the real address (S11
@@ -195,9 +206,9 @@ func companyInitials(name string) string {
 }
 
 // sealGlyph resolves the glyph of a style for a delivery: the count (capped
-// at «99+»), the company initials (neutral glyph when company_name is
-// missing) or the fixed symbol.
-func sealGlyph(st templateStyle, count int, company string, hasCompany bool) string {
+// at «99+»), the company initials (the type's fallback glyph when
+// company_name is missing) or the fixed symbol.
+func sealGlyph(st templateStyle, typ domain.Type, count int, company string, hasCompany bool) string {
 	switch st.glyph {
 	case glyphCount:
 		if count > 99 {
@@ -206,6 +217,9 @@ func sealGlyph(st templateStyle, count int, company string, hasCompany bool) str
 		return strconv.Itoa(count)
 	case glyphInitials:
 		if !hasCompany {
+			if g, ok := candidateFallbackGlyphs[typ]; ok {
+				return g
+			}
 			return glyphNeutral
 		}
 		if in := companyInitials(company); in != "" {

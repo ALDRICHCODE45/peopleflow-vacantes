@@ -624,3 +624,6 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   HTML is byte-identical to the frontend samples 03-t2/t8/t12/t15/t17 once URLs are normalised (samples use numeric ids
   and `token=…`). Dark mode is client-side (not visible in Mailpit's light preview). Not done: text part has no legal line;
   backend example env file (outside the surface) lacks the new key.
+- **L26** 2026-11-27, frontend review of the design gaps (seq 16-17): candidate email without company_name must not show «…»
+  for every type — per type in violet without eyebrow: T15 «→», T16 «+», T17 «…» («✓» rejected: it means done). T4/T6
+  emphasis and initials without connectors accepted. Applied by the parent with RED observed (T15 showed «…").

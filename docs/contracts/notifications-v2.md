@@ -700,7 +700,7 @@ One closed code table keyed by template id (`email/style.go`), from the 04 matri
 «Obligatorio» is shown exactly on the mandatory (F2) types. Server-side view variables derived by the renderer (no new
 data, no names, no free text, D14): `company_initials` = first letter or digit of the first two significant words of
 `company_name` (connectors such as «de», «la», «y» skipped), upper-cased — when `company_name` is null/blank the
-candidate seal shows `…` and the eyebrow is omitted (the copy keeps «una empresa»); the `{{count}}` glyph is capped at
+candidate seal shows the type's own glyph — T15 `→`, T16 `+`, T17 `…` (frontend decision 2026-11-27) — and the eyebrow is omitted (the copy keeps «una empresa»); the `{{count}}` glyph is capped at
 `99+` (the heading keeps the full count). No API, data or copy change.
 
 ### Labels (verbatim)
