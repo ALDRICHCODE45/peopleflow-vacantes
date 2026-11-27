@@ -216,3 +216,9 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   {data:{types[]}}, nothing written. 400 validation_error fields: preferences required|empty|too_many,
   preferences[i].type|channel|enabled required|invalid, preferences[i] duplicate; null body/entry → invalid_request;
   body cap 16 KiB. in_app off has no effect until E3; no email until E4–E6. T4.2 unblocked.
+- **L22** (2026-11-27) Real-browser check of «Mis preferencias» (API ff559a7f, dev DB 69, Rodrigo + Valeria): 7/8 pass
+  (catalog and locks, save with exact PUT entries, reload, discard, restore defaults, inbox «Preferencias» link,
+  candidate page and «En proceso» badge, no console errors). Failed: at 390 px the «N cambios sin guardar» badge
+  overlapped «Descartar»; fixed in 5e89495a (text column min width so the buttons wrap below), not re-checked in a
+  browser. Both accounts left at defaults. Not triggered: 422 locked, email_deliverable false. The verifier printed
+  the dev test-account password once in session tool output — the user should rotate it.
