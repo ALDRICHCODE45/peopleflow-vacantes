@@ -402,3 +402,45 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   500 (FK), not 422. Contract unchanged (outside the surface): §Unsubscribe could note (2), (4) and the 413 order.
   Scratch logs and a throwaway probe in `backend/internal/features/notifications/.e7-logs/` (untracked, delete before
   committing).
+- **L17** 2026-11-26, E7 review fixes (native review `review-2d992714315c06a5` approved E7 at 3c6f2180 with advisories;
+  parent decided to fix now; uncommitted). (1) Kill switch keeps sent links working (R3/R4): `NOTIFICATIONS_UNSUBSCRIBE_KEYS`
+  is loaded and validated whenever present, also with `NOTIFICATIONS_MAILER=off` (invalid → startup error; absent → none);
+  still required when the mailer is not off; `newNotificationUnsubscribeSigner` builds the signer whenever keys exist;
+  `main.go` logs only the key count. (2) Limiter tables never fail closed when full: each table keeps `fresh`
+  (one-request keys, window-start order) and `held` (≥ 2 requests) lists; a new key on a full table evicts the oldest
+  fresh entry (losing at most one request of budget), a held one only when no fresh key is left; expired fronts are
+  popped per request (amortized O(1), no full sweep under the mutex). (3) Limit policy: applied by the handler after the
+  token check (the router middleware is gone; `routerDeps.notificationUnsubscribeLimit` removed, the limiter is a
+  `NewHandler` argument, nil → defaults): an invalid token counts 60 / 10 min against requestmeta's client IP, a valid
+  one 10 / 10 min against its preference key and never against the IP; limited requests never reach the store; 422 bytes
+  unchanged. A signed token whose user/company is gone counts per token (it cannot be forged at will). (4) Store
+  failures are tagged `storeError{step}` (`target_read`, `unsubscribe_upsert`, `tx`) and logged with step + SQLSTATE
+  only; 23503 during the upsert → `ErrNoTarget` (uniform 422). (5) Contract §Config keys and §Unsubscribe updated: keys
+  independent of the mailer, the two-budget policy and eviction, the one-click pass-through MUST forward
+  `X-PF-Proxy-Secret` + `X-PF-Client-IP`, 413 before the token check, membership not re-checked (row keyed by the token's
+  company), FK race = invalid, step/SQLSTATE logging; §Errors 429 and §Limits aligned. RED observed: config
+  `…LoadsUnsubscribeKeysWithTheMailerOff` (`mailer "": keys=0`) and `TestNewNotificationUnsubscribeSigner` (nil signer
+  with mailer off + keys); unsubscribe unit build failures (`PerToken`, 3-arg `NewHandler`, `storeError`,
+  `turnOffFailure`); integration against the old production code: `…ValidOneClicksAreNeverLostToTheIPBudget` got `429` on
+  the 61st valid one-click from one IP, `…ForeignKeyRaceIsTheUniformInvalid` got `500` (trigger deleting the user before
+  the insert); `…MailerOffKeepsSentLinksWorking` already passed there (item 1 was implemented first; its RED is the
+  config/composition one above). The old `TestNotificationsUnsubscribe_PerIPLimit` (60 valid requests from one client
+  then 429) encoded the superseded policy and was rewritten. GREEN, new/changed tests: limiter 7 (per-IP invalid window +
+  wait, valid per key not per IP incl. 200 distinct keys with the IP exhausted, IPv6 /64, trusted client IP / forged
+  header / XFF / no metadata, 5 000-key flood with MaxKeys 8: never refuses, table ≤ cap, newcomer admitted, exhausted
+  and half-spent clients keep their budgets, same for valid keys, budgets restart next window; full of held clients
+  still admits; zero limits refuse); handler +3 (observable 500 for GET/POST with step/SQLSTATE and no ids/token/type/DB
+  message, non-DB failure; 23503 mapping + `ErrNoTarget` → 422; policy: 200 valid one-clicks from one IP, 3 invalid →
+  identical 422 then 429 with Retry-After 600, valid still served, 3rd same-key → 429, limited requests never reach the
+  store); config +1; cmd/api unit: mailer off + keys verifies a link signed while on; integration +3 (200 one-clicks from
+  one IP → 200 rows off, then 60 invalid → 422 and the 61st → 429, valid still 200; mailer off from the real loader:
+  GET/POST work; FK race → 422, no row) and `PerIPLimit` rewritten (60 invalid per BFF client then 429, another BFF client
+  422, 10 valid with one token then 429 from any IP, forged header shares the peer bucket). Mutations (each restored
+  byte-identical), all killed: evict held before fresh, fail closed when full, no cap, valid counted per IP, invalid
+  unlimited, 23503 unmapped, log without step/SQLSTATE, mailer off ignores keys, signer only when the mailer is on.
+  Validation: `make test PKG='./internal/features/notifications/... ./internal/runtime/config/
+  ./internal/shared/httpjson/ ./cmd/api/ ./internal/tools/archguard/'` ok (14 packages, 412 top-level PASS, 0 FAIL, 0
+  SKIP); `make test-integration PKG=./internal/features/notifications/...` ok (10 packages, 142 PASS, 0/0); `make
+  test-integration PKG=./cmd/api/ RUN='^TestNotifications'` ok (28 PASS); `go tool sqlc diff` clean; `go vet ./...` clean.
+  Scratch: `backend/internal/features/notifications/.e7r-logs/` (logs + `backup.go.txt`, untracked, delete before
+  committing).
