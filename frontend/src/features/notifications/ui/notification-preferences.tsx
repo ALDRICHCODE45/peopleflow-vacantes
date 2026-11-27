@@ -182,12 +182,12 @@ function SaveBar({ changes, saving, status, onDiscard, onSave }: {
 }) {
   return <div aria-live="polite" className="sticky bottom-4 z-10 empty:hidden">
     {(changes > 0 || status) && <div className="flex flex-wrap items-center gap-3 rounded-2xl border bg-popover px-4 py-3 shadow-md">
-      <div className="min-w-0 flex-1">
+      <div className="min-w-48 flex-1">
         {status?.kind === "error" && <p role="alert" className="flex items-center gap-1.5 text-sm text-status-danger"><CircleAlert aria-hidden="true" className="size-4 shrink-0" />{status.text}</p>}
         {status?.kind === "saved" && changes === 0 && <p className="flex items-center gap-1.5 text-sm text-status-success"><Check aria-hidden="true" className="size-4" />Preferencias guardadas</p>}
         {changes > 0 && <Badge variant="review" dot>{unsavedChangesLabel(changes)}</Badge>}
       </div>
-      {changes > 0 && <div className="flex gap-2">
+      {changes > 0 && <div className="ml-auto flex shrink-0 gap-2">
         <Button type="button" variant="ghost" className="min-h-10" disabled={saving} onClick={onDiscard}>Descartar</Button>
         <Button type="button" className="min-h-10" disabled={saving} aria-busy={saving || undefined} onClick={onSave}>Guardar cambios</Button>
       </div>}
