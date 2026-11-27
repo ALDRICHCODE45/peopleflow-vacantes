@@ -7,12 +7,26 @@ import (
 )
 
 func TestNotificationErrorCodes(t *testing.T) {
-	if want := []Code{"notification_preference_locked"}; !reflect.DeepEqual(NotificationErrorCodes(), want) {
+	if want := []Code{"notification_preference_locked", "unsubscribe_link_invalid"}; !reflect.DeepEqual(NotificationErrorCodes(), want) {
 		t.Fatal(NotificationErrorCodes())
 	}
 	def := Resolve(CodeNotificationPreferenceLocked)
 	if def.Status != 422 || def.Code != CodeNotificationPreferenceLocked || def.Message != "notification preference locked" {
 		t.Fatal(def)
+	}
+	def = Resolve(CodeUnsubscribeLinkInvalid)
+	if def.Status != 422 || def.Code != CodeUnsubscribeLinkInvalid || def.Message != "unsubscribe link invalid" {
+		t.Fatal(def)
+	}
+}
+
+// notifications-v2 §Unsubscribe: every invalid token gets these exact bytes,
+// with no data.
+func TestWriteUnsubscribeLinkInvalid(t *testing.T) {
+	rec := httptest.NewRecorder()
+	WriteCatalogError(rec, Resolve(CodeUnsubscribeLinkInvalid))
+	if want := `{"error":"unsubscribe link invalid","code":"unsubscribe_link_invalid"}` + "\n"; rec.Code != 422 || rec.Body.String() != want {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }
 

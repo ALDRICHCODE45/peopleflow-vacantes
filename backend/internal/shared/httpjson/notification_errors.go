@@ -6,12 +6,22 @@ import "net/http"
 // a mandatory (locked) type × channel pair (notifications-v2 §Preferences).
 const CodeNotificationPreferenceLocked Code = "notification_preference_locked"
 
+// CodeUnsubscribeLinkInvalid answers every invalid unsubscribe token
+// (malformed, bad MAC, unknown key, expired, mandatory or foreign type, user
+// gone) with identical bytes and no data (notifications-v2 §Unsubscribe).
+const CodeUnsubscribeLinkInvalid Code = "unsubscribe_link_invalid"
+
 // NotificationErrorCodes lists the notification catalog codes.
-func NotificationErrorCodes() []Code { return []Code{CodeNotificationPreferenceLocked} }
+func NotificationErrorCodes() []Code {
+	return []Code{CodeNotificationPreferenceLocked, CodeUnsubscribeLinkInvalid}
+}
 
 func resolveNotificationError(code Code) (Definition, bool) {
-	if code == CodeNotificationPreferenceLocked {
+	switch code {
+	case CodeNotificationPreferenceLocked:
 		return Definition{code, http.StatusUnprocessableEntity, "notification preference locked"}, true
+	case CodeUnsubscribeLinkInvalid:
+		return Definition{code, http.StatusUnprocessableEntity, "unsubscribe link invalid"}, true
 	}
 	return Definition{}, false
 }
