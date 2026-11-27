@@ -25,7 +25,14 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 | A1 | S1–S4 | Map the current auth (NextAuth + Cognito, login pages, post-confirmation, user_type, company bootstrap) and the Cognito changes needed (explorer) | |
 | A2 | S1, S3, S4 | Screen design directions on the canvas (`design/embedded-auth/`): sign in, sign up (candidate / company), code, forgot password, social buttons, errors | |
 | A3 | S1–S4 | Technical design + backend needs (with the backend session) + AWS console checklist for the user (AWS stays untouched by agents) | |
-| A4 | S1–S4 | Implementation, test-first, behind the existing session model | |
+| A4 | S1–S4 | Implementation of design 01 · Panel dividido, test-first, behind the existing session model | |
+| A4.1 | S1, S2 | Server-only Cognito client (SECRET_HASH; InitiateAuth, SignUp, ConfirmSignUp, Resend, ForgotPassword, ConfirmForgotPassword) + mock Cognito fixture | |
+| A4.2 | S1–S3 | NextAuth CredentialsProvider into the same JWT cookie; refresh via REFRESH_TOKEN_AUTH; logout per session kind; OAuth scope + identity_provider with per-provider flags | |
+| A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | |
+| A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | |
+| A4.5 | S1, S4 | Company sign-up: Tu cuenta → Verifica tu correo → Tu empresa (employer-account + POST /companies) | |
+| A4.6 | S1 | ¿Olvidaste tu contraseña? request → code + new password → done | |
+| A4.7 | S1–S4 | E2e on the mock Cognito + PEM backend; retire inert-shell assertions; docs | |
 
 ## Log
 
@@ -118,3 +125,11 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   the aws-emulator stays optional for manual local exploration. Follow-ups for the frontend from the backend change:
   fixture real-responses.json:351 still says «candidate role required» (now «account role not allowed»), and any test
   pinning the audit event type count must expect 76 (EmployerAccountCreated).
+- **L11** (2026-11-27) User chose design 01 · Panel dividido, verbatim: «Me gusta mucho la primera opcion hermano,
+  evidentemente la primera opcion no tiene las animaciones que si tiene actualmente el sistema, me refiero a la
+  animacion que aparece en la parte izquierda de la pantalla de login tanto en candidatos como para empresas, esa
+  animacion hay que mantenerla tal cual esta, y ya hermano, todo lo demas me gusta mucho la opcion 1. y como esto toca
+  login, autenticacion, yo si creo necesario pasarlo por los lentes de rdd, que dices?» → the left panel keeps the
+  current FloatingLines animation unchanged for both audiences. RDD: every A4 work unit is Risk item 2 (security) → its
+  own commit, assess with escalate item 2, independent verify and native review (lenses risk, resilience, reliability;
+  readability where user-facing copy changes). Canvas handoff in progress.
