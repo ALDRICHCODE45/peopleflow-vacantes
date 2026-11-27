@@ -111,3 +111,10 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   via admin calls, backend IDENTITY_JWT_ISSUER=https://127.0.0.1:9297/<pool>, host networking); keep a small mock for
   the code-entry screens; security testing only in real AWS. Agent decision: the AWS test environment must set
   PreventUserExistenceErrors=ENABLED on the app client.
+- **L10** (2026-11-27) Backend: contract checklist gains 2c PreventUserExistenceErrors=ENABLED. The backend JWKS verifier
+  and the GetUser adapter both validate TLS, so the emulator's self-signed https can't back the real backend in e2e.
+  Agent decision: e2e uses a frontend-owned mock Cognito (InitiateAuth/SignUp/Confirm/Forgot/GetUser) in
+  tests/fixtures, signing RS256 tokens with the PEM key the backend runs with (PEM mode + the contract's GetUser stub);
+  the aws-emulator stays optional for manual local exploration. Follow-ups for the frontend from the backend change:
+  fixture real-responses.json:351 still says «candidate role required» (now «account role not allowed»), and any test
+  pinning the audit event type count must expect 76 (EmployerAccountCreated).
