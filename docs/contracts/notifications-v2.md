@@ -1,6 +1,6 @@
 # Notifications v2 (stage 2: email channel and personal preferences)
 
-Status: **Agreed — reviewed by the frontend and approved by the user (2026-11-26); not implemented yet**. Source of the request: the frontend decisions forwarded in
+Status: **Agreed — reviewed by the frontend and approved by the user (2026-11-26); implemented on `feat/notifications-v2-backend` (E1–E8), SES/AWS pending**. Source of the request: the frontend decisions forwarded in
 `odd/tasks/notifications-v2-backend.md` (S1–S9, L1; frontend feature L17–L18). Builds on
 `docs/contracts/notifications-v1.md` (stage 1, merged e6b2d501): every stage-1 rule stays unless a decision below says
 otherwise. Branch `feat/notifications-v2-backend`. Style follows `notifications-v1.md`. Every `path:line` is a backend path
