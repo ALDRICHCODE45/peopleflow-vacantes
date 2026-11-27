@@ -13,6 +13,7 @@ import (
 	texttemplate "text/template"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 	"github.com/google/uuid"
@@ -59,11 +60,15 @@ type Settings struct {
 	AppBaseURL string
 	// UnsubscribeURL is the RFC 8058 one-click URL (?token= is appended).
 	UnsubscribeURL string
+	// PostalAddress is the legal line's address
+	// (NOTIFICATIONS_EMAIL_POSTAL_ADDRESS); empty → DefaultPostalAddress.
+	PostalAddress string
 }
 
 // Renderer turns a View into a Message with the §Templates copy.
 type Renderer struct {
 	from, domain, base, unsubscribe string
+	legal                           string
 	signer                          TokenSigner
 }
 
@@ -72,7 +77,8 @@ var layoutFS embed.FS
 
 var (
 	textLayout = texttemplate.Must(texttemplate.New("layout.txt.tmpl").Option("missingkey=error").ParseFS(layoutFS, "templates/layout.txt.tmpl"))
-	htmlLayout = htmltemplate.Must(htmltemplate.New("layout.html.tmpl").Option("missingkey=error").ParseFS(layoutFS, "templates/layout.html.tmpl"))
+	htmlLayout = htmltemplate.Must(htmltemplate.New("layout.html.tmpl").Option("missingkey=error").
+			Funcs(htmltemplate.FuncMap{"mso": mso}).ParseFS(layoutFS, "templates/layout.html.tmpl"))
 )
 
 var tokenPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,512}$`)
@@ -99,7 +105,15 @@ func NewRenderer(s Settings, signer TokenSigner) (*Renderer, error) {
 	if err != nil {
 		return nil, errors.New("email: invalid unsubscribe URL")
 	}
-	return &Renderer{from: s.From, domain: addr.Address[at+1:], base: base, unsubscribe: unsubscribe, signer: signer}, nil
+	postal := strings.TrimSpace(s.PostalAddress)
+	if postal == "" {
+		postal = DefaultPostalAddress
+	}
+	if strings.IndexFunc(postal, unicode.IsControl) >= 0 || utf8.RuneCountInString(postal) > maxPostalAddressRunes {
+		return nil, errors.New("email: invalid postal address")
+	}
+	return &Renderer{from: s.From, domain: addr.Address[at+1:], base: base, unsubscribe: unsubscribe,
+		legal: "PeopleFlow · " + postal, signer: signer}, nil
 }
 
 func absoluteHTTP(v string) (string, error) {
@@ -111,12 +125,25 @@ func absoluteHTTP(v string) (string, error) {
 }
 
 // layoutData feeds both layouts; html/template escapes every field in the
-// HTML part (contextually, URLs included), the text part is literal.
+// HTML part (contextually, URLs included), the text part is literal. Body
+// and VMLButton are the only pre-built HTML: their data values are escaped
+// in Go (richBody, vmlButton). The design fields (03 · Centrada) are used by
+// the HTML part only; Tone holds constants of the tones table.
 type layoutData struct {
 	Subject, Heading, Line, Button, AppURL string
 	FooterLine                             string
 	PreferencesLabel, PreferencesURL       string
 	UnsubscribeLabel, UnsubscribeURL       string
+
+	Body                  htmltemplate.HTML
+	VMLButton             htmltemplate.HTML
+	HomeURL               string
+	Tone                  tone
+	Glyph                 string
+	GlyphSize             int
+	Eyebrow, Urgency      string
+	Mandatory             bool
+	MandatoryLabel, Legal string
 }
 
 // Render builds the Message of a delivery: template by type and group form,
@@ -173,7 +200,34 @@ func (r *Renderer) Render(v View) (Message, error) {
 		*field.out = b.String()
 	}
 
+	// Design: tone, seal, eyebrow, urgency, «Obligatorio», emphasized body.
+	cs, ok := compiledStyles[cc.spec.id]
+	if !ok {
+		return Message{}, errors.New("email: no style for the template")
+	}
+	var body strings.Builder
+	if err := cs.body.Execute(&body, vars); err != nil {
+		return Message{}, errors.New("email: body references an unknown variable")
+	}
+	if stripSentinels.Replace(body.String()) != data.Line {
+		return Message{}, errors.New("email: body markup differs from the copy line")
+	}
+	data.Body = richBody(body.String(), cs.tone)
+	data.Tone = cs.tone
+	data.Eyebrow, data.Urgency = cs.style.eyebrow, cs.style.urgency
+	hasCompany := orFallback(v.CompanyName, "") != ""
+	if cs.style.eyebrow == "" && hasCompany {
+		data.Eyebrow = vars["company_name"]
+	}
+	data.Glyph = sealGlyph(cs.style, v.Count, vars["company_name"], hasCompany)
+	data.GlyphSize = glyphFontSize(data.Glyph)
+	data.Mandatory = domain.Locked(v.Type)
+	data.MandatoryLabel = labelMandatory
+	data.HomeURL = r.base
+	data.Legal = r.legal
+
 	data.AppURL = r.base + path
+	data.VMLButton = vmlButton(data.AppURL, data.Button)
 	data.PreferencesLabel = labelPreferences
 	data.PreferencesURL = r.base + PathCandidatePreferences
 	if member {
