@@ -87,3 +87,14 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   SignUp, ConfirmSignUp, InitiateAuth USER_PASSWORD_AUTH + REFRESH_TOKEN_AUTH, ForgotPassword/Confirm, GetUser, the
   JWKS URL, plus S3 and SES; adopt it for local/CI if those pass, otherwise keep the hand-made Cognito mock (PEM) for
   e2e. Never a substitute for the real AWS test environment or for security testing.
+- **L8** (2026-11-27) Backend contract `docs/contracts/embedded-auth-v1.md` (feat/embedded-auth-backend) approved:
+  POST /v2/me/employer-account (strict {full_name} 2–120, same gate/order as candidate, response shape of GET /v2/me,
+  200 already recruiter, 409 account_exists, audit EmployerAccountCreated in the tx, label «Creó su cuenta de
+  empresa»); generalized messages «account required» / «account role not allowed» (codes unchanged); GetUser provider
+  (unsigned POST to cognito-idp with X-Amz-Target GetUser; IDENTITY_PROVIDER=cognito_getuser + IDENTITY_COGNITO_REGION;
+  IDENTITY_COGNITO_ENDPOINT only local/test loopback; provider failure 503, sub mismatch / unverified 422; 5 s, 16 KiB,
+  no redirects); e2e PEM config (aud mandatory in PEM mode) and GetUser stub shapes. Agent decision Q4: the OAuth
+  provider (still used for social login) requests scope aws.cognito.signin.user.admin permanently so GetUser accepts
+  both password and social tokens; console checklist gains that allowed scope; IDENTITY_PROVIDER can switch before the
+  frontend cutover. Console checklist (user): ALLOW_USER_PASSWORD_AUTH + ALLOW_REFRESH_TOKEN_AUTH, self sign-up, email
+  auto-verified, scope aws.cognito.signin.user.admin; the app client is confidential → Next computes SECRET_HASH.
