@@ -205,11 +205,12 @@ func TestRenderGoldenPerTemplate(t *testing.T) {
 			if m.MessageID != "<11111111-1111-4111-8111-111111111111@peopleflow.test>" {
 				t.Errorf("message id %q", m.MessageID)
 			}
-			// HTML part: same copy, escaped (no special characters here), links as anchors.
+			// HTML part: same copy, escaped (no special characters here), links
+			// as anchors; the body line with its emphasis is checked in
+			// TestRenderBodyEmphasis (design 03 · Centrada).
 			for _, want := range []string{
-				`<html lang="es">`,
+				`<html lang="es-MX"`,
 				">" + g.heading + "</h1>",
-				">" + g.line + "</p>",
 				`<a href="` + htmlAttr(g.appURL) + `"`, ">" + g.button + "</a>",
 				`<a href="` + g.prefsURL + `"`, ">Mis preferencias</a>",
 				"<title>" + g.subject + "</title>",
@@ -376,7 +377,7 @@ func TestRenderFallbacks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.Subject != "una empresa te dejó un mensaje" || !strings.Contains(m.Text, "una empresa te escribió sobre una vacante.") {
+	if m.Subject != "Una empresa te dejó un mensaje" || !strings.Contains(m.Text, "Una empresa te escribió sobre una vacante.") {
 		t.Fatalf("blank fallbacks: %q / %q", m.Subject, m.Text)
 	}
 }

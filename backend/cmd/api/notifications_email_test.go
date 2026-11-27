@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/email"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/email/logmail"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/email/smtpmail"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
@@ -135,4 +136,26 @@ func TestStartNotificationSender_RunsInTheBackgroundAndStopWaitsForIt(t *testing
 		t.Fatal("stop returned before the sender did")
 	}
 	stop() // idempotent
+}
+
+// S11: the renderer gets the configured postal address
+// (NOTIFICATIONS_EMAIL_POSTAL_ADDRESS); the config default is the email
+// package's placeholder, so an unset key renders the design's text.
+func TestNotificationRendererSettingsCarryThePostalAddress(t *testing.T) {
+	if runtimeconfig.DefaultNotificationsEmailPostalAddress != email.DefaultPostalAddress {
+		t.Fatalf("config default %q != email default %q", runtimeconfig.DefaultNotificationsEmailPostalAddress, email.DefaultPostalAddress)
+	}
+	env := e6Env("log")
+	env["NOTIFICATIONS_EMAIL_POSTAL_ADDRESS"] = "Av. Paseo de la Reforma 222, CDMX"
+	cfg, err := runtimeconfig.LoadNotificationsEmailConfig(func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := notificationRendererSettings(cfg)
+	if s.PostalAddress != "Av. Paseo de la Reforma 222, CDMX" || s.From != cfg.From || s.AppBaseURL != cfg.AppBaseURL || s.UnsubscribeURL != cfg.UnsubscribeURL {
+		t.Fatalf("settings %+v", s)
+	}
+	if sender, err := composeSender(env); err != nil || sender == nil {
+		t.Fatalf("sender with a postal address: %v %v", sender, err)
+	}
 }
