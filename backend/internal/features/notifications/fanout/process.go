@@ -11,6 +11,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/emaildelivery"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/preferences"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -132,10 +133,19 @@ func (p *Processor) process(ctx context.Context, tx pgx.Tx, q *db.Queries, row d
 		created = append(created, emailRow(n))
 	}
 	// notifications-v2 D8: the email delivery decision, in this tx and only
-	// for rows this attempt actually inserted (mailer off: none).
+	// for rows this attempt actually inserted (mailer off: none), isolated by
+	// a savepoint (L13): an email-side failure rolls back only the email part
+	// — the in-app rows stay, the event is processed, that batch gets no
+	// delivery — and is logged with step email and its SQLSTATE.
 	if p.email {
-		if err := emaildelivery.Create(ctx, q, created); err != nil {
+		isolated, err := emaildelivery.CreateIsolated(ctx, tx, created)
+		if err != nil {
 			return event, true, stepErr(stepEmail, err)
+		}
+		if isolated != nil {
+			_, sqlstate := classify(isolated)
+			p.logger.Error("notification email decision rolled back", "event_type", event.EventType, "notification_event_id", event.ID.String(),
+				"step", string(stepEmail), "sqlstate", sqlstate)
 		}
 	}
 	if err := q.MarkNotificationEventProcessed(ctx, event.ID); err != nil {
@@ -229,24 +239,7 @@ func inAppOverrides(ctx context.Context, q *db.Queries, notifications []Notifica
 	for i, n := range notifications {
 		keys[i] = preferenceKey(n)
 	}
-	out := domain.NewOverrides(domain.ChannelInApp)
-	lookup := domain.NewOverrideLookup(keys)
-	if lookup.Empty() {
-		return out, nil
-	}
-	rows, err := q.ListNotificationPreferenceOverrides(ctx, db.ListNotificationPreferenceOverridesParams{
-		Channel: string(domain.ChannelInApp), UserIds: lookup.Users, Types: lookup.Types, CompanyIds: lookup.Companies})
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range rows {
-		k := domain.PreferenceKey{User: r.UserID, Type: domain.Type(r.Type)}
-		if r.CompanyID.Valid {
-			k.Company = r.CompanyID.Bytes
-		}
-		out.Set(k, r.Enabled)
-	}
-	return out, nil
+	return preferences.ReadOverrides(ctx, q, domain.ChannelInApp, keys)
 }
 
 // directory is the Directory over the fan-out tx.

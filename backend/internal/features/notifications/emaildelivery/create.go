@@ -13,7 +13,9 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/preferences"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -44,7 +46,8 @@ var errNotLinked = errors.New("notification not linkable to its email delivery")
 // group_key), every other type gets one immediate delivery (D10). Reads are
 // batched: one override read for the email channel (skipped when every type
 // is mandatory) and one deliverability read for the recipients still
-// eligible (skipped when none is). Any error must fail the caller's tx.
+// eligible (skipped when none is). An error leaves the tx aborted: run it
+// through CreateIsolated so only the email part is rolled back (L13).
 func Create(ctx context.Context, q *db.Queries, rows []Row) error {
 	if len(rows) == 0 {
 		return nil
@@ -88,6 +91,30 @@ func Create(ctx context.Context, q *db.Queries, rows []Row) error {
 	return nil
 }
 
+// CreateIsolated runs Create inside a savepoint of the caller's tx
+// (notifications-v2 D8 as refined by L13): when the email decision fails,
+// only its own writes are rolled back to the savepoint, so the caller keeps
+// its in-app rows and commits; that batch simply gets no delivery. isolated
+// is the rolled-back email error (nil on success) for the caller to log with
+// step email and its SQLSTATE; err means the savepoint itself could not be
+// opened, released or rolled back, and the caller's tx must fail.
+func CreateIsolated(ctx context.Context, tx pgx.Tx, rows []Row) (isolated, err error) {
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	sp, err := tx.Begin(ctx) // SAVEPOINT
+	if err != nil {
+		return nil, err
+	}
+	if cerr := Create(ctx, db.New(sp), rows); cerr != nil {
+		if rerr := sp.Rollback(ctx); rerr != nil { // ROLLBACK TO SAVEPOINT
+			return cerr, rerr
+		}
+		return cerr, nil
+	}
+	return nil, sp.Commit(ctx) // RELEASE SAVEPOINT
+}
+
 // create inserts or joins the row's delivery and links the row to it.
 func create(ctx context.Context, q *db.Queries, r Row) error {
 	id, err := uuid.NewV7()
@@ -125,22 +152,5 @@ func emailOverrides(ctx context.Context, q *db.Queries, rows []Row) (*domain.Ove
 	for i, r := range rows {
 		keys[i] = r.key()
 	}
-	out := domain.NewOverrides(domain.ChannelEmail)
-	lookup := domain.NewOverrideLookup(keys)
-	if lookup.Empty() {
-		return out, nil
-	}
-	found, err := q.ListNotificationPreferenceOverrides(ctx, db.ListNotificationPreferenceOverridesParams{
-		Channel: string(domain.ChannelEmail), UserIds: lookup.Users, Types: lookup.Types, CompanyIds: lookup.Companies})
-	if err != nil {
-		return nil, err
-	}
-	for _, f := range found {
-		k := domain.PreferenceKey{User: f.UserID, Type: domain.Type(f.Type)}
-		if f.CompanyID.Valid {
-			k.Company = f.CompanyID.Bytes
-		}
-		out.Set(k, f.Enabled)
-	}
-	return out, nil
+	return preferences.ReadOverrides(ctx, q, domain.ChannelEmail, keys)
 }

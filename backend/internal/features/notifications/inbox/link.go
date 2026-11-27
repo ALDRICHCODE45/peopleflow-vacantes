@@ -14,12 +14,13 @@ type Link struct {
 	InvitationID    string `json:"invitation_id,omitempty"`
 }
 
-// linkFor derives the link of a group from its type. Grouped types point to
+// LinkFor derives the link of a group from its type. Grouped types point to
 // the vacancy candidates, or to the participation for a single-member group
 // (psychometric_pending is grouped since Q3 and follows the same rule);
 // vacancy_unassigned has no link once the caller can no longer open the
-// vacancy (D19).
-func linkFor(t domain.Type, job uuid.UUID, count int, participation *uuid.UUID, payload map[string]any, canOpen bool) *Link {
+// vacancy (D19). The inbox and the email sender (notifications-v2 §Content)
+// share this one rule.
+func LinkFor(t domain.Type, job uuid.UUID, count int, participation *uuid.UUID, payload map[string]any, canOpen bool) *Link {
 	j := job.String()
 	switch t {
 	case domain.TypeApplicationReceived, domain.TypePsychometricCompleted, domain.TypePsychometricPending:

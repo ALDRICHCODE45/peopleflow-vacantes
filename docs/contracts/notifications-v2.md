@@ -96,7 +96,7 @@ digest is stage 3 (S1). The system is not in production and all data is disposab
 | D5 | — | **Preference changes (settings or unsubscribe) are not audited.** The audit log is the company's record of actions on company data (owner screen); personal channel choices are not company data, candidates have no company, and the row keeps `source` + `updated_at` for support. Same reasoning as v1 D23. |
 | D6 | S5, S8 | **In-app off ⇒ the row is still created, hidden (`notifications.in_app = false`), decided at creation and never resurfaced.** Full justification in §In-app off. |
 | D7 | S2 | **Preferences are evaluated when the notification is created** (both channels, same tx) and the email preference is **re-checked at send time** — a change applies to everything not yet sent; nothing is re-created or resurrected afterwards. |
-| D8 | S4, S7 | **A new table `notification_email_deliveries` holds one row per email to send**, created by the fan-out and the scheduler **in the same tx and only for notification rows actually inserted** (`InsertNotification` becomes `:execrows`) — exactly-once per notification inherits v1 D21, no extra infrastructure. |
+| D8 | S4, S7 | **A new table `notification_email_deliveries` holds one row per email to send**, created by the fan-out and the scheduler **in the same tx, isolated by a savepoint, and only for notification rows actually inserted** (`InsertNotification` becomes `:execrows`) — exactly-once per notification inherits v1 D21, no extra infrastructure; an email-side failure rolls back only to the savepoint, so the in-app rows (and the scheduler run) still commit and that batch gets no email (L13). |
 | D9 | S2, S3, S7 | **Email eligibility at creation** = mailer not `off` ∧ effective email preference on ∧ recipient user live (`deleted_at IS NULL`) with a non-empty email ∧ `lower(btrim(email))` not in `email_suppressions`. Candidates are reached only through accounts (stage-1 rows already exist only for organic participations, v1 D6). Suppression wins over mandatory: a bounced address is never mailed. |
 | D10 | S4 | **Coalescing per `(recipient, group_key)` with a fixed 10-minute window** for the three grouped types; single groups (`n:<id>`, every mandatory type) send immediately. One open delivery per recipient and group, enforced by a partial unique index. Exact rules in §Coalescing. |
 | D11 | S4, S6 | **At send time a delivery is skipped** (no email) when the recipient is gone or has no address, the address got suppressed, the email preference is now off, every linked notification is resolved (any kind), or — non-mandatory only — every linked notification was already read in the app. |
@@ -324,7 +324,7 @@ scheduler's dedupe intact).
 
 ## Email delivery (D7–D13, D19)
 
-### Creation (fan-out and scheduler, same tx)
+### Creation (fan-out and scheduler, same tx, email steps in a savepoint)
 
 For each notification row **actually inserted** (fan-out: `InsertNotification` changed to `:execrows`; scheduler:
 `InsertScheduledNotification` already returns rows, `run.go:121-135`):
@@ -344,8 +344,12 @@ For each notification row **actually inserted** (fan-out: `InsertNotification` c
    - single group (every other type, including all mandatory): plain insert with `send_after = now()`.
 3. `UPDATE notifications SET email_delivery_id = $returned_id WHERE id = $notification_id`.
 
-A failure in any step fails the event's tx like any stage-1 insert (v1 D4 backoff), so a notification never exists
-without its delivery decision having been made once. With `NOTIFICATIONS_MAILER=off` steps 2–3 are skipped.
+Steps 2–3 (and their email-preference / deliverability reads) run inside a **savepoint** of the creating tx
+(`emaildelivery.CreateIsolated`, L13). If any of them fails, the tx rolls back to the savepoint only: the in-app rows
+stay, the event is marked processed (no failed attempt) or the scheduler run commits its rows and resolution, those rows
+get **no delivery** (no email, never retried), and the failure is logged with `step = email` and its SQLSTATE only. A
+failure of the in-app steps still fails the event's tx like any stage-1 insert (v1 D4 backoff); a failure to open,
+release or roll back the savepoint itself fails the tx too. With `NOTIFICATIONS_MAILER=off` steps 2–3 are skipped.
 
 ### Coalescing (D10, S4)
 
@@ -368,9 +372,12 @@ without its delivery decision having been made once. With `NOTIFICATIONS_MAILER=
 
 ### Sender (D11, D12)
 
-Package `internal/features/notifications/email` (domain: templates, `Mailer` port, sender loop) with adapters in
-`internal/features/notifications/email/logmail` and `…/email/smtpmail` (later `…/email/sesmail`). Composed in
-`cmd/api/notifications_email.go` and started/stopped next to the fan-out (`cmd/api/main.go:336`), only when
+Package `internal/features/notifications/email` (templates, `Mailer` port) with adapters in
+`internal/features/notifications/email/logmail` and `…/email/smtpmail` (later `…/email/sesmail`); the loop is
+`internal/features/notifications/sender` (no `worker` / `outbox` in the path, archguard). Composed in
+`cmd/api/notifications_email.go` (`newNotificationSender`: mailer adapter, renderer with the unsubscribe signer, throttle)
+before any background loop starts — a non-off mailer that cannot be fully composed refuses startup — and started after
+the fan-out and the scheduler, stopped first (waiting for its in-flight delivery) before the pool closes, only when
 `NOTIFICATIONS_MAILER ≠ off`.
 
 Every instance, every **5 s** (and once at start), up to **20 deliveries per tick**, each:
@@ -378,14 +385,21 @@ Every instance, every **5 s** (and once at start), up to **20 deliveries per tic
 1. **Claim** (own short tx): the oldest due row —
    `status = 'pending' AND send_after <= now()`, or `status = 'retry' AND next_attempt_at <= now()`, or
    `status = 'sending' AND lease_until < now()` (crashed sender) — `ORDER BY send_after, id LIMIT 1 FOR UPDATE SKIP
-   LOCKED`; set `status = 'sending'`, `attempts = attempts + 1`, `lease_until = now() + 2 min`; commit. No network call
-   ever happens inside a tx, so the fan-out is never blocked behind an SMTP call.
-2. **Re-check** (D11, read-only): recipient live with an address; address not suppressed; effective email preference
-   still on (mandatory: always); linked rows not all resolved; non-mandatory: linked rows not all read
-   (`read_at IS NOT NULL`; hidden rows are never read, so they never cause a skip). Failing any → finalize
-   `skipped` with the matching `skip_reason`.
-3. **Render** the template (§Templates) with the variables of §Content and **send** through the `Mailer` with a 15 s
-   timeout.
+   LOCKED`; set `status = 'sending'`, `attempts = attempts + 1`, `lease_until = now() + 2 min`, `next_attempt_at = NULL`
+   (the timer CHECK); one autocommit statement. No network call ever happens inside a tx, so the fan-out is never
+   blocked behind an SMTP call.
+2. **Re-check** (D11, read-only, each read its own autocommit statement), in this order: recipient exists, live and —
+   for a member delivery — still a member of the delivery's company, company not soft-deleted (`recipient_gone`);
+   non-blank address (`no_address`); address not suppressed (`suppressed`); effective email preference still on,
+   mandatory always (`preference_off`); linked rows not all resolved — no linked row left counts as resolved
+   (`resolved`); non-mandatory: linked rows not all read (`read`; `read_at IS NOT NULL`; hidden rows are never read, so
+   they never cause a skip). Failing any → finalize `skipped` with that `skip_reason`. A read failure is a transient
+   failure.
+3. **Render** the template (§Templates) with the variables of §Content (count = linked rows, group day = the oldest
+   linked row, payload enums of the latest; the link through the inbox rule `inbox.LinkFor`, member `can_open` = owner or
+   active assignment, candidates only while they participate) and **send** through the `Mailer` with a 15 s timeout,
+   after taking a throttle slot. A view that cannot render (unknown label code, inconsistent link) is a permanent
+   failure; a throttle refused by shutdown is a transient one.
 4. **Finalize** (own tx, fenced by `WHERE id = $id AND status = 'sending' AND lease_until = $lease`):
    - success → `sent`, `sent_at`, `provider_message_id`, `error_class NULL`;
    - transient error (network, timeout, SMTP 4xx, provider throttling) → `retry` with
@@ -394,8 +408,11 @@ Every instance, every **5 s** (and once at start), up to **20 deliveries per tic
    - permanent error (`Mailer` returns `ErrPermanent`: SMTP 5xx on the recipient, invalid address) → `failed`
      (`error_class = 'permanent'`). No automatic suppression in stage 2 (that is SES ingestion).
    A fenced update that matches nothing (lease expired and another instance took over) is logged and ignored.
-- **Throttle**: a per-instance token bucket of `NOTIFICATIONS_EMAIL_MAX_PER_SECOND` (default **1**, the SES sandbox
-  rate); the global rate is that value × instances (Q5). A tick that runs out of tokens stops early.
+- **Throttle**: a per-instance pacer of `NOTIFICATIONS_EMAIL_MAX_PER_SECOND` (default **1**, the SES sandbox rate):
+  one slot every 1/rate, burst one, taken only right before a send (skips cost nothing), so no second ever exceeds
+  the rate; the global rate is that value × instances (Q5). A tick waits for its slots (a 20-claim tick at 1/s lasts
+  ~20 s; the next tick starts after it) instead of stopping early, which with a one-second bucket would cap the rate at
+  one email per period. The finalize runs even on shutdown (an attempt cut short becomes a `retry`).
 - **At-least-once**: an instance that crashes after the provider accepted a message but before finalizing leaves a
   `sending` row whose lease expires; it is sent again. Accepted (rare, non-production); the stable `Message-ID`
   (`<delivery_id@sender domain>`) lets clients collapse duplicates.
@@ -432,7 +449,7 @@ Dev compose: a `mailpit` service added to `backend/docker-compose.yml` (pinned `
 | `NOTIFICATIONS_MAILER` | — | `off` \| `log` \| `smtp` (`ses` reserved); default `off` |
 | `NOTIFICATIONS_EMAIL_FROM` | mailer ≠ off | sender, e.g. `PeopleFlow <no-reply@…>` (domain deferred to the SES work, Q11) |
 | `NOTIFICATIONS_SMTP_HOST`, `NOTIFICATIONS_SMTP_PORT` | mailer = smtp | Mailpit `localhost` / `1025` in dev; refused when `APP_ENV=production` |
-| `NOTIFICATIONS_EMAIL_MAX_PER_SECOND` | — | per-instance throttle, default `1` |
+| `NOTIFICATIONS_EMAIL_MAX_PER_SECOND` | — | per-instance throttle, integer 1–1000, default `1`; read only when the mailer is not off |
 | `NOTIFICATIONS_UNSUBSCRIBE_KEYS` | mailer ≠ off (also loaded and validated when present with the mailer off) | secret: comma list `kid:base64key` (kid `[a-z0-9]{1,16}`, distinct; std or URL-safe base64), first signs, all verify; each key ≥ 32 bytes. **Independent of the mailer**: with `NOTIFICATIONS_MAILER=off` (kill switch) nothing is sent, but present keys still build the verifier so links already in inboxes keep working; keep the keys configured when turning the mailer off |
 | `NOTIFICATIONS_UNSUBSCRIBE_URL` | mailer ≠ off | absolute https URL (http allowed outside production) that receives the one-click POST; value = `APP_BASE_URL` + `/api/notificaciones/baja` (frontend pass-through, Q4); the backend appends `?token=…` |
 | `APP_BASE_URL` | mailer ≠ off | frontend origin for deep links, «Mis preferencias» and the unsubscribe landing (paths in §Templates, Q3) |
@@ -499,7 +516,9 @@ limited request never reaches the database), both → `429 rate_limited` with `R
   matches, else the TCP peer or, only behind `TRUSTED_PROXY_CIDRS`, the forwarded client; IPv6 shares its /64;
 - **valid token**: **10 / 10 min per token** (per `(user, company, type)`; the effect is idempotent) and never counted
   per IP, so a mail provider or the BFF relaying many people's one-clicks from one address never loses a legitimate
-  unsubscribe.
+  unsubscribe. "Valid" means validly signed and unexpired: a token whose user or company is gone (answered with the
+  uniform 422) still counts against **its per-token budget, not the IP's** — it cannot be forged at will, so it is no
+  probing vector (L17).
 
 A full limiter table never refuses a new client: single-request entries are evicted oldest first, clients that already
 spent more keep their budget.

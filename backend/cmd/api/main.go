@@ -220,7 +220,7 @@ func run() error {
 	// notifications-v2 §Unsubscribe: the HMAC token signer/verifier from NOTIFICATIONS_UNSUBSCRIBE_KEYS, built whenever keys
 	// are configured — also with the mailer off (kill switch), so links already sent keep working; nil without keys (every
 	// token refused). The same value verifies the public unsubscribe routes and is the renderer's email.TokenSigner for the
-	// sender (E6). The keys are never logged.
+	// sender. The keys are never logged.
 	notificationUnsubscribeSigner, err := newNotificationUnsubscribeSigner(notificationsEmail, nil)
 	if err != nil {
 		slog.Error("notifications unsubscribe keys invalid", "reason", err.Error())
@@ -236,6 +236,13 @@ func run() error {
 
 	// Fail fast: prove we can reach Postgres before we start serving traffic.
 	if err := pool.Ping(ctx); err != nil {
+		return err
+	}
+	// notifications-v2 D12 / L13: the email sender is composed before any background loop starts, so a non-off mailer that
+	// cannot be fully composed (unsubscribe signer, renderer settings) refuses startup; nil with the mailer off (D13).
+	notificationSender, err := newNotificationSender(pool, notificationsEmail, notificationUnsubscribeSigner, slog.Default())
+	if err != nil {
+		slog.Error("notifications email sender configuration invalid", "reason", err.Error())
 		return err
 	}
 	slog.Info("connected to postgres")
@@ -360,6 +367,13 @@ func run() error {
 	// (advisory lock notif_sc). Stopped, and waited for, on shutdown before the pool is closed (deferred calls run last-in first).
 	stopNotificationSchedule := startNotificationSchedule(ctx, newNotificationScheduler(pool, notificationsEmail.Enabled()))
 	defer stopNotificationSchedule()
+	// notifications-v2 D12: the email sender loop, every 5 s in every instance (SKIP LOCKED + lease), only when
+	// NOTIFICATIONS_MAILER ≠ off. Started after the fan-out and the scheduler; stopped first, and waited for (its in-flight
+	// delivery finalizes), before the pool is closed (deferred calls run last-in first).
+	if notificationSender != nil {
+		stopNotificationSender := startNotificationSender(ctx, notificationSender)
+		defer stopNotificationSender()
+	}
 	slog.Info("document storage", "enabled", documentConfig.Enabled(), "mode", documentConfig.Mode, "bucket", documentConfig.Bucket, "region", documentConfig.Region, "prefix", documentConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)
 	// Carried replacement candidates trigger the same stage-entry effects (psychometric auto-send) as an intake.

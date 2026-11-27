@@ -3,8 +3,11 @@
 package schedule
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,5 +147,54 @@ func TestScheduleMailerOffCreatesNoDelivery(t *testing.T) {
 	var n int
 	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM notification_email_deliveries`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("deliveries=%d err=%v", n, err)
+	}
+}
+
+// L13 (1): the email decision runs in a savepoint of the run's tx. When it
+// fails (the deliveries table is broken here), only the email part rolls
+// back: the run commits its rows and its resolution, no delivery exists, and
+// the failure is logged with step email and its SQLSTATE only.
+func TestScheduleEmailFailureKeepsTheRun(t *testing.T) {
+	pool := disposableDB(t)
+	w := newWorld(t, pool)
+	stale := w.newJob(t, pool, "published", "active", date(27))
+	runAt(t, pool, at(26)) // due-soon items for the stale job, no email
+	fulfil(t, pool, stale.id)
+	j := w.newJob(t, pool, "published", "active", date(25))
+	mustExec(t, pool, `ALTER TABLE notification_email_deliveries ADD CONSTRAINT e6_broken CHECK (false) NOT VALID`)
+	var logs bytes.Buffer
+	res, err := NewRunner(pool, func() time.Time { return at(26) }).WithEmailDeliveries(true).WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))).
+		RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("run failed instead of isolating the email step: %v", err)
+	}
+	if res.DeliveryCreated != 2 || res.Resolved != 2 {
+		t.Fatalf("result %+v (want 2 overdue rows and 2 resolved due-soon rows)", res)
+	}
+	assertItems(t, pool, j.id, w.team("delivery_overdue", "2026-11-25", false)...)
+	assertItems(t, pool, stale.id, w.team("delivery_due_soon", "2026-11-27", true)...)
+	var deliveries int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM notification_email_deliveries`).Scan(&deliveries); err != nil || deliveries != 0 {
+		t.Fatalf("deliveries %d %v", deliveries, err)
+	}
+	out := logs.String()
+	if !strings.Contains(out, `"step":"email"`) || !strings.Contains(out, `"sqlstate":"23514"`) || strings.Contains(out, "e6_broken") ||
+		strings.Contains(out, w.owner.String()) {
+		t.Fatalf("email failure log:\n%s", out)
+	}
+}
+
+// L13 (3): a soft-deleted team member gets the scheduled in-app row but no
+// email delivery at creation (D9), even for a mandatory type.
+func TestScheduleSoftDeletedRecipientGetsNoDelivery(t *testing.T) {
+	pool := disposableDB(t)
+	w := newWorld(t, pool)
+	j := w.newJob(t, pool, "published", "active", date(25))
+	mustExec(t, pool, `UPDATE users SET deleted_at = now() WHERE id=$1`, w.owner)
+	runEmailAt(t, pool, at(26))
+	assertItems(t, pool, j.id, w.team("delivery_overdue", "2026-11-25", false)...)
+	want := map[mailed]bool{{"delivery_overdue", w.recruiter.String(), true}: true}
+	if got := scheduledDeliveries(t, pool, w.company); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
 	}
 }

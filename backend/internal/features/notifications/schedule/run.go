@@ -3,11 +3,13 @@ package schedule
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/emaildelivery"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/preferences"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,17 +27,28 @@ type Result struct {
 // resolve stale ones, so an overdue item created in this run supersedes its
 // due-soon sibling at once.
 type Runner struct {
-	pool  *pgxpool.Pool
-	now   func() time.Time
-	email bool
+	pool   *pgxpool.Pool
+	now    func() time.Time
+	email  bool
+	logger *slog.Logger
 }
 
-// NewRunner builds the runner; a nil clock means time.Now.
+// NewRunner builds the runner; a nil clock means time.Now. It logs through
+// slog.Default() unless WithLogger is used.
 func NewRunner(pool *pgxpool.Pool, now func() time.Time) *Runner {
 	if now == nil {
 		now = time.Now
 	}
-	return &Runner{pool: pool, now: now}
+	return &Runner{pool: pool, now: now, logger: slog.Default()}
+}
+
+// WithLogger sets the logger of the run's value-free warnings (the isolated
+// email step); nil keeps the current one.
+func (r *Runner) WithLogger(logger *slog.Logger) *Runner {
+	if logger != nil {
+		r.logger = logger
+	}
+	return r
 }
 
 // WithEmailDeliveries turns on the email delivery decision at creation
@@ -119,10 +132,18 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 	}
 	// notifications-v2 D8: the email delivery decision, in the run's tx and
 	// only for rows this run inserted (mailer off: none). Every scheduled
-	// type is a single group: immediate deliveries.
+	// type is a single group: immediate deliveries. Isolated by a savepoint
+	// (L13): an email-side failure rolls back only the email part — the run
+	// still commits its rows and resolution — and is logged with step email
+	// and its SQLSTATE.
 	if r.email {
-		if err := emaildelivery.Create(ctx, q, created); err != nil {
+		isolated, err := emaildelivery.CreateIsolated(ctx, tx, created)
+		if err != nil {
 			return Result{}, stepErr(stepEmail, err)
+		}
+		if isolated != nil {
+			_, sqlstate := classify(isolated)
+			r.logger.Error("notification scheduler email decision rolled back", "step", string(stepEmail), "sqlstate", sqlstate)
 		}
 	}
 	resolved, err := q.ResolveStaleScheduledNotifications(ctx)
@@ -158,24 +179,7 @@ func inAppOverrides(ctx context.Context, q *db.Queries, due []scheduled) (*domai
 	for i, item := range due {
 		keys[i] = item.scope()
 	}
-	out := domain.NewOverrides(domain.ChannelInApp)
-	lookup := domain.NewOverrideLookup(keys)
-	if lookup.Empty() {
-		return out, nil
-	}
-	rows, err := q.ListNotificationPreferenceOverrides(ctx, db.ListNotificationPreferenceOverridesParams{
-		Channel: string(domain.ChannelInApp), UserIds: lookup.Users, Types: lookup.Types, CompanyIds: lookup.Companies})
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range rows {
-		k := domain.PreferenceKey{User: r.UserID, Type: domain.Type(r.Type)}
-		if r.CompanyID.Valid {
-			k.Company = r.CompanyID.Bytes
-		}
-		out.Set(k, r.Enabled)
-	}
-	return out, nil
+	return preferences.ReadOverrides(ctx, q, domain.ChannelInApp, keys)
 }
 
 // insert writes one item with a uuid v7 id, group n:<id> and the given

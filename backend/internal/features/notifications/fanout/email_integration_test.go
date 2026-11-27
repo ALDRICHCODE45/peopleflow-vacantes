@@ -3,9 +3,11 @@
 package fanout
 
 import (
+	"bytes"
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -312,6 +314,10 @@ func TestFanOutWindowCloseRaceWithAConcurrentClaim(t *testing.T) {
 			WHERE id=$1 AND status='pending'`, deliveryID); err != nil {
 			t.Fatal(err)
 		}
+		var claimPID int32
+		if err := claim.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&claimPID); err != nil {
+			t.Fatal(err)
+		}
 		done := make(chan error, 1)
 		go func() {
 			claimed, err := p.Tick(ctx)
@@ -323,7 +329,12 @@ func TestFanOutWindowCloseRaceWithAConcurrentClaim(t *testing.T) {
 		deadline := time.Now().Add(15 * time.Second)
 		for {
 			var waiting int
-			if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting); err != nil {
+			// Only the fan-out's own coalescing upsert, blocked by this claim's
+			// backend, counts (L15): no unrelated lock wait passes the probe.
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity
+				WHERE datname = current_database() AND wait_event_type = 'Lock' AND $1::int = ANY (pg_blocking_pids(pid))
+				  AND position('INSERT INTO notification_email_deliveries' IN query) > 0
+				  AND position('ON CONFLICT (recipient_user_id, group_key)' IN query) > 0`, claimPID).Scan(&waiting); err != nil {
 				t.Fatal(err)
 			}
 			if waiting > 0 {
@@ -380,3 +391,63 @@ func TestFanOutWindowCloseRaceWithAConcurrentClaim(t *testing.T) {
 type errClaimed int
 
 func (e errClaimed) Error() string { return "unexpected claimed count" }
+
+// L13 (1): the email decision runs in a savepoint of the event's tx. When it
+// fails (the deliveries table is broken here), only the email part rolls
+// back: the in-app rows commit, the event is processed with no failed
+// attempt, no delivery exists, and the failure is logged with step email and
+// its SQLSTATE only.
+func TestFanOutEmailFailureKeepsTheInAppRows(t *testing.T) {
+	pool := disposableDB(t)
+	w := newWorld(t, pool)
+	setPreference(t, pool, w.owner, &w.company, "application_received", "email", true)
+	mustExec(t, pool, `ALTER TABLE notification_email_deliveries ADD CONSTRAINT e6_broken CHECK (false) NOT VALID`)
+	var logs bytes.Buffer
+	p := newTestProcessor(pool, &logs).WithEmailDeliveries(true)
+	application := w.insertEvent(t, pool, pending{eventType: audit.EventVacancyApplicationSubmitted, actor: &w.candidate, participation: &w.participation})
+	tick(t, p, 1)
+	if got := readEvent(t, pool, application); !got.processed || got.failed || got.attempts != 0 {
+		t.Fatalf("event: %+v (want processed with no failed attempt)", got)
+	}
+	ownerRows, _ := rowsOf(t, pool, "application_received", w.owner, application)
+	recruiterRows, _ := rowsOf(t, pool, "application_received", w.recruiter, application)
+	if len(ownerRows) != 1 || len(recruiterRows) != 1 {
+		t.Fatalf("in-app rows rolled back: owner=%v recruiter=%v", ownerRows, recruiterRows)
+	}
+	if got := readDeliveries(t, pool); len(got) != 0 || countLinked(t, pool) != 0 {
+		t.Fatalf("deliveries %+v linked %d", got, countLinked(t, pool))
+	}
+	out := logs.String()
+	if !strings.Contains(out, `"step":"email"`) || !strings.Contains(out, `"sqlstate":"23514"`) || !strings.Contains(out, application.String()) ||
+		strings.Contains(out, "e6_broken") || strings.Contains(out, w.owner.String()) {
+		t.Fatalf("email failure log:\n%s", out)
+	}
+
+	// Repaired: the next event gets its delivery again.
+	mustExec(t, pool, `ALTER TABLE notification_email_deliveries DROP CONSTRAINT e6_broken`)
+	next := w.insertEvent(t, pool, pending{eventType: audit.EventVacancyApplicationSubmitted, actor: &w.candidate, participation: &w.participation})
+	tick(t, p, 1)
+	nextRows, _ := rowsOf(t, pool, "application_received", w.owner, next)
+	if got := readDeliveries(t, pool); len(got) != 1 || !reflect.DeepEqual(got[0].Linked, nextRows) {
+		t.Fatalf("after repair: %+v", got)
+	}
+}
+
+// L13 (3): a soft-deleted recipient still on the team gets the in-app row
+// (stage-1 rules unchanged) but never an email delivery at creation (D9),
+// even with the email preference on.
+func TestFanOutSoftDeletedRecipientGetsNoDelivery(t *testing.T) {
+	pool := disposableDB(t)
+	w := newWorld(t, pool)
+	setPreference(t, pool, w.owner, &w.company, "application_received", "email", true)
+	setPreference(t, pool, w.recruiter, &w.company, "application_received", "email", true)
+	mustExec(t, pool, `UPDATE users SET deleted_at = now() WHERE id=$1`, w.owner)
+	application := w.insertEvent(t, pool, pending{eventType: audit.EventVacancyApplicationSubmitted, actor: &w.candidate, participation: &w.participation})
+	tick(t, newEmailProcessor(pool), 1)
+	ownerRows, _ := rowsOf(t, pool, "application_received", w.owner, application)
+	recruiterRows, _ := rowsOf(t, pool, "application_received", w.recruiter, application)
+	got := readDeliveries(t, pool)
+	if len(ownerRows) != 1 || len(got) != 1 || got[0].Recipient != w.recruiter || !reflect.DeepEqual(got[0].Linked, recruiterRows) {
+		t.Fatalf("owner rows %v deliveries %+v", ownerRows, got)
+	}
+}

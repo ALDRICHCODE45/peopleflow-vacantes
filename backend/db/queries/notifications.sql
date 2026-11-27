@@ -196,6 +196,119 @@ SET email_delivery_id = sqlc.arg('delivery_id')::uuid
 WHERE id = sqlc.arg('notification_id')::uuid
   AND email_delivery_id IS NULL;
 
+-- name: ClaimNextNotificationEmailDelivery :one
+-- Sender claim (notifications-v2 D12, §Sender step 1), one autocommit
+-- statement: the oldest due delivery — pending past its window, retry past its
+-- backoff, or sending with an expired lease (crashed or stale sender) — locked
+-- with SKIP LOCKED so instances never take the same row, then set sending with
+-- a fresh lease. next_attempt_at is cleared (CHECK retry ⇔ next_attempt_at);
+-- the returned lease fences the finalize. Leaving 'pending' closes the
+-- coalescing window (the partial unique index only covers 'pending').
+UPDATE notification_email_deliveries d
+SET status = 'sending',
+    attempts = d.attempts + 1,
+    next_attempt_at = NULL,
+    lease_until = now() + interval '1 millisecond' * sqlc.arg('lease_ms')::bigint,
+    updated_at = now()
+WHERE d.id = (
+    SELECT c.id
+    FROM notification_email_deliveries c
+    WHERE (c.status = 'pending' AND c.send_after <= now())
+       OR (c.status = 'retry' AND c.next_attempt_at <= now())
+       OR (c.status = 'sending' AND c.lease_until < now())
+    ORDER BY c.send_after, c.id
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING d.id, d.recipient_user_id, d.recipient_kind, d.company_id, d.type, d.job_id, d.attempts, d.lease_until;
+
+-- name: GetNotificationEmailRecipient :one
+-- Sender re-check (v2 D11, D19): the recipient's state at send time. The
+-- address is read here, used for this one send and never copied; live = not
+-- soft-deleted; in_company = for a member delivery, still a member of the
+-- delivery's company and the company not soft-deleted (candidates: true). No
+-- row = the user is gone.
+SELECT (u.deleted_at IS NULL)::boolean AS live,
+       u.email,
+       EXISTS (SELECT 1 FROM email_suppressions s WHERE s.address = lower(btrim(u.email)))::boolean AS suppressed,
+       (sqlc.narg('company_id')::uuid IS NULL OR EXISTS (
+           SELECT 1
+           FROM company_members cm
+           JOIN companies c ON c.id = cm.company_id AND c.deleted_at IS NULL
+           WHERE cm.company_id = sqlc.narg('company_id')::uuid
+             AND cm.user_id = u.id))::boolean AS in_company
+FROM users u
+WHERE u.id = sqlc.arg('user_id')::uuid;
+
+-- name: ListNotificationEmailDeliveryRows :many
+-- Sender re-check and view (v2 D11, §Content): the notifications linked to a
+-- delivery, oldest first. Hidden rows (in_app = false) are included: they are
+-- mailed and, never being read, never cause a 'read' skip. Ids, dates, flags
+-- and the enum-only payload; nothing else.
+SELECT n.id, n.participation_id, n.payload, n.commitment_date, n.created_at,
+       (n.read_at IS NOT NULL)::boolean AS is_read,
+       (n.resolved_at IS NOT NULL)::boolean AS is_resolved
+FROM notifications n
+WHERE n.email_delivery_id = sqlc.arg('delivery_id')::uuid
+ORDER BY n.created_at, n.id;
+
+-- name: GetNotificationEmailMemberJob :one
+-- Sender view for a member delivery (§Content): the company name, the current
+-- draft title (like ListNotificationJobs; has_title false when absent or the
+-- job is gone) and whether the recipient can still open the job (owner of the
+-- company or an active assignment on it, D19 — vacancy_unassigned's link).
+SELECT c.name AS company_name,
+       (d.id IS NOT NULL AND (convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title') IS NOT NULL)::boolean AS has_title,
+       COALESCE(convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title', '')::text AS title,
+       (d.id IS NOT NULL AND (
+           EXISTS (SELECT 1 FROM company_members cm
+                   WHERE cm.company_id = c.id AND cm.user_id = sqlc.arg('user_id')::uuid AND cm.role = 'owner')
+           OR EXISTS (SELECT 1 FROM vacancy_assignments va
+                      WHERE va.draft_id = d.id
+                        AND va.company_id = d.company_id
+                        AND va.user_id = sqlc.arg('user_id')::uuid
+                        AND va.ended_at IS NULL)))::boolean AS can_open
+FROM companies c
+LEFT JOIN job_drafts d ON d.id = sqlc.arg('job_id')::uuid AND d.company_id = c.id
+WHERE c.id = sqlc.arg('company_id')::uuid;
+
+-- name: FinishNotificationEmailDeliverySent :execrows
+-- Sender finalize (§Sender step 4), fenced on (id, sending, lease): 0 rows =
+-- the lease expired and another instance took the delivery over (ignored).
+-- Every finalize clears lease_until (CHECK sending ⇔ lease_until).
+UPDATE notification_email_deliveries
+SET status = 'sent', sent_at = now(), provider_message_id = sqlc.narg('provider_message_id')::text, error_class = NULL,
+    lease_until = NULL, updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND status = 'sending' AND lease_until = sqlc.arg('lease_until')::timestamptz;
+
+-- name: FinishNotificationEmailDeliverySkipped :execrows
+-- Sender finalize: the re-check (D11) found a reason not to send; fenced.
+UPDATE notification_email_deliveries
+SET status = 'skipped', skip_reason = sqlc.arg('skip_reason')::text, lease_until = NULL, updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND status = 'sending' AND lease_until = sqlc.arg('lease_until')::timestamptz;
+
+-- name: FinishNotificationEmailDeliveryFailed :execrows
+-- Sender finalize: a permanent failure (ErrPermanent, or a delivery that can
+-- never render) fails at once, no retry; fenced.
+UPDATE notification_email_deliveries
+SET status = 'failed', error_class = 'permanent', lease_until = NULL, updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND status = 'sending' AND lease_until = sqlc.arg('lease_until')::timestamptz;
+
+-- name: RetryNotificationEmailDelivery :one
+-- Sender finalize: a transient failure. After the n-th attempt (counted by the
+-- claim) the next one waits retry_base_ms·2^(n-1), capped at retry_cap_ms; at
+-- max_attempts the delivery fails (error_class transient). Fenced; no row =
+-- stale sender.
+UPDATE notification_email_deliveries
+SET status = CASE WHEN attempts >= sqlc.arg('max_attempts')::integer THEN 'failed' ELSE 'retry' END,
+    next_attempt_at = CASE WHEN attempts < sqlc.arg('max_attempts')::integer
+        THEN now() + interval '1 millisecond' * LEAST(sqlc.arg('retry_base_ms')::bigint * power(2, attempts - 1), sqlc.arg('retry_cap_ms')::bigint) END,
+    error_class = 'transient',
+    lease_until = NULL,
+    updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND status = 'sending' AND lease_until = sqlc.arg('lease_until')::timestamptz
+RETURNING status, attempts;
+
 -- name: ListScheduledDeliveryRecipients :many
 -- Scheduler (notifications-v1 §Scheduler, D20, Q1): every team recipient of
 -- an active published or paused process with a commitment date up to

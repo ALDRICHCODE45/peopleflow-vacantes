@@ -12,6 +12,60 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimNextNotificationEmailDelivery = `-- name: ClaimNextNotificationEmailDelivery :one
+UPDATE notification_email_deliveries d
+SET status = 'sending',
+    attempts = d.attempts + 1,
+    next_attempt_at = NULL,
+    lease_until = now() + interval '1 millisecond' * $1::bigint,
+    updated_at = now()
+WHERE d.id = (
+    SELECT c.id
+    FROM notification_email_deliveries c
+    WHERE (c.status = 'pending' AND c.send_after <= now())
+       OR (c.status = 'retry' AND c.next_attempt_at <= now())
+       OR (c.status = 'sending' AND c.lease_until < now())
+    ORDER BY c.send_after, c.id
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING d.id, d.recipient_user_id, d.recipient_kind, d.company_id, d.type, d.job_id, d.attempts, d.lease_until
+`
+
+type ClaimNextNotificationEmailDeliveryRow struct {
+	ID              uuid.UUID          `json:"id"`
+	RecipientUserID uuid.UUID          `json:"recipient_user_id"`
+	RecipientKind   string             `json:"recipient_kind"`
+	CompanyID       pgtype.UUID        `json:"company_id"`
+	Type            string             `json:"type"`
+	JobID           uuid.UUID          `json:"job_id"`
+	Attempts        int32              `json:"attempts"`
+	LeaseUntil      pgtype.Timestamptz `json:"lease_until"`
+}
+
+// Sender claim (notifications-v2 D12, §Sender step 1), one autocommit
+// statement: the oldest due delivery — pending past its window, retry past its
+// backoff, or sending with an expired lease (crashed or stale sender) — locked
+// with SKIP LOCKED so instances never take the same row, then set sending with
+// a fresh lease. next_attempt_at is cleared (CHECK retry ⇔ next_attempt_at);
+// the returned lease fences the finalize. Leaving 'pending' closes the
+// coalescing window (the partial unique index only covers 'pending').
+func (q *Queries) ClaimNextNotificationEmailDelivery(ctx context.Context, leaseMs int64) (ClaimNextNotificationEmailDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, claimNextNotificationEmailDelivery, leaseMs)
+	var i ClaimNextNotificationEmailDeliveryRow
+	err := row.Scan(
+		&i.ID,
+		&i.RecipientUserID,
+		&i.RecipientKind,
+		&i.CompanyID,
+		&i.Type,
+		&i.JobID,
+		&i.Attempts,
+		&i.LeaseUntil,
+	)
+	return i, err
+}
+
 const claimNextNotificationEvent = `-- name: ClaimNextNotificationEvent :one
 SELECT id, company_id, event_type, actor_user_id, job_id, participation_id, subject_user_id, payload, occurred_at
 FROM notification_events
@@ -165,6 +219,72 @@ func (q *Queries) DeleteExpiredNotifications(ctx context.Context, batchSize int3
 	return result.RowsAffected(), nil
 }
 
+const finishNotificationEmailDeliveryFailed = `-- name: FinishNotificationEmailDeliveryFailed :execrows
+UPDATE notification_email_deliveries
+SET status = 'failed', error_class = 'permanent', lease_until = NULL, updated_at = now()
+WHERE id = $1::uuid AND status = 'sending' AND lease_until = $2::timestamptz
+`
+
+type FinishNotificationEmailDeliveryFailedParams struct {
+	ID         uuid.UUID          `json:"id"`
+	LeaseUntil pgtype.Timestamptz `json:"lease_until"`
+}
+
+// Sender finalize: a permanent failure (ErrPermanent, or a delivery that can
+// never render) fails at once, no retry; fenced.
+func (q *Queries) FinishNotificationEmailDeliveryFailed(ctx context.Context, arg FinishNotificationEmailDeliveryFailedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, finishNotificationEmailDeliveryFailed, arg.ID, arg.LeaseUntil)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const finishNotificationEmailDeliverySent = `-- name: FinishNotificationEmailDeliverySent :execrows
+UPDATE notification_email_deliveries
+SET status = 'sent', sent_at = now(), provider_message_id = $1::text, error_class = NULL,
+    lease_until = NULL, updated_at = now()
+WHERE id = $2::uuid AND status = 'sending' AND lease_until = $3::timestamptz
+`
+
+type FinishNotificationEmailDeliverySentParams struct {
+	ProviderMessageID pgtype.Text        `json:"provider_message_id"`
+	ID                uuid.UUID          `json:"id"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+}
+
+// Sender finalize (§Sender step 4), fenced on (id, sending, lease): 0 rows =
+// the lease expired and another instance took the delivery over (ignored).
+// Every finalize clears lease_until (CHECK sending ⇔ lease_until).
+func (q *Queries) FinishNotificationEmailDeliverySent(ctx context.Context, arg FinishNotificationEmailDeliverySentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, finishNotificationEmailDeliverySent, arg.ProviderMessageID, arg.ID, arg.LeaseUntil)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const finishNotificationEmailDeliverySkipped = `-- name: FinishNotificationEmailDeliverySkipped :execrows
+UPDATE notification_email_deliveries
+SET status = 'skipped', skip_reason = $1::text, lease_until = NULL, updated_at = now()
+WHERE id = $2::uuid AND status = 'sending' AND lease_until = $3::timestamptz
+`
+
+type FinishNotificationEmailDeliverySkippedParams struct {
+	SkipReason string             `json:"skip_reason"`
+	ID         uuid.UUID          `json:"id"`
+	LeaseUntil pgtype.Timestamptz `json:"lease_until"`
+}
+
+// Sender finalize: the re-check (D11) found a reason not to send; fenced.
+func (q *Queries) FinishNotificationEmailDeliverySkipped(ctx context.Context, arg FinishNotificationEmailDeliverySkippedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, finishNotificationEmailDeliverySkipped, arg.SkipReason, arg.ID, arg.LeaseUntil)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getNotificationCandidateUser = `-- name: GetNotificationCandidateUser :one
 SELECT u.id FROM users u
 WHERE u.cognito_sub = $1::text
@@ -197,6 +317,95 @@ func (q *Queries) GetNotificationEmailDeliverable(ctx context.Context, userID uu
 	var deliverable bool
 	err := row.Scan(&deliverable)
 	return deliverable, err
+}
+
+const getNotificationEmailMemberJob = `-- name: GetNotificationEmailMemberJob :one
+SELECT c.name AS company_name,
+       (d.id IS NOT NULL AND (convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title') IS NOT NULL)::boolean AS has_title,
+       COALESCE(convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title', '')::text AS title,
+       (d.id IS NOT NULL AND (
+           EXISTS (SELECT 1 FROM company_members cm
+                   WHERE cm.company_id = c.id AND cm.user_id = $1::uuid AND cm.role = 'owner')
+           OR EXISTS (SELECT 1 FROM vacancy_assignments va
+                      WHERE va.draft_id = d.id
+                        AND va.company_id = d.company_id
+                        AND va.user_id = $1::uuid
+                        AND va.ended_at IS NULL)))::boolean AS can_open
+FROM companies c
+LEFT JOIN job_drafts d ON d.id = $2::uuid AND d.company_id = c.id
+WHERE c.id = $3::uuid
+`
+
+type GetNotificationEmailMemberJobParams struct {
+	UserID    uuid.UUID `json:"user_id"`
+	JobID     uuid.UUID `json:"job_id"`
+	CompanyID uuid.UUID `json:"company_id"`
+}
+
+type GetNotificationEmailMemberJobRow struct {
+	CompanyName string `json:"company_name"`
+	HasTitle    bool   `json:"has_title"`
+	Title       string `json:"title"`
+	CanOpen     bool   `json:"can_open"`
+}
+
+// Sender view for a member delivery (§Content): the company name, the current
+// draft title (like ListNotificationJobs; has_title false when absent or the
+// job is gone) and whether the recipient can still open the job (owner of the
+// company or an active assignment on it, D19 — vacancy_unassigned's link).
+func (q *Queries) GetNotificationEmailMemberJob(ctx context.Context, arg GetNotificationEmailMemberJobParams) (GetNotificationEmailMemberJobRow, error) {
+	row := q.db.QueryRow(ctx, getNotificationEmailMemberJob, arg.UserID, arg.JobID, arg.CompanyID)
+	var i GetNotificationEmailMemberJobRow
+	err := row.Scan(
+		&i.CompanyName,
+		&i.HasTitle,
+		&i.Title,
+		&i.CanOpen,
+	)
+	return i, err
+}
+
+const getNotificationEmailRecipient = `-- name: GetNotificationEmailRecipient :one
+SELECT (u.deleted_at IS NULL)::boolean AS live,
+       u.email,
+       EXISTS (SELECT 1 FROM email_suppressions s WHERE s.address = lower(btrim(u.email)))::boolean AS suppressed,
+       ($1::uuid IS NULL OR EXISTS (
+           SELECT 1
+           FROM company_members cm
+           JOIN companies c ON c.id = cm.company_id AND c.deleted_at IS NULL
+           WHERE cm.company_id = $1::uuid
+             AND cm.user_id = u.id))::boolean AS in_company
+FROM users u
+WHERE u.id = $2::uuid
+`
+
+type GetNotificationEmailRecipientParams struct {
+	CompanyID pgtype.UUID `json:"company_id"`
+	UserID    uuid.UUID   `json:"user_id"`
+}
+
+type GetNotificationEmailRecipientRow struct {
+	Live       bool   `json:"live"`
+	Email      string `json:"email"`
+	Suppressed bool   `json:"suppressed"`
+	InCompany  bool   `json:"in_company"`
+}
+
+// Sender re-check (v2 D11, D19): the recipient's state at send time. The
+// address is read here, used for this one send and never copied; live = not
+// soft-deleted; in_company = for a member delivery, still a member of the
+// delivery's company and the company not soft-deleted (candidates: true). No
+// row = the user is gone.
+func (q *Queries) GetNotificationEmailRecipient(ctx context.Context, arg GetNotificationEmailRecipientParams) (GetNotificationEmailRecipientRow, error) {
+	row := q.db.QueryRow(ctx, getNotificationEmailRecipient, arg.CompanyID, arg.UserID)
+	var i GetNotificationEmailRecipientRow
+	err := row.Scan(
+		&i.Live,
+		&i.Email,
+		&i.Suppressed,
+		&i.InCompany,
+	)
+	return i, err
 }
 
 const getNotificationParticipationCandidate = `-- name: GetNotificationParticipationCandidate :one
@@ -816,6 +1025,57 @@ func (q *Queries) ListNotificationEmailDeliverableUsers(ctx context.Context, use
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotificationEmailDeliveryRows = `-- name: ListNotificationEmailDeliveryRows :many
+SELECT n.id, n.participation_id, n.payload, n.commitment_date, n.created_at,
+       (n.read_at IS NOT NULL)::boolean AS is_read,
+       (n.resolved_at IS NOT NULL)::boolean AS is_resolved
+FROM notifications n
+WHERE n.email_delivery_id = $1::uuid
+ORDER BY n.created_at, n.id
+`
+
+type ListNotificationEmailDeliveryRowsRow struct {
+	ID              uuid.UUID          `json:"id"`
+	ParticipationID pgtype.UUID        `json:"participation_id"`
+	Payload         []byte             `json:"payload"`
+	CommitmentDate  pgtype.Date        `json:"commitment_date"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	IsRead          bool               `json:"is_read"`
+	IsResolved      bool               `json:"is_resolved"`
+}
+
+// Sender re-check and view (v2 D11, §Content): the notifications linked to a
+// delivery, oldest first. Hidden rows (in_app = false) are included: they are
+// mailed and, never being read, never cause a 'read' skip. Ids, dates, flags
+// and the enum-only payload; nothing else.
+func (q *Queries) ListNotificationEmailDeliveryRows(ctx context.Context, deliveryID uuid.UUID) ([]ListNotificationEmailDeliveryRowsRow, error) {
+	rows, err := q.db.Query(ctx, listNotificationEmailDeliveryRows, deliveryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNotificationEmailDeliveryRowsRow
+	for rows.Next() {
+		var i ListNotificationEmailDeliveryRowsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.Payload,
+			&i.CommitmentDate,
+			&i.CreatedAt,
+			&i.IsRead,
+			&i.IsResolved,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1706,6 +1966,48 @@ func (q *Queries) ResolveStaleScheduledNotifications(ctx context.Context) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const retryNotificationEmailDelivery = `-- name: RetryNotificationEmailDelivery :one
+UPDATE notification_email_deliveries
+SET status = CASE WHEN attempts >= $1::integer THEN 'failed' ELSE 'retry' END,
+    next_attempt_at = CASE WHEN attempts < $1::integer
+        THEN now() + interval '1 millisecond' * LEAST($2::bigint * power(2, attempts - 1), $3::bigint) END,
+    error_class = 'transient',
+    lease_until = NULL,
+    updated_at = now()
+WHERE id = $4::uuid AND status = 'sending' AND lease_until = $5::timestamptz
+RETURNING status, attempts
+`
+
+type RetryNotificationEmailDeliveryParams struct {
+	MaxAttempts int32              `json:"max_attempts"`
+	RetryBaseMs int64              `json:"retry_base_ms"`
+	RetryCapMs  int64              `json:"retry_cap_ms"`
+	ID          uuid.UUID          `json:"id"`
+	LeaseUntil  pgtype.Timestamptz `json:"lease_until"`
+}
+
+type RetryNotificationEmailDeliveryRow struct {
+	Status   string `json:"status"`
+	Attempts int32  `json:"attempts"`
+}
+
+// Sender finalize: a transient failure. After the n-th attempt (counted by the
+// claim) the next one waits retry_base_ms·2^(n-1), capped at retry_cap_ms; at
+// max_attempts the delivery fails (error_class transient). Fenced; no row =
+// stale sender.
+func (q *Queries) RetryNotificationEmailDelivery(ctx context.Context, arg RetryNotificationEmailDeliveryParams) (RetryNotificationEmailDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, retryNotificationEmailDelivery,
+		arg.MaxAttempts,
+		arg.RetryBaseMs,
+		arg.RetryCapMs,
+		arg.ID,
+		arg.LeaseUntil,
+	)
+	var i RetryNotificationEmailDeliveryRow
+	err := row.Scan(&i.Status, &i.Attempts)
+	return i, err
 }
 
 const unsubscribeNotificationEmail = `-- name: UnsubscribeNotificationEmail :exec

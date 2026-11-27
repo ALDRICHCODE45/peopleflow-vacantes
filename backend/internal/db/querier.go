@@ -12,6 +12,14 @@ import (
 )
 
 type Querier interface {
+	// Sender claim (notifications-v2 D12, §Sender step 1), one autocommit
+	// statement: the oldest due delivery — pending past its window, retry past its
+	// backoff, or sending with an expired lease (crashed or stale sender) — locked
+	// with SKIP LOCKED so instances never take the same row, then set sending with
+	// a fresh lease. next_attempt_at is cleared (CHECK retry ⇔ next_attempt_at);
+	// the returned lease fences the finalize. Leaving 'pending' closes the
+	// coalescing window (the partial unique index only covers 'pending').
+	ClaimNextNotificationEmailDelivery(ctx context.Context, leaseMs int64) (ClaimNextNotificationEmailDeliveryRow, error)
 	// Fan-out claim (notifications-v1 D4): the oldest pending, due event not
 	// already tried in this tick, locked for the caller's tx; other instances
 	// skip it. An event in retry backoff waits for next_attempt_at.
@@ -146,6 +154,15 @@ type Querier interface {
 	// One purge batch, oldest first; rows another connection holds are left for
 	// the next batch or run.
 	DeleteExpiredNotifications(ctx context.Context, batchSize int32) (int64, error)
+	// Sender finalize: a permanent failure (ErrPermanent, or a delivery that can
+	// never render) fails at once, no retry; fenced.
+	FinishNotificationEmailDeliveryFailed(ctx context.Context, arg FinishNotificationEmailDeliveryFailedParams) (int64, error)
+	// Sender finalize (§Sender step 4), fenced on (id, sending, lease): 0 rows =
+	// the lease expired and another instance took the delivery over (ignored).
+	// Every finalize clears lease_until (CHECK sending ⇔ lease_until).
+	FinishNotificationEmailDeliverySent(ctx context.Context, arg FinishNotificationEmailDeliverySentParams) (int64, error)
+	// Sender finalize: the re-check (D11) found a reason not to send; fenced.
+	FinishNotificationEmailDeliverySkipped(ctx context.Context, arg FinishNotificationEmailDeliverySkippedParams) (int64, error)
 	GeoCountries(ctx context.Context) ([]GeoCountriesRow, error)
 	GeoCountryExists(ctx context.Context, code string) (bool, error)
 	GeoLatestImport(ctx context.Context) (int64, error)
@@ -214,6 +231,17 @@ type Querier interface {
 	// live, has a non-empty address and lower(btrim(address)) is not suppressed.
 	// Neither the address nor the suppression reason leaves this query.
 	GetNotificationEmailDeliverable(ctx context.Context, userID uuid.UUID) (bool, error)
+	// Sender view for a member delivery (§Content): the company name, the current
+	// draft title (like ListNotificationJobs; has_title false when absent or the
+	// job is gone) and whether the recipient can still open the job (owner of the
+	// company or an active assignment on it, D19 — vacancy_unassigned's link).
+	GetNotificationEmailMemberJob(ctx context.Context, arg GetNotificationEmailMemberJobParams) (GetNotificationEmailMemberJobRow, error)
+	// Sender re-check (v2 D11, D19): the recipient's state at send time. The
+	// address is read here, used for this one send and never copied; live = not
+	// soft-deleted; in_company = for a member delivery, still a member of the
+	// delivery's company and the company not soft-deleted (candidates: true). No
+	// row = the user is gone.
+	GetNotificationEmailRecipient(ctx context.Context, arg GetNotificationEmailRecipientParams) (GetNotificationEmailRecipientRow, error)
 	// Relation candidate: the account behind an organic participation of the job;
 	// NULL for a manual candidate (no account).
 	GetNotificationParticipationCandidate(ctx context.Context, arg GetNotificationParticipationCandidateParams) (pgtype.UUID, error)
@@ -370,6 +398,11 @@ type Querier interface {
 	// (lower(btrim)) is not in email_suppressions. Only ids leave this query:
 	// the address is never copied or returned.
 	ListNotificationEmailDeliverableUsers(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error)
+	// Sender re-check and view (v2 D11, §Content): the notifications linked to a
+	// delivery, oldest first. Hidden rows (in_app = false) are included: they are
+	// mailed and, never being read, never cause a 'read' skip. Ids, dates, flags
+	// and the enum-only payload; nothing else.
+	ListNotificationEmailDeliveryRows(ctx context.Context, deliveryID uuid.UUID) ([]ListNotificationEmailDeliveryRowsRow, error)
 	// GET B/facets (D17): the same groups per job with the current title
 	// (members: the draft title of the company; candidates: the public title they
 	// see in /v2/me/applications, only for a process they participate in;
@@ -480,6 +513,11 @@ type Querier interface {
 	// or cleared); a due-soon item when an overdue item exists for the same
 	// recipient, job and date.
 	ResolveStaleScheduledNotifications(ctx context.Context) (int64, error)
+	// Sender finalize: a transient failure. After the n-th attempt (counted by the
+	// claim) the next one waits retry_base_ms·2^(n-1), capped at retry_cap_ms; at
+	// max_attempts the delivery fails (error_class transient). Fenced; no row =
+	// stale sender.
+	RetryNotificationEmailDelivery(ctx context.Context, arg RetryNotificationEmailDeliveryParams) (RetryNotificationEmailDeliveryRow, error)
 	// Only a pending invitation of the caller's company changes; anything else
 	// affects no row and the DELETE still answers 204.
 	RevokeStakeholderInvitation(ctx context.Context, arg RevokeStakeholderInvitationParams) (int64, error)

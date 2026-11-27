@@ -17,8 +17,8 @@ import (
 // Notification email settings (notifications-v2 §Config keys, D13). E4 loaded
 // the mailer kind, which gates delivery creation; E5 adds the keys the
 // renderer and the adapters need (sender, frontend origin, one-click URL,
-// SMTP host/port); E7 the unsubscribe token keys. The sender (E6) adds its
-// own. Values are validated and never echoed or logged.
+// SMTP host/port); E7 the unsubscribe token keys; E6 the sender throttle.
+// Values are validated and never echoed or logged.
 
 const (
 	// EnvNotificationsMailer selects the mailer adapter.
@@ -40,7 +40,16 @@ const (
 	// listed key verifies (rotation: prepend a new key, drop an old one after
 	// 365 days). Never logged.
 	EnvNotificationsUnsubscribeKeys = "NOTIFICATIONS_UNSUBSCRIBE_KEYS"
+	// EnvNotificationsEmailMaxPerSecond is the per-instance sender throttle
+	// (emails per second, §Sender); unset = DefaultNotificationsEmailMaxPerSecond.
+	EnvNotificationsEmailMaxPerSecond = "NOTIFICATIONS_EMAIL_MAX_PER_SECOND"
 )
+
+// DefaultNotificationsEmailMaxPerSecond is the SES sandbox rate (Q5).
+const DefaultNotificationsEmailMaxPerSecond = 1
+
+// maxNotificationsEmailPerSecond bounds the throttle key.
+const maxNotificationsEmailPerSecond = 1000
 
 // MinUnsubscribeKeyBytes is the minimum decoded length of an unsubscribe key.
 const MinUnsubscribeKeyBytes = 32
@@ -56,6 +65,10 @@ func (k UnsubscribeKey) String() string { return k.ID + ":[redacted]" }
 
 // GoString keeps %#v from dumping the key bytes.
 func (k UnsubscribeKey) GoString() string { return "UnsubscribeKey{" + k.String() + "}" }
+
+// Format writes the redacted form under every verb and flag: without it,
+// verbs that skip String (%d, %o, %b, …) would print the key bytes.
+func (k UnsubscribeKey) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(k.String())) }
 
 // LogValue keeps slog from dumping the key bytes.
 func (k UnsubscribeKey) LogValue() slog.Value { return slog.StringValue(k.String()) }
@@ -113,6 +126,8 @@ type NotificationsEmailConfig struct {
 	// UnsubscribeKeys are the token keys in order (the first signs); required
 	// when the mailer is not off, loaded whenever present when it is off.
 	UnsubscribeKeys UnsubscribeKeys
+	// MaxPerSecond is the per-instance sender throttle (mailer ≠ off only).
+	MaxPerSecond int
 }
 
 // Enabled reports whether email deliveries are created (mailer ≠ off).
@@ -177,6 +192,15 @@ func LoadNotificationsEmailConfig(getenv func(string) string) (NotificationsEmai
 		return NotificationsEmailConfig{}, err
 	}
 	c.UnsubscribeKeys = keys
+
+	c.MaxPerSecond = DefaultNotificationsEmailMaxPerSecond
+	if raw := getenv(EnvNotificationsEmailMaxPerSecond); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > maxNotificationsEmailPerSecond || strconv.Itoa(n) != raw {
+			return NotificationsEmailConfig{}, errors.New(EnvNotificationsEmailMaxPerSecond + " must be an integer between 1 and 1000")
+		}
+		c.MaxPerSecond = n
+	}
 
 	if c.Mailer == MailerSMTP {
 		if production {

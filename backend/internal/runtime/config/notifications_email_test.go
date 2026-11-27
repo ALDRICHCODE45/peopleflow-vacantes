@@ -115,6 +115,7 @@ func TestLoadNotificationsEmailConfigParsesTheE5Keys(t *testing.T) {
 		SMTPHost:        "localhost",
 		SMTPPort:        1025,
 		UnsubscribeKeys: []UnsubscribeKey{{ID: "k1", Secret: unsubscribeKeyA}},
+		MaxPerSecond:    DefaultNotificationsEmailMaxPerSecond,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
@@ -337,5 +338,68 @@ func TestLoadNotificationsEmailConfigLoadsUnsubscribeKeysWithTheMailerOff(t *tes
 				t.Fatalf("mailer %q, invalid keys %q: %v", mailer, bad, err)
 			}
 		}
+	}
+}
+
+// E6 §Config keys: NOTIFICATIONS_EMAIL_MAX_PER_SECOND is the per-instance
+// sender throttle, default 1 when unset, an integer 1–1000 otherwise; with the
+// mailer off it is ignored like every other sending key. Errors name the key
+// and never quote the value.
+func TestLoadNotificationsEmailConfigMaxPerSecond(t *testing.T) {
+	if DefaultNotificationsEmailMaxPerSecond != 1 {
+		t.Fatalf("default %d", DefaultNotificationsEmailMaxPerSecond)
+	}
+	for value, want := range map[string]int{"": 1, "1": 1, "14": 14, "1000": 1000} {
+		env := validEmailEnv("log")
+		env["NOTIFICATIONS_EMAIL_MAX_PER_SECOND"] = value
+		got, err := loadEmail(env)
+		if err != nil || got.MaxPerSecond != want {
+			t.Fatalf("%q: %d %v", value, got.MaxPerSecond, err)
+		}
+	}
+	for _, value := range []string{"0", "-1", "1001", "1.5", " 2", "secret", "2/s"} {
+		env := validEmailEnv("smtp")
+		env["NOTIFICATIONS_EMAIL_MAX_PER_SECOND"] = value
+		_, err := loadEmail(env)
+		if err == nil || !strings.Contains(err.Error(), "NOTIFICATIONS_EMAIL_MAX_PER_SECOND") || strings.Contains(err.Error(), "secret") ||
+			(value != "" && strings.Contains(err.Error(), "\""+value+"\"")) {
+			t.Fatalf("%q: %v", value, err)
+		}
+	}
+	got, err := loadEmail(map[string]string{"NOTIFICATIONS_MAILER": "off", "NOTIFICATIONS_EMAIL_MAX_PER_SECOND": "nope"})
+	if err != nil || got.MaxPerSecond != 0 {
+		t.Fatalf("mailer off: %+v %v", got, err)
+	}
+}
+
+// Verifier finding (E7): every fmt verb on a key or the key list renders the
+// redacted form — %d, %x, %o, %b on a Stringer without Format would print the
+// raw bytes —, and so do slog (text and JSON) and encoding/json.
+func TestUnsubscribeKeyRedactedUnderEveryVerb(t *testing.T) {
+	key := UnsubscribeKey{ID: "k1", Secret: unsubscribeKeyA}
+	keys := UnsubscribeKeys{key}
+	cfg := NotificationsEmailConfig{Mailer: MailerLog, UnsubscribeKeys: keys}
+	var out strings.Builder
+	for _, verb := range []string{"%v", "%+v", "%#v", "%s", "%q", "%d", "%x", "%X", "%o", "%b", "%10.3v", "%-8s", "%08x"} {
+		for _, v := range []any{key, &key, keys, cfg, &cfg, []UnsubscribeKey{key}, map[string]UnsubscribeKey{"k": key}} {
+			fmt.Fprintf(&out, verb+"\n", v)
+		}
+	}
+	var logged bytes.Buffer
+	slog.New(slog.NewJSONHandler(&logged, nil)).Info("k", "key", key, "ptr", &key, "keys", keys, "cfg", cfg)
+	slog.New(slog.NewTextHandler(&logged, nil)).Info("k", "key", key, "ptr", &key, "keys", keys, "cfg", cfg)
+	asJSON, err := json.Marshal(map[string]any{"key": key, "keys": keys, "cfg": cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := out.String() + logged.String() + string(asJSON)
+	// 0xA1 = 161 = 0241 = 10100001: decimal, hex, octal and binary renderings.
+	for _, leak := range []string{"161", "a1a1", "A1A1", "241 241", "10100001", unsubscribeEnvA[:12], string(unsubscribeKeyA[:4])} {
+		if strings.Contains(all, leak) {
+			t.Fatalf("key material %q printed:\n%s", leak, all)
+		}
+	}
+	if !strings.Contains(all, "k1:[redacted]") {
+		t.Fatalf("redacted form missing:\n%s", all)
 	}
 }
