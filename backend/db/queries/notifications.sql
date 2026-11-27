@@ -99,11 +99,14 @@ SELECT candidate_id
 FROM process_participations
 WHERE id = sqlc.arg('participation_id')::uuid AND process_id = sqlc.arg('job_id')::uuid;
 
--- name: InsertNotification :exec
+-- name: InsertNotification :execrows
 -- Immediate notification (D21): a re-processed event inserts nothing twice.
 -- created_at is the event's occurred_at, so a delayed fan-out keeps the group's
--- day and the retention clock aligned with the event (L24).
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, created_at)
+-- day and the retention clock aligned with the event (L24). in_app is the
+-- recipient's effective in-app preference at creation (notifications-v2 D6,
+-- D7), never rewritten. Affected rows = 1 inserted / 0 deduplicated: only an
+-- inserted row gets an email delivery decision (v2 D8).
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, in_app, created_at)
 VALUES (
     sqlc.arg('id')::uuid,
     sqlc.arg('recipient_user_id')::uuid,
@@ -117,9 +120,208 @@ VALUES (
     sqlc.narg('actor_user_id')::uuid,
     sqlc.arg('source_event_id')::uuid,
     sqlc.arg('payload')::jsonb,
+    sqlc.arg('in_app')::boolean,
     (SELECT e.occurred_at FROM notification_events e WHERE e.id = sqlc.arg('source_event_id')::uuid)
 )
 ON CONFLICT (recipient_user_id, source_event_id, type) WHERE source_event_id IS NOT NULL DO NOTHING;
+
+-- name: ListNotificationPreferenceOverrides :many
+-- Creation-time preferences (notifications-v2 D6, D7): the override rows of
+-- one channel for a batch of recipients, read in the inserting tx, one query
+-- per fan-out event / scheduler run. Arrays over-fetch at most their cross
+-- product (company_id NULL = candidate tree); the caller matches exact
+-- (user, company, type) keys and mandatory types ignore any row.
+SELECT p.user_id, p.company_id, p.type, p.enabled
+FROM notification_preferences p
+WHERE p.channel = sqlc.arg('channel')::text
+  AND p.user_id = ANY (sqlc.arg('user_ids')::uuid[])
+  AND p.type = ANY (sqlc.arg('types')::text[])
+  AND (p.company_id IS NULL OR p.company_id = ANY (sqlc.arg('company_ids')::uuid[]));
+
+-- name: ListNotificationEmailDeliverableUsers :many
+-- Email eligibility at creation (notifications-v2 D9, D19): of the given
+-- recipients, those live with a non-empty address whose normalized form
+-- (lower(btrim)) is not in email_suppressions. Only ids leave this query:
+-- the address is never copied or returned.
+SELECT u.id
+FROM users u
+WHERE u.id = ANY (sqlc.arg('user_ids')::uuid[])
+  AND u.deleted_at IS NULL
+  AND btrim(u.email) <> ''
+  AND NOT EXISTS (SELECT 1 FROM email_suppressions s WHERE s.address = lower(btrim(u.email)));
+
+-- name: UpsertCoalescedNotificationEmailDelivery :one
+-- Grouped types (v2 D10, §Coalescing): the first eligible row of a
+-- (recipient, group_key) with no 'pending' delivery opens a fixed 10-minute
+-- window; later rows join it (the conflict returns the open delivery's id and
+-- never moves send_after). A claimed delivery ('sending') is outside the
+-- partial unique arbiter, so the next row opens a new window — also when this
+-- statement waited on the claim's row lock (the arbiter is re-checked).
+INSERT INTO notification_email_deliveries (id, recipient_user_id, recipient_kind, company_id, type, group_key, job_id, send_after)
+VALUES (
+    sqlc.arg('id')::uuid,
+    sqlc.arg('recipient_user_id')::uuid,
+    sqlc.arg('recipient_kind')::text,
+    sqlc.narg('company_id')::uuid,
+    sqlc.arg('type')::text,
+    sqlc.arg('group_key')::text,
+    sqlc.arg('job_id')::uuid,
+    now() + interval '10 minutes'
+)
+ON CONFLICT (recipient_user_id, group_key) WHERE status = 'pending'
+DO UPDATE SET updated_at = now()
+RETURNING id;
+
+-- name: InsertImmediateNotificationEmailDelivery :exec
+-- Single groups (every non-grouped type, all mandatory ones included, v2
+-- D10): one delivery per notification, due now. group_key is the
+-- notification's own n:<id>, so it never meets an open window.
+INSERT INTO notification_email_deliveries (id, recipient_user_id, recipient_kind, company_id, type, group_key, job_id, send_after)
+VALUES (
+    sqlc.arg('id')::uuid,
+    sqlc.arg('recipient_user_id')::uuid,
+    sqlc.arg('recipient_kind')::text,
+    sqlc.narg('company_id')::uuid,
+    sqlc.arg('type')::text,
+    sqlc.arg('group_key')::text,
+    sqlc.arg('job_id')::uuid,
+    now()
+);
+
+-- name: LinkNotificationEmailDelivery :execrows
+-- v2 D8: a notification links to its delivery once, in the tx that created
+-- both; 0 affected rows means the row was missing or already linked.
+UPDATE notifications
+SET email_delivery_id = sqlc.arg('delivery_id')::uuid
+WHERE id = sqlc.arg('notification_id')::uuid
+  AND email_delivery_id IS NULL;
+
+-- name: ClaimNextNotificationEmailDelivery :one
+-- Sender claim (notifications-v2 D12, §Sender step 1), one autocommit
+-- statement: the oldest due delivery — pending past its window, retry past its
+-- backoff, or sending with an expired lease (crashed or stale sender) — locked
+-- with SKIP LOCKED so instances never take the same row, then set sending with
+-- a fresh lease. next_attempt_at is cleared (CHECK retry ⇔ next_attempt_at);
+-- the returned lease fences the finalize. Leaving 'pending' closes the
+-- coalescing window (the partial unique index only covers 'pending'). An
+-- expired lease is reclaimed only below max_attempts: a row that already used
+-- every attempt is failed by FailExhaustedNotificationEmailDeliveries instead
+-- of being sent again.
+UPDATE notification_email_deliveries d
+SET status = 'sending',
+    attempts = d.attempts + 1,
+    next_attempt_at = NULL,
+    lease_until = now() + interval '1 millisecond' * sqlc.arg('lease_ms')::bigint,
+    updated_at = now()
+WHERE d.id = (
+    SELECT c.id
+    FROM notification_email_deliveries c
+    WHERE (c.status = 'pending' AND c.send_after <= now())
+       OR (c.status = 'retry' AND c.next_attempt_at <= now())
+       OR (c.status = 'sending' AND c.lease_until < now() AND c.attempts < sqlc.arg('max_attempts')::integer)
+    ORDER BY c.send_after, c.id
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING d.id, d.recipient_user_id, d.recipient_kind, d.company_id, d.type, d.job_id, d.attempts, d.lease_until;
+
+-- name: FailExhaustedNotificationEmailDeliveries :execrows
+-- Attempt cap on lease reclaim (L20): a delivery left 'sending' by a crashed
+-- or stuck sender whose lease expired after its last allowed attempt is
+-- failed (transient, lease cleared) without another send. Live leases are
+-- left to their sender.
+UPDATE notification_email_deliveries
+SET status = 'failed', error_class = 'transient', lease_until = NULL, updated_at = now()
+WHERE status = 'sending'
+  AND lease_until < now()
+  AND attempts >= sqlc.arg('max_attempts')::integer;
+
+-- name: GetNotificationEmailRecipient :one
+-- Sender re-check (v2 D11, D19): the recipient's state at send time. The
+-- address is read here, used for this one send and never copied; live = not
+-- soft-deleted; in_company = for a member delivery, still a member of the
+-- delivery's company and the company not soft-deleted (candidates: true). No
+-- row = the user is gone.
+SELECT (u.deleted_at IS NULL)::boolean AS live,
+       u.email,
+       EXISTS (SELECT 1 FROM email_suppressions s WHERE s.address = lower(btrim(u.email)))::boolean AS suppressed,
+       (sqlc.narg('company_id')::uuid IS NULL OR EXISTS (
+           SELECT 1
+           FROM company_members cm
+           JOIN companies c ON c.id = cm.company_id AND c.deleted_at IS NULL
+           WHERE cm.company_id = sqlc.narg('company_id')::uuid
+             AND cm.user_id = u.id))::boolean AS in_company
+FROM users u
+WHERE u.id = sqlc.arg('user_id')::uuid;
+
+-- name: ListNotificationEmailDeliveryRows :many
+-- Sender re-check and view (v2 D11, §Content): the notifications linked to a
+-- delivery, oldest first. Hidden rows (in_app = false) are included: they are
+-- mailed and, never being read, never cause a 'read' skip. Ids, dates, flags
+-- and the enum-only payload; nothing else.
+SELECT n.id, n.participation_id, n.payload, n.commitment_date, n.created_at,
+       (n.read_at IS NOT NULL)::boolean AS is_read,
+       (n.resolved_at IS NOT NULL)::boolean AS is_resolved
+FROM notifications n
+WHERE n.email_delivery_id = sqlc.arg('delivery_id')::uuid
+ORDER BY n.created_at, n.id;
+
+-- name: GetNotificationEmailMemberJob :one
+-- Sender view for a member delivery (§Content): the company name, the current
+-- draft title (like ListNotificationJobs; has_title false when absent or the
+-- job is gone) and whether the recipient can still open the job (owner of the
+-- company or an active assignment on it, D19 — vacancy_unassigned's link).
+SELECT c.name AS company_name,
+       (d.id IS NOT NULL AND (convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title') IS NOT NULL)::boolean AS has_title,
+       COALESCE(convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title', '')::text AS title,
+       (d.id IS NOT NULL AND (
+           EXISTS (SELECT 1 FROM company_members cm
+                   WHERE cm.company_id = c.id AND cm.user_id = sqlc.arg('user_id')::uuid AND cm.role = 'owner')
+           OR EXISTS (SELECT 1 FROM vacancy_assignments va
+                      WHERE va.draft_id = d.id
+                        AND va.company_id = d.company_id
+                        AND va.user_id = sqlc.arg('user_id')::uuid
+                        AND va.ended_at IS NULL)))::boolean AS can_open
+FROM companies c
+LEFT JOIN job_drafts d ON d.id = sqlc.arg('job_id')::uuid AND d.company_id = c.id
+WHERE c.id = sqlc.arg('company_id')::uuid;
+
+-- name: FinishNotificationEmailDeliverySent :execrows
+-- Sender finalize (§Sender step 4), fenced on (id, sending, lease): 0 rows =
+-- the lease expired and another instance took the delivery over (ignored).
+-- Every finalize clears lease_until (CHECK sending ⇔ lease_until).
+UPDATE notification_email_deliveries
+SET status = 'sent', sent_at = now(), provider_message_id = sqlc.narg('provider_message_id')::text, error_class = NULL,
+    lease_until = NULL, updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND status = 'sending' AND lease_until = sqlc.arg('lease_until')::timestamptz;
+
+-- name: FinishNotificationEmailDeliverySkipped :execrows
+-- Sender finalize: the re-check (D11) found a reason not to send; fenced.
+UPDATE notification_email_deliveries
+SET status = 'skipped', skip_reason = sqlc.arg('skip_reason')::text, lease_until = NULL, updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND status = 'sending' AND lease_until = sqlc.arg('lease_until')::timestamptz;
+
+-- name: FinishNotificationEmailDeliveryFailed :execrows
+-- Sender finalize: a permanent failure (ErrPermanent, or a delivery that can
+-- never render) fails at once, no retry; fenced.
+UPDATE notification_email_deliveries
+SET status = 'failed', error_class = 'permanent', lease_until = NULL, updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND status = 'sending' AND lease_until = sqlc.arg('lease_until')::timestamptz;
+
+-- name: RetryNotificationEmailDelivery :one
+-- Sender finalize: a transient failure. After the n-th attempt (counted by the
+-- claim) the next one waits retry_base_ms·2^(n-1), capped at retry_cap_ms; at
+-- max_attempts the delivery fails (error_class transient). Fenced; no row =
+-- stale sender.
+UPDATE notification_email_deliveries
+SET status = CASE WHEN attempts >= sqlc.arg('max_attempts')::integer THEN 'failed' ELSE 'retry' END,
+    next_attempt_at = CASE WHEN attempts < sqlc.arg('max_attempts')::integer
+        THEN now() + interval '1 millisecond' * LEAST(sqlc.arg('retry_base_ms')::bigint * power(2, attempts - 1), sqlc.arg('retry_cap_ms')::bigint) END,
+    error_class = 'transient',
+    lease_until = NULL,
+    updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND status = 'sending' AND lease_until = sqlc.arg('lease_until')::timestamptz
+RETURNING status, attempts;
 
 -- name: ListScheduledDeliveryRecipients :many
 -- Scheduler (notifications-v1 §Scheduler, D20, Q1): every team recipient of
@@ -162,7 +364,8 @@ ORDER BY vp.id, va.user_id;
 -- name: InsertScheduledNotification :execrows
 -- Scheduled notification (D21): each (recipient, type, job, date) fires at
 -- most once; a renegotiated date is a new key. No actor, no source event.
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, commitment_date, payload)
+-- in_app as in InsertNotification (v2 D6, D7); affected rows feed v2 D8.
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, commitment_date, payload, in_app)
 VALUES (
     sqlc.arg('id')::uuid,
     sqlc.arg('recipient_user_id')::uuid,
@@ -173,7 +376,8 @@ VALUES (
     sqlc.arg('group_key')::text,
     sqlc.arg('job_id')::uuid,
     sqlc.arg('commitment_date')::date,
-    sqlc.arg('payload')::jsonb
+    sqlc.arg('payload')::jsonb,
+    sqlc.arg('in_app')::boolean
 )
 ON CONFLICT (recipient_user_id, type, job_id, commitment_date) WHERE commitment_date IS NOT NULL DO NOTHING;
 
@@ -217,7 +421,9 @@ WHERE n.resolved_at IS NULL
 -- recipient_kind 'member' with company_id = the gate's company (members) or
 -- recipient_kind 'candidate' with company_id NULL (candidates). The CHECK
 -- (recipient_kind = 'candidate') = (company_id IS NULL) makes any other
--- combination match nothing.
+-- combination match nothing. Every scope also filters `AND <alias>.in_app`
+-- (notifications-v2 D6): a row created with the in-app channel off is never
+-- listed, counted, faceted or marked (guarded by inbox/inapp_guard_test.go).
 
 -- name: ListNotificationAttention :many
 -- Attention (notifications-v1 D13), the single source of the selection: the
@@ -231,6 +437,7 @@ FROM notifications n
 WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
   AND n.recipient_kind = sqlc.arg('recipient_kind')::text
   AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+  AND n.in_app
   AND n.type = ANY (sqlc.arg('attention_types')::text[])
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL
@@ -257,6 +464,7 @@ WITH grouped AS (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
       AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
       AND (cardinality(sqlc.arg('job_ids')::uuid[]) = 0 OR n.job_id = ANY (sqlc.arg('job_ids')::uuid[]))
       AND NOT (n.id = ANY (sqlc.arg('exclude_ids')::uuid[]))
@@ -272,6 +480,7 @@ CROSS JOIN LATERAL (
     WHERE x.recipient_user_id = sqlc.arg('user_id')::uuid
       AND x.recipient_kind = sqlc.arg('recipient_kind')::text
       AND x.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND x.in_app
       AND x.group_key = g.group_key
     ORDER BY x.created_at DESC, x.id DESC
     LIMIT 1
@@ -293,6 +502,7 @@ FROM (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = 'member'
       AND n.company_id = sqlc.arg('company_id')::uuid
+      AND n.in_app
       AND n.group_key = ANY (sqlc.arg('group_keys')::text[])
       AND n.participation_id IS NOT NULL
     GROUP BY n.group_key, n.participation_id
@@ -346,12 +556,14 @@ WHERE u.id = ANY (sqlc.arg('user_ids')::uuid[])
 
 -- name: CountUnreadNotifications :one
 -- Bell counter (D14): unread groups (attention included) and unread rows of
--- the caller's scope, from notifications_recipient_unread.
+-- the caller's visible scope, from notifications_recipient_unread (whose
+-- predicate includes in_app since migration 00069).
 SELECT count(DISTINCT n.group_key)::integer AS unread_groups, count(*)::integer AS unread_notifications
 FROM notifications n
 WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
   AND n.recipient_kind = sqlc.arg('recipient_kind')::text
   AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+  AND n.in_app
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL;
 
@@ -368,6 +580,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY (sqlc.arg('group_keys')::text[]) OR n.id = ANY (sqlc.arg('ids')::uuid[]))
@@ -390,6 +603,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
       AND n.read_at IS NOT NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY (sqlc.arg('group_keys')::text[])
@@ -414,6 +628,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (cardinality(sqlc.arg('types')::text[]) = 0 OR n.type = ANY (sqlc.arg('types')::text[]))
@@ -437,6 +652,7 @@ FROM (
     WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
       AND n.recipient_kind = sqlc.arg('recipient_kind')::text
       AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND n.in_app
     GROUP BY n.group_key, n.type
 ) g
 WHERE NOT sqlc.arg('unread_only')::boolean OR g.unread
@@ -458,6 +674,7 @@ WITH jobs AS (
         WHERE n.recipient_user_id = sqlc.arg('user_id')::uuid
           AND n.recipient_kind = sqlc.arg('recipient_kind')::text
           AND n.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+          AND n.in_app
         GROUP BY n.group_key, n.job_id
     ) g
     WHERE NOT sqlc.arg('unread_only')::boolean OR g.unread
@@ -506,9 +723,72 @@ WHERE vp.id = ANY (sqlc.arg('job_ids')::uuid[])
   AND EXISTS (SELECT 1 FROM process_participations p
               WHERE p.process_id = vp.id AND p.candidate_id = sqlc.arg('user_id')::uuid);
 
+-- name: ListNotificationPreferences :many
+-- Personal preferences (notifications-v2 D1, D2): the caller's sparse override
+-- rows in their scope, member (user, company) or candidate (user, NULL). The
+-- catalog and the defaults come from the domain table.
+SELECT p.type, p.channel, p.enabled
+FROM notification_preferences p
+WHERE p.user_id = sqlc.arg('user_id')::uuid
+  AND p.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid;
+
+-- name: GetNotificationEmailDeliverable :one
+-- email_deliverable of the preferences catalog (§Preferences): the account is
+-- live, has a non-empty address and lower(btrim(address)) is not suppressed.
+-- Neither the address nor the suppression reason leaves this query.
+SELECT (u.deleted_at IS NULL AND btrim(u.email) <> ''
+        AND NOT EXISTS (SELECT 1 FROM email_suppressions s
+                        WHERE s.address = lower(btrim(u.email))))::boolean AS deliverable
+FROM users u
+WHERE u.id = sqlc.arg('user_id')::uuid;
+
+-- name: UpsertNotificationPreference :exec
+-- PUT …/preferences (D4): one explicit settings row per validated entry, even
+-- when equal to the default; the caller runs every entry of a body in one tx
+-- (all or nothing). Mandatory types are refused before (and by the table
+-- CHECK). Not audited (D5): source + updated_at are the support trace.
+INSERT INTO notification_preferences (user_id, company_id, type, channel, enabled, source, updated_at)
+VALUES (sqlc.arg('user_id')::uuid, sqlc.narg('company_id')::uuid, sqlc.arg('type')::text,
+        sqlc.arg('channel')::text, sqlc.arg('enabled')::boolean, 'settings', now())
+ON CONFLICT ON CONSTRAINT notification_preferences_key
+DO UPDATE SET enabled = EXCLUDED.enabled, source = EXCLUDED.source, updated_at = EXCLUDED.updated_at;
+
+-- name: GetNotificationUnsubscribeTarget :one
+-- Public unsubscribe (notifications-v2 §Unsubscribe): the state of a verified
+-- token's (user, company, type). One row only for a live user; user_type lets
+-- the caller refuse the other tree, company_name is NULL when the token's
+-- company is NULL, missing or soft-deleted, email_override is the email row
+-- (NULL = no row, the default applies). Nothing else about the user leaves
+-- this query.
+SELECT u.user_type,
+       c.name AS company_name,
+       p.enabled AS email_override
+FROM users u
+LEFT JOIN companies c ON c.id = sqlc.narg('company_id')::uuid AND c.deleted_at IS NULL
+LEFT JOIN notification_preferences p
+       ON p.user_id = u.id
+      AND p.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND p.type = sqlc.arg('type')::text
+      AND p.channel = 'email'
+WHERE u.id = sqlc.arg('user_id')::uuid
+  AND u.deleted_at IS NULL;
+
+-- name: UnsubscribeNotificationEmail :exec
+-- POST /v2/notifications/unsubscribe (§Unsubscribe, D17): email off for the
+-- token's (user, company, type), source 'unsubscribe'. Idempotent: a row that
+-- is already off (from settings or a previous unsubscribe) is left untouched,
+-- so repeats change nothing. Mandatory types never reach here (refused by the
+-- token check and by the table CHECK). Not audited (D5).
+INSERT INTO notification_preferences (user_id, company_id, type, channel, enabled, source, updated_at)
+VALUES (sqlc.arg('user_id')::uuid, sqlc.narg('company_id')::uuid, sqlc.arg('type')::text,
+        'email', false, 'unsubscribe', now())
+ON CONFLICT ON CONSTRAINT notification_preferences_key
+DO UPDATE SET enabled = false, source = 'unsubscribe', updated_at = now()
+WHERE notification_preferences.enabled;
+
 -- name: CountExpiredNotifications :one
 -- Retention (notifications-v1 D22): rows older than 180 days, read or not.
--- The cutoff must stay identical in the four retention queries.
+-- The cutoff must stay identical in the six retention queries.
 SELECT count(*) FROM notifications
 WHERE created_at < now() - interval '180 days';
 
@@ -546,6 +826,32 @@ WHERE id IN (
     WHERE e.processed_at < now() - interval '180 days'
       AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.source_event_id = e.id)
     ORDER BY e.processed_at, e.id
+    LIMIT sqlc.arg('batch_size')::integer
+    FOR UPDATE SKIP LOCKED
+);
+
+-- name: CountExpiredNotificationEmailDeliveries :one
+-- Retention (notifications-v2 D20): terminal deliveries (sent, skipped,
+-- failed) created more than 180 days ago; pending, retry and sending rows are
+-- never selected, whatever their age. Exact dry-run forecast of
+-- DeleteExpiredNotificationEmailDeliveries (no other pass changes this set).
+SELECT count(*) FROM notification_email_deliveries
+WHERE status IN ('sent', 'skipped', 'failed')
+  AND created_at < now() - interval '180 days';
+
+-- name: DeleteExpiredNotificationEmailDeliveries :execrows
+-- One purge batch, oldest first, after the notifications pass (most linked
+-- rows are already gone). A notification still inside the retention that
+-- links a purged delivery keeps a valid row: notifications.email_delivery_id
+-- is ON DELETE SET NULL and no CHECK involves it. Rows another connection
+-- holds are left for the next batch or run; the sender only locks
+-- non-terminal rows, which are never selected here.
+DELETE FROM notification_email_deliveries
+WHERE id IN (
+    SELECT id FROM notification_email_deliveries
+    WHERE status IN ('sent', 'skipped', 'failed')
+      AND created_at < now() - interval '180 days'
+    ORDER BY created_at, id
     LIMIT sqlc.arg('batch_size')::integer
     FOR UPDATE SKIP LOCKED
 );

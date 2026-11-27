@@ -278,6 +278,12 @@ type CompanyTalentBaseViewer struct {
 	AddedBy   uuid.UUID          `json:"added_by"`
 }
 
+type EmailSuppression struct {
+	Address   string             `json:"address"`
+	Reason    string             `json:"reason"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type GeoCatalogImport struct {
 	ID         int64              `json:"id"`
 	Source     string             `json:"source"`
@@ -440,6 +446,29 @@ type Notification struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	ReadAt          pgtype.Timestamptz `json:"read_at"`
 	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
+	InApp           bool               `json:"in_app"`
+	EmailDeliveryID pgtype.UUID        `json:"email_delivery_id"`
+}
+
+type NotificationEmailDelivery struct {
+	ID                uuid.UUID          `json:"id"`
+	RecipientUserID   uuid.UUID          `json:"recipient_user_id"`
+	RecipientKind     string             `json:"recipient_kind"`
+	CompanyID         pgtype.UUID        `json:"company_id"`
+	Type              string             `json:"type"`
+	GroupKey          string             `json:"group_key"`
+	JobID             uuid.UUID          `json:"job_id"`
+	Status            string             `json:"status"`
+	SkipReason        pgtype.Text        `json:"skip_reason"`
+	SendAfter         pgtype.Timestamptz `json:"send_after"`
+	Attempts          int32              `json:"attempts"`
+	NextAttemptAt     pgtype.Timestamptz `json:"next_attempt_at"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+	ErrorClass        pgtype.Text        `json:"error_class"`
+	ProviderMessageID pgtype.Text        `json:"provider_message_id"`
+	SentAt            pgtype.Timestamptz `json:"sent_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 type NotificationEvent struct {
@@ -457,6 +486,16 @@ type NotificationEvent struct {
 	ProcessedAt     pgtype.Timestamptz `json:"processed_at"`
 	Failed          bool               `json:"failed"`
 	NextAttemptAt   pgtype.Timestamptz `json:"next_attempt_at"`
+}
+
+type NotificationPreference struct {
+	UserID    uuid.UUID          `json:"user_id"`
+	CompanyID pgtype.UUID        `json:"company_id"`
+	Type      string             `json:"type"`
+	Channel   string             `json:"channel"`
+	Enabled   bool               `json:"enabled"`
+	Source    string             `json:"source"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type ParticipationChecklistMark struct {

@@ -12,6 +12,17 @@ import (
 )
 
 type Querier interface {
+	// Sender claim (notifications-v2 D12, §Sender step 1), one autocommit
+	// statement: the oldest due delivery — pending past its window, retry past its
+	// backoff, or sending with an expired lease (crashed or stale sender) — locked
+	// with SKIP LOCKED so instances never take the same row, then set sending with
+	// a fresh lease. next_attempt_at is cleared (CHECK retry ⇔ next_attempt_at);
+	// the returned lease fences the finalize. Leaving 'pending' closes the
+	// coalescing window (the partial unique index only covers 'pending'). An
+	// expired lease is reclaimed only below max_attempts: a row that already used
+	// every attempt is failed by FailExhaustedNotificationEmailDeliveries instead
+	// of being sent again.
+	ClaimNextNotificationEmailDelivery(ctx context.Context, arg ClaimNextNotificationEmailDeliveryParams) (ClaimNextNotificationEmailDeliveryRow, error)
 	// Fan-out claim (notifications-v1 D4): the oldest pending, due event not
 	// already tried in this tick, locked for the caller's tx; other instances
 	// skip it. An event in retry backoff waits for next_attempt_at.
@@ -45,20 +56,26 @@ type Querier interface {
 	// ("this company had no non-closed jobs at delete time").
 	CloseCompanyJobs(ctx context.Context, companyID uuid.UUID) (int64, error)
 	CountCompanyOwners(ctx context.Context, companyID uuid.UUID) (int64, error)
+	// Retention (notifications-v2 D20): terminal deliveries (sent, skipped,
+	// failed) created more than 180 days ago; pending, retry and sending rows are
+	// never selected, whatever their age. Exact dry-run forecast of
+	// DeleteExpiredNotificationEmailDeliveries (no other pass changes this set).
+	CountExpiredNotificationEmailDeliveries(ctx context.Context) (int64, error)
 	// Retention (D22): processed (or given-up) events older than 180 days; a
 	// pending event (processed_at NULL) is never selected. Dry-run forecast of
 	// DeleteExpiredNotificationEvents after the notifications pass: an event still
 	// referenced by a notification inside the retention is not counted.
 	CountExpiredNotificationEvents(ctx context.Context) (int64, error)
 	// Retention (notifications-v1 D22): rows older than 180 days, read or not.
-	// The cutoff must stay identical in the four retention queries.
+	// The cutoff must stay identical in the six retention queries.
 	CountExpiredNotifications(ctx context.Context) (int64, error)
 	// Stakeholder invitations (stakeholder-metrics-v1 §1.3). Every write runs in
 	// the adapter's transaction together with its audit event.
 	// Run after LockCompanyForMemberMutation so two creates cannot both pass the limit.
 	CountPendingStakeholderInvitations(ctx context.Context, arg CountPendingStakeholderInvitationsParams) (int64, error)
 	// Bell counter (D14): unread groups (attention included) and unread rows of
-	// the caller's scope, from notifications_recipient_unread.
+	// the caller's visible scope, from notifications_recipient_unread (whose
+	// predicate includes in_app since migration 00069).
 	CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (CountUnreadNotificationsRow, error)
 	// Atomic apply + eligibility gate for POST /jobs/{jobId}/applications
 	// (design D1).
@@ -137,6 +154,13 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteCandidateEducations(ctx context.Context, userID uuid.UUID) error
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
+	// One purge batch, oldest first, after the notifications pass (most linked
+	// rows are already gone). A notification still inside the retention that
+	// links a purged delivery keeps a valid row: notifications.email_delivery_id
+	// is ON DELETE SET NULL and no CHECK involves it. Rows another connection
+	// holds are left for the next batch or run; the sender only locks
+	// non-terminal rows, which are never selected here.
+	DeleteExpiredNotificationEmailDeliveries(ctx context.Context, batchSize int32) (int64, error)
 	// Runs after the notifications pass. An event any notification still
 	// references is kept: ON DELETE SET NULL would break the notifications CHECK
 	// (immediate rows require source_event_id), failing the batch. It goes on the
@@ -145,6 +169,20 @@ type Querier interface {
 	// One purge batch, oldest first; rows another connection holds are left for
 	// the next batch or run.
 	DeleteExpiredNotifications(ctx context.Context, batchSize int32) (int64, error)
+	// Attempt cap on lease reclaim (L20): a delivery left 'sending' by a crashed
+	// or stuck sender whose lease expired after its last allowed attempt is
+	// failed (transient, lease cleared) without another send. Live leases are
+	// left to their sender.
+	FailExhaustedNotificationEmailDeliveries(ctx context.Context, maxAttempts int32) (int64, error)
+	// Sender finalize: a permanent failure (ErrPermanent, or a delivery that can
+	// never render) fails at once, no retry; fenced.
+	FinishNotificationEmailDeliveryFailed(ctx context.Context, arg FinishNotificationEmailDeliveryFailedParams) (int64, error)
+	// Sender finalize (§Sender step 4), fenced on (id, sending, lease): 0 rows =
+	// the lease expired and another instance took the delivery over (ignored).
+	// Every finalize clears lease_until (CHECK sending ⇔ lease_until).
+	FinishNotificationEmailDeliverySent(ctx context.Context, arg FinishNotificationEmailDeliverySentParams) (int64, error)
+	// Sender finalize: the re-check (D11) found a reason not to send; fenced.
+	FinishNotificationEmailDeliverySkipped(ctx context.Context, arg FinishNotificationEmailDeliverySkippedParams) (int64, error)
 	GeoCountries(ctx context.Context) ([]GeoCountriesRow, error)
 	GeoCountryExists(ctx context.Context, code string) (bool, error)
 	GeoLatestImport(ctx context.Context) (int64, error)
@@ -209,9 +247,31 @@ type Querier interface {
 	// Candidate scope (notifications-v1 D18): the live candidate account of the
 	// session subject, resolved after the candidate gate passed.
 	GetNotificationCandidateUser(ctx context.Context, cognitoSub string) (uuid.UUID, error)
+	// email_deliverable of the preferences catalog (§Preferences): the account is
+	// live, has a non-empty address and lower(btrim(address)) is not suppressed.
+	// Neither the address nor the suppression reason leaves this query.
+	GetNotificationEmailDeliverable(ctx context.Context, userID uuid.UUID) (bool, error)
+	// Sender view for a member delivery (§Content): the company name, the current
+	// draft title (like ListNotificationJobs; has_title false when absent or the
+	// job is gone) and whether the recipient can still open the job (owner of the
+	// company or an active assignment on it, D19 — vacancy_unassigned's link).
+	GetNotificationEmailMemberJob(ctx context.Context, arg GetNotificationEmailMemberJobParams) (GetNotificationEmailMemberJobRow, error)
+	// Sender re-check (v2 D11, D19): the recipient's state at send time. The
+	// address is read here, used for this one send and never copied; live = not
+	// soft-deleted; in_company = for a member delivery, still a member of the
+	// delivery's company and the company not soft-deleted (candidates: true). No
+	// row = the user is gone.
+	GetNotificationEmailRecipient(ctx context.Context, arg GetNotificationEmailRecipientParams) (GetNotificationEmailRecipientRow, error)
 	// Relation candidate: the account behind an organic participation of the job;
 	// NULL for a manual candidate (no account).
 	GetNotificationParticipationCandidate(ctx context.Context, arg GetNotificationParticipationCandidateParams) (pgtype.UUID, error)
+	// Public unsubscribe (notifications-v2 §Unsubscribe): the state of a verified
+	// token's (user, company, type). One row only for a live user; user_type lets
+	// the caller refuse the other tree, company_name is NULL when the token's
+	// company is NULL, missing or soft-deleted, email_override is the email row
+	// (NULL = no row, the default applies). Nothing else about the user leaves
+	// this query.
+	GetNotificationUnsubscribeTarget(ctx context.Context, arg GetNotificationUnsubscribeTargetParams) (GetNotificationUnsubscribeTargetRow, error)
 	// Publication status and the reason of the latest close event (empty when never
 	// closed or closed without reason): the inputs of the closed-covered predicate.
 	GetProcessCloseState(ctx context.Context, arg GetProcessCloseStateParams) (GetProcessCloseStateRow, error)
@@ -235,11 +295,18 @@ type Querier interface {
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	InsertCandidateEducation(ctx context.Context, arg InsertCandidateEducationParams) error
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
+	// Single groups (every non-grouped type, all mandatory ones included, v2
+	// D10): one delivery per notification, due now. group_key is the
+	// notification's own n:<id>, so it never meets an open window.
+	InsertImmediateNotificationEmailDelivery(ctx context.Context, arg InsertImmediateNotificationEmailDeliveryParams) error
 	InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error
 	// Immediate notification (D21): a re-processed event inserts nothing twice.
 	// created_at is the event's occurred_at, so a delayed fan-out keeps the group's
-	// day and the retention clock aligned with the event (L24).
-	InsertNotification(ctx context.Context, arg InsertNotificationParams) error
+	// day and the retention clock aligned with the event (L24). in_app is the
+	// recipient's effective in-app preference at creation (notifications-v2 D6,
+	// D7), never rewritten. Affected rows = 1 inserted / 0 deduplicated: only an
+	// inserted row gets an email delivery decision (v2 D8).
+	InsertNotification(ctx context.Context, arg InsertNotificationParams) (int64, error)
 	// Capture row written by the audit-port decorator inside the caller's tx,
 	// right after the audit event (notifications-v1 D1–D3). occurred_at is the DB
 	// DEFAULT now(), the same transaction clock as the audit row. payload holds
@@ -247,6 +314,7 @@ type Querier interface {
 	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
 	// Scheduled notification (D21): each (recipient, type, job, date) fires at
 	// most once; a renegotiated date is a new key. No actor, no source event.
+	// in_app as in InsertNotification (v2 D6, D7); affected rows feed v2 D8.
 	InsertScheduledNotification(ctx context.Context, arg InsertScheduledNotificationParams) (int64, error)
 	// Atomic liveness probe for the RequireCompanyRole middleware
 	// (require-company-role-tombstone-gate slice). Returns `deleted_at IS NULL`
@@ -277,6 +345,9 @@ type Querier interface {
 	// Relation previous_assignee: still a non-stakeholder member of the company,
 	// company not deleted (no assignment required, D10).
 	IsNotificationCompanyMember(ctx context.Context, arg IsNotificationCompanyMemberParams) (bool, error)
+	// v2 D8: a notification links to its delivery once, in the tx that created
+	// both; 0 affected rows means the row was missing or already linked.
+	LinkNotificationEmailDelivery(ctx context.Context, arg LinkNotificationEmailDeliveryParams) (int64, error)
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
 	// Recruiter queue read (design D5 second step). Same-company scope
 	// enforced inside the same statement. NO deleted_at / status filter on
@@ -328,7 +399,9 @@ type Querier interface {
 	// recipient_kind 'member' with company_id = the gate's company (members) or
 	// recipient_kind 'candidate' with company_id NULL (candidates). The CHECK
 	// (recipient_kind = 'candidate') = (company_id IS NULL) makes any other
-	// combination match nothing.
+	// combination match nothing. Every scope also filters `AND <alias>.in_app`
+	// (notifications-v2 D6): a row created with the in-app channel off is never
+	// listed, counted, faceted or marked (guarded by inbox/inapp_guard_test.go).
 	// Attention (notifications-v1 D13), the single source of the selection: the
 	// caller's unread, unresolved items of the attention types (passed by the
 	// caller from the domain type table) in the caller's scope, honouring types /
@@ -340,6 +413,16 @@ type Querier interface {
 	// manual candidate or account name; '' when unknown). The caller gates it by
 	// vacancy access.
 	ListNotificationCandidateNames(ctx context.Context, arg ListNotificationCandidateNamesParams) ([]ListNotificationCandidateNamesRow, error)
+	// Email eligibility at creation (notifications-v2 D9, D19): of the given
+	// recipients, those live with a non-empty address whose normalized form
+	// (lower(btrim)) is not in email_suppressions. Only ids leave this query:
+	// the address is never copied or returned.
+	ListNotificationEmailDeliverableUsers(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error)
+	// Sender re-check and view (v2 D11, §Content): the notifications linked to a
+	// delivery, oldest first. Hidden rows (in_app = false) are included: they are
+	// mailed and, never being read, never cause a 'read' skip. Ids, dates, flags
+	// and the enum-only payload; nothing else.
+	ListNotificationEmailDeliveryRows(ctx context.Context, deliveryID uuid.UUID) ([]ListNotificationEmailDeliveryRowsRow, error)
 	// GET B/facets (D17): the same groups per job with the current title
 	// (members: the draft title of the company; candidates: the public title they
 	// see in /v2/me/applications, only for a process they participate in;
@@ -363,6 +446,16 @@ type Querier interface {
 	// an active assignment on it). Jobs of other companies or gone are absent;
 	// has_title is false when the draft has no title.
 	ListNotificationJobs(ctx context.Context, arg ListNotificationJobsParams) ([]ListNotificationJobsRow, error)
+	// Creation-time preferences (notifications-v2 D6, D7): the override rows of
+	// one channel for a batch of recipients, read in the inserting tx, one query
+	// per fan-out event / scheduler run. Arrays over-fetch at most their cross
+	// product (company_id NULL = candidate tree); the caller matches exact
+	// (user, company, type) keys and mandatory types ignore any row.
+	ListNotificationPreferenceOverrides(ctx context.Context, arg ListNotificationPreferenceOverridesParams) ([]ListNotificationPreferenceOverridesRow, error)
+	// Personal preferences (notifications-v2 D1, D2): the caller's sparse override
+	// rows in their scope, member (user, company) or candidate (user, NULL). The
+	// catalog and the defaults come from the domain table.
+	ListNotificationPreferences(ctx context.Context, arg ListNotificationPreferencesParams) ([]ListNotificationPreferencesRow, error)
 	// Relation team (§Recipients): users with an active assignment on the job who
 	// are still non-stakeholder members of the event's company, company not deleted.
 	ListNotificationTeamRecipients(ctx context.Context, arg ListNotificationTeamRecipientsParams) ([]uuid.UUID, error)
@@ -440,6 +533,11 @@ type Querier interface {
 	// or cleared); a due-soon item when an overdue item exists for the same
 	// recipient, job and date.
 	ResolveStaleScheduledNotifications(ctx context.Context) (int64, error)
+	// Sender finalize: a transient failure. After the n-th attempt (counted by the
+	// claim) the next one waits retry_base_ms·2^(n-1), capped at retry_cap_ms; at
+	// max_attempts the delivery fails (error_class transient). Fenced; no row =
+	// stale sender.
+	RetryNotificationEmailDelivery(ctx context.Context, arg RetryNotificationEmailDeliveryParams) (RetryNotificationEmailDeliveryRow, error)
 	// Only a pending invitation of the caller's company changes; anything else
 	// affects no row and the DELETE still answers 204.
 	RevokeStakeholderInvitation(ctx context.Context, arg RevokeStakeholderInvitationParams) (int64, error)
@@ -569,6 +667,12 @@ type Querier interface {
 	// No deleted_at / status filter on jobs: transitions on soft-deleted
 	// jobs' applications remain legal (historical pipeline).
 	TransitionStatus(ctx context.Context, arg TransitionStatusParams) (TransitionStatusRow, error)
+	// POST /v2/notifications/unsubscribe (§Unsubscribe, D17): email off for the
+	// token's (user, company, type), source 'unsubscribe'. Idempotent: a row that
+	// is already off (from settings or a previous unsubscribe) is left untouched,
+	// so repeats change nothing. Mandatory types never reach here (refused by the
+	// token check and by the table CHECK). Not audited (D5).
+	UnsubscribeNotificationEmail(ctx context.Context, arg UnsubscribeNotificationEmailParams) error
 	// Atomic partial update + CAS for PATCH /me/company (companies-write slice,
 	// design D3). Mirrors UpdateJob :one minus the `active` CTE (companies
 	// has no active-company guard on PATCH/DELETE — a suspended company may
@@ -671,6 +775,18 @@ type Querier interface {
 	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
 	// Reserved cv_s3_key and search_vector remain database-owned.
 	UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error)
+	// Grouped types (v2 D10, §Coalescing): the first eligible row of a
+	// (recipient, group_key) with no 'pending' delivery opens a fixed 10-minute
+	// window; later rows join it (the conflict returns the open delivery's id and
+	// never moves send_after). A claimed delivery ('sending') is outside the
+	// partial unique arbiter, so the next row opens a new window — also when this
+	// statement waited on the claim's row lock (the arbiter is re-checked).
+	UpsertCoalescedNotificationEmailDelivery(ctx context.Context, arg UpsertCoalescedNotificationEmailDeliveryParams) (uuid.UUID, error)
+	// PUT …/preferences (D4): one explicit settings row per validated entry, even
+	// when equal to the default; the caller runs every entry of a body in one tx
+	// (all or nothing). Mandatory types are refused before (and by the table
+	// CHECK). Not audited (D5): source + updated_at are the support trace.
+	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
 	UpsertVacancyPublicProjection(ctx context.Context, arg UpsertVacancyPublicProjectionParams) error
 	VacancyLocationRead(ctx context.Context, arg VacancyLocationReadParams) ([]byte, error)
 	VacancyRemoteCountriesRead(ctx context.Context, countries []string) ([]byte, error)

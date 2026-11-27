@@ -7,8 +7,8 @@ import (
 )
 
 const usageText = "usage: notifications-purge [-execute]\n" +
-	"Dry run by default: prints how many notifications rows (created_at) and processed notification_events rows (processed_at) are older than the 180 day retention. " +
-	"-execute deletes them in batches of 1000, one transaction per batch, notifications first; unprocessed events and events a remaining notification still references are kept (notifications-v1 D22). " +
+	"Dry run by default: prints how many notifications rows (created_at), processed notification_events rows (processed_at) and terminal notification_email_deliveries rows (sent, skipped or failed; created_at) are older than the 180 day retention. " +
+	"-execute deletes them in batches of 1000, one transaction per batch, notifications first, then events, then deliveries; unprocessed events, events a remaining notification still references and pending, retry or sending deliveries are kept, and a remaining notification linked to a purged delivery keeps no link (notifications-v1 D22, notifications-v2 D20). " +
 	"Run it daily from the deploy scheduler, dry run first. DATABASE_URL must be supplied in the environment.\n"
 
 func TestMissingDatabaseURL(t *testing.T) {

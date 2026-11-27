@@ -39,3 +39,15 @@ simulador (LocalStack SES o Mailpit para ver los correos en el navegador).
 
 - Invitar miembros por correo (unidad grande diferida en `odd/tasks/frontend-backlog.md`).
 - Correos de Cognito (verificación y recuperación) en producción.
+
+## Seguimiento (2026-11-26, notificaciones etapa 2)
+
+- **Proveedor**: sigue siendo **Amazon SES**; no cambia.
+- **Forma de envío**: por ahora el transporte es **en base de datos y dentro del proceso de la API**, no por cola: la
+  tabla `notification_email_deliveries` y un ciclo de envío en cada instancia (`docs/contracts/notifications-v2.md`,
+  D8, D12 y D21), detrás del puerto `Mailer` (`off`, `log`, `smtp` con Mailpit en desarrollo; `ses` reservado). No hay
+  EventBridge, SQS ni worker en Fargate hasta que una cola se justifique (volumen, aislamiento o reintentos que el
+  ciclo en proceso no cubra); el puerto deja SES enchufable sin tocar el resto.
+- **Pendiente de AWS, a la espera del visto bueno del usuario** (no se toca nada de AWS hasta entonces): dominio y
+  remitente, verificación en SES (DKIM, SPF, DMARC), salida del sandbox, adaptador `ses` e ingesta de rebotes y quejas
+  hacia `email_suppressions`.

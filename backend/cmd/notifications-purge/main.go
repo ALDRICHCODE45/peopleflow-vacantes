@@ -1,7 +1,9 @@
 // Command notifications-purge is the notifications retention job
-// (notifications-v1 D22): it deletes notifications rows created more than 180
-// days ago and processed notification_events rows processed more than 180 days
-// ago. Dry run by default, it reads DATABASE_URL only from the environment and
+// (notifications-v1 D22, notifications-v2 D20): it deletes notifications rows
+// created more than 180 days ago, processed notification_events rows processed
+// more than 180 days ago and terminal (sent, skipped, failed)
+// notification_email_deliveries rows created more than 180 days ago. Dry run
+// by default, it reads DATABASE_URL only from the environment and
 // never prints driver errors.
 package main
 
@@ -19,8 +21,8 @@ import (
 )
 
 const usage = "usage: notifications-purge [-execute]\n" +
-	"Dry run by default: prints how many notifications rows (created_at) and processed notification_events rows (processed_at) are older than the 180 day retention. " +
-	"-execute deletes them in batches of 1000, one transaction per batch, notifications first; unprocessed events and events a remaining notification still references are kept (notifications-v1 D22). " +
+	"Dry run by default: prints how many notifications rows (created_at), processed notification_events rows (processed_at) and terminal notification_email_deliveries rows (sent, skipped or failed; created_at) are older than the 180 day retention. " +
+	"-execute deletes them in batches of 1000, one transaction per batch, notifications first, then events, then deliveries; unprocessed events, events a remaining notification still references and pending, retry or sending deliveries are kept, and a remaining notification linked to a purged delivery keeps no link (notifications-v1 D22, notifications-v2 D20). " +
 	"Run it daily from the deploy scheduler, dry run first. DATABASE_URL must be supplied in the environment.\n"
 
 func main() {
@@ -42,7 +44,7 @@ func runBatch(ctx context.Context, args []string, stdout, stderr io.Writer, batc
 	}
 	flags := flag.NewFlagSet("notifications-purge", flag.ContinueOnError)
 	flags.SetOutput(io.Discard) // Flag parser errors can contain arbitrary input.
-	execute := flags.Bool("execute", false, "delete expired notifications and processed events")
+	execute := flags.Bool("execute", false, "delete expired notifications, processed events and terminal email deliveries")
 	flags.Usage = func() {}
 	if err := flags.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -83,7 +85,8 @@ func runBatch(ctx context.Context, args []string, stdout, stderr io.Writer, batc
 		return fail()
 	}
 	// Counts only: no row content, ids or personal data.
-	if _, err = fmt.Fprintf(stdout, "notifications_%s=%d\nnotification_events_%s=%d\n", verb, c.notifications, verb, c.events); err != nil {
+	if _, err = fmt.Fprintf(stdout, "notifications_%s=%d\nnotification_events_%s=%d\nnotification_email_deliveries_%s=%d\n",
+		verb, c.notifications, verb, c.events, verb, c.deliveries); err != nil {
 		return fail()
 	}
 	return 0

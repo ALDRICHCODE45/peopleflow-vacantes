@@ -40,7 +40,7 @@ func TestLinkPerType(t *testing.T) {
 		{"candidate test", domain.TypeCandidateTestPending, 1, &participation, map[string]any{"invitation_id": invitation.String()}, false, &Link{Kind: "assessment", InvitationID: invitation.String()}},
 	}
 	for _, tc := range cases {
-		got := linkFor(tc.typ, job, tc.count, tc.part, tc.payload, tc.canOpen)
+		got := LinkFor(tc.typ, job, tc.count, tc.part, tc.payload, tc.canOpen)
 		if !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s: link = %+v, want %+v", tc.name, got, tc.want)
 		}

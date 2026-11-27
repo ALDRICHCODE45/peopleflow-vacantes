@@ -70,6 +70,7 @@ import (
 	publicjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
 	savedjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/savedjobs"
 	notifcapture "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/capture"
+	notificationsunsubscribe "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/unsubscribe"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
@@ -207,6 +208,25 @@ func run() error {
 	// Unset means no forwarded client header is ever trusted (peer only).
 	auditProxySecret := runtimeconfig.LoadAuditProxySecret(os.Getenv)
 
+	notificationsEmail, err := runtimeconfig.LoadNotificationsEmailConfig(os.Getenv)
+	if err != nil {
+		// Config errors are static messages, never the raw environment values.
+		slog.Error("notifications email configuration invalid", "reason", err.Error())
+		return err
+	}
+	// notifications-v2 D13: only the mailer kind is logged, never another key.
+	slog.Info("notifications email", "mailer", string(notificationsEmail.Mailer), "deliveries", notificationsEmail.Enabled(),
+		"unsubscribe_keys", len(notificationsEmail.UnsubscribeKeys))
+	// notifications-v2 §Unsubscribe: the HMAC token signer/verifier from NOTIFICATIONS_UNSUBSCRIBE_KEYS, built whenever keys
+	// are configured — also with the mailer off (kill switch), so links already sent keep working; nil without keys (every
+	// token refused). The same value verifies the public unsubscribe routes and is the renderer's email.TokenSigner for the
+	// sender. The keys are never logged.
+	notificationUnsubscribeSigner, err := newNotificationUnsubscribeSigner(notificationsEmail, nil)
+	if err != nil {
+		slog.Error("notifications unsubscribe keys invalid", "reason", err.Error())
+		return err
+	}
+
 	// Connection pool: pgx manages a set of reusable connections, not a single one.
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
@@ -216,6 +236,13 @@ func run() error {
 
 	// Fail fast: prove we can reach Postgres before we start serving traffic.
 	if err := pool.Ping(ctx); err != nil {
+		return err
+	}
+	// notifications-v2 D12 / L13: the email sender is composed before any background loop starts, so a non-off mailer that
+	// cannot be fully composed (unsubscribe signer, renderer settings) refuses startup; nil with the mailer off (D13).
+	notificationSender, err := newNotificationSender(pool, notificationsEmail, notificationUnsubscribeSigner, slog.Default())
+	if err != nil {
+		slog.Error("notifications email sender configuration invalid", "reason", err.Error())
 		return err
 	}
 	slog.Info("connected to postgres")
@@ -332,13 +359,21 @@ func run() error {
 	stopDocumentReconcile := startDocumentReconcile(ctx, newDocumentReconcileScheduler(pool, documentStorage))
 	defer stopDocumentReconcile()
 	// notifications-v1 D4: fan-out of captured notification events, every 2 s in every instance (SKIP LOCKED). Stopped, and
-	// waited for, on shutdown before the pool is closed (deferred calls run last-in first).
-	stopNotificationFanOut := startNotificationFanOut(ctx, newNotificationFanOut(pool))
+	// waited for, on shutdown before the pool is closed (deferred calls run last-in first). notifications-v2 D8: with
+	// NOTIFICATIONS_MAILER ≠ off the fan-out and the scheduler also create the email deliveries of the rows they insert.
+	stopNotificationFanOut := startNotificationFanOut(ctx, newNotificationFanOut(pool, notificationsEmail.Enabled()))
 	defer stopNotificationFanOut()
 	// notifications-v1 D20: delivery and recruiter deadline items, once at startup and every 15 min, one instance at a time
 	// (advisory lock notif_sc). Stopped, and waited for, on shutdown before the pool is closed (deferred calls run last-in first).
-	stopNotificationSchedule := startNotificationSchedule(ctx, newNotificationScheduler(pool))
+	stopNotificationSchedule := startNotificationSchedule(ctx, newNotificationScheduler(pool, notificationsEmail.Enabled()))
 	defer stopNotificationSchedule()
+	// notifications-v2 D12: the email sender loop, every 5 s in every instance (SKIP LOCKED + lease), only when
+	// NOTIFICATIONS_MAILER ≠ off. Started after the fan-out and the scheduler; stopped first, and waited for (its in-flight
+	// delivery finalizes), before the pool is closed (deferred calls run last-in first).
+	if notificationSender != nil {
+		stopNotificationSender := startNotificationSender(ctx, notificationSender)
+		defer stopNotificationSender()
+	}
 	slog.Info("document storage", "enabled", documentConfig.Enabled(), "mode", documentConfig.Mode, "bucket", documentConfig.Bucket, "region", documentConfig.Region, "prefix", documentConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)
 	// Carried replacement candidates trigger the same stage-entry effects (psychometric auto-send) as an intake.
@@ -439,15 +474,18 @@ func run() error {
 	r := newRouter(routerDeps{
 		siteHandler: newCompanySiteHandler(pool, auditRepo, siteStorage),
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
-		requireMetricsViewer:          requireMetricsViewer,
-		requireDocumentReader:         requireDocumentReader,
-		documentHandler:               newDocumentHandler(pool, draftStore, documentStorage),
-		notificationsHandler:          newNotificationsHandler(pool),
-		candidateNotificationsHandler: newCandidateNotificationsHandler(pool),
-		stakeholderVacanciesHandler:   jobshttp.NewStakeholderVacanciesHandler(draftStore),
-		metricsHandler:                newMetricsHandler(newMetricsService(pool, auditRepo)),
-		stakeholderInvitationHandler:  companieshttp.NewStakeholderInvitationHandler(usecases.NewStakeholderInvitationService(postgres.NewStakeholderInvitationRepository(pool, auditRepo), identityUserRepo)),
-		requireCandidate:              requireCandidate, identityHandler: identityHandler, sessionHandler: newSessionHandler(pool, auditRepo),
+		requireMetricsViewer:                    requireMetricsViewer,
+		requireDocumentReader:                   requireDocumentReader,
+		documentHandler:                         newDocumentHandler(pool, draftStore, documentStorage),
+		notificationsHandler:                    newNotificationsHandler(pool),
+		candidateNotificationsHandler:           newCandidateNotificationsHandler(pool),
+		notificationPreferencesHandler:          newNotificationPreferencesHandler(pool),
+		candidateNotificationPreferencesHandler: newCandidateNotificationPreferencesHandler(pool),
+		notificationUnsubscribeHandler:          newNotificationUnsubscribeHandler(pool, notificationUnsubscribeSigner, notificationsunsubscribe.NewLimiter(notificationsunsubscribe.DefaultLimits(), nil)),
+		stakeholderVacanciesHandler:             jobshttp.NewStakeholderVacanciesHandler(draftStore),
+		metricsHandler:                          newMetricsHandler(newMetricsService(pool, auditRepo)),
+		stakeholderInvitationHandler:            companieshttp.NewStakeholderInvitationHandler(usecases.NewStakeholderInvitationService(postgres.NewStakeholderInvitationRepository(pool, auditRepo), identityUserRepo)),
+		requireCandidate:                        requireCandidate, identityHandler: identityHandler, sessionHandler: newSessionHandler(pool, auditRepo),
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
 		candidatePoolHandler: candidatePoolHandler,
 		talentBaseHandler:    talentbasehttp.NewHandler(talentbaseapp.NewService(talentBase)),

@@ -39,28 +39,40 @@ type CandidatePort interface {
 	CandidateUser(ctx context.Context, sub string) (uuid.UUID, error)
 }
 
+// ScopeFunc resolves the caller's recipient scope of one route tree or writes
+// the error itself (false).
+type ScopeFunc func(w http.ResponseWriter, r *http.Request) (Scope, bool)
+
 // Handler serves one route tree (D18) with the same handlers and shapes; scope
 // resolves the caller's recipient scope or writes the error itself.
 type Handler struct {
 	store Port
-	scope func(w http.ResponseWriter, r *http.Request) (Scope, bool)
+	scope ScopeFunc
 }
 
 // NewHandler serves the member routes behind the owner/recruiter/stakeholder
 // gate; the scope comes only from the gate's CompanyContext.
-func NewHandler(store Port) *Handler { return &Handler{store: store, scope: memberScope} }
+func NewHandler(store Port) *Handler { return &Handler{store: store, scope: MemberScope} }
 
 // NewCandidateHandler serves the candidate routes behind requireCandidate; the
 // scope is the session subject's candidate account, recipient_kind candidate,
 // no company.
 func NewCandidateHandler(store CandidatePort) *Handler {
-	return &Handler{store: store, scope: func(w http.ResponseWriter, r *http.Request) (Scope, bool) {
+	return &Handler{store: store, scope: CandidateScope(store.CandidateUser)}
+}
+
+// CandidateScope resolves the candidate tree's scope behind requireCandidate:
+// the live candidate account of the session subject (lookup returns
+// ErrNoCandidate when there is none → account_required), no company. Shared
+// by every candidate notifications route (inbox and preferences).
+func CandidateScope(lookup func(ctx context.Context, sub string) (uuid.UUID, error)) ScopeFunc {
+	return func(w http.ResponseWriter, r *http.Request) (Scope, bool) {
 		sub := security.ClaimsFromContext(r.Context()).Subject
 		if sub == "" {
 			httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
 			return Scope{}, false
 		}
-		id, err := store.CandidateUser(r.Context(), sub)
+		id, err := lookup(r.Context(), sub)
 		switch {
 		case errors.Is(err, ErrNoCandidate):
 			httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeAccountRequired))
@@ -71,10 +83,13 @@ func NewCandidateHandler(store CandidatePort) *Handler {
 			return Scope{}, false
 		}
 		return Scope{UserID: id, Candidate: true}, true
-	}}
+	}
 }
 
-func memberScope(w http.ResponseWriter, r *http.Request) (Scope, bool) {
+// MemberScope resolves the member tree's scope behind requireDocumentReader:
+// the session user in the gate's CompanyContext company. Shared by every
+// member notifications route (inbox and preferences).
+func MemberScope(w http.ResponseWriter, r *http.Request) (Scope, bool) {
 	cc, ok := security.CompanyContextFromContext(r.Context())
 	if !ok || cc.CompanyID == uuid.Nil || cc.UserID == uuid.Nil {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))

@@ -12,6 +12,68 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimNextNotificationEmailDelivery = `-- name: ClaimNextNotificationEmailDelivery :one
+UPDATE notification_email_deliveries d
+SET status = 'sending',
+    attempts = d.attempts + 1,
+    next_attempt_at = NULL,
+    lease_until = now() + interval '1 millisecond' * $1::bigint,
+    updated_at = now()
+WHERE d.id = (
+    SELECT c.id
+    FROM notification_email_deliveries c
+    WHERE (c.status = 'pending' AND c.send_after <= now())
+       OR (c.status = 'retry' AND c.next_attempt_at <= now())
+       OR (c.status = 'sending' AND c.lease_until < now() AND c.attempts < $2::integer)
+    ORDER BY c.send_after, c.id
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING d.id, d.recipient_user_id, d.recipient_kind, d.company_id, d.type, d.job_id, d.attempts, d.lease_until
+`
+
+type ClaimNextNotificationEmailDeliveryParams struct {
+	LeaseMs     int64 `json:"lease_ms"`
+	MaxAttempts int32 `json:"max_attempts"`
+}
+
+type ClaimNextNotificationEmailDeliveryRow struct {
+	ID              uuid.UUID          `json:"id"`
+	RecipientUserID uuid.UUID          `json:"recipient_user_id"`
+	RecipientKind   string             `json:"recipient_kind"`
+	CompanyID       pgtype.UUID        `json:"company_id"`
+	Type            string             `json:"type"`
+	JobID           uuid.UUID          `json:"job_id"`
+	Attempts        int32              `json:"attempts"`
+	LeaseUntil      pgtype.Timestamptz `json:"lease_until"`
+}
+
+// Sender claim (notifications-v2 D12, §Sender step 1), one autocommit
+// statement: the oldest due delivery — pending past its window, retry past its
+// backoff, or sending with an expired lease (crashed or stale sender) — locked
+// with SKIP LOCKED so instances never take the same row, then set sending with
+// a fresh lease. next_attempt_at is cleared (CHECK retry ⇔ next_attempt_at);
+// the returned lease fences the finalize. Leaving 'pending' closes the
+// coalescing window (the partial unique index only covers 'pending'). An
+// expired lease is reclaimed only below max_attempts: a row that already used
+// every attempt is failed by FailExhaustedNotificationEmailDeliveries instead
+// of being sent again.
+func (q *Queries) ClaimNextNotificationEmailDelivery(ctx context.Context, arg ClaimNextNotificationEmailDeliveryParams) (ClaimNextNotificationEmailDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, claimNextNotificationEmailDelivery, arg.LeaseMs, arg.MaxAttempts)
+	var i ClaimNextNotificationEmailDeliveryRow
+	err := row.Scan(
+		&i.ID,
+		&i.RecipientUserID,
+		&i.RecipientKind,
+		&i.CompanyID,
+		&i.Type,
+		&i.JobID,
+		&i.Attempts,
+		&i.LeaseUntil,
+	)
+	return i, err
+}
+
 const claimNextNotificationEvent = `-- name: ClaimNextNotificationEvent :one
 SELECT id, company_id, event_type, actor_user_id, job_id, participation_id, subject_user_id, payload, occurred_at
 FROM notification_events
@@ -55,6 +117,23 @@ func (q *Queries) ClaimNextNotificationEvent(ctx context.Context, skip []uuid.UU
 	return i, err
 }
 
+const countExpiredNotificationEmailDeliveries = `-- name: CountExpiredNotificationEmailDeliveries :one
+SELECT count(*) FROM notification_email_deliveries
+WHERE status IN ('sent', 'skipped', 'failed')
+  AND created_at < now() - interval '180 days'
+`
+
+// Retention (notifications-v2 D20): terminal deliveries (sent, skipped,
+// failed) created more than 180 days ago; pending, retry and sending rows are
+// never selected, whatever their age. Exact dry-run forecast of
+// DeleteExpiredNotificationEmailDeliveries (no other pass changes this set).
+func (q *Queries) CountExpiredNotificationEmailDeliveries(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countExpiredNotificationEmailDeliveries)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countExpiredNotificationEvents = `-- name: CountExpiredNotificationEvents :one
 SELECT count(*) FROM notification_events e
 WHERE e.processed_at < now() - interval '180 days'
@@ -80,7 +159,7 @@ WHERE created_at < now() - interval '180 days'
 `
 
 // Retention (notifications-v1 D22): rows older than 180 days, read or not.
-// The cutoff must stay identical in the four retention queries.
+// The cutoff must stay identical in the six retention queries.
 func (q *Queries) CountExpiredNotifications(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countExpiredNotifications)
 	var count int64
@@ -94,6 +173,7 @@ FROM notifications n
 WHERE n.recipient_user_id = $1::uuid
   AND n.recipient_kind = $2::text
   AND n.company_id IS NOT DISTINCT FROM $3::uuid
+  AND n.in_app
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL
 `
@@ -110,12 +190,39 @@ type CountUnreadNotificationsRow struct {
 }
 
 // Bell counter (D14): unread groups (attention included) and unread rows of
-// the caller's scope, from notifications_recipient_unread.
+// the caller's visible scope, from notifications_recipient_unread (whose
+// predicate includes in_app since migration 00069).
 func (q *Queries) CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (CountUnreadNotificationsRow, error) {
 	row := q.db.QueryRow(ctx, countUnreadNotifications, arg.UserID, arg.RecipientKind, arg.CompanyID)
 	var i CountUnreadNotificationsRow
 	err := row.Scan(&i.UnreadGroups, &i.UnreadNotifications)
 	return i, err
+}
+
+const deleteExpiredNotificationEmailDeliveries = `-- name: DeleteExpiredNotificationEmailDeliveries :execrows
+DELETE FROM notification_email_deliveries
+WHERE id IN (
+    SELECT id FROM notification_email_deliveries
+    WHERE status IN ('sent', 'skipped', 'failed')
+      AND created_at < now() - interval '180 days'
+    ORDER BY created_at, id
+    LIMIT $1::integer
+    FOR UPDATE SKIP LOCKED
+)
+`
+
+// One purge batch, oldest first, after the notifications pass (most linked
+// rows are already gone). A notification still inside the retention that
+// links a purged delivery keeps a valid row: notifications.email_delivery_id
+// is ON DELETE SET NULL and no CHECK involves it. Rows another connection
+// holds are left for the next batch or run; the sender only locks
+// non-terminal rows, which are never selected here.
+func (q *Queries) DeleteExpiredNotificationEmailDeliveries(ctx context.Context, batchSize int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredNotificationEmailDeliveries, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteExpiredNotificationEvents = `-- name: DeleteExpiredNotificationEvents :execrows
@@ -163,6 +270,92 @@ func (q *Queries) DeleteExpiredNotifications(ctx context.Context, batchSize int3
 	return result.RowsAffected(), nil
 }
 
+const failExhaustedNotificationEmailDeliveries = `-- name: FailExhaustedNotificationEmailDeliveries :execrows
+UPDATE notification_email_deliveries
+SET status = 'failed', error_class = 'transient', lease_until = NULL, updated_at = now()
+WHERE status = 'sending'
+  AND lease_until < now()
+  AND attempts >= $1::integer
+`
+
+// Attempt cap on lease reclaim (L20): a delivery left 'sending' by a crashed
+// or stuck sender whose lease expired after its last allowed attempt is
+// failed (transient, lease cleared) without another send. Live leases are
+// left to their sender.
+func (q *Queries) FailExhaustedNotificationEmailDeliveries(ctx context.Context, maxAttempts int32) (int64, error) {
+	result, err := q.db.Exec(ctx, failExhaustedNotificationEmailDeliveries, maxAttempts)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const finishNotificationEmailDeliveryFailed = `-- name: FinishNotificationEmailDeliveryFailed :execrows
+UPDATE notification_email_deliveries
+SET status = 'failed', error_class = 'permanent', lease_until = NULL, updated_at = now()
+WHERE id = $1::uuid AND status = 'sending' AND lease_until = $2::timestamptz
+`
+
+type FinishNotificationEmailDeliveryFailedParams struct {
+	ID         uuid.UUID          `json:"id"`
+	LeaseUntil pgtype.Timestamptz `json:"lease_until"`
+}
+
+// Sender finalize: a permanent failure (ErrPermanent, or a delivery that can
+// never render) fails at once, no retry; fenced.
+func (q *Queries) FinishNotificationEmailDeliveryFailed(ctx context.Context, arg FinishNotificationEmailDeliveryFailedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, finishNotificationEmailDeliveryFailed, arg.ID, arg.LeaseUntil)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const finishNotificationEmailDeliverySent = `-- name: FinishNotificationEmailDeliverySent :execrows
+UPDATE notification_email_deliveries
+SET status = 'sent', sent_at = now(), provider_message_id = $1::text, error_class = NULL,
+    lease_until = NULL, updated_at = now()
+WHERE id = $2::uuid AND status = 'sending' AND lease_until = $3::timestamptz
+`
+
+type FinishNotificationEmailDeliverySentParams struct {
+	ProviderMessageID pgtype.Text        `json:"provider_message_id"`
+	ID                uuid.UUID          `json:"id"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+}
+
+// Sender finalize (§Sender step 4), fenced on (id, sending, lease): 0 rows =
+// the lease expired and another instance took the delivery over (ignored).
+// Every finalize clears lease_until (CHECK sending ⇔ lease_until).
+func (q *Queries) FinishNotificationEmailDeliverySent(ctx context.Context, arg FinishNotificationEmailDeliverySentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, finishNotificationEmailDeliverySent, arg.ProviderMessageID, arg.ID, arg.LeaseUntil)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const finishNotificationEmailDeliverySkipped = `-- name: FinishNotificationEmailDeliverySkipped :execrows
+UPDATE notification_email_deliveries
+SET status = 'skipped', skip_reason = $1::text, lease_until = NULL, updated_at = now()
+WHERE id = $2::uuid AND status = 'sending' AND lease_until = $3::timestamptz
+`
+
+type FinishNotificationEmailDeliverySkippedParams struct {
+	SkipReason string             `json:"skip_reason"`
+	ID         uuid.UUID          `json:"id"`
+	LeaseUntil pgtype.Timestamptz `json:"lease_until"`
+}
+
+// Sender finalize: the re-check (D11) found a reason not to send; fenced.
+func (q *Queries) FinishNotificationEmailDeliverySkipped(ctx context.Context, arg FinishNotificationEmailDeliverySkippedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, finishNotificationEmailDeliverySkipped, arg.SkipReason, arg.ID, arg.LeaseUntil)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getNotificationCandidateUser = `-- name: GetNotificationCandidateUser :one
 SELECT u.id FROM users u
 WHERE u.cognito_sub = $1::text
@@ -177,6 +370,113 @@ func (q *Queries) GetNotificationCandidateUser(ctx context.Context, cognitoSub s
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getNotificationEmailDeliverable = `-- name: GetNotificationEmailDeliverable :one
+SELECT (u.deleted_at IS NULL AND btrim(u.email) <> ''
+        AND NOT EXISTS (SELECT 1 FROM email_suppressions s
+                        WHERE s.address = lower(btrim(u.email))))::boolean AS deliverable
+FROM users u
+WHERE u.id = $1::uuid
+`
+
+// email_deliverable of the preferences catalog (§Preferences): the account is
+// live, has a non-empty address and lower(btrim(address)) is not suppressed.
+// Neither the address nor the suppression reason leaves this query.
+func (q *Queries) GetNotificationEmailDeliverable(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, getNotificationEmailDeliverable, userID)
+	var deliverable bool
+	err := row.Scan(&deliverable)
+	return deliverable, err
+}
+
+const getNotificationEmailMemberJob = `-- name: GetNotificationEmailMemberJob :one
+SELECT c.name AS company_name,
+       (d.id IS NOT NULL AND (convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title') IS NOT NULL)::boolean AS has_title,
+       COALESCE(convert_from(d.fields, 'UTF8')::jsonb -> 'fields' ->> 'title', '')::text AS title,
+       (d.id IS NOT NULL AND (
+           EXISTS (SELECT 1 FROM company_members cm
+                   WHERE cm.company_id = c.id AND cm.user_id = $1::uuid AND cm.role = 'owner')
+           OR EXISTS (SELECT 1 FROM vacancy_assignments va
+                      WHERE va.draft_id = d.id
+                        AND va.company_id = d.company_id
+                        AND va.user_id = $1::uuid
+                        AND va.ended_at IS NULL)))::boolean AS can_open
+FROM companies c
+LEFT JOIN job_drafts d ON d.id = $2::uuid AND d.company_id = c.id
+WHERE c.id = $3::uuid
+`
+
+type GetNotificationEmailMemberJobParams struct {
+	UserID    uuid.UUID `json:"user_id"`
+	JobID     uuid.UUID `json:"job_id"`
+	CompanyID uuid.UUID `json:"company_id"`
+}
+
+type GetNotificationEmailMemberJobRow struct {
+	CompanyName string `json:"company_name"`
+	HasTitle    bool   `json:"has_title"`
+	Title       string `json:"title"`
+	CanOpen     bool   `json:"can_open"`
+}
+
+// Sender view for a member delivery (§Content): the company name, the current
+// draft title (like ListNotificationJobs; has_title false when absent or the
+// job is gone) and whether the recipient can still open the job (owner of the
+// company or an active assignment on it, D19 — vacancy_unassigned's link).
+func (q *Queries) GetNotificationEmailMemberJob(ctx context.Context, arg GetNotificationEmailMemberJobParams) (GetNotificationEmailMemberJobRow, error) {
+	row := q.db.QueryRow(ctx, getNotificationEmailMemberJob, arg.UserID, arg.JobID, arg.CompanyID)
+	var i GetNotificationEmailMemberJobRow
+	err := row.Scan(
+		&i.CompanyName,
+		&i.HasTitle,
+		&i.Title,
+		&i.CanOpen,
+	)
+	return i, err
+}
+
+const getNotificationEmailRecipient = `-- name: GetNotificationEmailRecipient :one
+SELECT (u.deleted_at IS NULL)::boolean AS live,
+       u.email,
+       EXISTS (SELECT 1 FROM email_suppressions s WHERE s.address = lower(btrim(u.email)))::boolean AS suppressed,
+       ($1::uuid IS NULL OR EXISTS (
+           SELECT 1
+           FROM company_members cm
+           JOIN companies c ON c.id = cm.company_id AND c.deleted_at IS NULL
+           WHERE cm.company_id = $1::uuid
+             AND cm.user_id = u.id))::boolean AS in_company
+FROM users u
+WHERE u.id = $2::uuid
+`
+
+type GetNotificationEmailRecipientParams struct {
+	CompanyID pgtype.UUID `json:"company_id"`
+	UserID    uuid.UUID   `json:"user_id"`
+}
+
+type GetNotificationEmailRecipientRow struct {
+	Live       bool   `json:"live"`
+	Email      string `json:"email"`
+	Suppressed bool   `json:"suppressed"`
+	InCompany  bool   `json:"in_company"`
+}
+
+// Sender re-check (v2 D11, D19): the recipient's state at send time. The
+// address is read here, used for this one send and never copied; live = not
+// soft-deleted; in_company = for a member delivery, still a member of the
+// delivery's company and the company not soft-deleted (candidates: true). No
+// row = the user is gone.
+func (q *Queries) GetNotificationEmailRecipient(ctx context.Context, arg GetNotificationEmailRecipientParams) (GetNotificationEmailRecipientRow, error) {
+	row := q.db.QueryRow(ctx, getNotificationEmailRecipient, arg.CompanyID, arg.UserID)
+	var i GetNotificationEmailRecipientRow
+	err := row.Scan(
+		&i.Live,
+		&i.Email,
+		&i.Suppressed,
+		&i.InCompany,
+	)
+	return i, err
 }
 
 const getNotificationParticipationCandidate = `-- name: GetNotificationParticipationCandidate :one
@@ -199,8 +499,88 @@ func (q *Queries) GetNotificationParticipationCandidate(ctx context.Context, arg
 	return candidate_id, err
 }
 
-const insertNotification = `-- name: InsertNotification :exec
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, created_at)
+const getNotificationUnsubscribeTarget = `-- name: GetNotificationUnsubscribeTarget :one
+SELECT u.user_type,
+       c.name AS company_name,
+       p.enabled AS email_override
+FROM users u
+LEFT JOIN companies c ON c.id = $1::uuid AND c.deleted_at IS NULL
+LEFT JOIN notification_preferences p
+       ON p.user_id = u.id
+      AND p.company_id IS NOT DISTINCT FROM $1::uuid
+      AND p.type = $2::text
+      AND p.channel = 'email'
+WHERE u.id = $3::uuid
+  AND u.deleted_at IS NULL
+`
+
+type GetNotificationUnsubscribeTargetParams struct {
+	CompanyID pgtype.UUID `json:"company_id"`
+	Type      string      `json:"type"`
+	UserID    uuid.UUID   `json:"user_id"`
+}
+
+type GetNotificationUnsubscribeTargetRow struct {
+	UserType      string      `json:"user_type"`
+	CompanyName   pgtype.Text `json:"company_name"`
+	EmailOverride pgtype.Bool `json:"email_override"`
+}
+
+// Public unsubscribe (notifications-v2 §Unsubscribe): the state of a verified
+// token's (user, company, type). One row only for a live user; user_type lets
+// the caller refuse the other tree, company_name is NULL when the token's
+// company is NULL, missing or soft-deleted, email_override is the email row
+// (NULL = no row, the default applies). Nothing else about the user leaves
+// this query.
+func (q *Queries) GetNotificationUnsubscribeTarget(ctx context.Context, arg GetNotificationUnsubscribeTargetParams) (GetNotificationUnsubscribeTargetRow, error) {
+	row := q.db.QueryRow(ctx, getNotificationUnsubscribeTarget, arg.CompanyID, arg.Type, arg.UserID)
+	var i GetNotificationUnsubscribeTargetRow
+	err := row.Scan(&i.UserType, &i.CompanyName, &i.EmailOverride)
+	return i, err
+}
+
+const insertImmediateNotificationEmailDelivery = `-- name: InsertImmediateNotificationEmailDelivery :exec
+INSERT INTO notification_email_deliveries (id, recipient_user_id, recipient_kind, company_id, type, group_key, job_id, send_after)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::uuid,
+    $5::text,
+    $6::text,
+    $7::uuid,
+    now()
+)
+`
+
+type InsertImmediateNotificationEmailDeliveryParams struct {
+	ID              uuid.UUID   `json:"id"`
+	RecipientUserID uuid.UUID   `json:"recipient_user_id"`
+	RecipientKind   string      `json:"recipient_kind"`
+	CompanyID       pgtype.UUID `json:"company_id"`
+	Type            string      `json:"type"`
+	GroupKey        string      `json:"group_key"`
+	JobID           uuid.UUID   `json:"job_id"`
+}
+
+// Single groups (every non-grouped type, all mandatory ones included, v2
+// D10): one delivery per notification, due now. group_key is the
+// notification's own n:<id>, so it never meets an open window.
+func (q *Queries) InsertImmediateNotificationEmailDelivery(ctx context.Context, arg InsertImmediateNotificationEmailDeliveryParams) error {
+	_, err := q.db.Exec(ctx, insertImmediateNotificationEmailDelivery,
+		arg.ID,
+		arg.RecipientUserID,
+		arg.RecipientKind,
+		arg.CompanyID,
+		arg.Type,
+		arg.GroupKey,
+		arg.JobID,
+	)
+	return err
+}
+
+const insertNotification = `-- name: InsertNotification :execrows
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, participation_id, actor_user_id, source_event_id, payload, in_app, created_at)
 VALUES (
     $1::uuid,
     $2::uuid,
@@ -214,6 +594,7 @@ VALUES (
     $10::uuid,
     $11::uuid,
     $12::jsonb,
+    $13::boolean,
     (SELECT e.occurred_at FROM notification_events e WHERE e.id = $11::uuid)
 )
 ON CONFLICT (recipient_user_id, source_event_id, type) WHERE source_event_id IS NOT NULL DO NOTHING
@@ -232,13 +613,17 @@ type InsertNotificationParams struct {
 	ActorUserID     pgtype.UUID `json:"actor_user_id"`
 	SourceEventID   uuid.UUID   `json:"source_event_id"`
 	Payload         []byte      `json:"payload"`
+	InApp           bool        `json:"in_app"`
 }
 
 // Immediate notification (D21): a re-processed event inserts nothing twice.
 // created_at is the event's occurred_at, so a delayed fan-out keeps the group's
-// day and the retention clock aligned with the event (L24).
-func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) error {
-	_, err := q.db.Exec(ctx, insertNotification,
+// day and the retention clock aligned with the event (L24). in_app is the
+// recipient's effective in-app preference at creation (notifications-v2 D6,
+// D7), never rewritten. Affected rows = 1 inserted / 0 deduplicated: only an
+// inserted row gets an email delivery decision (v2 D8).
+func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertNotification,
 		arg.ID,
 		arg.RecipientUserID,
 		arg.RecipientKind,
@@ -251,8 +636,12 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 		arg.ActorUserID,
 		arg.SourceEventID,
 		arg.Payload,
+		arg.InApp,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertNotificationEvent = `-- name: InsertNotificationEvent :exec
@@ -302,7 +691,7 @@ func (q *Queries) InsertNotificationEvent(ctx context.Context, arg InsertNotific
 }
 
 const insertScheduledNotification = `-- name: InsertScheduledNotification :execrows
-INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, commitment_date, payload)
+INSERT INTO notifications (id, recipient_user_id, recipient_kind, recipient_reason, company_id, type, group_key, job_id, commitment_date, payload, in_app)
 VALUES (
     $1::uuid,
     $2::uuid,
@@ -313,7 +702,8 @@ VALUES (
     $6::text,
     $7::uuid,
     $8::date,
-    $9::jsonb
+    $9::jsonb,
+    $10::boolean
 )
 ON CONFLICT (recipient_user_id, type, job_id, commitment_date) WHERE commitment_date IS NOT NULL DO NOTHING
 `
@@ -328,10 +718,12 @@ type InsertScheduledNotificationParams struct {
 	JobID           uuid.UUID   `json:"job_id"`
 	CommitmentDate  pgtype.Date `json:"commitment_date"`
 	Payload         []byte      `json:"payload"`
+	InApp           bool        `json:"in_app"`
 }
 
 // Scheduled notification (D21): each (recipient, type, job, date) fires at
 // most once; a renegotiated date is a new key. No actor, no source event.
+// in_app as in InsertNotification (v2 D6, D7); affected rows feed v2 D8.
 func (q *Queries) InsertScheduledNotification(ctx context.Context, arg InsertScheduledNotificationParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertScheduledNotification,
 		arg.ID,
@@ -343,6 +735,7 @@ func (q *Queries) InsertScheduledNotification(ctx context.Context, arg InsertSch
 		arg.JobID,
 		arg.CommitmentDate,
 		arg.Payload,
+		arg.InApp,
 	)
 	if err != nil {
 		return 0, err
@@ -401,6 +794,28 @@ func (q *Queries) IsNotificationCompanyMember(ctx context.Context, arg IsNotific
 	var member bool
 	err := row.Scan(&member)
 	return member, err
+}
+
+const linkNotificationEmailDelivery = `-- name: LinkNotificationEmailDelivery :execrows
+UPDATE notifications
+SET email_delivery_id = $1::uuid
+WHERE id = $2::uuid
+  AND email_delivery_id IS NULL
+`
+
+type LinkNotificationEmailDeliveryParams struct {
+	DeliveryID     uuid.UUID `json:"delivery_id"`
+	NotificationID uuid.UUID `json:"notification_id"`
+}
+
+// v2 D8: a notification links to its delivery once, in the tx that created
+// both; 0 affected rows means the row was missing or already linked.
+func (q *Queries) LinkNotificationEmailDelivery(ctx context.Context, arg LinkNotificationEmailDeliveryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, linkNotificationEmailDelivery, arg.DeliveryID, arg.NotificationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const listCandidateNotificationJobs = `-- name: ListCandidateNotificationJobs :many
@@ -469,6 +884,7 @@ FROM (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = 'member'
       AND n.company_id = $2::uuid
+      AND n.in_app
       AND n.group_key = ANY ($3::text[])
       AND n.participation_id IS NOT NULL
     GROUP BY n.group_key, n.participation_id
@@ -524,6 +940,7 @@ FROM notifications n
 WHERE n.recipient_user_id = $1::uuid
   AND n.recipient_kind = $2::text
   AND n.company_id IS NOT DISTINCT FROM $3::uuid
+  AND n.in_app
   AND n.type = ANY ($4::text[])
   AND n.read_at IS NULL
   AND n.resolved_at IS NULL
@@ -560,7 +977,9 @@ type ListNotificationAttentionRow struct {
 // recipient_kind 'member' with company_id = the gate's company (members) or
 // recipient_kind 'candidate' with company_id NULL (candidates). The CHECK
 // (recipient_kind = 'candidate') = (company_id IS NULL) makes any other
-// combination match nothing.
+// combination match nothing. Every scope also filters `AND <alias>.in_app`
+// (notifications-v2 D6): a row created with the in-app channel off is never
+// listed, counted, faceted or marked (guarded by inbox/inapp_guard_test.go).
 // Attention (notifications-v1 D13), the single source of the selection: the
 // caller's unread, unresolved items of the attention types (passed by the
 // caller from the domain type table) in the caller's scope, honouring types /
@@ -651,6 +1070,90 @@ func (q *Queries) ListNotificationCandidateNames(ctx context.Context, arg ListNo
 	return items, nil
 }
 
+const listNotificationEmailDeliverableUsers = `-- name: ListNotificationEmailDeliverableUsers :many
+SELECT u.id
+FROM users u
+WHERE u.id = ANY ($1::uuid[])
+  AND u.deleted_at IS NULL
+  AND btrim(u.email) <> ''
+  AND NOT EXISTS (SELECT 1 FROM email_suppressions s WHERE s.address = lower(btrim(u.email)))
+`
+
+// Email eligibility at creation (notifications-v2 D9, D19): of the given
+// recipients, those live with a non-empty address whose normalized form
+// (lower(btrim)) is not in email_suppressions. Only ids leave this query:
+// the address is never copied or returned.
+func (q *Queries) ListNotificationEmailDeliverableUsers(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listNotificationEmailDeliverableUsers, userIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotificationEmailDeliveryRows = `-- name: ListNotificationEmailDeliveryRows :many
+SELECT n.id, n.participation_id, n.payload, n.commitment_date, n.created_at,
+       (n.read_at IS NOT NULL)::boolean AS is_read,
+       (n.resolved_at IS NOT NULL)::boolean AS is_resolved
+FROM notifications n
+WHERE n.email_delivery_id = $1::uuid
+ORDER BY n.created_at, n.id
+`
+
+type ListNotificationEmailDeliveryRowsRow struct {
+	ID              uuid.UUID          `json:"id"`
+	ParticipationID pgtype.UUID        `json:"participation_id"`
+	Payload         []byte             `json:"payload"`
+	CommitmentDate  pgtype.Date        `json:"commitment_date"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	IsRead          bool               `json:"is_read"`
+	IsResolved      bool               `json:"is_resolved"`
+}
+
+// Sender re-check and view (v2 D11, §Content): the notifications linked to a
+// delivery, oldest first. Hidden rows (in_app = false) are included: they are
+// mailed and, never being read, never cause a 'read' skip. Ids, dates, flags
+// and the enum-only payload; nothing else.
+func (q *Queries) ListNotificationEmailDeliveryRows(ctx context.Context, deliveryID uuid.UUID) ([]ListNotificationEmailDeliveryRowsRow, error) {
+	rows, err := q.db.Query(ctx, listNotificationEmailDeliveryRows, deliveryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNotificationEmailDeliveryRowsRow
+	for rows.Next() {
+		var i ListNotificationEmailDeliveryRowsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.Payload,
+			&i.CommitmentDate,
+			&i.CreatedAt,
+			&i.IsRead,
+			&i.IsResolved,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNotificationFacetJobs = `-- name: ListNotificationFacetJobs :many
 WITH jobs AS (
     SELECT g.job_id, count(*) AS count
@@ -660,6 +1163,7 @@ WITH jobs AS (
         WHERE n.recipient_user_id = $2::uuid
           AND n.recipient_kind = $3::text
           AND n.company_id IS NOT DISTINCT FROM $4::uuid
+          AND n.in_app
         GROUP BY n.group_key, n.job_id
     ) g
     WHERE NOT $5::boolean OR g.unread
@@ -746,6 +1250,7 @@ FROM (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
     GROUP BY n.group_key, n.type
 ) g
 WHERE NOT $4::boolean OR g.unread
@@ -805,6 +1310,7 @@ WITH grouped AS (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
       AND (cardinality($8::text[]) = 0 OR n.type = ANY ($8::text[]))
       AND (cardinality($9::uuid[]) = 0 OR n.job_id = ANY ($9::uuid[]))
       AND NOT (n.id = ANY ($10::uuid[]))
@@ -820,6 +1326,7 @@ CROSS JOIN LATERAL (
     WHERE x.recipient_user_id = $1::uuid
       AND x.recipient_kind = $2::text
       AND x.company_id IS NOT DISTINCT FROM $3::uuid
+      AND x.in_app
       AND x.group_key = g.group_key
     ORDER BY x.created_at DESC, x.id DESC
     LIMIT 1
@@ -964,6 +1471,105 @@ func (q *Queries) ListNotificationJobs(ctx context.Context, arg ListNotification
 			&i.Title,
 			&i.CanOpen,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotificationPreferenceOverrides = `-- name: ListNotificationPreferenceOverrides :many
+SELECT p.user_id, p.company_id, p.type, p.enabled
+FROM notification_preferences p
+WHERE p.channel = $1::text
+  AND p.user_id = ANY ($2::uuid[])
+  AND p.type = ANY ($3::text[])
+  AND (p.company_id IS NULL OR p.company_id = ANY ($4::uuid[]))
+`
+
+type ListNotificationPreferenceOverridesParams struct {
+	Channel    string      `json:"channel"`
+	UserIds    []uuid.UUID `json:"user_ids"`
+	Types      []string    `json:"types"`
+	CompanyIds []uuid.UUID `json:"company_ids"`
+}
+
+type ListNotificationPreferenceOverridesRow struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+	Type      string      `json:"type"`
+	Enabled   bool        `json:"enabled"`
+}
+
+// Creation-time preferences (notifications-v2 D6, D7): the override rows of
+// one channel for a batch of recipients, read in the inserting tx, one query
+// per fan-out event / scheduler run. Arrays over-fetch at most their cross
+// product (company_id NULL = candidate tree); the caller matches exact
+// (user, company, type) keys and mandatory types ignore any row.
+func (q *Queries) ListNotificationPreferenceOverrides(ctx context.Context, arg ListNotificationPreferenceOverridesParams) ([]ListNotificationPreferenceOverridesRow, error) {
+	rows, err := q.db.Query(ctx, listNotificationPreferenceOverrides,
+		arg.Channel,
+		arg.UserIds,
+		arg.Types,
+		arg.CompanyIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNotificationPreferenceOverridesRow
+	for rows.Next() {
+		var i ListNotificationPreferenceOverridesRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.CompanyID,
+			&i.Type,
+			&i.Enabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotificationPreferences = `-- name: ListNotificationPreferences :many
+SELECT p.type, p.channel, p.enabled
+FROM notification_preferences p
+WHERE p.user_id = $1::uuid
+  AND p.company_id IS NOT DISTINCT FROM $2::uuid
+`
+
+type ListNotificationPreferencesParams struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+}
+
+type ListNotificationPreferencesRow struct {
+	Type    string `json:"type"`
+	Channel string `json:"channel"`
+	Enabled bool   `json:"enabled"`
+}
+
+// Personal preferences (notifications-v2 D1, D2): the caller's sparse override
+// rows in their scope, member (user, company) or candidate (user, NULL). The
+// catalog and the defaults come from the domain table.
+func (q *Queries) ListNotificationPreferences(ctx context.Context, arg ListNotificationPreferencesParams) ([]ListNotificationPreferencesRow, error) {
+	rows, err := q.db.Query(ctx, listNotificationPreferences, arg.UserID, arg.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNotificationPreferencesRow
+	for rows.Next() {
+		var i ListNotificationPreferencesRow
+		if err := rows.Scan(&i.Type, &i.Channel, &i.Enabled); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1172,6 +1778,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (cardinality($4::text[]) = 0 OR n.type = ANY ($4::text[]))
@@ -1236,6 +1843,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
       AND n.read_at IS NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY ($4::text[]) OR n.id = ANY ($5::uuid[]))
@@ -1287,6 +1895,7 @@ WITH stamp AS (
     WHERE n.recipient_user_id = $1::uuid
       AND n.recipient_kind = $2::text
       AND n.company_id IS NOT DISTINCT FROM $3::uuid
+      AND n.in_app
       AND n.read_at IS NOT NULL
       AND n.resolved_at IS NULL
       AND (n.group_key = ANY ($4::text[])
@@ -1428,4 +2037,150 @@ func (q *Queries) ResolveStaleScheduledNotifications(ctx context.Context) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const retryNotificationEmailDelivery = `-- name: RetryNotificationEmailDelivery :one
+UPDATE notification_email_deliveries
+SET status = CASE WHEN attempts >= $1::integer THEN 'failed' ELSE 'retry' END,
+    next_attempt_at = CASE WHEN attempts < $1::integer
+        THEN now() + interval '1 millisecond' * LEAST($2::bigint * power(2, attempts - 1), $3::bigint) END,
+    error_class = 'transient',
+    lease_until = NULL,
+    updated_at = now()
+WHERE id = $4::uuid AND status = 'sending' AND lease_until = $5::timestamptz
+RETURNING status, attempts
+`
+
+type RetryNotificationEmailDeliveryParams struct {
+	MaxAttempts int32              `json:"max_attempts"`
+	RetryBaseMs int64              `json:"retry_base_ms"`
+	RetryCapMs  int64              `json:"retry_cap_ms"`
+	ID          uuid.UUID          `json:"id"`
+	LeaseUntil  pgtype.Timestamptz `json:"lease_until"`
+}
+
+type RetryNotificationEmailDeliveryRow struct {
+	Status   string `json:"status"`
+	Attempts int32  `json:"attempts"`
+}
+
+// Sender finalize: a transient failure. After the n-th attempt (counted by the
+// claim) the next one waits retry_base_ms·2^(n-1), capped at retry_cap_ms; at
+// max_attempts the delivery fails (error_class transient). Fenced; no row =
+// stale sender.
+func (q *Queries) RetryNotificationEmailDelivery(ctx context.Context, arg RetryNotificationEmailDeliveryParams) (RetryNotificationEmailDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, retryNotificationEmailDelivery,
+		arg.MaxAttempts,
+		arg.RetryBaseMs,
+		arg.RetryCapMs,
+		arg.ID,
+		arg.LeaseUntil,
+	)
+	var i RetryNotificationEmailDeliveryRow
+	err := row.Scan(&i.Status, &i.Attempts)
+	return i, err
+}
+
+const unsubscribeNotificationEmail = `-- name: UnsubscribeNotificationEmail :exec
+INSERT INTO notification_preferences (user_id, company_id, type, channel, enabled, source, updated_at)
+VALUES ($1::uuid, $2::uuid, $3::text,
+        'email', false, 'unsubscribe', now())
+ON CONFLICT ON CONSTRAINT notification_preferences_key
+DO UPDATE SET enabled = false, source = 'unsubscribe', updated_at = now()
+WHERE notification_preferences.enabled
+`
+
+type UnsubscribeNotificationEmailParams struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+	Type      string      `json:"type"`
+}
+
+// POST /v2/notifications/unsubscribe (§Unsubscribe, D17): email off for the
+// token's (user, company, type), source 'unsubscribe'. Idempotent: a row that
+// is already off (from settings or a previous unsubscribe) is left untouched,
+// so repeats change nothing. Mandatory types never reach here (refused by the
+// token check and by the table CHECK). Not audited (D5).
+func (q *Queries) UnsubscribeNotificationEmail(ctx context.Context, arg UnsubscribeNotificationEmailParams) error {
+	_, err := q.db.Exec(ctx, unsubscribeNotificationEmail, arg.UserID, arg.CompanyID, arg.Type)
+	return err
+}
+
+const upsertCoalescedNotificationEmailDelivery = `-- name: UpsertCoalescedNotificationEmailDelivery :one
+INSERT INTO notification_email_deliveries (id, recipient_user_id, recipient_kind, company_id, type, group_key, job_id, send_after)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::uuid,
+    $5::text,
+    $6::text,
+    $7::uuid,
+    now() + interval '10 minutes'
+)
+ON CONFLICT (recipient_user_id, group_key) WHERE status = 'pending'
+DO UPDATE SET updated_at = now()
+RETURNING id
+`
+
+type UpsertCoalescedNotificationEmailDeliveryParams struct {
+	ID              uuid.UUID   `json:"id"`
+	RecipientUserID uuid.UUID   `json:"recipient_user_id"`
+	RecipientKind   string      `json:"recipient_kind"`
+	CompanyID       pgtype.UUID `json:"company_id"`
+	Type            string      `json:"type"`
+	GroupKey        string      `json:"group_key"`
+	JobID           uuid.UUID   `json:"job_id"`
+}
+
+// Grouped types (v2 D10, §Coalescing): the first eligible row of a
+// (recipient, group_key) with no 'pending' delivery opens a fixed 10-minute
+// window; later rows join it (the conflict returns the open delivery's id and
+// never moves send_after). A claimed delivery ('sending') is outside the
+// partial unique arbiter, so the next row opens a new window — also when this
+// statement waited on the claim's row lock (the arbiter is re-checked).
+func (q *Queries) UpsertCoalescedNotificationEmailDelivery(ctx context.Context, arg UpsertCoalescedNotificationEmailDeliveryParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, upsertCoalescedNotificationEmailDelivery,
+		arg.ID,
+		arg.RecipientUserID,
+		arg.RecipientKind,
+		arg.CompanyID,
+		arg.Type,
+		arg.GroupKey,
+		arg.JobID,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const upsertNotificationPreference = `-- name: UpsertNotificationPreference :exec
+INSERT INTO notification_preferences (user_id, company_id, type, channel, enabled, source, updated_at)
+VALUES ($1::uuid, $2::uuid, $3::text,
+        $4::text, $5::boolean, 'settings', now())
+ON CONFLICT ON CONSTRAINT notification_preferences_key
+DO UPDATE SET enabled = EXCLUDED.enabled, source = EXCLUDED.source, updated_at = EXCLUDED.updated_at
+`
+
+type UpsertNotificationPreferenceParams struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+	Type      string      `json:"type"`
+	Channel   string      `json:"channel"`
+	Enabled   bool        `json:"enabled"`
+}
+
+// PUT …/preferences (D4): one explicit settings row per validated entry, even
+// when equal to the default; the caller runs every entry of a body in one tx
+// (all or nothing). Mandatory types are refused before (and by the table
+// CHECK). Not audited (D5): source + updated_at are the support trace.
+func (q *Queries) UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error {
+	_, err := q.db.Exec(ctx, upsertNotificationPreference,
+		arg.UserID,
+		arg.CompanyID,
+		arg.Type,
+		arg.Channel,
+		arg.Enabled,
+	)
+	return err
 }

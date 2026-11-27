@@ -11,14 +11,16 @@ import (
 type step string
 
 const (
-	stepLock       step = "lock"
-	stepBegin      step = "begin"
-	stepDelivery   step = "list_delivery"
-	stepAssignment step = "list_assignment"
-	stepInsert     step = "insert"
-	stepResolve    step = "resolve"
-	stepCommit     step = "commit"
-	stepUnknown    step = "unknown"
+	stepLock        step = "lock"
+	stepBegin       step = "begin"
+	stepDelivery    step = "list_delivery"
+	stepAssignment  step = "list_assignment"
+	stepPreferences step = "preferences"
+	stepInsert      step = "insert"
+	stepEmail       step = "email"
+	stepResolve     step = "resolve"
+	stepCommit      step = "commit"
+	stepUnknown     step = "unknown"
 )
 
 type stepError struct {

@@ -13,11 +13,12 @@ const defaultBatchSize = 1000
 
 // counts is the per-table result of a dry run or an execution.
 type counts struct {
-	notifications, events int64
+	notifications, events, deliveries int64
 }
 
 // store counts and deletes notification rows past the 180 day retention
-// (notifications-v1 D22). The cutoff lives in the sqlc queries
+// (notifications-v1 D22) and terminal email deliveries past the same
+// retention (notifications-v2 D20). The cutoff lives in the sqlc queries
 // (db/queries/notifications.sql, *Expired*).
 type store struct {
 	pool      *pgxpool.Pool
@@ -42,19 +43,28 @@ func (s *store) countExpired(ctx context.Context) (counts, error) {
 	if c.events, err = q.CountExpiredNotificationEvents(ctx); err != nil {
 		return counts{}, err
 	}
+	if c.deliveries, err = q.CountExpiredNotificationEmailDeliveries(ctx); err != nil {
+		return counts{}, err
+	}
 	return c, nil
 }
 
 // deleteExpired purges notifications first, then events, so an event whose
-// last notification expired in this run goes in the same run. Each batch is
-// its own transaction; on error the batches already committed stay committed.
+// last notification expired in this run goes in the same run, then terminal
+// email deliveries: their expired notifications are already gone, and a
+// remaining notification linked to a purged delivery gets email_delivery_id
+// NULL (ON DELETE SET NULL), never a dangling reference. Each batch is its own
+// transaction; on error the batches already committed stay committed.
 func (s *store) deleteExpired(ctx context.Context) (counts, error) {
 	var c counts
 	var err error
 	if c.notifications, err = s.drain(ctx, (*db.Queries).DeleteExpiredNotifications); err != nil {
 		return c, err
 	}
-	c.events, err = s.drain(ctx, (*db.Queries).DeleteExpiredNotificationEvents)
+	if c.events, err = s.drain(ctx, (*db.Queries).DeleteExpiredNotificationEvents); err != nil {
+		return c, err
+	}
+	c.deliveries, err = s.drain(ctx, (*db.Queries).DeleteExpiredNotificationEmailDeliveries)
 	return c, err
 }
 

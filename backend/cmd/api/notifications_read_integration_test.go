@@ -162,16 +162,18 @@ func newNotifServer(t *testing.T, pool *pgxpool.Pool, signer *draftFlowSigner) *
 	members := companiespostgres.NewCompanyMemberRepository(pool, auditpostgres.NewAuditEventRepository())
 	companies := companiespostgres.NewCompanyRepository(pool, auditpostgres.NewAuditEventRepository())
 	router := newRouter(routerDeps{
-		requireAuth:                   identityhttp.RequireAuth(signer.verifier),
-		requireCandidate:              identityhttp.RequireCandidateRole(users),
-		requireRecruiter:              identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.RecruiterRole),
-		requireOwner:                  identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.OwnerRole),
-		requireDocumentReader:         identityhttp.RequireDocumentReader(users, members, companies),
-		notificationsHandler:          newNotificationsHandler(pool),
-		candidateNotificationsHandler: newCandidateNotificationsHandler(pool),
-		queries:                       queries,
-		pool:                          pool,
-		readinessTimeout:              2 * time.Second,
+		requireAuth:                             identityhttp.RequireAuth(signer.verifier),
+		requireCandidate:                        identityhttp.RequireCandidateRole(users),
+		requireRecruiter:                        identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.RecruiterRole),
+		requireOwner:                            identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.OwnerRole),
+		requireDocumentReader:                   identityhttp.RequireDocumentReader(users, members, companies),
+		notificationsHandler:                    newNotificationsHandler(pool),
+		candidateNotificationsHandler:           newCandidateNotificationsHandler(pool),
+		notificationPreferencesHandler:          newNotificationPreferencesHandler(pool),
+		candidateNotificationPreferencesHandler: newCandidateNotificationPreferencesHandler(pool),
+		queries:                                 queries,
+		pool:                                    pool,
+		readinessTimeout:                        2 * time.Second,
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)

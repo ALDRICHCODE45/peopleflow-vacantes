@@ -188,10 +188,11 @@ func callPurge(batchSize int, args ...string) (int, string, string) {
 	return code, out.String(), stderr.String()
 }
 
-func dry(n, e int) string  { return outLines("would_delete", n, e) }
-func done(n, e int) string { return outLines("deleted", n, e) }
-func outLines(verb string, n, e int) string {
-	return "notifications_" + verb + "=" + strconv.Itoa(n) + "\nnotification_events_" + verb + "=" + strconv.Itoa(e) + "\n"
+func dry(n, e, d int) string  { return outLines("would_delete", n, e, d) }
+func done(n, e, d int) string { return outLines("deleted", n, e, d) }
+func outLines(verb string, n, e, d int) string {
+	return "notifications_" + verb + "=" + strconv.Itoa(n) + "\nnotification_events_" + verb + "=" + strconv.Itoa(e) +
+		"\nnotification_email_deliveries_" + verb + "=" + strconv.Itoa(d) + "\n"
 }
 
 // seedMixed seeds both tables on both sides of the 180 day cutoff, including
@@ -215,7 +216,7 @@ func TestDryRunReportsAndDeletesNothing(t *testing.T) {
 		t.Fatalf("seeded %d notifications, %d events", len(allN), len(allE))
 	}
 	for range 2 {
-		if code, out, stderr := callPurge(1000); code != 0 || out != dry(3, 3) || stderr != "" {
+		if code, out, stderr := callPurge(1000); code != 0 || out != dry(3, 3, 0) || stderr != "" {
 			t.Fatalf("dry run: %d %q %q", code, out, stderr)
 		}
 	}
@@ -234,15 +235,15 @@ func keys(set map[uuid.UUID]bool) []uuid.UUID {
 func TestExecuteDeletesOnlyRowsOlderThanRetention(t *testing.T) {
 	f := purgeFixture(t)
 	keptN, keptE := seedMixed(t, f)
-	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(3, 3) || stderr != "" {
+	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(3, 3, 0) || stderr != "" {
 		t.Fatalf("execute: %d %q %q", code, out, stderr)
 	}
 	f.assertKept(t, "notifications", keptN...)
 	f.assertKept(t, "notification_events", keptE...)
-	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(0, 0) || stderr != "" {
+	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(0, 0, 0) || stderr != "" {
 		t.Fatalf("second execute: %d %q %q", code, out, stderr)
 	}
-	if code, out, stderr := callPurge(1000); code != 0 || out != dry(0, 0) || stderr != "" {
+	if code, out, stderr := callPurge(1000); code != 0 || out != dry(0, 0, 0) || stderr != "" {
 		t.Fatalf("dry run after execute: %d %q %q", code, out, stderr)
 	}
 	f.assertKept(t, "notifications", keptN...)
@@ -255,15 +256,15 @@ func TestExecuteBatchesAcrossMoreThanOneBatch(t *testing.T) {
 	f.events(t, "300 days", "200 days", 7)
 	nearN, nearE := f.notifications(t, "179 days", 2), f.events(t, "300 days", "179 days", 2)
 	pending := f.events(t, "300 days", "", 4)
-	if code, out, stderr := callPurge(3); code != 0 || out != dry(7, 7) || stderr != "" {
+	if code, out, stderr := callPurge(3); code != 0 || out != dry(7, 7, 0) || stderr != "" {
 		t.Fatalf("dry run: %d %q %q", code, out, stderr)
 	}
-	if code, out, stderr := callPurge(3, "-execute"); code != 0 || out != done(7, 7) || stderr != "" {
+	if code, out, stderr := callPurge(3, "-execute"); code != 0 || out != done(7, 7, 0) || stderr != "" {
 		t.Fatalf("execute: %d %q %q", code, out, stderr)
 	}
 	f.assertKept(t, "notifications", nearN)
 	f.assertKept(t, "notification_events", nearE, pending)
-	if code, out, stderr := callPurge(3, "-execute"); code != 0 || out != done(0, 0) || stderr != "" {
+	if code, out, stderr := callPurge(3, "-execute"); code != 0 || out != done(0, 0, 0) || stderr != "" {
 		t.Fatalf("second execute: %d %q %q", code, out, stderr)
 	}
 }
@@ -285,10 +286,10 @@ func TestEventsReferencedByRemainingNotificationsAreKept(t *testing.T) {
 		t.Fatalf("SET NULL on an immediate notification must violate its CHECK, got %v", err)
 	}
 
-	if code, out, stderr := callPurge(1000); code != 0 || out != dry(1, 1) || stderr != "" {
+	if code, out, stderr := callPurge(1000); code != 0 || out != dry(1, 1, 0) || stderr != "" {
 		t.Fatalf("dry run: %d %q %q", code, out, stderr)
 	}
-	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(1, 1) || stderr != "" {
+	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(1, 1, 0) || stderr != "" {
 		t.Fatalf("execute: %d %q %q", code, out, stderr)
 	}
 	f.assertKept(t, "notifications", []uuid.UUID{recent})
@@ -302,7 +303,7 @@ func TestEventsReferencedByRemainingNotificationsAreKept(t *testing.T) {
 	}
 
 	f.exec(t, `UPDATE notifications SET created_at = now() - interval '181 days' WHERE id=$1`, recent)
-	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(1, 1) || stderr != "" {
+	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(1, 1, 0) || stderr != "" {
 		t.Fatalf("execute after expiry: %d %q %q", code, out, stderr)
 	}
 	f.assertKept(t, "notifications")
@@ -316,7 +317,7 @@ func TestUnreferencedExpiredEventsGoEvenWithRecentNotifications(t *testing.T) {
 	f.events(t, "200 days", "181 days", 2)
 	fresh := f.event(t, "1 day", "1 day", false)
 	keep := []uuid.UUID{f.notification(t, "1 day", &fresh), f.notification(t, "1 day", nil)}
-	if code, out, stderr := callPurge(1, "-execute"); code != 0 || out != done(0, 2) || stderr != "" {
+	if code, out, stderr := callPurge(1, "-execute"); code != 0 || out != done(0, 2, 0) || stderr != "" {
 		t.Fatalf("execute: %d %q %q", code, out, stderr)
 	}
 	f.assertKept(t, "notifications", keep)
@@ -324,7 +325,7 @@ func TestUnreferencedExpiredEventsGoEvenWithRecentNotifications(t *testing.T) {
 }
 
 func TestFailureOutputIsStaticWhenATableIsMissing(t *testing.T) {
-	for _, table := range []string{"notifications", "notification_events"} {
+	for _, table := range []string{"notifications", "notification_events", "notification_email_deliveries"} {
 		f := purgeFixture(t)
 		f.exec(t, `DROP TABLE `+table+` CASCADE`)
 		for _, args := range [][]string{nil, {"-execute"}} {
@@ -333,4 +334,228 @@ func TestFailureOutputIsStaticWhenATableIsMissing(t *testing.T) {
 			}
 		}
 	}
+}
+
+// delivery inserts a member notification_email_deliveries row created age ago
+// (a Postgres interval) in the given status, with the columns each status's
+// CHECK requires (sent_at, skip_reason, next_attempt_at, lease_until).
+func (f *fixture) delivery(t *testing.T, age, status string) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	f.exec(t, `INSERT INTO notification_email_deliveries(id,recipient_user_id,recipient_kind,company_id,type,group_key,job_id,
+			status,skip_reason,send_after,attempts,next_attempt_at,lease_until,error_class,sent_at,created_at,updated_at)
+		VALUES($1,$2,'member',$3,'delivery_overdue',$4,$5,
+			$6::text,
+			CASE WHEN $6::text = 'skipped' THEN 'resolved' END,
+			now()-$7::interval,
+			CASE WHEN $6::text = 'pending' THEN 0 ELSE 1 END,
+			CASE WHEN $6::text = 'retry' THEN now()+interval '1 minute' END,
+			CASE WHEN $6::text = 'sending' THEN now()+interval '2 minutes' END,
+			CASE WHEN $6::text IN ('failed','retry') THEN 'transient' END,
+			CASE WHEN $6::text = 'sent' THEN now()-$7::interval END,
+			now()-$7::interval, now()-$7::interval)`,
+		id, f.user, f.company, "d:"+id.String(), uuid.New(), status, age)
+	return id
+}
+
+func (f *fixture) deliveries(t *testing.T, age, status string, n int) []uuid.UUID {
+	t.Helper()
+	ids := make([]uuid.UUID, n)
+	for i := range ids {
+		ids[i] = f.delivery(t, age, status)
+	}
+	return ids
+}
+
+// link points notification n at delivery d (notifications.email_delivery_id).
+func (f *fixture) link(t *testing.T, n, d uuid.UUID) {
+	t.Helper()
+	f.exec(t, `UPDATE notifications SET email_delivery_id=$2 WHERE id=$1`, n, d)
+}
+
+func (f *fixture) linkedDelivery(t *testing.T, n uuid.UUID) *uuid.UUID {
+	t.Helper()
+	var d *uuid.UUID
+	if err := f.pool.QueryRow(context.Background(), `SELECT email_delivery_id FROM notifications WHERE id=$1`, n).Scan(&d); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+var (
+	terminalStatuses    = []string{"sent", "skipped", "failed"}
+	nonTerminalStatuses = []string{"pending", "retry", "sending"}
+)
+
+// seedDeliveries seeds every status on both sides of the 180 day cutoff and
+// returns the rows that must survive: terminal rows inside the retention and
+// every pending, retry or sending row whatever its age (notifications-v2 D20).
+func seedDeliveries(t *testing.T, f *fixture) (expired int, kept [][]uuid.UUID) {
+	t.Helper()
+	for _, status := range terminalStatuses {
+		expired += len(f.deliveries(t, "181 days", status, 2))
+		expired += len(f.deliveries(t, "3 years", status, 1))
+		kept = append(kept, f.deliveries(t, "179 days", status, 1), f.deliveries(t, "1 minute", status, 1))
+	}
+	for _, status := range nonTerminalStatuses {
+		kept = append(kept, f.deliveries(t, "400 days", status, 1), f.deliveries(t, "181 days", status, 1),
+			f.deliveries(t, "1 minute", status, 1))
+	}
+	return expired, kept
+}
+
+func TestDeliveriesDryRunReportsTerminalRowsAndDeletesNothing(t *testing.T) {
+	f := purgeFixture(t)
+	expired, _ := seedDeliveries(t, f)
+	all := f.ids(t, "notification_email_deliveries")
+	if expired != 9 || len(all) != 9+6+9 {
+		t.Fatalf("seeded %d expired of %d deliveries", expired, len(all))
+	}
+	for range 2 {
+		if code, out, stderr := callPurge(1000); code != 0 || out != dry(0, 0, 9) || stderr != "" {
+			t.Fatalf("dry run: %d %q %q", code, out, stderr)
+		}
+	}
+	f.assertKept(t, "notification_email_deliveries", keys(all))
+}
+
+func TestExecuteDeletesOnlyTerminalDeliveriesOlderThanRetention(t *testing.T) {
+	f := purgeFixture(t)
+	_, kept := seedDeliveries(t, f)
+	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(0, 0, 9) || stderr != "" {
+		t.Fatalf("execute: %d %q %q", code, out, stderr)
+	}
+	f.assertKept(t, "notification_email_deliveries", kept...)
+	var remaining []string
+	rows, err := f.pool.Query(context.Background(), `SELECT DISTINCT status FROM notification_email_deliveries
+		WHERE created_at < now() - interval '180 days' ORDER BY 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remaining, err = pgx.CollectRows(rows, pgx.RowTo[string]); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(remaining, ",") != "pending,retry,sending" {
+		t.Fatalf("old statuses left = %v, want only the non-terminal ones", remaining)
+	}
+	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(0, 0, 0) || stderr != "" {
+		t.Fatalf("second execute: %d %q %q", code, out, stderr)
+	}
+	if code, out, stderr := callPurge(1000); code != 0 || out != dry(0, 0, 0) || stderr != "" {
+		t.Fatalf("dry run after execute: %d %q %q", code, out, stderr)
+	}
+	f.assertKept(t, "notification_email_deliveries", kept...)
+}
+
+func TestExecuteDeletesDeliveriesAcrossMoreThanOneBatch(t *testing.T) {
+	f := purgeFixture(t)
+	for _, status := range terminalStatuses {
+		f.deliveries(t, "200 days", status, 3)
+	}
+	near := f.deliveries(t, "179 days", "sent", 2)
+	open := f.deliveries(t, "300 days", "retry", 4)
+	f.notifications(t, "200 days", 4)
+	if code, out, stderr := callPurge(3); code != 0 || out != dry(4, 0, 9) || stderr != "" {
+		t.Fatalf("dry run: %d %q %q", code, out, stderr)
+	}
+	if code, out, stderr := callPurge(3, "-execute"); code != 0 || out != done(4, 0, 9) || stderr != "" {
+		t.Fatalf("execute: %d %q %q", code, out, stderr)
+	}
+	f.assertKept(t, "notification_email_deliveries", near, open)
+	f.assertKept(t, "notifications")
+	if code, out, stderr := callPurge(3, "-execute"); code != 0 || out != done(0, 0, 0) || stderr != "" {
+		t.Fatalf("second execute: %d %q %q", code, out, stderr)
+	}
+}
+
+// Notifications go first, so an expired delivery's expired notifications are
+// already gone; a notification still inside the retention that links an
+// expired terminal delivery (coalescing links rows up to the window close
+// after the delivery's created_at) stays valid with email_delivery_id NULL
+// (ON DELETE SET NULL). Links to kept deliveries are untouched.
+func TestLinkedNotificationsStayValidWhenTheirDeliveryIsPurged(t *testing.T) {
+	f := purgeFixture(t)
+	var action string
+	if err := f.pool.QueryRow(context.Background(), `SELECT confdeltype::text FROM pg_constraint
+		WHERE conrelid = 'notifications'::regclass AND confrelid = 'notification_email_deliveries'::regclass AND contype = 'f'`).Scan(&action); err != nil {
+		t.Fatal(err)
+	}
+	if action != "n" {
+		t.Fatalf("notifications.email_delivery_id ON DELETE action = %q, want SET NULL (n)", action)
+	}
+
+	expired := f.delivery(t, "181 days", "sent")
+	oldLinked := f.notification(t, "181 days", nil)
+	recentLinked := f.notification(t, "179 days", nil)
+	f.link(t, oldLinked, expired)
+	f.link(t, recentLinked, expired)
+
+	openOld := f.delivery(t, "181 days", "retry")
+	openLinked := f.notification(t, "179 days", nil)
+	f.link(t, openLinked, openOld)
+
+	fresh := f.delivery(t, "1 day", "sent")
+	freshLinked := f.notification(t, "1 day", nil)
+	f.link(t, freshLinked, fresh)
+
+	if code, out, stderr := callPurge(1000); code != 0 || out != dry(1, 0, 1) || stderr != "" {
+		t.Fatalf("dry run: %d %q %q", code, out, stderr)
+	}
+	if got := f.linkedDelivery(t, recentLinked); got == nil || *got != expired {
+		t.Fatalf("dry run changed the link: %v", got)
+	}
+	if code, out, stderr := callPurge(1000, "-execute"); code != 0 || out != done(1, 0, 1) || stderr != "" {
+		t.Fatalf("execute: %d %q %q", code, out, stderr)
+	}
+	f.assertKept(t, "notifications", []uuid.UUID{recentLinked, openLinked, freshLinked})
+	f.assertKept(t, "notification_email_deliveries", []uuid.UUID{openOld, fresh})
+	if got := f.linkedDelivery(t, recentLinked); got != nil {
+		t.Fatalf("email_delivery_id = %v, want NULL", got)
+	}
+	if got := f.linkedDelivery(t, openLinked); got == nil || *got != openOld {
+		t.Fatalf("open delivery link = %v, want %s", got, openOld)
+	}
+	if got := f.linkedDelivery(t, freshLinked); got == nil || *got != fresh {
+		t.Fatalf("fresh delivery link = %v, want %s", got, fresh)
+	}
+	var dangling int
+	if err := f.pool.QueryRow(context.Background(), `SELECT count(*) FROM notifications n
+		WHERE n.email_delivery_id IS NOT NULL
+		  AND NOT EXISTS (SELECT 1 FROM notification_email_deliveries d WHERE d.id = n.email_delivery_id)`).Scan(&dangling); err != nil {
+		t.Fatal(err)
+	}
+	if dangling != 0 {
+		t.Fatalf("%d notifications reference a missing delivery", dangling)
+	}
+}
+
+// A terminal delivery another connection holds is skipped, not waited for,
+// and goes on a later run.
+func TestExecuteSkipsLockedDeliveries(t *testing.T) {
+	f := purgeFixture(t)
+	held := f.delivery(t, "181 days", "failed")
+	f.deliveries(t, "181 days", "sent", 2)
+	ctx := context.Background()
+	tx, err := f.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM notification_email_deliveries WHERE id=$1 FOR UPDATE`, held); err != nil {
+		t.Fatal(err)
+	}
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	var out, stderr bytes.Buffer
+	if code := runBatch(runCtx, []string{"-execute"}, &out, &stderr, 1); code != 0 || out.String() != done(0, 0, 2) || stderr.Len() != 0 {
+		t.Fatalf("execute with a held row: %d %q %q", code, out.String(), stderr.String())
+	}
+	f.assertKept(t, "notification_email_deliveries", []uuid.UUID{held})
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, stderr := callPurge(1, "-execute"); code != 0 || out != done(0, 0, 1) || stderr != "" {
+		t.Fatalf("execute after release: %d %q %q", code, out, stderr)
+	}
+	f.assertKept(t, "notification_email_deliveries")
 }

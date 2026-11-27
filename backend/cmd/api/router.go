@@ -28,6 +28,8 @@ import (
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	metricshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/infrastructure/http"
 	notificationsinbox "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/inbox"
+	notificationspreferences "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/preferences"
+	notificationsunsubscribe "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/unsubscribe"
 	profilehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
@@ -66,6 +68,16 @@ type routerDeps struct {
 	// candidateNotificationsHandler serves the candidate notifications API (notifications-v1 N6)
 	// behind requireCandidate; its store scopes every read and mark to the session's candidate rows.
 	candidateNotificationsHandler *notificationsinbox.Handler
+	// notificationPreferencesHandler serves the member preferences (notifications-v2 §Preferences)
+	// behind requireDocumentReader; key = session user + CompanyContext company.
+	notificationPreferencesHandler *notificationspreferences.Handler
+	// candidateNotificationPreferencesHandler serves the candidate preferences behind
+	// requireCandidate; key = the session's candidate account, company NULL.
+	candidateNotificationPreferencesHandler *notificationspreferences.Handler
+	// notificationUnsubscribeHandler serves the public one-click unsubscribe (notifications-v2
+	// §Unsubscribe): no session, the HMAC token is the only credential. It carries its own limiter
+	// (invalid tokens per requestmeta client IP, valid tokens per preference key).
+	notificationUnsubscribeHandler *notificationsunsubscribe.Handler
 	// stakeholderInvitationHandler serves the invitation routes (§1.3).
 	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
 	companyHandler               *companieshttp.CompanyHandler
@@ -146,6 +158,11 @@ func newRouter(d routerDeps) chi.Router {
 	if d.publicAssessmentLimit == nil {
 		d.publicAssessmentLimit = ratelimit.NewAssessment(ratelimit.DefaultLimits(), nil, nil).Middleware
 	}
+	// Without a composed handler (no keys) the public unsubscribe refuses every
+	// token without touching the database, still limited (default limits).
+	if d.notificationUnsubscribeHandler == nil {
+		d.notificationUnsubscribeHandler = notificationsunsubscribe.NewHandler(nil, nil, nil)
+	}
 	// Audit metadata always exists; without a composed secret it is peer only.
 	if d.requestMeta == nil {
 		d.requestMeta = requestmeta.Middleware(requestmeta.Config{})
@@ -196,6 +213,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/assessments/{token}/items", d.psychometricAssessmentHandler.Items)
 		r.Put("/v2/assessments/{token}/answers/{position}", d.psychometricAssessmentHandler.Put)
 		r.Delete("/v2/assessments/{token}/answers/{position}", d.psychometricAssessmentHandler.Delete)
+	})
+	// Public one-click unsubscribe (notifications-v2 D16, D17, §Unsubscribe): outside every auth gate, no
+	// cookies or session read; the HMAC token is the only credential. Private (no-store, no-referrer); the
+	// handler limits invalid tokens per requestmeta client IP (L6) and valid ones per token. GET never writes.
+	r.Group(func(r chi.Router) {
+		r.Use(notificationsunsubscribe.Privacy)
+		r.Get("/v2/notifications/unsubscribe", d.notificationUnsubscribeHandler.Get)
+		r.Post("/v2/notifications/unsubscribe", d.notificationUnsubscribeHandler.Post)
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(profilehttp.AssessmentPrivacy, d.requireAuth, d.requireCandidate)
@@ -307,7 +332,9 @@ func newRouter(d routerDeps) chi.Router {
 
 	// Member notifications (notifications-v1 D18, N4, N5): owners, recruiters and stakeholders
 	// (the documents read gate); grouped list with attention, the bell counter, read / unread /
-	// read-all marks and the filter facets. Reads and marks are not audited (D23).
+	// read-all marks and the filter facets. Reads and marks are not audited (D23). Personal
+	// preferences (notifications-v2 D1–D5, D23): the member catalog for every role of the gate,
+	// keyed by the session user and the CompanyContext company; not audited.
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireDocumentReader)
 		r.Get("/v2/me/company/notifications", d.notificationsHandler.List)
@@ -316,11 +343,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/notifications/unread", d.notificationsHandler.Unread)
 		r.Post("/v2/me/company/notifications/read-all", d.notificationsHandler.ReadAll)
 		r.Get("/v2/me/company/notifications/facets", d.notificationsHandler.Facets)
+		r.Get("/v2/me/company/notifications/preferences", d.notificationPreferencesHandler.Get)
+		r.Put("/v2/me/company/notifications/preferences", d.notificationPreferencesHandler.Put)
 	})
 
 	// Candidate notifications (notifications-v1 D18, N6): the same handlers and shapes behind the
 	// candidate gate of /v2/me/applications; scope = the session's candidate account,
-	// recipient_kind candidate, no company. Not audited (D23).
+	// recipient_kind candidate, no company. Not audited (D23). Preferences (notifications-v2):
+	// the candidate catalog, keyed by the candidate account with company NULL; not audited.
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireCandidate)
 		r.Get("/v2/me/notifications", d.candidateNotificationsHandler.List)
@@ -329,6 +359,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/notifications/unread", d.candidateNotificationsHandler.Unread)
 		r.Post("/v2/me/notifications/read-all", d.candidateNotificationsHandler.ReadAll)
 		r.Get("/v2/me/notifications/facets", d.candidateNotificationsHandler.Facets)
+		r.Get("/v2/me/notifications/preferences", d.candidateNotificationPreferencesHandler.Get)
+		r.Put("/v2/me/notifications/preferences", d.candidateNotificationPreferencesHandler.Put)
 	})
 
 	// The stakeholder's own vacancy list (placement-vacancy-documents-v1, P7c, L20): every vacancy of the company, never-published drafts

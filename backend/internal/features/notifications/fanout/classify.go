@@ -11,15 +11,17 @@ import (
 type step string
 
 const (
-	stepBegin   step = "begin"
-	stepClaim   step = "claim"
-	stepDecode  step = "decode"
-	stepPlan    step = "plan"
-	stepInsert  step = "insert"
-	stepMark    step = "mark"
-	stepCommit  step = "commit"
-	stepPanic   step = "panic"
-	stepUnknown step = "unknown"
+	stepBegin       step = "begin"
+	stepClaim       step = "claim"
+	stepDecode      step = "decode"
+	stepPlan        step = "plan"
+	stepPreferences step = "preferences"
+	stepInsert      step = "insert"
+	stepEmail       step = "email"
+	stepMark        step = "mark"
+	stepCommit      step = "commit"
+	stepPanic       step = "panic"
+	stepUnknown     step = "unknown"
 )
 
 // errPanic stands in for a recovered panic; its value is never kept.

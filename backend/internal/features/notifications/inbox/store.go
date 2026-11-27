@@ -400,7 +400,7 @@ func resolve(ctx context.Context, qs *db.Queries, scope Scope, groups []raw, don
 				item.ToUser = p
 			}
 		}
-		item.Link = linkFor(item.Type, g.jobID, item.Count, g.participation, g.payload, job.canOpen)
+		item.Link = LinkFor(item.Type, g.jobID, item.Count, g.participation, g.payload, job.canOpen)
 		items[i] = item
 	}
 	done(items)
@@ -438,7 +438,7 @@ func resolveCandidate(ctx context.Context, qs *db.Queries, scope Scope, groups [
 		item.Latest.Actor = nil
 		item.Link = nil // a job the candidate no longer participates in gets no link
 		if visible {
-			item.Link = linkFor(item.Type, g.jobID, item.Count, g.participation, g.payload, true)
+			item.Link = LinkFor(item.Type, g.jobID, item.Count, g.participation, g.payload, true)
 		}
 		items[i] = item
 	}
