@@ -56,12 +56,18 @@ func newNotificationSender(pool *pgxpool.Pool, cfg runtimeconfig.NotificationsEm
 	if signer == nil {
 		return nil, errors.New("notifications email sender: unsubscribe keys required")
 	}
-	renderer, err := email.NewRenderer(email.Settings{From: cfg.From, AppBaseURL: cfg.AppBaseURL, UnsubscribeURL: cfg.UnsubscribeURL}, signer)
+	renderer, err := email.NewRenderer(notificationRendererSettings(cfg), signer)
 	if err != nil {
 		return nil, err
 	}
 	s := sender.New(pool, renderer, mailer, sender.NewBucket(cfg.MaxPerSecond, nil, nil), logger)
 	return sender.NewLoop(s, logger), nil
+}
+
+// notificationRendererSettings maps the config to the renderer: sender,
+// frontend origin, one-click URL and the legal line's postal address.
+func notificationRendererSettings(cfg runtimeconfig.NotificationsEmailConfig) email.Settings {
+	return email.Settings{From: cfg.From, AppBaseURL: cfg.AppBaseURL, UnsubscribeURL: cfg.UnsubscribeURL, PostalAddress: cfg.PostalAddress}
 }
 
 // startNotificationSender runs the sender loop in a goroutine that ends with

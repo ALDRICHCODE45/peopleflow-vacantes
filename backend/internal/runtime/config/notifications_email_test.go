@@ -116,6 +116,7 @@ func TestLoadNotificationsEmailConfigParsesTheE5Keys(t *testing.T) {
 		SMTPPort:        1025,
 		UnsubscribeKeys: []UnsubscribeKey{{ID: "k1", Secret: unsubscribeKeyA}},
 		MaxPerSecond:    DefaultNotificationsEmailMaxPerSecond,
+		PostalAddress:   DefaultNotificationsEmailPostalAddress,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
@@ -401,5 +402,41 @@ func TestUnsubscribeKeyRedactedUnderEveryVerb(t *testing.T) {
 	}
 	if !strings.Contains(all, "k1:[redacted]") {
 		t.Fatalf("redacted form missing:\n%s", all)
+	}
+}
+
+// S11 (design 03 · Centrada): NOTIFICATIONS_EMAIL_POSTAL_ADDRESS is the
+// legal line's address. Optional (never required): unset or blank → the
+// design's placeholder; trimmed; one line (no control characters), at most
+// 200 characters; errors name the key and never quote the value; ignored
+// with the mailer off.
+func TestLoadNotificationsEmailConfigPostalAddress(t *testing.T) {
+	if DefaultNotificationsEmailPostalAddress != "[Dirección postal de PeopleFlow]" {
+		t.Fatalf("default %q", DefaultNotificationsEmailPostalAddress)
+	}
+	for value, want := range map[string]string{
+		"":    DefaultNotificationsEmailPostalAddress,
+		"   ": DefaultNotificationsEmailPostalAddress,
+		"  Av. Paseo de la Reforma 222, Juárez, 06600 Ciudad de México  ": "Av. Paseo de la Reforma 222, Juárez, 06600 Ciudad de México",
+		strings.Repeat("é", 200): strings.Repeat("é", 200),
+	} {
+		env := validEmailEnv("smtp")
+		env["NOTIFICATIONS_EMAIL_POSTAL_ADDRESS"] = value
+		got, err := loadEmail(env)
+		if err != nil || got.PostalAddress != want {
+			t.Fatalf("%q: %q %v", value, got.PostalAddress, err)
+		}
+	}
+	for _, value := range []string{"secret\r\nBcc: x@y.test", "secret\tstreet", "secret\x00", strings.Repeat("s", 201)} {
+		env := validEmailEnv("log")
+		env["NOTIFICATIONS_EMAIL_POSTAL_ADDRESS"] = value
+		_, err := loadEmail(env)
+		if err == nil || !strings.Contains(err.Error(), "NOTIFICATIONS_EMAIL_POSTAL_ADDRESS") || strings.Contains(err.Error(), "secret") {
+			t.Fatalf("%q: %v", value, err)
+		}
+	}
+	got, err := loadEmail(map[string]string{"NOTIFICATIONS_MAILER": "off", "NOTIFICATIONS_EMAIL_POSTAL_ADDRESS": "secret\r\n"})
+	if err != nil || got.PostalAddress != "" {
+		t.Fatalf("mailer off: %+v %v", got, err)
 	}
 }

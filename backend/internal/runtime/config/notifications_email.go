@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Notification email settings (notifications-v2 §Config keys, D13). E4 loaded
@@ -43,7 +45,18 @@ const (
 	// EnvNotificationsEmailMaxPerSecond is the per-instance sender throttle
 	// (emails per second, §Sender); unset = DefaultNotificationsEmailMaxPerSecond.
 	EnvNotificationsEmailMaxPerSecond = "NOTIFICATIONS_EMAIL_MAX_PER_SECOND"
+	// EnvNotificationsEmailPostalAddress is the address of the emails' legal
+	// line (design 03 · Centrada, S11). Optional: unset →
+	// DefaultNotificationsEmailPostalAddress.
+	EnvNotificationsEmailPostalAddress = "NOTIFICATIONS_EMAIL_POSTAL_ADDRESS"
 )
+
+// DefaultNotificationsEmailPostalAddress is the design's placeholder, kept
+// until the real address is configured (S11 pending item 2).
+const DefaultNotificationsEmailPostalAddress = "[Dirección postal de PeopleFlow]"
+
+// maxNotificationsEmailPostalAddressRunes bounds the legal line.
+const maxNotificationsEmailPostalAddressRunes = 200
 
 // DefaultNotificationsEmailMaxPerSecond is the SES sandbox rate (Q5).
 const DefaultNotificationsEmailMaxPerSecond = 1
@@ -128,6 +141,9 @@ type NotificationsEmailConfig struct {
 	UnsubscribeKeys UnsubscribeKeys
 	// MaxPerSecond is the per-instance sender throttle (mailer ≠ off only).
 	MaxPerSecond int
+	// PostalAddress is the legal line's address (mailer ≠ off only; the
+	// placeholder when unset).
+	PostalAddress string
 }
 
 // Enabled reports whether email deliveries are created (mailer ≠ off).
@@ -200,6 +216,14 @@ func LoadNotificationsEmailConfig(getenv func(string) string) (NotificationsEmai
 			return NotificationsEmailConfig{}, errors.New(EnvNotificationsEmailMaxPerSecond + " must be an integer between 1 and 1000")
 		}
 		c.MaxPerSecond = n
+	}
+
+	c.PostalAddress = DefaultNotificationsEmailPostalAddress
+	if raw := strings.TrimSpace(getenv(EnvNotificationsEmailPostalAddress)); raw != "" {
+		if strings.IndexFunc(raw, unicode.IsControl) >= 0 || utf8.RuneCountInString(raw) > maxNotificationsEmailPostalAddressRunes {
+			return NotificationsEmailConfig{}, errors.New(EnvNotificationsEmailPostalAddress + " must be one line of at most 200 characters")
+		}
+		c.PostalAddress = raw
 	}
 
 	if c.Mailer == MailerSMTP {
