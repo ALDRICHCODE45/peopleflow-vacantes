@@ -11,10 +11,10 @@ import { Button } from "../ui/button";
 /**
  * Where to land after signing in: only a same-site employer page the area guard
  * sent us from (`/empresa/...`, no scheme, host, backslash or dot segment);
- * anything else falls back to this login page.
+ * anything else (including this login page itself) falls back to the dashboard, whose guard routes each role.
  */
 function employerReturnPath(value: string | null): string {
-  if (!value || !/^\/empresa(\/[A-Za-z0-9_-]+)*\/?$/u.test(value)) return "/empresa/login";
+  if (!value || !/^\/empresa(\/[A-Za-z0-9_-]+)*\/?$/u.test(value) || /^\/empresa\/login\/?$/u.test(value)) return "/empresa/dashboard";
   return value;
 }
 

@@ -20,7 +20,6 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
 /** Not persisted by any backend yet: one text row each, with the reason visible and nothing to switch. */
 const COMING_SOON = [
   { id: "recruitment", icon: ClipboardList, title: "Reclutamiento", description: "Incluir preguntas de filtro al preparar una vacante." },
-  { id: "notifications", icon: BellRing, title: "Notificaciones", description: "Nuevas postulaciones, cambios en entrevistas, actividad del equipo y resumen semanal." },
   { id: "security", icon: ShieldCheck, title: "Seguridad", description: "Autenticación en dos pasos y cambio de contraseña." },
 ] as const;
 const linkAction = cn(buttonVariants({ variant: "outline", className: "min-h-10" }));
@@ -62,7 +61,13 @@ export function EmployerSettingsWorkspace() {
                 <Link href="/empresa/sitio" data-slot="button" aria-describedby="pf-employer-settings-site" className={linkAction}>Editar sitio<ArrowUpRight aria-hidden="true" /></Link>
               </SettingsRow>
             </SettingsGroup>
-            <SettingsGroup id="pf-employer-settings-preferences" title="Preferencias"><ThemeRow /></SettingsGroup>
+            <SettingsGroup id="pf-employer-settings-preferences" title="Preferencias">
+              <ThemeRow />
+              {/* Personal notification preferences (T4.4); hidden for stakeholders until stage 3 (contract Q7). */}
+              {role !== "stakeholder" && <SettingsRow id="pf-employer-settings-notifications" icon={BellRing} title="Notificaciones" description="Elige qué avisos te llegan en la app y por correo.">
+                <Link href="/empresa/configuracion/notificaciones" data-slot="button" aria-describedby="pf-employer-settings-notifications" className={linkAction}>Elegir qué me llega<ArrowUpRight aria-hidden="true" /></Link>
+              </SettingsRow>}
+            </SettingsGroup>
             <SettingsGroup id="pf-employer-settings-soon" title="Próximamente">
               {COMING_SOON.map(item => <SettingsRow key={item.id} id={`pf-employer-settings-${item.id}`} icon={item.icon} title={item.title} description={item.description} soon />)}
             </SettingsGroup>

@@ -2,12 +2,13 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, FilePenLine } from "lucide-react";
+import { ArrowLeft, Ellipsis, ExternalLink, FilePenLine } from "lucide-react";
 import { cn } from "cn";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STAKEHOLDER_VACANCIES } from "@/features/identity/stakeholder-routes";
 import { BoardLifecycle } from "@/features/pipeline-movement/board-lifecycle";
@@ -15,7 +16,7 @@ import type { CloseCoverage, Lifecycle } from "@/features/vacancy-lifecycle/mode
 import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 import { ReplacementBadges, ReplacementTags } from "@/features/vacancy-lifecycle/ui/replacement-badges";
 import type { DocumentOverview } from "@/features/vacancy-documents/model";
-import { ShareMenu } from "@/features/jobs/components/share-menu";
+import { ShareSubmenu } from "@/features/jobs/components/share-menu";
 import { hasPublicPage, isEditablePublication, vacancyEditorHref, vacancyPipelineHref, vacancyPublicHref } from "./model";
 import { VacancyTabRowContext } from "./vacancy-frame-slot";
 
@@ -98,15 +99,11 @@ export function VacancyFrame({ vacancyId, active, title, fallbackTitle = "Vacant
                 : <h1 className="font-heading text-xl font-semibold tracking-tight [overflow-wrap:anywhere]">{title ?? fallbackTitle}</h1>}
               {!loading && showStatus && status && (lifecycle || vacancy) && <><Badge variant={status.variant} dot>{status.label}</Badge>{lifecycle ? <ReplacementBadges lifecycle={lifecycle} /> : <ReplacementTags kind={vacancy?.kind} visibility={vacancy?.visibility} />}</>}
             </div>
-            {(editable || publicPage) && <div data-pf-vacancy-actions="" className="flex flex-wrap items-center gap-2">
-              {editable && <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={vacancyEditorHref(vacancyId)} />}><FilePenLine aria-hidden="true" data-icon="inline-start" />Editar publicación</Button>}
-              {publicPage && <>
-                <ShareMenu title={title ?? fallbackTitle} url={vacancyPublicHref(vacancyId)} label="Compartir" variant="outline" className="min-h-10 w-auto" />
-                <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={vacancyPublicHref(vacancyId)} target="_blank" rel="noopener noreferrer" />}><ExternalLink aria-hidden="true" data-icon="inline-start" />Ver página pública<span className="sr-only"> (se abre en una pestaña nueva)</span></Button>
-              </>}
-            </div>}
-            <div className="flex min-w-0 flex-col gap-0.5 text-xs text-muted-foreground empty:hidden sm:text-right">
-              {lifecycle && <BoardLifecycle lifecycle={lifecycle} publishedAt={publishedAt} {...(coverage ? { coverage } : {})} />}
+            <div className="flex min-w-0 items-center gap-3 sm:ml-auto">
+              <div className="flex min-w-0 flex-col gap-0.5 text-xs text-muted-foreground empty:hidden sm:text-right">
+                {lifecycle && <BoardLifecycle lifecycle={lifecycle} publishedAt={publishedAt} {...(coverage ? { coverage } : {})} />}
+              </div>
+              {(editable || publicPage) && <VacancyActionsMenu vacancyId={vacancyId} title={title ?? fallbackTitle} editable={editable} publicPage={publicPage} />}
             </div>
           </div>
           {tabs.length > 0 && <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b max-sm:grid max-sm:border-b-0">
@@ -126,4 +123,23 @@ export function VacancyFrame({ vacancyId, active, title, fallbackTitle = "Vacant
       </div>
     </div>
   );
+}
+
+/**
+ * S2: a live vacancy's actions in one ⋯ menu at the identity row's right end: back to the editor, the public page (new tab) and
+ * «Compartir» as a submenu. The copy outcome is a toast plus this row's `sr-only` status, since the menu closes on activation.
+ */
+function VacancyActionsMenu({ vacancyId, title, editable, publicPage }: { vacancyId: string; title: string; editable: boolean; publicPage: boolean }) {
+  const [message, setMessage] = useState("");
+  return <>
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10 shrink-0" aria-label="Acciones de la publicación" />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-auto min-w-52">
+        {editable && <DropdownMenuItem className="min-h-10 whitespace-nowrap" render={<Link href={vacancyEditorHref(vacancyId)} />}><FilePenLine aria-hidden="true" />Editar publicación</DropdownMenuItem>}
+        {publicPage && <DropdownMenuItem className="min-h-10 whitespace-nowrap" render={<Link href={vacancyPublicHref(vacancyId)} target="_blank" rel="noopener noreferrer" />}><ExternalLink aria-hidden="true" />Ver página pública<span className="sr-only"> (se abre en una pestaña nueva)</span></DropdownMenuItem>}
+        {publicPage && <ShareSubmenu title={title} url={vacancyPublicHref(vacancyId)} onOutcome={setMessage} />}
+      </DropdownMenuContent>
+    </DropdownMenu>
+    <p role="status" className="sr-only">{message}</p>
+  </>;
 }

@@ -5,9 +5,10 @@ import { buildJobsUrl, isCanonicalJobsQuery, parseJobsQuery } from "./features/j
 /** Decide URL-only outcomes before loading boundaries can commit a 200 shell. */
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  if (pathname === "/empresa/invitacion" || pathname.startsWith("/empresa/invitacion/")) {
-    // The invitation token lives in this URL until the page accepts it: no Referer may carry it to another
-    // request, and no cache may keep the page (stakeholder-metrics-v1 §1.3).
+  if (pathname === "/empresa/invitacion" || pathname.startsWith("/empresa/invitacion/") || pathname === "/notificaciones/baja") {
+    // The invitation token lives in this URL until the page accepts it, and the email unsubscribe token
+    // (`/notificaciones/baja?token=`, notifications-v2 Q4) for as long as the landing is open: no Referer may carry
+    // either to another request, and no cache may keep the page (stakeholder-metrics-v1 §1.3).
     const response = NextResponse.next();
     response.headers.set("Referrer-Policy", "no-referrer");
     response.headers.set("Cache-Control", "no-store");
@@ -29,5 +30,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/vacantes", "/vacantes/:jobId", "/vacantes/:jobId/postular", "/empresa/invitacion", "/empresa/invitacion/:token"],
+  matcher: ["/vacantes", "/vacantes/:jobId", "/vacantes/:jobId/postular", "/empresa/invitacion", "/empresa/invitacion/:token", "/notificaciones/baja"],
 };

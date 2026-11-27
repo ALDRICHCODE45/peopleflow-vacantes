@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { cn } from "cn";
 import type { LucideIcon } from "lucide-react";
-import { BellRing, CalendarClock, Clock3, KeyRound, MessagesSquare, Palette, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowUpRight, BellRing, Clock3, KeyRound, Palette, ShieldCheck } from "lucide-react";
 
 import { DashboardPageContent } from "@/components/dashboard-page-content";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,9 +19,9 @@ import type { ThemeMode } from "@/components/theme/theme-preferences";
  * Sole client leaf for the candidate settings destination: a compact in-page rail
  * plus one restrained Card per section, with grouped Item rows and contextual
  * medallions. It receives nothing through props, renders no personal fact sheet,
- * and every control owns only its own view state. The four notification switches
- * live in component memory for the current visit; the theme Select is the single
- * control wired to the shared theme preference helpers.
+ * and every control owns only its own view state. Notifications link to their own
+ * page (`/candidato/configuracion/notificaciones`, T4.4); the theme Select is the
+ * single control wired to the shared theme preference helpers.
  */
 
 /** Real in-page section ids; the nav anchors and the H2 headings share them. */
@@ -37,20 +39,8 @@ const NAV_ITEMS: readonly Readonly<{ section: SectionSpec; icon: LucideIcon }>[]
   { section: SECURITY_SECTION, icon: ShieldCheck },
 ];
 
-/** Closed vocabulary of session-scoped notification preferences. */
-type NotificationKey = "matching_vacancies" | "application_updates" | "recruiter_messages" | "weekly_summary";
-type NotificationSpec = Readonly<{ key: NotificationKey; label: string; description: string; icon: LucideIcon }>;
-
-/** The four notification rows, in committed order, with their visible labels. */
-const NOTIFICATIONS: readonly NotificationSpec[] = [
-  { key: "matching_vacancies", label: "Alertas de vacantes compatibles", description: "Vacantes que coincidan con tu perfil profesional.", icon: Sparkles },
-  { key: "application_updates", label: "Cambios en tus postulaciones", description: "Novedades sobre el estado de tus postulaciones.", icon: CalendarClock },
-  { key: "recruiter_messages", label: "Mensajes de reclutadores", description: "Mensajes de empresas interesadas en tu perfil.", icon: MessagesSquare },
-  { key: "weekly_summary", label: "Resumen semanal", description: "Un repaso de tu actividad de la semana.", icon: BellRing },
-];
-
-/** Display-only defaults: the three continuous alerts show on, the weekly digest off. Nothing is stored, so there is no state behind them. */
-const NOTIFICATION_DEFAULTS: Readonly<Record<NotificationKey, boolean>> = { matching_vacancies: true, application_updates: true, recruiter_messages: true, weekly_summary: false };
+/** Personal notification preferences live on their own page (T4.2); this section only links to it. */
+const NOTIFICATIONS_HREF = "/candidato/configuracion/notificaciones";
 
 /** Theme vocabulary for the Select; every value crosses to the shared theme helper. */
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
@@ -122,22 +112,11 @@ function NotificationsSection() {
   return (
     <SettingsSection section={NOTIFICATIONS_SECTION}>
       <SettingsGroup>
-        {NOTIFICATIONS.map((notification) => {
-          const labelId = `pf-settings-${notification.key}-label`;
-          const descriptionId = `pf-settings-${notification.key}-description`;
-          return (
-            <SettingRow key={notification.key} icon={notification.icon} titleId={labelId} title={notification.label} descriptionId={descriptionId} description={notification.description} compact comingSoon>
-              {/* Preferences are not stored anywhere yet: the switch shows the defaults, inert, with «Próximamente» (same pattern as 2FA). */}
-              <Switch
-                checked={NOTIFICATION_DEFAULTS[notification.key]}
-                disabled
-                aria-labelledby={labelId}
-                aria-describedby={`${descriptionId} ${descriptionId}-soon`}
-                data-pf-settings-notification={notification.key}
-              />
-            </SettingRow>
-          );
-        })}
+        <SettingRow icon={BellRing} titleId="pf-settings-notifications-label" title="Mis preferencias" descriptionId="pf-settings-notifications-description" description="Elige qué avisos te llegan en la app y por correo.">
+          <Link href={NOTIFICATIONS_HREF} data-slot="button" aria-describedby="pf-settings-notifications-description" className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}>
+            Elegir qué me llega<ArrowUpRight aria-hidden="true" />
+          </Link>
+        </SettingRow>
       </SettingsGroup>
     </SettingsSection>
   );

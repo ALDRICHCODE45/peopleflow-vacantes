@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { dayKey, dayLabel, filterSummary, filterTypes, inboxSummary, noResultsDescription } from "../copy";
+import { useCompanyMembershipState } from "@/features/employer-company/company-membership-context";
+import { dayKey, dayLabel, filterSummary, filterTypes, inboxSummary, noResultsDescription, preferencesHref } from "../copy";
 import type { NotificationGroup, NotificationState } from "../model";
 import { InboxFilter, type InboxFilterValue } from "./inbox-filter";
 import { InboxError, InboxFirstUse, InboxNoResults, InboxSkeleton, InboxUpToDate } from "./inbox-states";
@@ -25,18 +26,27 @@ type Props = {
 };
 type RowActions = { onNavigate: () => void; onOpen: (group: NotificationGroup) => void; onMark: (group: NotificationGroup) => void };
 
+/** The scope's preferences page, or null for a stakeholder (contract Q7: the company page is hidden until stage 3). */
+function usePreferencesHref(): string | null {
+  const scope = useNotificationScope();
+  const membership = useCompanyMembershipState()?.state;
+  if (scope === "company" && membership?.kind === "exists" && membership.role === "stakeholder") return null;
+  return preferencesHref(scope);
+}
+
 const noFilters: InboxFilterValue = { groups: [], jobs: [] };
 
 /**
  * Company inbox inside the bell's sheet (design 07 over the 02 sheet): title and summary, tabs «No leídas» (default)
  * and «Todas» with «Filtrar» (type + vacancy popover) and a one-line summary of active filters, pinned «Requiere
  * atención», day sections, cursor paging, per-row «Marcar como leída» and the «Marcar todo como leído» footer with
- * «Deshacer». «Preferencias» joins the footer in stage 2 (needs /empresa/configuracion/notificaciones).
+ * «Deshacer», and «Preferencias» (T4.4) to the scope's preferences page, hidden for a stakeholder.
  * Candidate scope (design 04): same sheet without «Filtrar» (design 04 shows tabs, rows and «Marcar todo» only) and
  * without attention or candidate samples; rows name the company.
  */
 export function NotificationInbox({ knownUnread, onUnreadCount, onNavigate }: Props) {
   const candidate = useNotificationScope() === "candidate";
+  const prefs = usePreferencesHref();
   const [tab, setTab] = useState<NotificationState>("unread");
   const [filter, setFilter] = useState<InboxFilterValue>(noFilters);
   const filterButton = useRef<HTMLButtonElement>(null);
@@ -59,7 +69,7 @@ export function NotificationInbox({ knownUnread, onUnreadCount, onNavigate }: Pr
 
   const body = view.status === "loading" ? <InboxSkeleton />
     : view.status === "error" ? <InboxError onRetry={retry} />
-    : <InboxList pages={view.pages} tab={tab} candidate={candidate} more={view.more} onMore={loadMore} onShowAll={() => changeTab("all")}
+    : <InboxList pages={view.pages} tab={tab} candidate={candidate} prefs={prefs} more={view.more} onMore={loadMore} onShowAll={() => changeTab("all")}
         noResults={filterText ? { description: noResultsDescription(filterText, tab), onClear: clearFilters } : null} actions={rowActions} />;
   const panel = "min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pt-1 pb-2";
   const results = ready && !ready.nextCursor ? ready.attention.length + ready.items.length : null;
@@ -82,17 +92,17 @@ export function NotificationInbox({ knownUnread, onUnreadCount, onNavigate }: Pr
       <TabsContent value="unread" className={panel}>{tab === "unread" && body}</TabsContent>
       <TabsContent value="all" className={panel}>{tab === "all" && body}</TabsContent>
     </Tabs>
-    {ready && <InboxFooter unread={ready.unread} busy={marks.busy} onMarkAll={() => void marks.markAll()} />}
+    {ready && <InboxFooter unread={ready.unread} busy={marks.busy} onMarkAll={() => void marks.markAll()} preferencesHref={prefs} onNavigate={onNavigate} />}
   </>;
 }
 
-function InboxList({ pages, tab, candidate, more, onMore, onShowAll, noResults, actions }: {
-  pages: InboxPages; tab: NotificationState; candidate: boolean; more: "idle" | "loading" | "error";
+function InboxList({ pages, tab, candidate, prefs, more, onMore, onShowAll, noResults, actions }: {
+  pages: InboxPages; tab: NotificationState; candidate: boolean; prefs: string | null; more: "idle" | "loading" | "error";
   onMore: () => void; onShowAll: () => void; noResults: { description: string; onClear: () => void } | null; actions: RowActions;
 }) {
   if (pages.attention.length === 0 && pages.items.length === 0) {
     if (noResults) return <InboxNoResults {...noResults} />;
-    return tab === "unread" ? <InboxUpToDate onShowAll={onShowAll} /> : <InboxFirstUse candidate={candidate} />;
+    return tab === "unread" ? <InboxUpToDate onShowAll={onShowAll} /> : <InboxFirstUse candidate={candidate} preferencesHref={prefs} onNavigate={actions.onNavigate} />;
   }
   return <>
     {pages.attention.length > 0 && <Attention groups={pages.attention} total={pages.attentionTotal} actions={actions} />}

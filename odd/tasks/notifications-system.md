@@ -39,6 +39,11 @@ allow it, company rules set by the owner and personal preferences within them. D
 | T3.4 | S6 | Pipeline board opens one candidate from `?candidato=<participation_id>` (link kind `participation`); inline | e50b2cd8 |
 | T3.5 | S6 | Read / unread with exact undo / read-all / type+vacancy filter (needs backend N5) | API e1ae7127; UI 26067fac |
 | T3.6 | S2, S6 | Candidate bell + inbox on `/v2/me/notifications` (needs backend N6) | e3f718be |
+| T4 | S1, S3, S5 | Stage 2 (email + personal preferences), branch `feat/notifications-stage2` | |
+| T4.1 | S1, S3, S5 | Stage-2 backend contract with the backend session (email channel, preferences API) | |
+| T4.2 | S3 | «Mis preferencias» page (design 05), company and candidate | 9ee4a313 |
+| T4.3 | S6 | Candidate status and test due-date badges in inbox rows (design 04) | 212cad66 (status badge; test due date needs API) |
+| T4.4 | S3 | «Preferencias» link and «Elegir qué me llega» wired to the new page | 9ee4a313 |
 
 ## Log
 
@@ -178,3 +183,64 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   occurred_at, so the group day and latest_at agree even with a delayed fan-out; scheduler items keep run time. Frontend
   impact: none in code. Known edge: read-all `before` (newest latest_at shown) can now also mark a row fanned out after
   the page loaded whose event occurred before that instant (fan-out lag ~2 s) — accepted.
+- **L17** (2026-11-26) Stage 1 merged to main (frontend 601eec53, backend e6b2d501) and pushed by the user. Stage 2
+  decisions (user): «Email + preferencias personales (recomendado)» — digests stay in stage 3; operational events:
+  «Apagado hasta que lo active (recomendado)» — email off by default, mandatory ones (overdue deliveries, assignments)
+  always by email; candidates: «Solo los que tienen cuenta (recomendado)».
+- **L18** (2026-11-26) Backend intake for stage 2: the app sends no email today; SES (us-east-1) is decided but not
+  implemented (docs/decision-email-provider.md), no domain verified, and the user's lock «nadie TOQUE NADA DE AWS
+  TODAVIA» stands → stage 2 builds the email channel against a Mailer port with a log/Mailpit adapter in dev; real SES
+  sending waits for AWS. Backend proposal: notification_deliveries (one row per notification × channel, created in the
+  fan-out tx when preferences allow), in-process send loop (SKIP LOCKED, backoff, throttle), preferences stored as
+  exceptions only (defaults from kind; mandatory cannot be turned off → 422), one-click unsubscribe (RFC 8058) with a
+  signed token, suppression table designed now. User decisions: bursts — «Un correo por grupo cada 10 min
+  (recomendado)»; in-app — «Sí, las operativas se pueden apagar (recomendado)»; email content — «No, solo lo mínimo y
+  un link (recomendado)». Agent decisions: preferences keyed per company (company_id NULL for candidates); email
+  templates live in the backend with copy supplied by the frontend; Mailpit added to dev compose; mandatory emails carry
+  only the «Mis preferencias» link, no per-type unsubscribe.
+- **L19** (2026-11-26) Frontend review of backend `docs/contracts/notifications-v2.md` (Draft), approved by the user and
+  sent: fixes (candidate email default table must read on per Q1; drop resolved items from open questions; T13
+  `app_url` fallback `/empresa` when the link is null; landing and one-click need two paths), Q3 path map, Q4 frontend
+  origin with a POST-only pass-through route, and the copy for T1–T17, F1–F2 and enum labels — all in
+  `odd/tasks/notifications-stage2-email-copy.md`. Candidate email on by default (Q1) recorded as the user's decision.
+- **L20** (2026-11-26) Backend contract v2 Agreed (feat/notifications-v2-backend 07bd4d5a) with every L19 item. Backend
+  additions: candidate items with a null link use app_url = /candidato/postulaciones; unsubscribe per-IP limit uses the
+  client IP forwarded by the trusted frontend proxy (E7). T13 body changed to «Otra persona quedó a cargo de
+  {{job_title}}. Motivo: {{reason}}.» so the «una vacante» fallback never starts the sentence. Backend E1 started; E2
+  (preferences GET/PUT) next. T4.1 done.
+- **L21** (2026-11-26) Backend E2 usable locally (feat/notifications-v2-backend 912d9554, not in main, needs migration
+  00069): GET/PUT /v2/me/company/notifications/preferences (member gate) and /v2/me/notifications/preferences
+  (candidate). GET {channels, email_deliverable, items[{type, kind, channels{in_app|email: {default, enabled,
+  mandatory_locked}}}]} — member 11 types, candidate 3 (email default on). PUT {preferences[{type, channel, enabled}]}
+  1–28 entries, atomic, idempotent, returns the full catalog. Mandatory entry → 422 notification_preference_locked
+  {data:{types[]}}, nothing written. 400 validation_error fields: preferences required|empty|too_many,
+  preferences[i].type|channel|enabled required|invalid, preferences[i] duplicate; null body/entry → invalid_request;
+  body cap 16 KiB. in_app off has no effect until E3; no email until E4–E6. T4.2 unblocked.
+- **L22** (2026-11-27) Real-browser check of «Mis preferencias» (API ff559a7f, dev DB 69, Rodrigo + Valeria): 7/8 pass
+  (catalog and locks, save with exact PUT entries, reload, discard, restore defaults, inbox «Preferencias» link,
+  candidate page and «En proceso» badge, no console errors). Failed: at 390 px the «N cambios sin guardar» badge
+  overlapped «Descartar»; fixed in 5e89495a (text column min width so the buttons wrap below), not re-checked in a
+  browser. Both accounts left at defaults. Not triggered: 422 locked, email_deliverable false. The verifier printed
+  the dev test-account password once in session tool output — the user should rotate it.
+- **L23** (2026-11-27) Backend E7 (unsubscribe) committed (feat/notifications-v2-backend 3c6f2180): GET
+  /v2/notifications/unsubscribe?token=… → 200 {type, channel:"email", enabled (current), company {id,name}|null}, never
+  mutates; POST same URL (RFC 8058 body List-Unsubscribe=One-Click, ≤1 KiB) → same shape with enabled:false,
+  idempotent. Any invalid/expired/tampered/mandatory token → 422 unsubscribe_link_invalid (identical); 429
+  rate_limited with Retry-After; body >1 KiB → 413; other methods → 405. The frontend route /api/notificaciones/baja
+  and the landing server action must forward X-PF-Proxy-Secret and X-PF-Client-IP like the rest of the BFF
+  (requestmeta) and send no cookies or session. Backend changes the limiter: per-IP counts invalid tokens only, valid
+  tokens are limited per token.
+- **L24** (2026-11-27) Unsubscribe slice (6f082786 + 476f8961), Risk item 2: independent verify PASS (no blocking;
+  nits applied in 476f8961: content-type whitespace, production env documented), native review approved and
+  acknowledged (lineage review-a8971f39da2bd509, lenses risk + resilience). Advisory follow-ups (non-blocking, later
+  work): R4-route-strict-parse-after-commit — a 200 whose body fails the strict parse is reported as 502 / «No se
+  cambió nada» although the email is already off (route should treat any 200 as success); R4-ambiguous-post-failure-copy
+  — on timeout/network after commit the landing says «No se cambió nada» (use neutral «no sabemos si se aplicó;
+  reintentar es seguro»); R4-silent-forwarding-and-failures — warn once when AUDIT_PROXY_SECRET is missing outside dev
+  and log token-free lines on 502/error paths.
+- **L25** (2026-11-27) L24 follow-ups done in 7779d02c: any backend 200 to the unsubscribe POST counts as done (route
+  200 {ok:true}; landing success without detail when the body does not parse); unknown outcomes (timeout, network,
+  5xx, unexpected) show «No pudimos confirmar si se aplicó. Volver a intentarlo es seguro.» + «Reintentar»; «No se
+  cambió nada.» only for 422/429/local refusal; token-free console logs with prefix [notifications/unsubscribe] and a
+  one-time warning when AUDIT_PROXY_SECRET is missing outside development/test. 368 focused tests pass. Backend stage 2
+  merged to local main (622f2b94) by the backend session with the user's approval; dev DB at 69.

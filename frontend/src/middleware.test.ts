@@ -69,3 +69,21 @@ describe("stakeholder invitation pages never leak the token (stakeholder-metrics
     expect(middleware(request(`/vacantes/${id}`)).headers.get("referrer-policy")).toBeNull();
   });
 });
+
+describe("email unsubscribe landing never leaks the token (notifications-v2 Q4)", () => {
+  const token = "v1.AbC-123_xyz.Sig_nature-9";
+  it.each([`/notificaciones/baja?token=${token}`, "/notificaciones/baja"])("sends no referrer and stores nothing for %s", (path) => {
+    const response = middleware(request(path));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it.each(["/notificaciones/baja", `/notificaciones/baja?token=${token}`])("matches %s", (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(true);
+  });
+
+  it.each(["/notificaciones", "/notificaciones/bajas", "/notificaciones/baja/extra", "/api/notificaciones/baja"])("leaves %s untouched", (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(false);
+  });
+});

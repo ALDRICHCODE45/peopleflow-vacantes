@@ -116,8 +116,8 @@ describe("rows (S5)", () => {
     const { container } = await renderOwner();
     expect(container.querySelectorAll("[data-slot='card']")).toHaveLength(4);
     expect(within(group("Organización")).getAllByRole("listitem")).toHaveLength(3);
-    expect(within(group("Preferencias")).getAllByRole("listitem")).toHaveLength(1);
-    expect(within(group("Próximamente")).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(group("Preferencias")).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(group("Próximamente")).getAllByRole("listitem")).toHaveLength(2);
     expect(container.querySelector("[data-pf-employer-settings-workspace]")).not.toBeNull();
   });
 
@@ -170,8 +170,27 @@ describe("rows (S5)", () => {
   });
 });
 
+describe("Notificaciones row (T4.4)", () => {
+  it.each(["owner", "recruiter"] as const)("%s: links Preferencias › Notificaciones to the personal preferences page", async role => {
+    vi.mocked(loadCompanyStateAction).mockResolvedValue(exists(role));
+    await renderOwner();
+    const row = within(group("Preferencias")).getByText("Notificaciones").closest("li")!;
+    expect(within(row).getByText("Elige qué avisos te llegan en la app y por correo.")).toBeInTheDocument();
+    expect(within(row).getByRole("link", { name: "Elegir qué me llega" })).toHaveAttribute("href", "/empresa/configuracion/notificaciones");
+    expect(within(row).queryByText("Próximamente")).toBeNull();
+  });
+
+  it("stakeholder: no Notificaciones row (contract Q7)", async () => {
+    vi.mocked(loadCompanyStateAction).mockResolvedValue(exists("stakeholder"));
+    await renderOwner();
+    expect(within(group("Preferencias")).getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.queryByRole("link", { name: "Elegir qué me llega" })).toBeNull();
+    expect(screen.queryByText("Notificaciones")).toBeNull();
+  });
+});
+
 describe("Próximamente card (S5)", () => {
-  it("groups recruitment, notifications and security in one card with the reason visible and no switches", async () => {
+  it("groups recruitment and security in one card with the reason visible and no switches", async () => {
     const persist = vi.spyOn(Storage.prototype, "setItem");
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
@@ -179,11 +198,10 @@ describe("Próximamente card (S5)", () => {
     const soon = group("Próximamente");
     expect(soon.querySelectorAll("[data-slot='card']")).toHaveLength(1);
     const rows = within(soon).getAllByRole("listitem");
-    expect(rows.map(row => within(row).getByText(/^(Reclutamiento|Notificaciones|Seguridad)$/).textContent)).toEqual(["Reclutamiento", "Notificaciones", "Seguridad"]);
+    expect(rows.map(row => within(row).getByText(/^(Reclutamiento|Seguridad)$/).textContent)).toEqual(["Reclutamiento", "Seguridad"]);
     for (const row of rows) expect(within(row).getByText("Próximamente")).toBeVisible();
     expect(within(rows[0]).getByText("Incluir preguntas de filtro al preparar una vacante.")).toBeInTheDocument();
-    expect(within(rows[1]).getByText("Nuevas postulaciones, cambios en entrevistas, actividad del equipo y resumen semanal.")).toBeInTheDocument();
-    expect(within(rows[2]).getByText("Autenticación en dos pasos y cambio de contraseña.")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Autenticación en dos pasos y cambio de contraseña.")).toBeInTheDocument();
     // No fake controls: text only.
     expect(within(soon).queryByRole("switch")).toBeNull();
     expect(within(soon).queryByRole("button")).toBeNull();
@@ -209,7 +227,7 @@ describe("recruiter variant (S5)", () => {
     expect(loadTalentBaseVisibilityAction).not.toHaveBeenCalled();
     expect(listTeamMembersAction).not.toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "Administrar equipo" })).toBeInTheDocument();
-    expect(within(group("Próximamente")).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(group("Próximamente")).getAllByRole("listitem")).toHaveLength(2);
   });
 
   it("the owner sees no such note", async () => {

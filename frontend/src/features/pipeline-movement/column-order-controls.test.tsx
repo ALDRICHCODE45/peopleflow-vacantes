@@ -14,10 +14,10 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
   return {
     DropdownMenu: ({ children }: { children: ReactNode }) => { const [open, setOpen] = React.useState(false); return <Context.Provider value={open}><div onClick={() => setOpen(true)}>{children}</div></Context.Provider>; },
     DropdownMenuTrigger: ({ render, children }: { render: ReactElement; children: ReactNode }) => React.cloneElement(render, { "aria-haspopup": "menu", children } as ComponentProps<"button">),
-    DropdownMenuContent: ({ children }: { children: ReactNode }) => React.useContext(Context) ? <div role="menu">{children}</div> : null,
+    DropdownMenuContent: ({ children, className }: { children: ReactNode; className?: string }) => React.useContext(Context) ? <div role="menu" className={className}>{children}</div> : null,
     DropdownMenuGroup: ({ children }: { children: ReactNode }) => <div role="group">{children}</div>,
     DropdownMenuLabel: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-    DropdownMenuItem: ({ children, disabled, onClick }: ComponentProps<"button">) => <button role="menuitem" disabled={disabled} onClick={onClick}>{children}</button>,
+    DropdownMenuItem: ({ children, disabled, onClick, className }: ComponentProps<"button">) => <button role="menuitem" className={className} disabled={disabled} onClick={onClick}>{children}</button>,
   };
 });
 afterEach(cleanup);
@@ -35,26 +35,36 @@ function order(overrides: Partial<BoardColumnOrder> = {}) {
 }
 const open = () => fireEvent.click(screen.getByRole("button", { name: "Orden de Screening" }));
 
-it("shows the reorder hint as a description inside the column menu, next to the existing items", () => {
+// S3 (U3): the menu carries no explanation, and each item stays on one line.
+it("S3: the column menu has no explanation text, only «Mover a la izquierda» and «Mover a la derecha», each on one line", () => {
   render(<ColumnOrderControls stage={stage} order={order()} drag={drag} />);
-  expect(screen.queryByText(hint)).not.toBeInTheDocument();
   open();
   const menu = screen.getByRole("menu");
-  expect(menu).toHaveTextContent("Reordena columnas y revisa el impacto antes de guardar");
-  expect(screen.getByRole("menuitem", { name: "Mover a la izquierda" })).toBeVisible();
-  expect(screen.getByRole("menuitem", { name: "Mover a la derecha" })).toBeVisible();
+  expect(menu).not.toHaveTextContent(hint);
+  expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Mover a la izquierda", "Mover a la derecha"]);
+  for (const item of screen.getAllByRole("menuitem")) {
+    expect(item).toHaveClass("whitespace-nowrap", "min-h-10");
+    expect(item.querySelector("svg")).not.toBeNull();
+  }
+  // The content sizes to its items instead of to the 40 px trigger.
+  expect(menu).toHaveClass("w-auto");
   expect(screen.getByRole("button", { name: "Orden de Screening" })).toHaveAttribute("id", "column-menu-screen");
 });
-it("leaves the hint out while a notice is shown", () => {
-  render(<ColumnOrderControls stage={stage} order={order({ notice: { tone: "info", text: "Listo" } as never })} drag={drag} />);
-  open();
-  expect(screen.getByRole("menu")).not.toHaveTextContent(hint);
-  expect(screen.getByRole("menuitem", { name: "Mover a la derecha" })).toBeVisible();
-});
-it("leaves the hint out while the columns are locked (busy, unavailable or finished)", () => {
-  render(<ColumnOrderControls stage={stage} order={order({ locked: true })} drag={drag} />);
+it.each([
+  ["a notice", { notice: { tone: "info", text: "Listo" } }],
+  ["locked columns", { locked: true }],
+] as const)("S3: no explanation text with %s either", (_name, overrides) => {
+  render(<ColumnOrderControls stage={stage} order={order(overrides as never)} drag={drag} />);
   open();
   expect(screen.queryByText(hint)).not.toBeInTheDocument();
+});
+it("moves the column one step left or right, and disables the move past an edge column", () => {
+  const current = order();
+  render(<ColumnOrderControls stage={stage} order={current} drag={drag} />);
+  open();
+  expect(screen.getByRole("menuitem", { name: "Mover a la izquierda" })).toBeDisabled(); // Nuevos is fixed on its left
+  fireEvent.click(screen.getByRole("menuitem", { name: "Mover a la derecha" }));
+  expect(current.move).toHaveBeenCalledWith("screen", 2);
 });
 it.each([[0, "Nuevos: posición fija"], [3, "Placement: posición fija"]])("marks a fixed column with a focusable image that has a text alternative (a named span needs a role for axe): %s", (index, name) => {
   render(<ColumnOrderControls stage={{ ...stages[index], count: 0 } as unknown as Board["stages"][number]} order={order()} drag={drag} />);

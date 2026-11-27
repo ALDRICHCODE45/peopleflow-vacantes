@@ -81,3 +81,92 @@ longer be resolved; absent on member items); actor null, sample `[]`, attention 
   without sample sublists; rows name the company (subtitle or title, per type in `copy.ts`).
 - Contract Q4: marking `candidate_message_received` read does not mark the message read; that stays
   `PUT /v2/me/applications/{id}/message-read`, independent.
+- T4.3: candidate status rows carry the application status badge of design 04 («Enviada» info, «En proceso» review,
+  «Cerrada» neutral; same words as `applicationBadge`), shown only when the row has no urgency badge. The pending-test
+  due-date badge of design 04 is not built: the payload has no due date.
+
+## «Mis preferencias» (T4.2, T4.4)
+
+Contract: backend `docs/contracts/notifications-v2.md` (agreed 07bd4d5a), E2 usable locally (L21).
+
+- `getPreferencesAction()` / `updatePreferencesAction(entries, catalog?)` on `/v2/me/company/notifications/preferences`
+  (member gate: owner/recruiter/stakeholder) and `getCandidatePreferencesAction()` /
+  `updateCandidatePreferencesAction(entries, catalog?)` on `/v2/me/notifications/preferences`; fixed scope per action as for
+  the inbox. `client.ts` gains `getPreferences` / `updatePreferences` (`call` now takes `method: "PUT"`), so no new client
+  file and no `requestPath` allowlist change.
+- GET `{channels, email_deliverable, items[{type, kind, channels{in_app|email: {default, enabled, mandatory_locked}}}]}`:
+  members 11 types, candidates 3, both channels each. `type` and `kind` stay open strings; an unknown type is kept and
+  shown as «Otro aviso» under «Otros avisos». Mandatory = both channels on and locked; operational = in-app on, email off
+  (candidates: email on); nothing is informative yet.
+- PUT `{preferences[{type, channel, enabled}]}`, 1–28, atomic, idempotent, answers the full catalog. Checked locally in
+  the backend's order and names before any request: `preferences` required|empty|too_many,
+  `preferences[i].type|channel|enabled` required|invalid, `preferences[i]` invalid (not an object) | duplicate
+  (type, channel). Each entry is rebuilt from the three keys only. `catalog` is the GET answer the entries came from
+  (decoded again on the server, ignored if malformed): an entry on a pair it marks `mandatory_locked` is refused as
+  `preference_locked` with `lockedTypes` and nothing is sent.
+- Failures: 422 `notification_preference_locked` (allowlisted) → `preference_locked` with `lockedTypes` = `data.types`
+  (snake_case names only); 400 `validation_error` → `validation_error` with the preference fields above (others dropped;
+  `duplicate` joins the codes); 400 `invalid_request` / 413 → `unrecognized_response`; 401, 403 (`forbidden`,
+  `company_inactive`, `account_required`, `wrong_role`), 5xx and network as for the inbox.
+
+UI (`ui/notification-preferences.tsx`, design 05):
+
+- Pages `/empresa/configuracion/notificaciones` and `/candidato/configuracion/notificaciones` (crumb «Configuración»).
+  Stakeholders: the route is outside `stakeholderRoute`'s allowlist, so the `(empresa)` `EmployerGuard` shows the existing
+  «Sección no disponible» before the page mounts (contract Q7) — no redirect, no request.
+- Groups: the inbox filter groups for members (Postulaciones, Entregas, Vacantes y equipo, Pruebas), «Tus postulaciones»
+  for candidates. Each row: name, one line, switches «En la app» and «Correo» (accessible name «<aviso> <canal>»).
+  Locked pairs render on and disabled with the «Obligatoria» badge (per channel from the response; one locked channel
+  reads «Obligatoria en la app» / «Obligatoria por correo»). A row with every channel off warns «Con esto no te llegará este
+  aviso por ningún medio.»; member rows that differ from the default carry «Tu ajuste · recomendado: …».
+- Save: design 05's save bar — «N cambios sin guardar», «Descartar», «Guardar cambios». Saving sends only the changed
+  unlocked pairs and renders the PUT answer («Preferencias guardadas»). A failed save keeps the choices for a retry and
+  «Descartar» rolls back to the last saved catalog; a 422 lock re-reads the catalog. «Restablecer recomendados» puts every
+  unlocked pair back to its `default` in the draft (then save). `email_deliverable: false` shows «No podemos entregar
+  correos a tu cuenta…» (no address). Not built from design 05: «Resumen diario», the digest hour and the address line
+  (stage 3 / not in the API), the company «Restablecer a lo que define tu empresa» dialog and «Desactivada por tu empresa»
+  (no owner rules until stage 3).
+- T4.4: the inbox footer always shows «Preferencias» (ghost link, closes the sheet) and the first-use state shows design
+  07's «Elegir qué me llega», both to `preferencesHref(scope)`; hidden for a stakeholder (`useCompanyMembershipState`).
+  Configuración links to the page: company «Preferencias › Notificaciones» (not for stakeholders) and the candidate
+  «Notificaciones › Mis preferencias» row, replacing the inert «Próximamente» switches.
+
+## Email unsubscribe (contract v2 E7, Q3/Q4, L23)
+
+Both paths live on the frontend origin, carry no session, cookie or Authorization, and forward the proxy secret and the
+client IP (`X-PF-Proxy-Secret`, `X-PF-Client-IP`, plus the user agent) from `auditForwardHeaders` in
+`lib/audit/forward.ts` — the global fetch wrapper only decorates authenticated calls, so `client.ts` adds them itself.
+
+- `client.ts`: `getUnsubscribe({token, incoming})` (`GET /v2/notifications/unsubscribe?token=`, never mutates) and
+  `postUnsubscribe({token, incoming, body, contentType})` (same URL, raw body ≤ 1 KiB, default content type
+  `application/x-www-form-urlencoded`). Both answer `{type, channel: "email", enabled, company {id, name} | null}`
+  (`unsubscribeStateSchema`). The GET parses that strictly; any POST 200 is success (the email is already off), with
+  `data: null` when the body does not parse (R4). A token outside 1–512 characters of `[A-Za-z0-9_.-]` (`isUnsubscribeTokenShape`) is
+  refused as an invalid link and a body over 1 KiB as the backend's 413, both without a request. This is the client's
+  one direct `fetch` (raw body and Retry-After are beyond the shared JSON transport), listed in `requestPath.test.ts`.
+- `failure.ts`: 422 `unsubscribe_link_invalid` (or a malformed token) → `unsubscribe_link_invalid`; 429 → `rate_limited`
+  with `retryAfter` only when it is delta seconds or an IMF date; both codes are allowlisted. 413 stays
+  `unrecognized_response` with `reference.status` 413.
+- One-click target `app/api/notificaciones/baja/route.ts` (RFC 8058, mail providers POST cross-site): POST only, other
+  methods 405 (`Allow: POST`); no Origin or `sec-fetch-site` check. Answers 200 `{ok: true}`, 422
+  `{code: "unsubscribe_link_invalid"}`, 429 `{code: "rate_limited"}` with Retry-After, 413
+  `{code: "payload_too_large"}` (oversized bodies never reach the API), 502 `{code: "unavailable"}` for 5xx / network;
+  never the token or the backend body. Any backend 200 answers 200 `{ok: true}`, even an unparseable one. Every answer: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`.
+- Landing `/notificaciones/baja?token=` (`ui/unsubscribe-page.tsx` server side, `ui/unsubscribe-landing.tsx` client,
+  wording in `unsubscribe-copy.ts`): the GET shows «Dejar de recibir por correo: {tipo}» (+ « de {empresa}») with the
+  «Mis preferencias» type titles; «Dejar de recibir» runs an inline Server Action (token kept in the encrypted closure)
+  that sends the one-click body to the backend POST. Outcomes: success «Listo. Ya no recibirás este tipo de correo.»,
+  already off «Ya no recibes este tipo de correo.» (both link «Ajustar mis preferencias» to the company page when the
+  link has a company, otherwise the candidate page), invalid «Este enlace ya no es válido.» with both preferences links,
+  429 «Demasiados intentos. Inténtalo en unos minutos.», 5xx / network a generic «Reintentar» (page refresh, still GET).
+  A POST 200 whose body does not parse still shows the success (it needs only the GET's scope). A failed confirm keeps
+  the button: a 429 adds «No se cambió nada.», but a timeout, network failure or 5xx (`unconfirmed`, the backend may have
+  applied it) says «No pudimos confirmar si se aplicó. Volver a intentarlo es seguro.» and the button turns «Reintentar»
+  (the POST again; it is idempotent). «No se cambió nada.» appears only where it is certain: 422, 429, the GET.
+- Server logs (`unsubscribe-log.ts`, prefix `[notifications/unsubscribe]`, console — `lib/` has no logger): one
+  `console.error` with `{reason, status}` on the route's 502 and on the landing's read error / unconfirmed confirm, and a
+  one-time `console.warn` when proxy forwarding is disabled (no `AUDIT_PROXY_SECRET`) and `NODE_ENV` is neither
+  `development` nor `test`. Never the token, a body, headers, the client IP or the secret. `middleware.ts` sends the page with no-referrer and no-store.
+- Production requirement: `AUDIT_PROXY_SECRET` (and the right `AUDIT_TRUSTED_PROXY_HOPS`) must be set; without the
+  secret no client IP reaches the backend and its per-IP invalid-token limiter would see the BFF address for everyone.
+  With several instances, set `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` so the landing's confirm action works across them.

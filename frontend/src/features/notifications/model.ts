@@ -89,11 +89,41 @@ export const facetsSchema = z.object({
   jobs_total: count,
 });
 
-/** Flat error envelope; leniently decoded, never shown verbatim. */
+/** Flat error envelope; leniently decoded, never shown verbatim. `data.types` rides on 422 `notification_preference_locked`. */
 export const errorEnvelopeSchema = z.object({
   error: text, code: text,
   fields: z.array(z.object({ field: text, code: text })).optional(),
+  data: z.object({ types: z.array(z.unknown()) }).optional().catch(undefined),
 });
+
+/*
+ * Personal preferences, backend `docs/contracts/notifications-v2.md` (agreed 07bd4d5a, E2 / L21). The catalog lists
+ * every type of the caller's tree (members 11, candidates 3) with both channels; `type` and `kind` stay open strings so
+ * a type added later is kept and labelled generically.
+ */
+export const NOTIFICATION_CHANNELS = ["in_app", "email"] as const;
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
+/** PUT limit: 1–28 entries (14 types × 2 channels). */
+export const MAX_PREFERENCE_ENTRIES = 28;
+/** Backend type names are snake_case enums; anything else is refused locally and dropped from `data.types`. */
+export const PREFERENCE_TYPE_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
+
+const preferenceChannelSchema = z.object({ default: z.boolean(), enabled: z.boolean(), mandatory_locked: z.boolean() });
+export const preferenceItemSchema = z.object({
+  type: text,
+  kind: text,
+  channels: z.object({ in_app: preferenceChannelSchema, email: preferenceChannelSchema }),
+});
+export const preferencesSchema = z.object({
+  channels: z.array(text),
+  email_deliverable: z.boolean(),
+  items: z.array(preferenceItemSchema),
+});
+export type PreferenceChannelState = z.infer<typeof preferenceChannelSchema>;
+export type PreferenceItem = z.infer<typeof preferenceItemSchema>;
+export type NotificationPreferences = z.infer<typeof preferencesSchema>;
+/** One PUT entry; the body is `{preferences: PreferenceEntry[]}`. */
+export type PreferenceEntry = { type: string; channel: NotificationChannel; enabled: boolean };
 
 export type NotificationLink = z.infer<typeof notificationLinkSchema>;
 export type NotificationGroup = z.infer<typeof notificationGroupSchema>;
@@ -104,24 +134,45 @@ export type MarkResult = z.infer<typeof markResultSchema>;
 export type NotificationFacets = z.infer<typeof facetsSchema>;
 export type FilterIssue = { field: string; code: string };
 
-/** Body issue codes of 400 `validation_error` (L13); anything else from the backend is dropped. */
-export const VALIDATION_CODES = ["required", "invalid", "not_allowed", "empty", "too_many"] as const;
+/** Body issue codes of 400 `validation_error` (L13; `duplicate` from preferences, L21); anything else from the backend is dropped. */
+export const VALIDATION_CODES = ["required", "invalid", "not_allowed", "empty", "too_many", "duplicate"] as const;
 export const VALIDATION_FIELDS = ["body", "group_keys", "ids", "marked_at", "types", "job_ids", "before"] as const;
+/** Preference fields (L21): `preferences`, `preferences[i]`, `preferences[i].type|channel|enabled`. */
+export const PREFERENCE_FIELD_PATTERN = /^preferences(?:\[\d{1,2}\](?:\.(?:type|channel|enabled))?)?$/;
 
 /** Exactly one selection. `markedAt` (undo of an earlier mark) is accepted by unread only. */
 export type MarkTarget = { groupKeys: readonly string[] } | { ids: readonly string[] };
 export type UnmarkTarget = MarkTarget | { markedAt: string };
 export type MarkAllInput = { types?: readonly NotificationType[]; jobIds?: readonly string[]; before?: string };
 
+/*
+ * Email unsubscribe (contract v2 E7 / L23): `GET|POST /v2/notifications/unsubscribe?token=…` answer the link's type, the
+ * email channel, its current state (`enabled`; false after POST) and the company (null for candidates).
+ */
+export const unsubscribeStateSchema = z.object({
+  type: text,
+  channel: z.literal("email"),
+  enabled: z.boolean(),
+  company: z.object({ id: text, name: text }).nullable(),
+});
+export type UnsubscribeState = z.infer<typeof unsubscribeStateSchema>;
+
 export type NotificationFailure = {
   ok: false;
   reason:
     | "unauthenticated" | "forbidden" | "invalid_filter" | "invalid_cursor" | "validation_error"
-    | "server_error" | "no_response" | "unrecognized_response";
+    | "server_error" | "no_response" | "unrecognized_response" | "preference_locked"
+    | "unsubscribe_link_invalid" | "rate_limited";
   fields?: FilterIssue[];
+  /** `preference_locked` only: the mandatory types the entries targeted (422 `data.types`, or found locally). */
+  lockedTypes?: string[];
+  /** `rate_limited` only: the backend's Retry-After (delta seconds or HTTP date), when well formed. */
+  retryAfter?: string;
   reference: { status?: number; code?: string };
 };
 export type NotificationListResult = { ok: true; data: NotificationPage } | NotificationFailure;
 export type UnreadCountResult = { ok: true; data: UnreadCount } | NotificationFailure;
 export type MarkResultResult = { ok: true; data: MarkResult } | NotificationFailure;
 export type FacetsResult = { ok: true; data: NotificationFacets } | NotificationFailure;
+export type PreferencesResult = { ok: true; data: NotificationPreferences } | NotificationFailure;
+export type UnsubscribeResult = { ok: true; data: UnsubscribeState } | NotificationFailure;

@@ -1,6 +1,7 @@
-import { CheckCheck, X } from "lucide-react";
+import Link from "next/link";
+import { CheckCheck, Settings, X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { markedAllStatus } from "../copy";
 import type { MarkStatus } from "./use-inbox-marks";
 
@@ -27,12 +28,20 @@ export function InboxFilterSummary({ summary, onClear }: { summary: string; onCl
   </div>;
 }
 
-/** Sheet footer (design 07 `ns-f`); «Preferencias» joins it in stage 2. */
-export function InboxFooter({ unread, busy, onMarkAll }: { unread: number; busy: boolean; onMarkAll: () => void }) {
-  if (unread < 1) return null;
+/**
+ * Sheet footer (design 07 `ns-f`): «Preferencias» (T4.4) to the scope's preferences page — `null` for a stakeholder
+ * (contract Q7) — and «Marcar todo como leído» while something is unread. Following the link closes the sheet.
+ */
+export function InboxFooter({ unread, busy, onMarkAll, preferencesHref, onNavigate }: {
+  unread: number; busy: boolean; onMarkAll: () => void; preferencesHref: string | null; onNavigate: () => void;
+}) {
+  if (unread < 1 && !preferencesHref) return null;
   return <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/60 px-4 pt-2 pb-3">
-    <Button type="button" variant="outline" className="min-h-10" disabled={busy} aria-busy={busy || undefined} onClick={onMarkAll}>
+    {preferencesHref && <Link href={preferencesHref} onClick={onNavigate} className={buttonVariants({ variant: "ghost", className: "mr-auto min-h-10" })}>
+      <Settings aria-hidden="true" data-icon="inline-start" />Preferencias
+    </Link>}
+    {unread > 0 && <Button type="button" variant="outline" className="min-h-10" disabled={busy} aria-busy={busy || undefined} onClick={onMarkAll}>
       <CheckCheck aria-hidden="true" data-icon="inline-start" />Marcar todo como leído
-    </Button>
+    </Button>}
   </div>;
 }
