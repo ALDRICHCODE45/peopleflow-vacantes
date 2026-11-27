@@ -577,3 +577,9 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   context). Not observable by tests: the pass order (deliveries first would give the same rows; notifications first
   only saves SET NULL updates). Scratch: `backend/cmd/notifications-purge/.e8-logs/` (RED/GREEN/mutation logs and the
   generated-file backup; untracked, delete before committing).
+- **L22** 2026-11-26, stage-2 backend complete (E1–E8). E6 independently verified (6/6 pass). E8 native review
+  `review-9bd71dbb5d39eabc` approved (advisory: the delivery delete can wait on a locked notification row through ON DELETE
+  SET NULL — latency only). Parent final checks on the clean committed tree 66df4e48: notifications + purge integration
+  13 packages ok, cmd/api TestNotification* 29 PASS, full unit suite 135 packages ok, notifications -race ok (0 races),
+  go vet ok, sqlc diff clean. Pending human decisions: merge to main / push; AWS work (domain, SES, bounce ingestion).
+  No real SMTP/Mailpit run yet (log adapter only end to end).
