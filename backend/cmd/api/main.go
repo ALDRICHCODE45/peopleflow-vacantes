@@ -70,6 +70,7 @@ import (
 	publicjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
 	savedjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/savedjobs"
 	notifcapture "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/capture"
+	notificationsunsubscribe "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/unsubscribe"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
@@ -215,6 +216,14 @@ func run() error {
 	}
 	// notifications-v2 D13: only the mailer kind is logged, never another key.
 	slog.Info("notifications email", "mailer", string(notificationsEmail.Mailer), "deliveries", notificationsEmail.Enabled())
+	// notifications-v2 §Unsubscribe: the HMAC token signer/verifier from NOTIFICATIONS_UNSUBSCRIBE_KEYS (nil with the
+	// mailer off: every token is refused). The same value verifies the public unsubscribe routes and is the renderer's
+	// email.TokenSigner for the sender (E6). The keys are never logged.
+	notificationUnsubscribeSigner, err := newNotificationUnsubscribeSigner(notificationsEmail, nil)
+	if err != nil {
+		slog.Error("notifications unsubscribe keys invalid", "reason", err.Error())
+		return err
+	}
 
 	// Connection pool: pgx manages a set of reusable connections, not a single one.
 	pool, err := pgxpool.New(ctx, dsn)
@@ -456,6 +465,8 @@ func run() error {
 		candidateNotificationsHandler:           newCandidateNotificationsHandler(pool),
 		notificationPreferencesHandler:          newNotificationPreferencesHandler(pool),
 		candidateNotificationPreferencesHandler: newCandidateNotificationPreferencesHandler(pool),
+		notificationUnsubscribeHandler:          newNotificationUnsubscribeHandler(pool, notificationUnsubscribeSigner),
+		notificationUnsubscribeLimit:            notificationsunsubscribe.NewLimiter(notificationsunsubscribe.DefaultLimits(), nil).Middleware,
 		stakeholderVacanciesHandler:             jobshttp.NewStakeholderVacanciesHandler(draftStore),
 		metricsHandler:                          newMetricsHandler(newMetricsService(pool, auditRepo)),
 		stakeholderInvitationHandler:            companieshttp.NewStakeholderInvitationHandler(usecases.NewStakeholderInvitationService(postgres.NewStakeholderInvitationRepository(pool, auditRepo), identityUserRepo)),

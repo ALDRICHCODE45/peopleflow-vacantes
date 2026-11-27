@@ -219,6 +219,46 @@ func (q *Queries) GetNotificationParticipationCandidate(ctx context.Context, arg
 	return candidate_id, err
 }
 
+const getNotificationUnsubscribeTarget = `-- name: GetNotificationUnsubscribeTarget :one
+SELECT u.user_type,
+       c.name AS company_name,
+       p.enabled AS email_override
+FROM users u
+LEFT JOIN companies c ON c.id = $1::uuid AND c.deleted_at IS NULL
+LEFT JOIN notification_preferences p
+       ON p.user_id = u.id
+      AND p.company_id IS NOT DISTINCT FROM $1::uuid
+      AND p.type = $2::text
+      AND p.channel = 'email'
+WHERE u.id = $3::uuid
+  AND u.deleted_at IS NULL
+`
+
+type GetNotificationUnsubscribeTargetParams struct {
+	CompanyID pgtype.UUID `json:"company_id"`
+	Type      string      `json:"type"`
+	UserID    uuid.UUID   `json:"user_id"`
+}
+
+type GetNotificationUnsubscribeTargetRow struct {
+	UserType      string      `json:"user_type"`
+	CompanyName   pgtype.Text `json:"company_name"`
+	EmailOverride pgtype.Bool `json:"email_override"`
+}
+
+// Public unsubscribe (notifications-v2 §Unsubscribe): the state of a verified
+// token's (user, company, type). One row only for a live user; user_type lets
+// the caller refuse the other tree, company_name is NULL when the token's
+// company is NULL, missing or soft-deleted, email_override is the email row
+// (NULL = no row, the default applies). Nothing else about the user leaves
+// this query.
+func (q *Queries) GetNotificationUnsubscribeTarget(ctx context.Context, arg GetNotificationUnsubscribeTargetParams) (GetNotificationUnsubscribeTargetRow, error) {
+	row := q.db.QueryRow(ctx, getNotificationUnsubscribeTarget, arg.CompanyID, arg.Type, arg.UserID)
+	var i GetNotificationUnsubscribeTargetRow
+	err := row.Scan(&i.UserType, &i.CompanyName, &i.EmailOverride)
+	return i, err
+}
+
 const insertImmediateNotificationEmailDelivery = `-- name: InsertImmediateNotificationEmailDelivery :exec
 INSERT INTO notification_email_deliveries (id, recipient_user_id, recipient_kind, company_id, type, group_key, job_id, send_after)
 VALUES (
@@ -1666,6 +1706,31 @@ func (q *Queries) ResolveStaleScheduledNotifications(ctx context.Context) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const unsubscribeNotificationEmail = `-- name: UnsubscribeNotificationEmail :exec
+INSERT INTO notification_preferences (user_id, company_id, type, channel, enabled, source, updated_at)
+VALUES ($1::uuid, $2::uuid, $3::text,
+        'email', false, 'unsubscribe', now())
+ON CONFLICT ON CONSTRAINT notification_preferences_key
+DO UPDATE SET enabled = false, source = 'unsubscribe', updated_at = now()
+WHERE notification_preferences.enabled
+`
+
+type UnsubscribeNotificationEmailParams struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+	Type      string      `json:"type"`
+}
+
+// POST /v2/notifications/unsubscribe (§Unsubscribe, D17): email off for the
+// token's (user, company, type), source 'unsubscribe'. Idempotent: a row that
+// is already off (from settings or a previous unsubscribe) is left untouched,
+// so repeats change nothing. Mandatory types never reach here (refused by the
+// token check and by the table CHECK). Not audited (D5).
+func (q *Queries) UnsubscribeNotificationEmail(ctx context.Context, arg UnsubscribeNotificationEmailParams) error {
+	_, err := q.db.Exec(ctx, unsubscribeNotificationEmail, arg.UserID, arg.CompanyID, arg.Type)
+	return err
 }
 
 const upsertCoalescedNotificationEmailDelivery = `-- name: UpsertCoalescedNotificationEmailDelivery :one

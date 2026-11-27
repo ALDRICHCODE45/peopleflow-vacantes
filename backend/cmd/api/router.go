@@ -29,6 +29,7 @@ import (
 	metricshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/infrastructure/http"
 	notificationsinbox "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/inbox"
 	notificationspreferences "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/preferences"
+	notificationsunsubscribe "github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/unsubscribe"
 	profilehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
@@ -73,6 +74,11 @@ type routerDeps struct {
 	// candidateNotificationPreferencesHandler serves the candidate preferences behind
 	// requireCandidate; key = the session's candidate account, company NULL.
 	candidateNotificationPreferencesHandler *notificationspreferences.Handler
+	// notificationUnsubscribeHandler serves the public one-click unsubscribe (notifications-v2
+	// §Unsubscribe): no session, the HMAC token is the only credential.
+	notificationUnsubscribeHandler *notificationsunsubscribe.Handler
+	// notificationUnsubscribeLimit is its per-IP, per-instance limit on requestmeta's client IP.
+	notificationUnsubscribeLimit func(http.Handler) http.Handler
 	// stakeholderInvitationHandler serves the invitation routes (§1.3).
 	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
 	companyHandler               *companieshttp.CompanyHandler
@@ -153,6 +159,14 @@ func newRouter(d routerDeps) chi.Router {
 	if d.publicAssessmentLimit == nil {
 		d.publicAssessmentLimit = ratelimit.NewAssessment(ratelimit.DefaultLimits(), nil, nil).Middleware
 	}
+	// The public unsubscribe is never served unlimited, and without a composed
+	// handler (no keys) it refuses every token without touching the database.
+	if d.notificationUnsubscribeLimit == nil {
+		d.notificationUnsubscribeLimit = notificationsunsubscribe.NewLimiter(notificationsunsubscribe.DefaultLimits(), nil).Middleware
+	}
+	if d.notificationUnsubscribeHandler == nil {
+		d.notificationUnsubscribeHandler = notificationsunsubscribe.NewHandler(nil, nil)
+	}
 	// Audit metadata always exists; without a composed secret it is peer only.
 	if d.requestMeta == nil {
 		d.requestMeta = requestmeta.Middleware(requestmeta.Config{})
@@ -203,6 +217,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/assessments/{token}/items", d.psychometricAssessmentHandler.Items)
 		r.Put("/v2/assessments/{token}/answers/{position}", d.psychometricAssessmentHandler.Put)
 		r.Delete("/v2/assessments/{token}/answers/{position}", d.psychometricAssessmentHandler.Delete)
+	})
+	// Public one-click unsubscribe (notifications-v2 D16, D17, §Unsubscribe): outside every auth gate, no
+	// cookies or session read; the HMAC token is the only credential. Private (no-store, no-referrer) and
+	// per-IP limited on requestmeta's trusted client IP (L6), both before the handler. GET never writes.
+	r.Group(func(r chi.Router) {
+		r.Use(notificationsunsubscribe.Privacy, d.notificationUnsubscribeLimit)
+		r.Get("/v2/notifications/unsubscribe", d.notificationUnsubscribeHandler.Get)
+		r.Post("/v2/notifications/unsubscribe", d.notificationUnsubscribeHandler.Post)
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(profilehttp.AssessmentPrivacy, d.requireAuth, d.requireCandidate)

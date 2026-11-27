@@ -217,6 +217,13 @@ type Querier interface {
 	// Relation candidate: the account behind an organic participation of the job;
 	// NULL for a manual candidate (no account).
 	GetNotificationParticipationCandidate(ctx context.Context, arg GetNotificationParticipationCandidateParams) (pgtype.UUID, error)
+	// Public unsubscribe (notifications-v2 §Unsubscribe): the state of a verified
+	// token's (user, company, type). One row only for a live user; user_type lets
+	// the caller refuse the other tree, company_name is NULL when the token's
+	// company is NULL, missing or soft-deleted, email_override is the email row
+	// (NULL = no row, the default applies). Nothing else about the user leaves
+	// this query.
+	GetNotificationUnsubscribeTarget(ctx context.Context, arg GetNotificationUnsubscribeTargetParams) (GetNotificationUnsubscribeTargetRow, error)
 	// Publication status and the reason of the latest close event (empty when never
 	// closed or closed without reason): the inputs of the closed-covered predicate.
 	GetProcessCloseState(ctx context.Context, arg GetProcessCloseStateParams) (GetProcessCloseStateRow, error)
@@ -602,6 +609,12 @@ type Querier interface {
 	// No deleted_at / status filter on jobs: transitions on soft-deleted
 	// jobs' applications remain legal (historical pipeline).
 	TransitionStatus(ctx context.Context, arg TransitionStatusParams) (TransitionStatusRow, error)
+	// POST /v2/notifications/unsubscribe (§Unsubscribe, D17): email off for the
+	// token's (user, company, type), source 'unsubscribe'. Idempotent: a row that
+	// is already off (from settings or a previous unsubscribe) is left untouched,
+	// so repeats change nothing. Mandatory types never reach here (refused by the
+	// token check and by the table CHECK). Not audited (D5).
+	UnsubscribeNotificationEmail(ctx context.Context, arg UnsubscribeNotificationEmailParams) error
 	// Atomic partial update + CAS for PATCH /me/company (companies-write slice,
 	// design D3). Mirrors UpdateJob :one minus the `active` CTE (companies
 	// has no active-company guard on PATCH/DELETE — a suspended company may

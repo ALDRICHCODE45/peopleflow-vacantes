@@ -626,6 +626,39 @@ VALUES (sqlc.arg('user_id')::uuid, sqlc.narg('company_id')::uuid, sqlc.arg('type
 ON CONFLICT ON CONSTRAINT notification_preferences_key
 DO UPDATE SET enabled = EXCLUDED.enabled, source = EXCLUDED.source, updated_at = EXCLUDED.updated_at;
 
+-- name: GetNotificationUnsubscribeTarget :one
+-- Public unsubscribe (notifications-v2 §Unsubscribe): the state of a verified
+-- token's (user, company, type). One row only for a live user; user_type lets
+-- the caller refuse the other tree, company_name is NULL when the token's
+-- company is NULL, missing or soft-deleted, email_override is the email row
+-- (NULL = no row, the default applies). Nothing else about the user leaves
+-- this query.
+SELECT u.user_type,
+       c.name AS company_name,
+       p.enabled AS email_override
+FROM users u
+LEFT JOIN companies c ON c.id = sqlc.narg('company_id')::uuid AND c.deleted_at IS NULL
+LEFT JOIN notification_preferences p
+       ON p.user_id = u.id
+      AND p.company_id IS NOT DISTINCT FROM sqlc.narg('company_id')::uuid
+      AND p.type = sqlc.arg('type')::text
+      AND p.channel = 'email'
+WHERE u.id = sqlc.arg('user_id')::uuid
+  AND u.deleted_at IS NULL;
+
+-- name: UnsubscribeNotificationEmail :exec
+-- POST /v2/notifications/unsubscribe (§Unsubscribe, D17): email off for the
+-- token's (user, company, type), source 'unsubscribe'. Idempotent: a row that
+-- is already off (from settings or a previous unsubscribe) is left untouched,
+-- so repeats change nothing. Mandatory types never reach here (refused by the
+-- token check and by the table CHECK). Not audited (D5).
+INSERT INTO notification_preferences (user_id, company_id, type, channel, enabled, source, updated_at)
+VALUES (sqlc.arg('user_id')::uuid, sqlc.narg('company_id')::uuid, sqlc.arg('type')::text,
+        'email', false, 'unsubscribe', now())
+ON CONFLICT ON CONSTRAINT notification_preferences_key
+DO UPDATE SET enabled = false, source = 'unsubscribe', updated_at = now()
+WHERE notification_preferences.enabled;
+
 -- name: CountExpiredNotifications :one
 -- Retention (notifications-v1 D22): rows older than 180 days, read or not.
 -- The cutoff must stay identical in the four retention queries.

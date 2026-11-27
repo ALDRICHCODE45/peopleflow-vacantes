@@ -1564,6 +1564,8 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Put /v2/me/company/notifications/preferences",
 		"Get /v2/me/notifications/preferences",
 		"Put /v2/me/notifications/preferences",
+		"Get /v2/notifications/unsubscribe",
+		"Post /v2/notifications/unsubscribe",
 		"Get /v2/me/company/audit-events/actors",
 		"Get /v2/me/company/audit-events/vacancies",
 		"Post /v2/me/company/audit-events/export",
