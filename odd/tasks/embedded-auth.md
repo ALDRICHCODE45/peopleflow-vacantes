@@ -133,3 +133,13 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   current FloatingLines animation unchanged for both audiences. RDD: every A4 work unit is Risk item 2 (security) → its
   own commit, assess with escalate item 2, independent verify and native review (lenses risk, resilience, reliability;
   readability where user-facing copy changes). Canvas handoff in progress.
+- **L12** (2026-11-27) Backend A3 usable locally (feat/embedded-auth-backend: T2 248d8846, T3 a5df82ee, review fixes
+  134945e9; independent verify running; not in main). POST /v2/me/employer-account {full_name} → 201
+  {role:"recruiter", user{id,email,full_name}}; 200 on retry (no provider call); 409 account_exists if candidate; 422
+  email_not_verified; 503 identity_unavailable; POST /companies then works. GetUser provider via
+  IDENTITY_PROVIDER=cognito_getuser + IDENTITY_COGNITO_REGION (unset → current userInfo); e2e
+  IDENTITY_COGNITO_ENDPOINT=http://127.0.0.1:<port>/ (APP_ENV local|test only). Stub request: POST / with
+  Content-Type application/x-amz-json-1.1, X-Amz-Target AWSCognitoIdentityProviderService.GetUser, no Authorization,
+  body {"AccessToken":"<bearer>"}; a non-200 2xx or an email_verified without Value counts as malformed. Frontend
+  follow-ups (A4.7): saved-vacancies/fixtures/real-responses.json:351 «candidate role required» → «account role not
+  allowed»; audit catalog now 76 types (EmployerAccountCreated, members, «Creó su cuenta de empresa»).
