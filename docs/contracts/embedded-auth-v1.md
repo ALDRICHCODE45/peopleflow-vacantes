@@ -1,6 +1,6 @@
 # Embedded auth v1 (employer onboarding and GetUser identity provider)
 
-Status: **Agreed — reviewed by the frontend (2026-11-27); not implemented yet**. Source of the request: the frontend decisions forwarded in
+Status: **Agreed — reviewed by the frontend (2026-11-27); implemented on this branch (T2, T3; see `odd/tasks/embedded-auth-backend.md` L5), pending review**. Source of the request: the frontend decisions forwarded in
 `odd/tasks/embedded-auth-backend.md` (S1–S6, L1–L2; frontend feature `odd/tasks/embedded-auth.md`, L4–L5). Builds on the
 candidate onboarding contract `backend/docs/candidate-identity.md`: every rule there stays unless a decision below says
 otherwise. Branch `feat/embedded-auth-backend`. Style follows `notifications-v2.md`. Every `path:line` is a backend path
@@ -287,7 +287,7 @@ Parse rules (strict like `userinfo/client.go:71-123`):
 - `sub`, `email`, `email_verified` at most once each (a duplicate → malformed).
 - `sub` and `email` required, non-blank strings → else malformed.
 - `email_verified`: `"true"` → verified, `"false"` → not verified, **absent → not verified** (D10), anything else →
-  malformed.
+  malformed (including an `email_verified` element without `Value`).
 - Output `VerifiedIdentity{Subject, Email, EmailVerified}`; the use case does the subject comparison and email
   validation exactly as today (`candidate_identity.go:78-84`).
 
@@ -314,6 +314,7 @@ https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/Comm
 | 5xx (`InternalErrorException`, `ServiceUnavailable`, …) | `503 identity_unavailable` | `server_error` |
 | 3xx (redirect refused) | `503 identity_unavailable` | `redirect` |
 | deadline (5 s) / connection / TLS error | `503 identity_unavailable` | `timeout` / `transport` |
+| any other status (e.g. a 2xx other than 200) | `503 identity_unavailable` | `malformed` |
 
 The class is derived from the sanitized error name against a closed list; the raw header, body, message and token
 never reach logs or errors. One `slog.Warn("identity provider failed", "provider", "cognito_getuser", "class", …)` per
@@ -466,6 +467,9 @@ On the **existing** user pool and the **existing** app client (the one whose id 
    scopes (keep `openid email profile`). Permanent, not transitional (Q4): social logins keep the OAuth flow with
    `identity_provider`, so their access tokens must also be accepted by `GetUser`. The frontend requests this scope in
    its OAuth provider config.
+2c. **App client → Prevent user existence errors**: set `PreventUserExistenceErrors = ENABLED` (console: «Prevent user
+   existence errors» on). With the default `LEGACY`, sign-in and password-reset errors reveal whether an account exists
+   (frontend, 2026-11-27).
 3. **Sign-up → Self-service sign-up**: enabled.
 4. **Sign-in identifier**: email (email as username, or email alias). Check only — it cannot be changed after the pool
    exists (https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-attributes.html); if the pool

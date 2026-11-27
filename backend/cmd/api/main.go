@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	poolapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
@@ -58,7 +57,6 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/userinfo"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftrich"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
@@ -266,10 +264,9 @@ func run() error {
 	// notifications-v1 D1: the capture decorator writes the notification_events
 	// row in the same tx as every notifiable audit event (fail-closed).
 	auditRepo := notifcapture.New(auditpostgres.NewAuditEventRepository())
-	var identityProvider identityusecases.UserInfoProvider
-	if identityConfig.UserInfoEndpoint != "" {
-		identityProvider = userinfo.NewClient(identityConfig.UserInfoEndpoint, 5*time.Second)
-	}
+	// embedded-auth-v1 D8: one configured provider (userinfo | cognito_getuser
+	// | none) shared by the candidate and employer onboardings.
+	identityProvider := newIdentityProvider(identityConfig, slog.Default())
 	identityHandler := identityhttp.NewCandidateIdentityHandler(identityusecases.NewCandidateIdentity(identitypostgres.NewCandidateAccountStore(pool, auditRepo), identityProvider))
 
 	// Feature wiring: companies (adapter -> use case -> handler).
