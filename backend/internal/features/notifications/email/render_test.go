@@ -377,7 +377,7 @@ func TestRenderFallbacks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.Subject != "una empresa te dejó un mensaje" || !strings.Contains(m.Text, "una empresa te escribió sobre una vacante.") {
+	if m.Subject != "Una empresa te dejó un mensaje" || !strings.Contains(m.Text, "Una empresa te escribió sobre una vacante.") {
 		t.Fatalf("blank fallbacks: %q / %q", m.Subject, m.Text)
 	}
 }

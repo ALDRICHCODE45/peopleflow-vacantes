@@ -627,3 +627,4 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - **L26** 2026-11-27, frontend review of the design gaps (seq 16-17): candidate email without company_name must not show «…»
   for every type — per type in violet without eyebrow: T15 «→», T16 «+», T17 «…» («✓» rejected: it means done). T4/T6
   emphasis and initials without connectors accepted. Applied by the parent with RED observed (T15 showed «…").
+- **L27** 2026-11-27, frontend rule (seq 19, verbatim): «Si un asunto, título o línea empieza con un fallback («una empresa», «una vacante»), se capitaliza la primera letra: «Una empresa te dejó un mensaje». Que cubra todas las plantillas, no solo T16, con un test.» Applied by the parent (RED: T15 body started lower-case); preview scratch removed from the branch (f4de9344).

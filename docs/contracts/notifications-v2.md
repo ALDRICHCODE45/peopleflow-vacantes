@@ -716,6 +716,8 @@ candidate seal shows the type's own glyph — T15 `→`, T16 `+`, T17 `…` (fro
 - `job_title` null → «una vacante».
 - `company_name` null → «una empresa».
 
+
+**Leading fallback capitalized** (frontend rule, 2026-11-27): when a subject, heading or body line starts with a fallback actually used for the delivery, its first letter is upper-cased («Una empresa te dejó un mensaje»); fallbacks inside a sentence and real names are unchanged. Applies to every template, both parts.
 ## Error codes
 
 Reused from the catalog plus two new codes:

@@ -197,7 +197,7 @@ func (r *Renderer) Render(v View) (Message, error) {
 		if err := field.t.Execute(&b, vars); err != nil {
 			return Message{}, errors.New("email: copy references an unknown variable")
 		}
-		*field.out = b.String()
+		*field.out = capitalizeLeadingFallback(b.String(), v)
 	}
 
 	// Design: tone, seal, eyebrow, urgency, «Obligatorio», emphasized body.
@@ -209,10 +209,11 @@ func (r *Renderer) Render(v View) (Message, error) {
 	if err := cs.body.Execute(&body, vars); err != nil {
 		return Message{}, errors.New("email: body references an unknown variable")
 	}
-	if stripSentinels.Replace(body.String()) != data.Line {
+	bodyText := capitalizeLeadingFallback(body.String(), v)
+	if stripSentinels.Replace(bodyText) != data.Line {
 		return Message{}, errors.New("email: body markup differs from the copy line")
 	}
-	data.Body = richBody(body.String(), cs.tone)
+	data.Body = richBody(bodyText, cs.tone)
 	data.Tone = cs.tone
 	data.Eyebrow, data.Urgency = cs.style.eyebrow, cs.style.urgency
 	hasCompany := orFallback(v.CompanyName, "") != ""
@@ -387,4 +388,26 @@ func clean(s string) string {
 		return r
 	}, s)
 	return strings.Join(strings.Fields(s), " ")
+}
+
+// capitalizeLeadingFallback upper-cases the first letter of a subject,
+// heading or body line that starts with a fallback actually used for this
+// delivery («una vacante», «una empresa»), skipping leading emphasis
+// sentinels; fallbacks inside a sentence and real names stay as they are
+// (frontend rule, 2026-11-27).
+func capitalizeLeadingFallback(s string, v View) string {
+	rest := strings.TrimLeft(s, sentinelStrong+sentinelUrgency)
+	lead := len(s) - len(rest)
+	for _, f := range []struct {
+		used     bool
+		fallback string
+	}{
+		{orFallback(v.JobTitle, "") == "", fallbackJobTitle},
+		{orFallback(v.CompanyName, "") == "", fallbackCompanyName},
+	} {
+		if f.used && strings.HasPrefix(rest, f.fallback) {
+			return s[:lead] + strings.ToUpper(f.fallback[:1]) + s[lead+1:]
+		}
+	}
+	return s
 }

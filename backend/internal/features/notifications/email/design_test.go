@@ -333,7 +333,7 @@ func TestRenderCandidateWithoutCompany(t *testing.T) {
 	if strings.Contains(m.HTML, `white-space:nowrap">una empresa</td>`) || strings.Contains(m.HTML, `font-size:13px;line-height:20px;font-weight:600`) {
 		t.Fatal("eyebrow rendered without company")
 	}
-	if !strings.Contains(m.HTML, `<strong style="font-weight:600">una empresa</strong> te envió`) {
+	if !strings.Contains(m.HTML, `<strong style="font-weight:600">Una empresa</strong> te envió`) {
 		t.Fatal("copy fallback missing")
 	}
 }
@@ -450,5 +450,38 @@ func TestRenderCandidateWithoutCompanyGlyphPerType(t *testing.T) {
 	}
 	if seen != len(want) {
 		t.Fatalf("goldens cover %d of %d candidate types", seen, len(want))
+	}
+}
+
+// A subject, heading or body line that starts with a fallback («una vacante»,
+// «una empresa») is capitalized, in every template, in both parts (frontend
+// rule, 2026-11-27). Fallbacks in the middle of a sentence stay lower-case.
+func TestRenderCapitalizesLeadingFallback(t *testing.T) {
+	tags := regexp.MustCompile(`<[^>]+>`)
+	leading := 0
+	for _, g := range goldens() {
+		g.view.JobTitle, g.view.CompanyName = nil, nil
+		m, err := newTestRenderer(t, &fakeSigner{}).Render(g.view)
+		if err != nil {
+			t.Fatalf("%s: %v", g.name, err)
+		}
+		visible := html.UnescapeString(tags.ReplaceAllString(m.HTML, ""))
+		for _, ln := range append([]string{m.Subject}, strings.Split(m.Text, "\n")...) {
+			ln = strings.TrimSpace(ln)
+			for _, f := range []string{"una vacante", "una empresa"} {
+				if strings.HasPrefix(ln, f) {
+					t.Fatalf("%s starts lower-case: %q", g.name, ln)
+				}
+				if strings.HasPrefix(ln, "U"+f[1:]) {
+					leading++
+					if !strings.Contains(visible, ln) {
+						t.Fatalf("%s HTML lacks the capitalized line %q", g.name, ln)
+					}
+				}
+			}
+		}
+	}
+	if leading == 0 {
+		t.Fatal("no template exercised a leading fallback")
 	}
 }
