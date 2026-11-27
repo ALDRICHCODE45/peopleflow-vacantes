@@ -238,3 +238,9 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   — on timeout/network after commit the landing says «No se cambió nada» (use neutral «no sabemos si se aplicó;
   reintentar es seguro»); R4-silent-forwarding-and-failures — warn once when AUDIT_PROXY_SECRET is missing outside dev
   and log token-free lines on 502/error paths.
+- **L25** (2026-11-27) L24 follow-ups done in 7779d02c: any backend 200 to the unsubscribe POST counts as done (route
+  200 {ok:true}; landing success without detail when the body does not parse); unknown outcomes (timeout, network,
+  5xx, unexpected) show «No pudimos confirmar si se aplicó. Volver a intentarlo es seguro.» + «Reintentar»; «No se
+  cambió nada.» only for 422/429/local refusal; token-free console logs with prefix [notifications/unsubscribe] and a
+  one-time warning when AUDIT_PROXY_SECRET is missing outside development/test. 368 focused tests pass. Backend stage 2
+  merged to local main (622f2b94) by the backend session with the user's approval; dev DB at 69.
