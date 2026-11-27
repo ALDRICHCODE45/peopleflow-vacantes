@@ -1,6 +1,8 @@
 package cognitogetuser
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -22,5 +24,24 @@ func TestClientDefaults(t *testing.T) {
 	}
 	if limit, want := MaxResponseBytes, userinfo.MaxResponseBytes; limit != want || limit != 16<<10 {
 		t.Fatal("response cap differs from UserInfo")
+	}
+}
+
+// A caller that disconnects (context.Canceled) is not a provider timeout: it
+// gets its own class so provider-latency alerts stay accurate (review R4).
+func TestTransportClassSeparatesCancelFromTimeout(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if got := transportClass(canceled, context.Canceled); got != classCanceled {
+		t.Fatalf("canceled caller: %q", got)
+	}
+	expired, stop := context.WithTimeout(context.Background(), 0)
+	defer stop()
+	<-expired.Done()
+	if got := transportClass(expired, context.DeadlineExceeded); got != classTimeout {
+		t.Fatalf("deadline: %q", got)
+	}
+	if got := transportClass(context.Background(), errors.New("connection refused")); got != classTransport {
+		t.Fatalf("transport: %q", got)
 	}
 }

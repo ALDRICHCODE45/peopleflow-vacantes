@@ -394,7 +394,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `EmployerAccountCreated` | members | Creó su cuenta de empresa |
 | `AuditLogExported` | audit | Exportó la auditoría |
 
-The annex lists every catalog type (75) in catalog order; a test fails when a catalog type has no row.
+The annex lists every catalog type (76) in catalog order; a test fails when a catalog type has no row.
 
 ## Decisions (approved 2026-11-04)
 

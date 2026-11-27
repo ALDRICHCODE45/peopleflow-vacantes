@@ -314,6 +314,7 @@ https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/Comm
 | 5xx (`InternalErrorException`, `ServiceUnavailable`, …) | `503 identity_unavailable` | `server_error` |
 | 3xx (redirect refused) | `503 identity_unavailable` | `redirect` |
 | deadline (5 s) / connection / TLS error | `503 identity_unavailable` | `timeout` / `transport` |
+| caller disconnected (request context canceled) | `503 identity_unavailable` (the caller is gone) | `canceled` |
 | any other status (e.g. a 2xx other than 200) | `503 identity_unavailable` | `malformed` |
 
 The class is derived from the sanitized error name against a closed list; the raw header, body, message and token

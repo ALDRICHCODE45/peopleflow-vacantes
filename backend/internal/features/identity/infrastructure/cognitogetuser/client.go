@@ -45,6 +45,9 @@ const (
 	classRedirect      = "redirect"
 	classTimeout       = "timeout"
 	classTransport     = "transport"
+	// classCanceled: the caller went away (context.Canceled), not a provider
+	// timeout; kept apart so provider-latency alerts stay accurate.
+	classCanceled = "canceled"
 )
 
 var errorClasses = map[string]string{
@@ -151,6 +154,9 @@ func (c *Client) fetch(ctx context.Context, token string) (usecases.VerifiedIden
 }
 
 func transportClass(ctx context.Context, err error) string {
+	if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+		return classCanceled
+	}
 	var netErr net.Error
 	if errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil || (errors.As(err, &netErr) && netErr.Timeout()) {
 		return classTimeout
