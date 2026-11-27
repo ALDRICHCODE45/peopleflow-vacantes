@@ -464,6 +464,7 @@ Dev compose: a `mailpit` service added to `backend/docker-compose.yml` (pinned `
 | `NOTIFICATIONS_UNSUBSCRIBE_KEYS` | mailer ≠ off (also loaded and validated when present with the mailer off) | secret: comma list `kid:base64key` (kid `[a-z0-9]{1,16}`, distinct; std or URL-safe base64), first signs, all verify; each key ≥ 32 bytes. **Independent of the mailer**: with `NOTIFICATIONS_MAILER=off` (kill switch) nothing is sent, but present keys still build the verifier so links already in inboxes keep working; keep the keys configured when turning the mailer off |
 | `NOTIFICATIONS_UNSUBSCRIBE_URL` | mailer ≠ off | absolute https URL (http allowed outside production) that receives the one-click POST; value = `APP_BASE_URL` + `/api/notificaciones/baja` (frontend pass-through, Q4); the backend appends `?token=…` |
 | `APP_BASE_URL` | mailer ≠ off | frontend origin for deep links, «Mis preferencias» and the unsubscribe landing (paths in §Templates, Q3) |
+| `NOTIFICATIONS_EMAIL_POSTAL_ADDRESS` | never (optional) | address of the HTML legal line «PeopleFlow · {address}» (§Design, S11); one line, trimmed, ≤ 200 characters, no control characters; unset or blank → the design placeholder `[Dirección postal de PeopleFlow]`; read only when the mailer is not off |
 
 Loaded by a new `internal/runtime/config/notifications_email.go` (same style as `site_media.go`: validate, never echo
 values; the keys list is never logged).
@@ -586,7 +587,7 @@ The Spanish copy below is the frontend review approved by the user (2026-11-26),
 **button label** (the button opens `app_url`), plus one footer. Variables in `{{…}}` are the only dynamic parts (none
 is a candidate or actor name, D14). Every template receives `app_url`, `preferences_url` and `company_name`;
 non-mandatory ones also `unsubscribe_url`. Templates ship with this copy in E5 (no placeholder copy). Values are
-HTML-escaped in the HTML part.
+HTML-escaped in the HTML part. The HTML part follows §Design (S11); the copy is the same in both parts.
 
 ### Template map
 
@@ -665,6 +666,42 @@ T2's heading is «igual» in the review: the same text as its subject.
   «Mis preferencias» (`preferences_url`) · «Dejar de recibir este tipo de correo» (`unsubscribe_url`).
 - **F2** (mandatory): «Este aviso es obligatorio y no se puede desactivar.», con el link «Mis preferencias»
   (`preferences_url`).
+
+### Design «03 · Centrada» (S11, T10)
+
+User-chosen direction (frontend clone `design/notification-emails/03-centrada.html`; common rules
+`04-sistema-de-correo.html`; 03 wins on conflict). **The copy does not change**; the plain-text part is unchanged.
+HTML part: no card, centred 600 px column on white; 4 px bar in the template's tone; live-text wordmark «people flow»
+linking to `APP_BASE_URL`; 64 px circular seal with the glyph; eyebrow line (tone) with the urgency pill and/or
+«Obligatorio»; 28 px heading; the body line centred, with the variables in weight 600 (deadline dates of T7–T10 in the
+tone colour); one centred 52 px violet button (VML `v:roundrect` for Outlook desktop, ghost 600 px table); footer
+F1/F2 as above; legal line «PeopleFlow · `NOTIFICATIONS_EMAIL_POSTAL_ADDRESS`». Hidden preheader = the body line.
+Table layout, inline light styles, one fixed `<style>` block: phone rules (`max-width:620px`) and dark mode via
+`prefers-color-scheme: dark` plus `[data-ogsc]`/`[data-ogsb]` (Outlook.com); dark mode is client-side.
+
+One closed code table keyed by template id (`email/style.go`), from the 04 matrix; labels verbatim (S11 item 1):
+
+| # | Tone | Glyph | Eyebrow | Urgency pill | «Obligatorio» |
+| --- | --- | --- | --- | --- | --- |
+| T1 | primary (violet) | `+` | Postulaciones | — | — |
+| T2 | primary | `{{count}}` | Postulaciones | — | — |
+| T3 | success (green) | `✓` | Pruebas | — | — |
+| T4 | success | `{{count}}` | Pruebas | — | — |
+| T5 | primary | `…` | Pruebas | — | — |
+| T6 | primary | `{{count}}` | Pruebas | — | — |
+| T7 | review (amber) | `!` | Entrega | Vence pronto | — |
+| T8 | danger (red) | `!` | Entrega | Vencida | yes |
+| T9 | review | `!` | Entrega | Vence pronto | — |
+| T10 | danger | `!` | Entrega | Vencida | yes |
+| T11–T13 | info (blue) | `→` | Asignación | — | yes |
+| T14 | info | `+` | Equipo | — | yes |
+| T15–T17 | primary | `{{company_initials}}` | `{{company_name}}` | — | — |
+
+«Obligatorio» is shown exactly on the mandatory (F2) types. Server-side view variables derived by the renderer (no new
+data, no names, no free text, D14): `company_initials` = first letter or digit of the first two significant words of
+`company_name` (connectors such as «de», «la», «y» skipped), upper-cased — when `company_name` is null/blank the
+candidate seal shows `…` and the eyebrow is omitted (the copy keeps «una empresa»); the `{{count}}` glyph is capped at
+`99+` (the heading keeps the full count). No API, data or copy change.
 
 ### Labels (verbatim)
 

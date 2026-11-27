@@ -40,7 +40,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - T8 — E7 — unsubscribe token, public GET/POST, per-IP limit, `unsubscribe_link_invalid` — worker — done (uncommitted, L16)
 - T9 — E8 — purge of terminal deliveries, follow-up note in `docs/decision-email-provider.md` — worker — done (uncommitted, L21)
 
-- T10 — S11 — email visual design «03 · Centrada» in the Go templates, branch feat/notifications-email-design — worker — pending
+- T10 — S11 — email visual design «03 · Centrada» in the Go templates, branch feat/notifications-email-design — worker — done (uncommitted, L25)
 
 ## Log
 
@@ -591,3 +591,36 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   X-PF-Client-IP via auditForwardHeaders (lib/audit/forward.ts), independently verified on their side. Mailpit end-to-end
   test deferred until the user decides next steps; nothing to start now.
 - **L24** 2026-11-27, frontend relays the user's email design choice (S11, seq 15). New branch feat/notifications-email-design from main 20af99d8; T10 opened.
+- **L25** 2026-11-27, T10/S11 implemented (uncommitted, worktree only, branch feat/notifications-email-design at ecebe4fb).
+  `email/templates/layout.html.tmpl` rebuilt as «03 · Centrada» (no card, centred 600 px column on white, 4 px tone bar,
+  live-text wordmark linking to APP_BASE_URL, 64 px circular seal, eyebrow + urgency/«Obligatorio» pills, 28 px heading,
+  body line with variables in 600 and T7–T10 deadline in the tone colour, centred 52 px button with VML `v:roundrect` +
+  600 px ghost table, F1/F2, legal line, preheader = body line; fixed `<style>` with phone rules, `prefers-color-scheme`
+  and `[data-ogsc]`/`[data-ogsb]`, copied from the samples). html/template strips comments, so the conditional comments
+  come from a closed `mso` func map and `vmlButton` (URL/label escaped in Go). New `email/style.go`: closed table keyed by
+  template id (T1–T17: tone, glyph, eyebrow, urgency, body markup `**`/`!!`) from the 04 matrix with the design labels
+  verbatim; start-up panics if a row is missing/extra, a tone unknown or the body minus markers is not the copy line;
+  Render also refuses a body that differs from the line. Body emphasis: values escaped with `html.EscapeString` inside
+  control-character sentinels (clean() strips them from data). Derived view variables (no new data, D14 kept):
+  `company_initials` (first letter/digit of the first two significant words; connectors skipped), count glyph capped
+  `99+`; candidate without company → seal `…`, eyebrow omitted. Text part unchanged. Config: optional
+  `NOTIFICATIONS_EMAIL_POSTAL_ADDRESS` (trimmed, one line, ≤ 200 chars, default `[Dirección postal de PeopleFlow]`,
+  ignored with mailer off) → `email.Settings.PostalAddress` via `notificationRendererSettings` (cmd/api). Contract
+  `docs/contracts/notifications-v2.md`: §Config keys row + §Templates «Design 03 · Centrada» subsection (matrix, derived
+  variables); no API/data/copy change. RED: email build failure (undefined `templateStyles`, `Settings.PostalAddress`,
+  `DefaultPostalAddress`, `companyInitials`); config/cmd/api build failure (undefined
+  `DefaultNotificationsEmailPostalAddress`, `PostalAddress`, `notificationRendererSettings`); then the old golden
+  assertions (`lang="es"`, plain line in `<p>`) failed against the new HTML and were updated. GREEN: `make test
+  PKG='./internal/features/notifications/... ./internal/runtime/config/ ./cmd/api/ ./internal/tools/archguard/'` ok
+  (15 packages, 364 top-level PASS, 0 FAIL, 0 SKIP; 14 new: email 12 incl. per-template tone/glyph/label, body emphasis,
+  markup = copy, VML, dark CSS, visible text = copy only + pinned View fields, postal address/placeholder, initials,
+  candidate without company, 99+ cap, escaping inside emphasis, 5 literal HTML goldens in `email/testdata/`; config 1;
+  cmd/api 1), `go vet ./...` clean. Mutations (restored byte-identical): no escaping in the body, no «Obligatorio», T7 in
+  danger, no placeholder, body copy drift (start-up panic) — each fails. Mailpit: scratch program
+  `backend/internal/features/notifications/.design-preview/` (untracked: main.go, run logs, Mailpit JSON, 03-t2/t8/t12/
+  t15/t17.html) rendered T1–T17 (singles and groups; F1 on 10, F2 on 7) and sent them through `smtpmail` to
+  127.0.0.1:1025; `GET /api/v1/search?query=to:preview+t10r3@peopleflow.test` → 17 messages, 17 distinct subjects
+  (runs t10r1/t10r2 also 17 each; tagged `design-preview`); T8 headers: Auto-Submitted only, no List-Unsubscribe. Saved
+  HTML is byte-identical to the frontend samples 03-t2/t8/t12/t15/t17 once URLs are normalised (samples use numeric ids
+  and `token=…`). Dark mode is client-side (not visible in Mailpit's light preview). Not done: text part has no legal line;
+  backend example env file (outside the surface) lacks the new key.
