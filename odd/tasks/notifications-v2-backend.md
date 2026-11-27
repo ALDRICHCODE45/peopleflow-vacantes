@@ -33,7 +33,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - T3 — E2 — preferences store + GET/PUT handlers for both trees, `notification_preference_locked`, routes — worker — done (uncommitted, L9)
 - T4 — E3 — in-app off at creation in fan-out and scheduler, `InsertNotification` → `:execrows` — worker — done (uncommitted, L11)
 - T5 — E4 — config loader, email eligibility, delivery creation with coalescing upsert in both creation paths — worker — done (uncommitted, L12)
-- T6 — E5 — `Mailer` port, `log`/`smtp` adapters, Mailpit in compose, templates with the S10 copy, headers, dates, path map — worker — pending
+- T6 — E5 — `Mailer` port, `log`/`smtp` adapters, Mailpit in compose, templates with the S10 copy, headers, dates, path map — worker — done (uncommitted, L14)
 - T7 — E6 — sender loop (claim/lease, re-check/skip, fenced finalize, backoff, throttle), start/stop in `main.go` — worker — pending
 - T8 — E7 — unsubscribe token, public GET/POST, per-IP limit, `unsubscribe_link_invalid` — worker — pending
 - T9 — E8 — purge of terminal deliveries, follow-up note in `docs/decision-email-provider.md` — worker — pending
@@ -285,3 +285,48 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   (2) `NOTIFICATIONS_MAILER=log|smtp` before the sender exists only queues rows: acceptable because the branch is not
   released before E6; E6 must make startup refuse a non-off mailer without the required keys. (3) Add a soft-deleted
   recipient test in E6.
+- **L14** 2026-11-26, T6/E5 implemented (uncommitted, worktree only; no sender loop — E6). New package
+  `internal/features/notifications/email`: `Message` (to, from, subject, text, HTML, `MessageID` =
+  `<delivery_id@sender domain>`, `Headers`, plus value-free metadata delivery id / type / template), `Mailer` port,
+  `ErrPermanent`; `TokenSigner.Sign(domain.PreferenceKey)` seam for the E7 HMAC token (tests use a fake; tokens must
+  match `[A-Za-z0-9_.-]{1,512}`); `NewRenderer(Settings{From, AppBaseURL, UnsubscribeURL}, signer)` and
+  `Render(View) (Message, error)` — `View` = delivery id, type, address (read by E6 at send time), user, company
+  (`uuid.Nil` = candidate), count, the group's link descriptor (inbox rule, computed by E6), job title / company name
+  (nil or blank → «una vacante» / «una empresa»), group day (instant → its America/Mexico_City day), commitment date
+  (DATE → own components, never shifted), function / reason / status codes. 17 templates T1–T17 in a code table with the
+  verbatim §Templates copy (T13 body per L8), parsed as `text/template` with `missingkey=error`; embedded layouts
+  `templates/layout.txt.tmpl` (text) and `layout.html.tmpl` (`html/template`, contextual escaping); F1/F2 by
+  `domain.Locked`; label maps (unknown code → render error, so free text never reaches a mail); control characters in
+  title/company collapse to one space; path map table (`linkPath` + fixed paths), `app_url` = APP_BASE_URL + path,
+  null link → `/empresa` (T13) or `/candidato/postulaciones` (candidate types, L6), any other null/mismatched link or
+  missing id → error; grouped types: participation link (count 1) → `.one`, vacancy_candidates → `.many`. Headers:
+  `Auto-Submitted: auto-generated` always; `List-Unsubscribe: <NOTIFICATIONS_UNSUBSCRIBE_URL?token=…>` +
+  `List-Unsubscribe-Post: List-Unsubscribe=One-Click` and the landing link `/notificaciones/baja?token=…` only for
+  non-mandatory types (the signer is never called for mandatory ones). Adapters: `email/logmail` (one line: delivery_id,
+  type, template, has_unsubscribe; nothing else) and `email/smtpmail` (net/smtp over a ctx-bounded dial, no auth/TLS,
+  multipart/alternative quoted-printable, RFC 2047 subject, CR/LF and reserved header names refused; SMTP 5xx / invalid
+  address → `ErrPermanent`, 4xx / network / timeout → transient; errors never carry server text or addresses; provider
+  id = Message-ID). `cmd/api/notifications_email.go`: `newNotificationMailer(cfg, logger)` (off → nil) for E6. Config:
+  `NotificationsEmailConfig` + `From` (net/mail, one address with domain, header form), `AppBaseURL` (http(s) origin, no
+  path/query/fragment/credentials, trailing slash trimmed), `UnsubscribeURL` (absolute, no query/fragment/credentials),
+  `SMTPHost`/`SMTPPort` (smtp only); with mailer ≠ off the first three are required, smtp needs host/port and is refused
+  when `APP_ENV=production`, https required in production for both URLs; mailer off ignores every other key; static
+  errors naming the key, no value echoed. So startup now refuses `log|smtp` without the E5 keys (L13 item 2, E5 part;
+  `NOTIFICATIONS_UNSUBSCRIBE_KEYS` stays with E7, `…_MAX_PER_SECOND` with E6). Compose: `mailpit` service
+  `axllent/mailpit:v1.21.8`, `127.0.0.1:1025` / `127.0.0.1:8025`, no volume (not started here). RED observed: build
+  failures (undefined `TokenSigner`, `Renderer`, `View`, `Link`, …; config fields); then with only the struct fields
+  added, `TestLoadNotificationsEmailConfigParsesTheE5Keys` and 27 subcases of `…RejectsInvalidE5Keys` failed. GREEN:
+  `make test PKG='./internal/features/notifications/... ./internal/runtime/config/ ./cmd/api/
+  ./internal/tools/archguard/'` ok (13 packages, 307 top-level PASS, 0 FAIL, 0 SKIP; 29 new top-level tests: email 15
+  incl. 17 per-template goldens and 2 full literal goldens, logmail 3, smtpmail 6 against an in-process loopback
+  `net/textproto` server, config 4, cmd/api 1), `go vet ./...` clean. Mutations (each restored byte-identical): T13 body
+  back to the L5 text, unsubscribe headers on every type, no control-character cleaning, instant date not converted to
+  Mexico City, SMTP 5xx treated as transient, candidate null link → `/empresa` — each fails its test. Deviations:
+  `Message` carries three metadata fields beyond the §Mailer sketch (for the log adapter); https-in-production also
+  applied to APP_BASE_URL; the renderer takes the link descriptor from the caller (E6 should export the inbox `linkFor`
+  rule rather than duplicate it). Not done: the backend example env file (outside the surface) lacks the new keys; the
+  Mailpit tag was not pulled. Scratch logs in `backend/internal/features/notifications/.e5-logs/` (untracked, delete
+  before committing).
+- **L15** 2026-11-26, E3+E4 independently verified (6/6 pass; integration 92/0/0; window-close race reasoned correct under
+  READ COMMITTED). Follow-ups for E6: soft-deleted recipient test; race-test lock probe scoped to the fan-out connection;
+  override-read helper duplicated 3×. E5 committed by the parent (config keys, email package, Mailpit compose).
