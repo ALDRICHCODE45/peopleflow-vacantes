@@ -1,0 +1,28 @@
+{
+  "title": "Embedded auth · ingresar, crear cuenta, código y contraseña en pantallas propias",
+  "brief": "A2 · S1 S3 S4 (odd/tasks/embedded-auth.md). Tres direcciones para las pantallas de acceso propias de PeopleFlow que reemplazan las páginas de Cognito, partiendo del login actual (LoginScreen.tsx: panel FloatingLines, «Acceso empresas», acentos violeta empresa / cian candidato, claro y oscuro). Cada dirección cubre, a 1440 y a 390, empresa y candidato: Ingresar (correo, contraseña con mostrar / ocultar, «¿Olvidaste tu contraseña?», Ingresar, Google · Microsoft · LinkedIn cada uno tras su flag, crear cuenta, otra audiencia); Crear cuenta de candidato (nombre, correo, contraseña con requisitos en vivo, términos) y de empresa (cuenta con pista de correo corporativo → verifica tu correo → «Tu empresa»: nombre comercial, razón social y sitio web, sin paso de verificación); Verifica tu correo (6 casillas que aceptan pegar y avanzan solas, reenviar con espera, cambiar correo); ¿Olvidaste tu contraseña? (pedir código → código y nueva contraseña → listo); y los estados: credenciales incorrectas genéricas, demasiados intentos, código vencido o incorrecto, cuenta sin verificar llevada al código, sin conexión, enviando y correo social ya registrado (L5). Datos de ejemplo: Andrea Salinas (Grupo Altavista) y Ximena Ruiz. Interactivos (mostrar contraseña, requisitos, código, reenvío, navegación entre estados), claro y oscuro, «Marcar flags» para ver qué controla cada flag. Fuentes en _src/ (node design/embedded-auth/_src/build.mjs).",
+  "feature": "odd/tasks/embedded-auth.md",
+  "artboards": [
+    {
+      "file": "01-panel-dividido.html",
+      "title": "01 · Panel dividido · S1 S3 S4",
+      "tradeoff": "La más barata y continua: reutiliza LoginScreen, su panel FloatingLines, sus acentos por audiencia y su copia, y quien ya entró la reconoce. A cambio, la mitad del escritorio es decoración también en el código y en la contraseña, el avance del registro solo se dice con texto en el eyebrow y, en el teléfono, el panel desaparece.",
+      "width": 1440,
+      "height": 2700
+    },
+    {
+      "file": "02-tarjeta-centrada.html",
+      "title": "02 · Tarjeta centrada · S1 S3 S4",
+      "tradeoff": "La más ligera y la que mejor se repite en cualquier flujo (código, contraseña y la futura MFA caben en la misma tarjeta); un selector Empresa · Candidato en la tarjeta y los proveedores primero. A cambio, se pierde el panel FloatingLines, el selector puede leerse como un dato del formulario y con tres proveedores el correo baja casi 180 px.",
+      "width": 1440,
+      "height": 2700
+    },
+    {
+      "file": "03-recorrido-guiado.html",
+      "title": "03 · Recorrido guiado · S1 S3 S4",
+      "tradeoff": "La que mejor explica los flujos de varios pasos: un panel «Tu recorrido» con los pasos (Tu cuenta → Verifica tu correo → Tu empresa) y, al ingresar, el adelanto del registro; en el teléfono «Paso 2 de 3». A cambio, es la más cara (componente de pasos nuevo, contenido por flujo), el panel ocupa espacio en pantallas de un paso y cambia la imagen del login actual.",
+      "width": 1440,
+      "height": 2700
+    }
+  ]
+}
