@@ -3,12 +3,12 @@ package unsubscribe
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -45,17 +45,63 @@ func (s *Store) TurnOff(ctx context.Context, k domain.PreferenceKey) (Target, er
 		if err := q.UnsubscribeNotificationEmail(ctx, db.UnsubscribeNotificationEmailParams{
 			UserID: k.User, CompanyID: company(k), Type: string(k.Type),
 		}); err != nil {
-			return fmt.Errorf("unsubscribe notification email: %w", err)
+			return turnOffFailure(err)
 		}
 		off := false
 		t.Email = &off
 		out = t
 		return nil
 	})
-	if err != nil {
+	var se *storeError
+	switch {
+	case err == nil:
+		return out, nil
+	case errors.Is(err, ErrNoTarget), errors.As(err, &se):
 		return Target{}, err
+	default:
+		return Target{}, &storeError{step: "tx", err: err} // begin / commit
 	}
-	return out, nil
+}
+
+// storeError tags a store failure with its step for the log (step and
+// SQLSTATE only, failureAttrs); the wrapped error never reaches the response.
+type storeError struct {
+	step string
+	err  error
+}
+
+func (e *storeError) Error() string {
+	return "notification unsubscribe " + e.step + ": " + e.err.Error()
+}
+func (e *storeError) Unwrap() error { return e.err }
+
+// sqlstateForeignKeyViolation is PostgreSQL's foreign_key_violation.
+const sqlstateForeignKeyViolation = "23503"
+
+// turnOffFailure maps an upsert failure: a foreign-key violation (23503) means
+// the user or company was deleted after the check — the uniform invalid
+// outcome; anything else is a step failure.
+func turnOffFailure(err error) error {
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) && pg.Code == sqlstateForeignKeyViolation {
+		return ErrNoTarget
+	}
+	return &storeError{step: "unsubscribe_upsert", err: err}
+}
+
+// failureAttrs returns the step and the SQLSTATE ("" when not a database
+// error) of a store failure; "unknown" when untagged.
+func failureAttrs(err error) (step, sqlstate string) {
+	step = "unknown"
+	var se *storeError
+	if errors.As(err, &se) {
+		step = se.step
+	}
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) {
+		sqlstate = pg.Code
+	}
+	return step, sqlstate
 }
 
 func target(ctx context.Context, q *db.Queries, k domain.PreferenceKey) (Target, error) {
@@ -66,7 +112,7 @@ func target(ctx context.Context, q *db.Queries, k domain.PreferenceKey) (Target,
 		return Target{}, ErrNoTarget
 	}
 	if err != nil {
-		return Target{}, fmt.Errorf("get notification unsubscribe target: %w", err)
+		return Target{}, &storeError{step: "target_read", err: err}
 	}
 	var t Target
 	if k.Company == uuid.Nil {

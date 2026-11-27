@@ -13,6 +13,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -82,8 +83,7 @@ func newUnsubServer(t *testing.T, pool *pgxpool.Pool, sessions *draftFlowSigner,
 		requireRecruiter:               identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.RecruiterRole),
 		requireOwner:                   identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.OwnerRole),
 		requireDocumentReader:          identityhttp.RequireDocumentReader(users, members, companies),
-		notificationUnsubscribeHandler: newNotificationUnsubscribeHandler(pool, signer),
-		notificationUnsubscribeLimit:   unsubscribe.NewLimiter(limits, nil).Middleware,
+		notificationUnsubscribeHandler: newNotificationUnsubscribeHandler(pool, signer, unsubscribe.NewLimiter(limits, nil)),
 		requestMeta:                    requestmeta.Middleware(requestmeta.Config{ProxySecret: notifUnsubBFF}),
 		queries:                        queries,
 		pool:                           pool,
@@ -363,10 +363,11 @@ func mustB64(t *testing.T, p string) []byte {
 	return raw
 }
 
-// §Unsubscribe: 60 requests / 10 min per IP per instance → 429 rate_limited. Behind
-// the frontend pass-through the BFF-attested client IP is the key (L6), so another
-// client through the same Next server keeps its own budget; a forged client header
-// without the proxy secret does not.
+// §Unsubscribe limits, per instance: invalid tokens 60 / 10 min per client IP →
+// 429 rate_limited; valid tokens 10 / 10 min per token. Behind the frontend
+// pass-through the BFF-attested client IP is the key (L6), so another client
+// through the same Next server keeps its own invalid budget; a forged client
+// header without the proxy secret does not.
 func TestNotificationsUnsubscribe_PerIPLimit(t *testing.T) {
 	w := newUnsubWorld(t, unsubscribe.DefaultLimits())
 	tok := w.token(t, w.owner.id, w.company, domain.TypeApplicationReceived)
@@ -378,25 +379,103 @@ func TestNotificationsUnsubscribe_PerIPLimit(t *testing.T) {
 		if i%2 == 1 {
 			method = http.MethodPost
 		}
-		if r := w.call(t, unsubCall{method: method, query: "?token=" + tok, headers: bff("192.0.2.10")}); r.status != 200 {
-			t.Fatalf("request %d: %d %s", i, r.status, r.body)
-		}
+		wantUnsub(t, fmt.Sprintf("invalid %d", i), w.call(t, unsubCall{method: method, query: "?token=bad", headers: bff("192.0.2.10")}),
+			http.StatusUnprocessableEntity, notifUnsubInvalid)
 	}
-	r := w.call(t, unsubCall{method: http.MethodGet, query: "?token=" + tok, headers: bff("192.0.2.10")})
-	t.Logf("GET %s (61st from one client) → %d Retry-After=%s %s", notifUnsubPath, r.status, r.header.Get("Retry-After"), r.body)
-	wantUnsub(t, "61st", r, http.StatusTooManyRequests, `{"error":"too many requests","code":"rate_limited"}`+"\n")
+	r := w.call(t, unsubCall{method: http.MethodGet, query: "?token=bad", headers: bff("192.0.2.10")})
+	t.Logf("GET %s (61st invalid from one client) → %d Retry-After=%s %s", notifUnsubPath, r.status, r.header.Get("Retry-After"), r.body)
+	wantUnsub(t, "61st invalid", r, http.StatusTooManyRequests, `{"error":"too many requests","code":"rate_limited"}`+"\n")
 	if r.header.Get("Retry-After") == "" {
 		t.Fatal("Retry-After missing")
 	}
-	// Invalid tokens are limited the same (no oracle through the limiter).
-	wantUnsub(t, "61st invalid", w.call(t, unsubCall{method: http.MethodPost, query: "?token=x", headers: bff("192.0.2.10")}),
-		http.StatusTooManyRequests, `{"error":"too many requests","code":"rate_limited"}`+"\n")
-	wantUnsub(t, "another client via the BFF", w.call(t, unsubCall{method: http.MethodGet, query: "?token=" + tok, headers: bff("192.0.2.11")}),
-		200, unsubBody("application_received", false, &w.company, "Notif Read"))
+	wantUnsub(t, "another client via the BFF", w.call(t, unsubCall{method: http.MethodGet, query: "?token=bad", headers: bff("192.0.2.11")}),
+		http.StatusUnprocessableEntity, notifUnsubInvalid)
+	// The limited client's valid token still works, up to 10 per token per window.
+	for i := 0; i < 10; i++ {
+		wantUnsub(t, fmt.Sprintf("valid %d", i), w.call(t, unsubCall{method: http.MethodPost, query: "?token=" + tok, headers: bff("192.0.2.10")}),
+			200, unsubBody("application_received", false, &w.company, "Notif Read"))
+	}
+	r = w.call(t, unsubCall{method: http.MethodPost, query: "?token=" + tok, headers: bff("192.0.2.12")})
+	t.Logf("POST %s (11th with one token) → %d Retry-After=%s %s", notifUnsubPath, r.status, r.header.Get("Retry-After"), r.body)
+	wantUnsub(t, "11th valid with one token, any IP", r, http.StatusTooManyRequests, `{"error":"too many requests","code":"rate_limited"}`+"\n")
 	// Without the proxy secret the header is ignored: the peer (127.0.0.1) is the key.
 	for i := 0; i < 60; i++ {
-		w.call(t, unsubCall{method: http.MethodGet, query: "?token=" + tok, headers: map[string]string{"X-PF-Client-IP": fmt.Sprintf("198.51.100.%d", i)}})
+		w.call(t, unsubCall{method: http.MethodGet, query: "?token=bad", headers: map[string]string{"X-PF-Client-IP": fmt.Sprintf("198.51.100.%d", i)}})
 	}
-	wantUnsub(t, "forged client header", w.call(t, unsubCall{method: http.MethodGet, query: "?token=" + tok, headers: map[string]string{"X-PF-Client-IP": "198.51.100.200"}}),
+	wantUnsub(t, "forged client header", w.call(t, unsubCall{method: http.MethodGet, query: "?token=bad", headers: map[string]string{"X-PF-Client-IP": "198.51.100.200"}}),
 		http.StatusTooManyRequests, `{"error":"too many requests","code":"rate_limited"}`+"\n")
+}
+
+// Limit policy (review R3/R4): one IP relaying many people's one-clicks (a mail
+// provider, the frontend BFF without per-client headers) never loses a valid
+// unsubscribe: valid tokens are limited per preference key, only invalid ones
+// per IP. 200 distinct valid one-click POSTs from one IP all succeed; invalid
+// tokens from that IP still reach 429.
+func TestNotificationsUnsubscribe_ValidOneClicksAreNeverLostToTheIPBudget(t *testing.T) {
+	w := newUnsubWorld(t, unsubscribe.DefaultLimits())
+	types := []domain.Type{domain.TypeApplicationReceived, domain.TypeDeliveryDueSoon, domain.TypeAssignmentDeadlineDueSoon,
+		domain.TypePsychometricCompleted, domain.TypePsychometricPending}
+	n := 0
+	for i := 0; i < 40; i++ {
+		u := w.user(t, fmt.Sprintf("Bulk %d", i), "recruiter")
+		for _, typ := range types {
+			r := w.postUnsub(t, w.token(t, u.id, w.company, typ))
+			if r.status != 200 {
+				t.Fatalf("valid one-click %d from one IP: %d %s", n, r.status, r.body)
+			}
+			n++
+		}
+	}
+	var off int
+	if err := w.pool.QueryRow(context.Background(), `SELECT count(*) FROM notification_preferences WHERE channel='email' AND NOT enabled AND source='unsubscribe'`).Scan(&off); err != nil || off != 200 {
+		t.Fatalf("rows off = %d (%v), want 200", off, err)
+	}
+	for i := 0; i < 60; i++ {
+		wantUnsub(t, "invalid within the IP budget", w.postUnsub(t, "bad-token"), http.StatusUnprocessableEntity, notifUnsubInvalid)
+	}
+	wantUnsub(t, "61st invalid", w.postUnsub(t, "bad-token"), http.StatusTooManyRequests, `{"error":"too many requests","code":"rate_limited"}`+"\n")
+	// A valid token from the limited IP still works.
+	tok := w.token(t, w.owner.id, w.company, domain.TypeApplicationReceived)
+	wantUnsub(t, "valid after the IP is limited", w.postUnsub(t, tok), 200, unsubBody("application_received", false, &w.company, "Notif Read"))
+}
+
+// Kill switch (review R3/R4): with NOTIFICATIONS_MAILER=off and the keys still
+// configured, links already sent keep working (GET and POST).
+func TestNotificationsUnsubscribe_MailerOffKeepsSentLinksWorking(t *testing.T) {
+	w := newUnsubWorld(t, unsubscribe.DefaultLimits())
+	sent := w.token(t, w.owner.id, w.company, domain.TypePsychometricCompleted) // issued while the mailer was on
+	cfg, err := runtimeconfig.LoadNotificationsEmailConfig(func(k string) string {
+		return map[string]string{"NOTIFICATIONS_MAILER": "off",
+			"NOTIFICATIONS_UNSUBSCRIBE_KEYS": "k1:" + base64.StdEncoding.EncodeToString(notifUnsubKey)}[k]
+	})
+	if err != nil || cfg.Enabled() {
+		t.Fatalf("%v enabled=%t", err, cfg.Enabled())
+	}
+	signer, err := newNotificationUnsubscribeSigner(cfg, nil)
+	if err != nil || signer == nil {
+		t.Fatalf("no verifier with the mailer off: %v", err)
+	}
+	w.unsub = newUnsubServer(t, w.pool, w.notifWorld.signer, signer, unsubscribe.DefaultLimits())
+	wantUnsub(t, "GET mailer off", w.getUnsub(t, sent), 200, unsubBody("psychometric_completed", false, &w.company, "Notif Read"))
+	w.put(t, w.owner, notifPrefsMemberPath, `{"preferences":[{"type":"psychometric_completed","channel":"email","enabled":true}]}`)
+	wantUnsub(t, "POST mailer off", w.postUnsub(t, sent), 200, unsubBody("psychometric_completed", false, &w.company, "Notif Read"))
+	if rows := w.prefRows(t, w.owner.id); len(rows) != 1 || rows[0].enabled || rows[0].source != "unsubscribe" {
+		t.Fatalf("rows %+v", rows)
+	}
+}
+
+// A user deleted between the token check and the upsert (FK 23503, forced here
+// by a trigger in the disposable database) answers the uniform invalid
+// response, not a 500, and writes nothing.
+func TestNotificationsUnsubscribe_ForeignKeyRaceIsTheUniformInvalid(t *testing.T) {
+	w := newUnsubWorld(t, unsubscribe.DefaultLimits())
+	victim := w.user(t, "Vera Vanishing", "recruiter")
+	w.exec(t, `CREATE FUNCTION unsub_race() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN DELETE FROM users WHERE id = NEW.user_id; RETURN NEW; END $$`)
+	w.exec(t, `CREATE TRIGGER unsub_race BEFORE INSERT ON notification_preferences FOR EACH ROW EXECUTE FUNCTION unsub_race()`)
+	r := w.postUnsub(t, w.token(t, victim.id, w.company, domain.TypeApplicationReceived))
+	wantUnsub(t, "FK race", r, http.StatusUnprocessableEntity, notifUnsubInvalid)
+	if n := w.prefCount(t); n != 0 {
+		t.Fatalf("rows %d", n)
+	}
 }

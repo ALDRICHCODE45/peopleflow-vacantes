@@ -40,13 +40,22 @@ type Port interface {
 }
 
 // Handler serves GET / POST /v2/notifications/unsubscribe?token=…: public, no
-// cookies or session, behind Privacy and the per-IP Limiter. Not audited (D5).
+// cookies or session, behind Privacy. It applies the Limiter itself, once the
+// token is checked (invalid → per client IP, valid → per preference key), so
+// limited requests never reach the store. Not audited (D5).
 type Handler struct {
 	verifier Verifier
 	store    Port
+	limiter  *Limiter
 }
 
-func NewHandler(v Verifier, store Port) *Handler { return &Handler{verifier: v, store: store} }
+// NewHandler composes the handler; a nil limiter means DefaultLimits.
+func NewHandler(v Verifier, store Port, limiter *Limiter) *Handler {
+	if limiter == nil {
+		limiter = NewLimiter(DefaultLimits(), nil)
+	}
+	return &Handler{verifier: v, store: store, limiter: limiter}
+}
 
 // Response is the 200 body of both methods.
 type Response struct {
@@ -75,17 +84,14 @@ func Privacy(next http.Handler) http.Handler {
 // Get reports what POST would turn off and its current effective value. It
 // never writes (link scanners prefetch GETs).
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
-	key, ok := h.verify(r)
-	if !ok {
-		writeInvalid(w)
-		return
+	if key, ok := h.admit(w, r); ok {
+		h.answer(w, r, key, h.store.Target)
 	}
-	h.answer(w, r, key, h.store.Target)
 }
 
 // Post turns the email channel off for the token's (user, company, type). The
 // body (RFC 8058 `List-Unsubscribe=One-Click`, empty or `{}`) is read up to
-// 1 KiB and ignored.
+// 1 KiB and ignored; over the cap it is 413 before the token is checked.
 func (h *Handler) Post(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(io.Discard, http.MaxBytesReader(w, r.Body, MaxBodyBytes)); err != nil {
 		var tooLarge *http.MaxBytesError
@@ -96,12 +102,29 @@ func (h *Handler) Post(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if key, ok := h.admit(w, r); ok {
+		h.answer(w, r, key, h.store.TurnOff)
+	}
+}
+
+// admit checks the token and applies the limit of its outcome: an invalid
+// token is 429 once its client IP is over budget, else the uniform 422; a
+// valid one is 429 once its preference key is over budget. ok = serve it.
+func (h *Handler) admit(w http.ResponseWriter, r *http.Request) (domain.PreferenceKey, bool) {
 	key, ok := h.verify(r)
 	if !ok {
-		writeInvalid(w)
-		return
+		if wait := h.limiter.AdmitInvalid(r); wait > 0 {
+			httpjson.WriteRateLimited(w, wait)
+		} else {
+			writeInvalid(w)
+		}
+		return domain.PreferenceKey{}, false
 	}
-	h.answer(w, r, key, h.store.TurnOff)
+	if wait := h.limiter.AdmitValid(key); wait > 0 {
+		httpjson.WriteRateLimited(w, wait)
+		return domain.PreferenceKey{}, false
+	}
+	return key, true
 }
 
 func (h *Handler) answer(w http.ResponseWriter, r *http.Request, key domain.PreferenceKey, op func(context.Context, domain.PreferenceKey) (Target, error)) {
@@ -111,8 +134,10 @@ func (h *Handler) answer(w http.ResponseWriter, r *http.Request, key domain.Pref
 		return
 	}
 	if err != nil {
-		// Never the token, the user or the company: the class only.
-		slog.Error("notification unsubscribe failed", "code_class", httpjson.CodeInternalError)
+		// Step and SQLSTATE only: never the token, user, company, type or the
+		// database message.
+		step, sqlstate := failureAttrs(err)
+		slog.Error("notification unsubscribe failed", "step", step, "sqlstate", sqlstate, "code_class", httpjson.CodeInternalError)
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return
 	}

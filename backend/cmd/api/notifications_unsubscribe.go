@@ -10,12 +10,14 @@ import (
 
 // newNotificationUnsubscribeSigner builds the HMAC token signer/verifier of
 // notifications-v2 §Unsubscribe from NOTIFICATIONS_UNSUBSCRIBE_KEYS (the first
-// key signs, every key verifies). It is nil with the mailer off: no email is
-// sent, so no token is issued, and the public endpoints refuse every token.
-// The same value is the email.TokenSigner of the renderer (E6) and the
-// verifier of the public endpoints. now is nil in production (time.Now).
+// key signs, every key verifies) whenever keys are configured, whatever the
+// mailer: the kill switch (mailer off) stops sending but the links already
+// sent keep working. Without keys it is nil and the public endpoints refuse
+// every token (the loader requires keys when the mailer is not off). The same
+// value is the email.TokenSigner of the renderer (E6) and the verifier of the
+// public endpoints. now is nil in production (time.Now).
 func newNotificationUnsubscribeSigner(cfg runtimeconfig.NotificationsEmailConfig, now func() time.Time) (*unsubscribe.Signer, error) {
-	if !cfg.Enabled() {
+	if len(cfg.UnsubscribeKeys) == 0 {
 		return nil, nil
 	}
 	keys := make([]unsubscribe.Key, len(cfg.UnsubscribeKeys))
@@ -26,7 +28,9 @@ func newNotificationUnsubscribeSigner(cfg runtimeconfig.NotificationsEmailConfig
 }
 
 // newNotificationUnsubscribeHandler composes the public GET / POST
-// /v2/notifications/unsubscribe over the pool; a nil signer refuses every token.
-func newNotificationUnsubscribeHandler(pool *pgxpool.Pool, signer *unsubscribe.Signer) *unsubscribe.Handler {
-	return unsubscribe.NewHandler(signer, unsubscribe.NewStore(pool))
+// /v2/notifications/unsubscribe over the pool with its limiter (invalid tokens
+// per client IP, valid tokens per preference key); a nil signer refuses every
+// token, a nil limiter means DefaultLimits.
+func newNotificationUnsubscribeHandler(pool *pgxpool.Pool, signer *unsubscribe.Signer, limiter *unsubscribe.Limiter) *unsubscribe.Handler {
+	return unsubscribe.NewHandler(signer, unsubscribe.NewStore(pool), limiter)
 }

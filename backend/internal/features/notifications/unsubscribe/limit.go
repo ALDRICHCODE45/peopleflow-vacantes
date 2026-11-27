@@ -1,100 +1,166 @@
 package unsubscribe
 
 import (
+	"container/list"
 	"net/http"
 	"net/netip"
 	"sync"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/requestmeta"
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 )
 
-// Limits configures the per-IP fixed window and the key-table cap.
+// Limits configures the two fixed-window budgets and the per-table key cap.
 type Limits struct {
-	PerIP   int
-	Window  time.Duration
-	MaxKeys int
+	// PerIP bounds invalid-token requests per client IP (the probing vector).
+	PerIP int
+	// PerToken bounds valid-token requests per preference key (idempotent).
+	PerToken int
+	Window   time.Duration
+	MaxKeys  int
 }
 
-// DefaultLimits is §Unsubscribe: 60 requests / 10 min per IP, per instance.
-func DefaultLimits() Limits { return Limits{PerIP: 60, Window: 10 * time.Minute, MaxKeys: 100000} }
+// DefaultLimits is §Unsubscribe: 60 invalid requests / 10 min per IP and
+// 10 valid requests / 10 min per token, per instance.
+func DefaultLimits() Limits {
+	return Limits{PerIP: 60, PerToken: 10, Window: 10 * time.Minute, MaxKeys: 100000}
+}
 
 // Limiter is the in-process, per-instance limit of the public unsubscribe
-// routes. The client is the address requestmeta resolved before every route
-// (L6): the BFF-attested X-PF-Client-IP when the proxy secret matches, else
-// the TCP peer or, only behind TRUSTED_PROXY_CIDRS, the forwarded client — so
-// behind the frontend pass-through each client has its own budget and no
-// untrusted header creates one. IPv6 clients share their /64. Every admitted
-// request counts; a rejection consumes nothing. A full key table fails closed.
+// routes, applied by the handler once the token is checked:
+//   - an invalid token counts against its client IP — the address requestmeta
+//     resolved before every route (L6): the BFF-attested X-PF-Client-IP when
+//     the proxy secret matches, else the TCP peer or, only behind
+//     TRUSTED_PROXY_CIDRS, the forwarded client; IPv6 shares its /64;
+//   - a valid token counts against its preference key only, so one IP
+//     relaying many people's one-clicks (a mail provider, the BFF) never loses
+//     a legitimate unsubscribe.
+//
+// Rejections consume nothing. A full table never refuses a new key (see
+// windows).
 type Limiter struct {
-	mu        sync.Mutex
-	limits    Limits
-	now       func() time.Time
-	keys      map[string]*window
-	nextSweep time.Time
-}
-
-type window struct {
-	count   int
-	expires time.Time
+	invalid, valid *windows
 }
 
 func NewLimiter(l Limits, now func() time.Time) *Limiter {
 	if now == nil {
 		now = time.Now
 	}
-	return &Limiter{limits: l, now: now, keys: map[string]*window{}}
+	return &Limiter{
+		invalid: newWindows(l.PerIP, l.Window, l.MaxKeys, now),
+		valid:   newWindows(l.PerToken, l.Window, l.MaxKeys, now),
+	}
 }
 
-func (l *Limiter) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if wait := l.admit(clientKey(r)); wait > 0 {
-			httpjson.WriteRateLimited(w, wait)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+// AdmitInvalid counts an invalid-token request against its client IP; a
+// positive wait means 429.
+func (l *Limiter) AdmitInvalid(r *http.Request) time.Duration { return l.invalid.admit(clientKey(r)) }
+
+// AdmitValid counts a valid-token request against its preference key.
+func (l *Limiter) AdmitValid(k domain.PreferenceKey) time.Duration {
+	return l.valid.admit(k.User.String() + "/" + k.Company.String() + "/" + string(k.Type))
 }
 
-func (l *Limiter) admit(key string) time.Duration {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.limits.PerIP <= 0 || l.limits.Window <= 0 || l.limits.MaxKeys <= 0 {
-		return time.Second
+// windows is one table of fixed-window counters with bounded memory and O(1)
+// amortized work per request under its mutex (no full sweep):
+//   - fresh holds keys with one request in their window, ordered by window
+//     start (= expiry order): expired ones are popped from the front, and the
+//     oldest is evicted when the table is full — losing at most one request of
+//     budget, never a client that spent more;
+//   - held holds keys with two or more requests, in promotion order; they are
+//     evicted (oldest first) only when no fresh key is left.
+type windows struct {
+	mu          sync.Mutex
+	limit       int
+	window      time.Duration
+	maxKeys     int
+	now         func() time.Time
+	keys        map[string]*list.Element
+	fresh, held *list.List
+}
+
+type entry struct {
+	key     string
+	count   int
+	expires time.Time
+	held    bool
+}
+
+func newWindows(limit int, window time.Duration, maxKeys int, now func() time.Time) *windows {
+	return &windows{limit: limit, window: window, maxKeys: maxKeys, now: now,
+		keys: map[string]*list.Element{}, fresh: list.New(), held: list.New()}
+}
+
+func (w *windows) admit(key string) time.Duration {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.limit <= 0 || w.window <= 0 || w.maxKeys <= 0 {
+		return time.Second // misconfigured: refuse rather than serve unlimited
 	}
-	now := l.now()
-	if !now.Before(l.nextSweep) {
-		l.sweep(now)
-		l.nextSweep = now.Add(l.limits.Window / 10)
-	}
-	c := l.keys[key]
-	if c != nil && now.Before(c.expires) && c.count >= l.limits.PerIP {
-		return c.expires.Sub(now)
-	}
-	if c == nil {
-		if len(l.keys) >= l.limits.MaxKeys {
-			l.sweep(now)
-			if len(l.keys) >= l.limits.MaxKeys {
-				return l.limits.Window
+	now := w.now()
+	w.reclaim(now)
+	if el, ok := w.keys[key]; ok {
+		e := el.Value.(*entry)
+		if now.Before(e.expires) {
+			if e.count >= w.limit {
+				return e.expires.Sub(now)
 			}
+			e.count++
+			if !e.held {
+				// Second request: protect it from flood eviction.
+				w.fresh.Remove(el)
+				e.held = true
+				w.keys[key] = w.held.PushBack(e)
+			}
+			return 0
 		}
-		c = &window{}
-		l.keys[key] = c
+		// Expired: a new window, back to fresh.
+		w.remove(el)
 	}
-	if !now.Before(c.expires) {
-		c.count, c.expires = 0, now.Add(l.limits.Window)
+	if len(w.keys) >= w.maxKeys {
+		w.evict()
 	}
-	c.count++
+	e := &entry{key: key, count: 1, expires: now.Add(w.window)}
+	w.keys[key] = w.fresh.PushBack(e)
 	return 0
 }
 
-func (l *Limiter) sweep(now time.Time) {
-	for key, c := range l.keys {
-		if !now.Before(c.expires) {
-			delete(l.keys, key)
+// reclaim pops expired entries from both fronts (amortized O(1): each entry
+// is popped once). held is in promotion order, so an expired entry behind a
+// live one waits for a later call or for eviction; it never blocks anyone.
+func (w *windows) reclaim(now time.Time) {
+	for _, l := range []*list.List{w.fresh, w.held} {
+		for el := l.Front(); el != nil && !now.Before(el.Value.(*entry).expires); el = l.Front() {
+			w.remove(el)
 		}
 	}
+}
+
+func (w *windows) evict() {
+	if el := w.fresh.Front(); el != nil {
+		w.remove(el)
+		return
+	}
+	if el := w.held.Front(); el != nil {
+		w.remove(el)
+	}
+}
+
+func (w *windows) remove(el *list.Element) {
+	e := el.Value.(*entry)
+	if e.held {
+		w.held.Remove(el)
+	} else {
+		w.fresh.Remove(el)
+	}
+	delete(w.keys, e.key)
+}
+
+func (w *windows) len() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.keys)
 }
 
 // clientKey never uses caller text: a missing or unparseable client shares

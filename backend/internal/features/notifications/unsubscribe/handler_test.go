@@ -1,8 +1,11 @@
 package unsubscribe
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,17 +16,21 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const invalidBody = `{"error":"unsubscribe link invalid","code":"unsubscribe_link_invalid"}` + "\n"
 
+const rateLimitedBody = `{"error":"too many requests","code":"rate_limited"}` + "\n"
+
 // fakeStore records every call; a key in gone has no live target.
 type fakeStore struct {
-	mu       sync.Mutex
-	targets  map[domain.PreferenceKey]Target
-	reads    []domain.PreferenceKey
-	writes   []domain.PreferenceKey
-	failRead error
+	mu        sync.Mutex
+	targets   map[domain.PreferenceKey]Target
+	reads     []domain.PreferenceKey
+	writes    []domain.PreferenceKey
+	failRead  error
+	failWrite error
 }
 
 func (f *fakeStore) Target(_ context.Context, k domain.PreferenceKey) (Target, error) {
@@ -44,6 +51,9 @@ func (f *fakeStore) TurnOff(_ context.Context, k domain.PreferenceKey) (Target, 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.writes = append(f.writes, k)
+	if f.failWrite != nil {
+		return Target{}, f.failWrite
+	}
 	t, ok := f.targets[k]
 	if !ok {
 		return Target{}, ErrNoTarget
@@ -65,6 +75,11 @@ type handlerWorld struct {
 
 func newHandlerWorld(t *testing.T) *handlerWorld {
 	t.Helper()
+	return newLimitedHandlerWorld(t, Limits{PerIP: 1000, PerToken: 1000, Window: time.Minute, MaxKeys: 10000})
+}
+
+func newLimitedHandlerWorld(t *testing.T, limits Limits) *handlerWorld {
+	t.Helper()
 	w := &handlerWorld{now: t0, store: &fakeStore{targets: map[domain.PreferenceKey]Target{}}}
 	w.signer = newTestSigner(t, &w.now, Key{ID: "k1", Secret: secretA})
 	w.member = memberKey()
@@ -72,7 +87,7 @@ func newHandlerWorld(t *testing.T) *handlerWorld {
 	name := "Acme Talento"
 	w.store.targets[w.member] = Target{CompanyName: &name}
 	w.store.targets[w.cand] = Target{}
-	h := NewHandler(w.signer, w.store)
+	h := NewHandler(w.signer, w.store, NewLimiter(limits, clock(&w.now)))
 	mux := http.NewServeMux()
 	mux.Handle("GET /u", Privacy(http.HandlerFunc(h.Get)))
 	mux.Handle("POST /u", Privacy(http.HandlerFunc(h.Post)))
@@ -210,24 +225,128 @@ func TestInvalidTokensAnswerIdentically(t *testing.T) {
 		}
 	}
 	// A verifier without keys (mailer off) answers the same.
-	h := NewHandler((*Signer)(nil), w.store)
+	h := NewHandler((*Signer)(nil), w.store, nil)
 	rec := httptest.NewRecorder()
 	h.Get(rec, httptest.NewRequest(http.MethodGet, "/u?token="+valid, nil))
 	if rec.Code != 422 || rec.Body.String() != invalidBody {
 		t.Fatalf("no keys: %d %s", rec.Code, rec.Body.String())
 	}
 	rec = httptest.NewRecorder()
-	NewHandler(nil, w.store).Post(rec, httptest.NewRequest(http.MethodPost, "/u?token="+valid, nil))
+	NewHandler(nil, w.store, nil).Post(rec, httptest.NewRequest(http.MethodPost, "/u?token="+valid, nil))
 	if rec.Code != 422 || rec.Body.String() != invalidBody {
 		t.Fatalf("nil verifier: %d %s", rec.Code, rec.Body.String())
 	}
 }
 
-func TestStoreFailureIsAnInternalError(t *testing.T) {
+const internalBody = `{"error":"an internal error occurred","code":"internal_error"}` + "\n"
+
+// captureLogs routes slog's default logger to a buffer for the test.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
+}
+
+// A store failure is a 500 with the catalog body (never 200, never the
+// uniform 422), logged with its step and SQLSTATE only — no token, user,
+// company or type.
+func TestStoreFailureIsAnObservableInternalError(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		w := newHandlerWorld(t)
+		logs := captureLogs(t)
+		failure := &storeError{step: "unsubscribe_upsert", err: &pgconn.PgError{Code: "40001", Message: "detail " + w.member.User.String()}}
+		if method == http.MethodGet {
+			failure.step = "target_read"
+			w.store.failRead = failure
+		} else {
+			w.store.failWrite = failure
+		}
+		tok := w.token(t, w.member)
+		rec := w.do(method, "?token="+tok, "", "")
+		if rec.Code != 500 || rec.Body.String() != internalBody {
+			t.Fatalf("%s: %d %s", method, rec.Code, rec.Body.String())
+		}
+		wantPrivate(t, rec)
+		out := logs.String()
+		if !strings.Contains(out, `"step":"`+failure.step+`"`) || !strings.Contains(out, `"sqlstate":"40001"`) {
+			t.Fatalf("%s: log lacks step/sqlstate: %s", method, out)
+		}
+		for _, leak := range []string{w.member.User.String(), w.member.Company.String(), tok, "detail", "application_received"} {
+			if strings.Contains(out, leak) {
+				t.Fatalf("%s: log leaked %q: %s", method, leak, out)
+			}
+		}
+	}
+	// A non-database failure logs its step with an empty SQLSTATE.
 	w := newHandlerWorld(t)
-	w.store.failRead = errors.New("db down")
-	rec := w.do(http.MethodGet, "?token="+w.token(t, w.member), "", "")
-	if rec.Code != 500 || rec.Body.String() != `{"error":"an internal error occurred","code":"internal_error"}`+"\n" {
+	logs := captureLogs(t)
+	w.store.failWrite = &storeError{step: "tx", err: errors.New("conn reset")}
+	if rec := w.do(http.MethodPost, "?token="+w.token(t, w.member), "", ""); rec.Code != 500 {
+		t.Fatal(rec.Code)
+	}
+	if !strings.Contains(logs.String(), `"step":"tx"`) || !strings.Contains(logs.String(), `"sqlstate":""`) || strings.Contains(logs.String(), "conn reset") {
+		t.Fatalf("%s", logs.String())
+	}
+}
+
+// A user or company deleted between the check and the upsert (FK 23503) is
+// the uniform invalid response, not a 500.
+func TestTurnOffForeignKeyRaceIsInvalid(t *testing.T) {
+	fk := &pgconn.PgError{Code: "23503"}
+	if err := turnOffFailure(fmt.Errorf("wrapped: %w", fk)); !errors.Is(err, ErrNoTarget) {
+		t.Fatalf("23503 → %v, want ErrNoTarget", err)
+	}
+	other := turnOffFailure(&pgconn.PgError{Code: "23514"})
+	var se *storeError
+	if errors.Is(other, ErrNoTarget) || !errors.As(other, &se) || se.step != "unsubscribe_upsert" {
+		t.Fatalf("23514 → %v", other)
+	}
+	w := newHandlerWorld(t)
+	w.store.failWrite = ErrNoTarget
+	if rec := w.do(http.MethodPost, "?token="+w.token(t, w.member), "", ""); rec.Code != 422 || rec.Body.String() != invalidBody {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// Policy: the per-IP budget counts only invalid-token requests; valid tokens
+// are limited per preference key. 200 one-clicks with distinct valid tokens
+// from one IP (a mail provider, the BFF) all succeed, while invalid tokens
+// from that IP still hit 429 — and the 422s before it stay byte-identical.
+func TestLimitPolicyInvalidPerIPValidPerToken(t *testing.T) {
+	w := newLimitedHandlerWorld(t, Limits{PerIP: 3, PerToken: 2, Window: 10 * time.Minute, MaxKeys: 1000})
+	name := "Acme"
+	for i := 0; i < 200; i++ {
+		k := memberKey()
+		w.store.targets[k] = Target{CompanyName: &name}
+		rec := w.do(http.MethodPost, "?token="+w.token(t, k), "application/x-www-form-urlencoded", "List-Unsubscribe=One-Click")
+		if rec.Code != 200 {
+			t.Fatalf("valid one-click %d: %d %s", i, rec.Code, rec.Body.String())
+		}
+	}
+	for i, q := range []string{"?token=bad", "", "?token=" + w.token(t, w.member) + "x"} {
+		if rec := w.do(http.MethodPost, q, "", ""); rec.Code != 422 || rec.Body.String() != invalidBody {
+			t.Fatalf("invalid %d: %d %s", i, rec.Code, rec.Body.String())
+		}
+	}
+	rec := w.do(http.MethodGet, "?token=bad", "", "")
+	if rec.Code != 429 || rec.Body.String() != rateLimitedBody || rec.Header().Get("Retry-After") != "600" {
+		t.Fatalf("4th invalid: %d %s %q", rec.Code, rec.Body.String(), rec.Header().Get("Retry-After"))
+	}
+	wantPrivate(t, rec)
+	// Valid tokens from the same IP still pass; the same key is capped per token.
+	tok := w.token(t, w.member)
+	for i := 0; i < 2; i++ {
+		if rec := w.do(http.MethodGet, "?token="+tok, "", ""); rec.Code != 200 {
+			t.Fatalf("valid after the IP is limited: %d", rec.Code)
+		}
+	}
+	if rec := w.do(http.MethodPost, "?token="+tok, "", ""); rec.Code != 429 || rec.Body.String() != rateLimitedBody {
+		t.Fatalf("same key over its budget: %d %s", rec.Code, rec.Body.String())
+	}
+	if len(w.store.reads)+len(w.store.writes) != 202 {
+		t.Fatalf("a limited request reached the store: reads=%d writes=%d", len(w.store.reads), len(w.store.writes))
 	}
 }

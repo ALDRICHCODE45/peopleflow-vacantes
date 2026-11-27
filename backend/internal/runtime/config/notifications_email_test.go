@@ -132,15 +132,15 @@ func TestLoadNotificationsEmailConfigParsesTheE5Keys(t *testing.T) {
 	}
 }
 
-// Mailer off ignores every other key, even invalid ones: nothing is sent.
+// Mailer off ignores every other sending key, even invalid ones: nothing is
+// sent. (The unsubscribe keys are the exception, see below.)
 func TestLoadNotificationsEmailConfigOffIgnoresTheOtherKeys(t *testing.T) {
 	got, err := loadEmail(map[string]string{
-		"NOTIFICATIONS_MAILER":           "off",
-		"NOTIFICATIONS_EMAIL_FROM":       "not an address",
-		"APP_BASE_URL":                   "ftp://secret",
-		"NOTIFICATIONS_UNSUBSCRIBE_URL":  "nope",
-		"NOTIFICATIONS_UNSUBSCRIBE_KEYS": "secret",
-		"APP_ENV":                        "production",
+		"NOTIFICATIONS_MAILER":          "off",
+		"NOTIFICATIONS_EMAIL_FROM":      "not an address",
+		"APP_BASE_URL":                  "ftp://secret",
+		"NOTIFICATIONS_UNSUBSCRIBE_URL": "nope",
+		"APP_ENV":                       "production",
 	})
 	if err != nil || !reflect.DeepEqual(got, NotificationsEmailConfig{Mailer: MailerOff}) {
 		t.Fatalf("got %+v err=%v", got, err)
@@ -310,5 +310,32 @@ func TestUnsubscribeKeysAreNeverPrinted(t *testing.T) {
 	}
 	if !strings.Contains(out, "k1") || !strings.Contains(out, "k2") {
 		t.Fatalf("kids should stay visible for support:\n%s", out)
+	}
+}
+
+// The kill switch (mailer off) must not break links already sent: the
+// unsubscribe keys are loaded and validated whenever present, whatever the
+// mailer; absent with the mailer off they are simply none.
+func TestLoadNotificationsEmailConfigLoadsUnsubscribeKeysWithTheMailerOff(t *testing.T) {
+	for _, mailer := range []string{"", "off"} {
+		got, err := loadEmail(map[string]string{
+			"NOTIFICATIONS_MAILER":           mailer,
+			"NOTIFICATIONS_EMAIL_FROM":       "not an address",
+			"NOTIFICATIONS_UNSUBSCRIBE_KEYS": "k2:" + unsubscribeEnvB + ",k1:" + unsubscribeEnvA,
+		})
+		want := NotificationsEmailConfig{Mailer: MailerOff, UnsubscribeKeys: UnsubscribeKeys{{ID: "k2", Secret: unsubscribeKeyB}, {ID: "k1", Secret: unsubscribeKeyA}}}
+		if err != nil || !reflect.DeepEqual(got, want) || got.Enabled() {
+			t.Fatalf("mailer %q: keys=%d enabled=%t err=%v", mailer, len(got.UnsubscribeKeys), got.Enabled(), err)
+		}
+		got, err = loadEmail(map[string]string{"NOTIFICATIONS_MAILER": mailer})
+		if err != nil || got.UnsubscribeKeys != nil {
+			t.Fatalf("mailer %q without keys: %d %v", mailer, len(got.UnsubscribeKeys), err)
+		}
+		for _, bad := range []string{"secret", "k1:" + base64.StdEncoding.EncodeToString([]byte("secret-too-short")), "  "} {
+			_, err = loadEmail(map[string]string{"NOTIFICATIONS_MAILER": mailer, "NOTIFICATIONS_UNSUBSCRIBE_KEYS": bad})
+			if err == nil || !strings.Contains(err.Error(), "NOTIFICATIONS_UNSUBSCRIBE_KEYS") || strings.Contains(strings.ToLower(err.Error()), "secret") {
+				t.Fatalf("mailer %q, invalid keys %q: %v", mailer, bad, err)
+			}
+		}
 	}
 }

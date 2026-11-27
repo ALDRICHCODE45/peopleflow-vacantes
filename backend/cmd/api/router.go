@@ -75,10 +75,9 @@ type routerDeps struct {
 	// requireCandidate; key = the session's candidate account, company NULL.
 	candidateNotificationPreferencesHandler *notificationspreferences.Handler
 	// notificationUnsubscribeHandler serves the public one-click unsubscribe (notifications-v2
-	// §Unsubscribe): no session, the HMAC token is the only credential.
+	// §Unsubscribe): no session, the HMAC token is the only credential. It carries its own limiter
+	// (invalid tokens per requestmeta client IP, valid tokens per preference key).
 	notificationUnsubscribeHandler *notificationsunsubscribe.Handler
-	// notificationUnsubscribeLimit is its per-IP, per-instance limit on requestmeta's client IP.
-	notificationUnsubscribeLimit func(http.Handler) http.Handler
 	// stakeholderInvitationHandler serves the invitation routes (§1.3).
 	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
 	companyHandler               *companieshttp.CompanyHandler
@@ -159,13 +158,10 @@ func newRouter(d routerDeps) chi.Router {
 	if d.publicAssessmentLimit == nil {
 		d.publicAssessmentLimit = ratelimit.NewAssessment(ratelimit.DefaultLimits(), nil, nil).Middleware
 	}
-	// The public unsubscribe is never served unlimited, and without a composed
-	// handler (no keys) it refuses every token without touching the database.
-	if d.notificationUnsubscribeLimit == nil {
-		d.notificationUnsubscribeLimit = notificationsunsubscribe.NewLimiter(notificationsunsubscribe.DefaultLimits(), nil).Middleware
-	}
+	// Without a composed handler (no keys) the public unsubscribe refuses every
+	// token without touching the database, still limited (default limits).
 	if d.notificationUnsubscribeHandler == nil {
-		d.notificationUnsubscribeHandler = notificationsunsubscribe.NewHandler(nil, nil)
+		d.notificationUnsubscribeHandler = notificationsunsubscribe.NewHandler(nil, nil, nil)
 	}
 	// Audit metadata always exists; without a composed secret it is peer only.
 	if d.requestMeta == nil {
@@ -219,10 +215,10 @@ func newRouter(d routerDeps) chi.Router {
 		r.Delete("/v2/assessments/{token}/answers/{position}", d.psychometricAssessmentHandler.Delete)
 	})
 	// Public one-click unsubscribe (notifications-v2 D16, D17, §Unsubscribe): outside every auth gate, no
-	// cookies or session read; the HMAC token is the only credential. Private (no-store, no-referrer) and
-	// per-IP limited on requestmeta's trusted client IP (L6), both before the handler. GET never writes.
+	// cookies or session read; the HMAC token is the only credential. Private (no-store, no-referrer); the
+	// handler limits invalid tokens per requestmeta client IP (L6) and valid ones per token. GET never writes.
 	r.Group(func(r chi.Router) {
-		r.Use(notificationsunsubscribe.Privacy, d.notificationUnsubscribeLimit)
+		r.Use(notificationsunsubscribe.Privacy)
 		r.Get("/v2/notifications/unsubscribe", d.notificationUnsubscribeHandler.Get)
 		r.Post("/v2/notifications/unsubscribe", d.notificationUnsubscribeHandler.Post)
 	})

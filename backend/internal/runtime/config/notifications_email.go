@@ -97,7 +97,8 @@ const (
 )
 
 // NotificationsEmailConfig is the typed notifications email configuration.
-// The zero value is disabled. With MailerOff every other field is empty.
+// The zero value is disabled. With MailerOff every other field is empty
+// except UnsubscribeKeys, loaded whenever present (sent links keep working).
 type NotificationsEmailConfig struct {
 	Mailer NotificationsMailer
 	// From is the sender in header form (net/mail formatting).
@@ -109,8 +110,8 @@ type NotificationsEmailConfig struct {
 	// SMTPHost and SMTPPort are set only for MailerSMTP.
 	SMTPHost string
 	SMTPPort int
-	// UnsubscribeKeys are the token keys in order (the first signs); set
-	// only when the mailer is not off.
+	// UnsubscribeKeys are the token keys in order (the first signs); required
+	// when the mailer is not off, loaded whenever present when it is off.
 	UnsubscribeKeys UnsubscribeKeys
 }
 
@@ -133,7 +134,17 @@ func LoadNotificationsEmailConfig(getenv func(string) string) (NotificationsEmai
 	var c NotificationsEmailConfig
 	switch m := NotificationsMailer(getenv(EnvNotificationsMailer)); m {
 	case "", MailerOff:
-		return NotificationsEmailConfig{Mailer: MailerOff}, nil
+		// Kill switch: nothing is sent, but the links already in inboxes keep
+		// working, so present unsubscribe keys are still loaded and validated.
+		off := NotificationsEmailConfig{Mailer: MailerOff}
+		if raw := getenv(EnvNotificationsUnsubscribeKeys); raw != "" {
+			keys, err := parseUnsubscribeKeys(raw)
+			if err != nil {
+				return NotificationsEmailConfig{}, err
+			}
+			off.UnsubscribeKeys = keys
+		}
+		return off, nil
 	case MailerLog, MailerSMTP:
 		c.Mailer = m
 	case mailerSES:

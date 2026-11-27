@@ -215,10 +215,12 @@ func run() error {
 		return err
 	}
 	// notifications-v2 D13: only the mailer kind is logged, never another key.
-	slog.Info("notifications email", "mailer", string(notificationsEmail.Mailer), "deliveries", notificationsEmail.Enabled())
-	// notifications-v2 §Unsubscribe: the HMAC token signer/verifier from NOTIFICATIONS_UNSUBSCRIBE_KEYS (nil with the
-	// mailer off: every token is refused). The same value verifies the public unsubscribe routes and is the renderer's
-	// email.TokenSigner for the sender (E6). The keys are never logged.
+	slog.Info("notifications email", "mailer", string(notificationsEmail.Mailer), "deliveries", notificationsEmail.Enabled(),
+		"unsubscribe_keys", len(notificationsEmail.UnsubscribeKeys))
+	// notifications-v2 §Unsubscribe: the HMAC token signer/verifier from NOTIFICATIONS_UNSUBSCRIBE_KEYS, built whenever keys
+	// are configured — also with the mailer off (kill switch), so links already sent keep working; nil without keys (every
+	// token refused). The same value verifies the public unsubscribe routes and is the renderer's email.TokenSigner for the
+	// sender (E6). The keys are never logged.
 	notificationUnsubscribeSigner, err := newNotificationUnsubscribeSigner(notificationsEmail, nil)
 	if err != nil {
 		slog.Error("notifications unsubscribe keys invalid", "reason", err.Error())
@@ -465,8 +467,7 @@ func run() error {
 		candidateNotificationsHandler:           newCandidateNotificationsHandler(pool),
 		notificationPreferencesHandler:          newNotificationPreferencesHandler(pool),
 		candidateNotificationPreferencesHandler: newCandidateNotificationPreferencesHandler(pool),
-		notificationUnsubscribeHandler:          newNotificationUnsubscribeHandler(pool, notificationUnsubscribeSigner),
-		notificationUnsubscribeLimit:            notificationsunsubscribe.NewLimiter(notificationsunsubscribe.DefaultLimits(), nil).Middleware,
+		notificationUnsubscribeHandler:          newNotificationUnsubscribeHandler(pool, notificationUnsubscribeSigner, notificationsunsubscribe.NewLimiter(notificationsunsubscribe.DefaultLimits(), nil)),
 		stakeholderVacanciesHandler:             jobshttp.NewStakeholderVacanciesHandler(draftStore),
 		metricsHandler:                          newMetricsHandler(newMetricsService(pool, auditRepo)),
 		stakeholderInvitationHandler:            companieshttp.NewStakeholderInvitationHandler(usecases.NewStakeholderInvitationService(postgres.NewStakeholderInvitationRepository(pool, auditRepo), identityUserRepo)),
