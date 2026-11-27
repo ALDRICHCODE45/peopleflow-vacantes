@@ -63,3 +63,16 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   avoiding manual console setup that would be redone. Social buttons ship behind a per-provider flag (hidden until the
   provider exists); until linking exists, a social sign-in with an already registered email shows «Ese correo ya tiene
   cuenta. Entra con tu contraseña.».
+- **L6** (2026-11-27) Backend intake: no endpoint creates a recruiter today (PostConfirmation group mapping is dead;
+  POST /companies → 401 without a users row, 403 if not recruiter). Proposal accepted: POST /v2/me/employer-account
+  (requireAuth, strict body {full_name} 2–120) mirroring POST /v2/me/candidate-account — 200 if already recruiter, 201
+  created (audit EmployerAccountCreated), 409 account_exists if candidate, 409 email_in_use, 422 email_not_verified,
+  503 identity_unavailable; account_required / wrong_role messages generalized. Blocking finding: UserInfo
+  (/oauth2/userInfo) needs an OAuth access token with scope openid, so tokens from USER_PASSWORD_AUTH would be rejected
+  and onboarding would 503 → new UserInfoProvider adapter on cognito-idp GetUser with the user's access token (no IAM,
+  no hosted domain), chosen by config. Verifier accepts USER_PASSWORD_AUTH access tokens (token_use=access,
+  client_id). No candidate JIT: rows are created only by the onboarding endpoints. No linking: unique partial indexes
+  on cognito_sub and lower(email) → social with an existing email gets 409 email_in_use (orphan federated identity in
+  Cognito, no data risk); providers' email_verified to confirm in the AWS phase. E2e: PEM verifier mode (APP_ENV
+  local|test, RS256, iss/aud/sub/iat/exp; add token_use and client_id for parity; helper in
+  cmd/api/draft_flow_integration_test.go:192-249) plus a configurable GetUser stub.
