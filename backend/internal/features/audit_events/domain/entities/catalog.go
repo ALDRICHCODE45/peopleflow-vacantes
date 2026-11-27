@@ -139,6 +139,10 @@ const (
 	EventStakeholderInvitationRevoked  = "StakeholderInvitationRevoked"
 	EventStakeholderInvitationAccepted = "StakeholderInvitationAccepted"
 
+	// EventEmployerAccountCreated: self-service employer onboarding
+	// (embedded-auth-v1 D4). Not company-scoped: the account has no company yet.
+	EventEmployerAccountCreated = "EmployerAccountCreated"
+
 	// Audit (§8.5).
 	EventAuditLogExported = "AuditLogExported"
 )
@@ -260,6 +264,7 @@ var catalog = []EventSpec{
 	spec(EventStakeholderInvitationCreated, CategoryMembers, "invitation_id", "expires_at"),
 	spec(EventStakeholderInvitationRevoked, CategoryMembers, "invitation_id"),
 	spec(EventStakeholderInvitationAccepted, CategoryMembers, "invitation_id", "member_user_id"),
+	{Type: EventEmployerAccountCreated, Category: CategoryMembers, CompanyScoped: false},
 
 	// audit
 	spec(EventAuditLogExported, CategoryAudit, "filters", "row_count"),

@@ -24,7 +24,7 @@ import (
 
 type storageRouteIdentity struct{ identityRouteUsers }
 
-func (storageRouteIdentity) CreateCandidate(context.Context, *entities.User) (*entities.User, bool, error) {
+func (storageRouteIdentity) CreateAccount(context.Context, *entities.User) (*entities.User, bool, error) {
 	return nil, false, errors.New("unexpected write")
 }
 

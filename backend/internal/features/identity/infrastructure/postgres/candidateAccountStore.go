@@ -17,14 +17,30 @@ import (
 // Identity owns these additive audit literals; no migration is needed because
 // event_type/entity_type have no DB CHECK. Metadata contains no identity PII.
 const CandidateAccountCreated = auditentities.EventCandidateAccountCreated
-const candidateAccountEntity = "user"
+const EmployerAccountCreated = auditentities.EventEmployerAccountCreated
+const accountEntity = "user"
 
+// accountCreatedEvent is the audit type of a self-service account creation,
+// chosen by the account's role (embedded-auth-v1 D4).
+func accountCreatedEvent(role valueobjects.UserType) (string, bool) {
+	switch role {
+	case valueobjects.UserCandidate:
+		return CandidateAccountCreated, true
+	case valueobjects.UserRecruiter:
+		return EmployerAccountCreated, true
+	default:
+		return "", false
+	}
+}
+
+// CandidateAccountStore creates candidate and employer accounts (the name is
+// kept from the candidate-only origin; see usecases.AccountStore).
 type CandidateAccountStore struct {
 	pool  *pgxpool.Pool
 	audit auditrepositories.AuditEventRepository
 }
 
-var _ usecases.CandidateAccountStore = (*CandidateAccountStore)(nil)
+var _ usecases.AccountStore = (*CandidateAccountStore)(nil)
 
 func NewCandidateAccountStore(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository) *CandidateAccountStore {
 	return &CandidateAccountStore{pool: pool, audit: audit}
@@ -33,8 +49,11 @@ func (s *CandidateAccountStore) GetByCognitoSub(ctx context.Context, subject str
 	return NewUserRepository(db.New(s.pool)).GetByCognitoSub(ctx, subject)
 }
 
-func (s *CandidateAccountStore) CreateCandidate(ctx context.Context, user *entities.User) (*entities.User, bool, error) {
-	if user.UserType != valueobjects.UserCandidate {
+// CreateAccount inserts the user and appends its account-created audit event
+// in one transaction; an audit failure rolls the insert back.
+func (s *CandidateAccountStore) CreateAccount(ctx context.Context, user *entities.User) (*entities.User, bool, error) {
+	eventType, ok := accountCreatedEvent(user.UserType)
+	if !ok {
 		return nil, false, entities.ErrInvalidUserType
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -67,7 +86,7 @@ func (s *CandidateAccountStore) CreateCandidate(ctx context.Context, user *entit
 	if err != nil {
 		return nil, false, err
 	}
-	if err := s.audit.Append(ctx, tx, auditentities.AuditEvent{ID: eventID, ActorType: auditentities.ActorTypeUser, ActorID: &created.ID, EventType: CandidateAccountCreated, EntityType: candidateAccountEntity, EntityID: created.ID, Metadata: map[string]string{}}); err != nil {
+	if err := s.audit.Append(ctx, tx, auditentities.AuditEvent{ID: eventID, ActorType: auditentities.ActorTypeUser, ActorID: &created.ID, EventType: eventType, EntityType: accountEntity, EntityID: created.ID, Metadata: map[string]string{}}); err != nil {
 		return nil, false, err
 	}
 	if err := tx.Commit(ctx); err != nil {

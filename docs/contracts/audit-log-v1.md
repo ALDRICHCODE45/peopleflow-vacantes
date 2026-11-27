@@ -391,6 +391,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `StakeholderInvitationCreated` | members | Invitación de stakeholder creada |
 | `StakeholderInvitationRevoked` | members | Invitación de stakeholder revocada |
 | `StakeholderInvitationAccepted` | members | Invitación de stakeholder aceptada |
+| `EmployerAccountCreated` | members | Creó su cuenta de empresa |
 | `AuditLogExported` | audit | Exportó la auditoría |
 
 The annex lists every catalog type (75) in catalog order; a test fails when a catalog type has no row.

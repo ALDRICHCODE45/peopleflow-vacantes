@@ -330,5 +330,5 @@ func TestPsychometricCandidateAccountListAndOwnership(t *testing.T) {
 		t.Fatalf("%v != %v", item, want)
 	}
 	f.reject(t, "GET", f.account, "", "", 401, "unauthenticated", "unauthorized")
-	f.reject(t, "GET", f.account, "", f.actor.token, 403, "wrong_role", "candidate role required")
+	f.reject(t, "GET", f.account, "", f.actor.token, 403, "wrong_role", "account role not allowed")
 }

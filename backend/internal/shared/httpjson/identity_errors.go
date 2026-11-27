@@ -17,9 +17,9 @@ func IdentityErrorCodes() []Code {
 func resolveIdentityError(code Code) (Definition, bool) {
 	switch code {
 	case CodeAccountRequired:
-		return Definition{code, http.StatusForbidden, "candidate account required"}, true
+		return Definition{code, http.StatusForbidden, "account required"}, true
 	case CodeWrongRole:
-		return Definition{code, http.StatusForbidden, "candidate role required"}, true
+		return Definition{code, http.StatusForbidden, "account role not allowed"}, true
 	case CodeAccountExists:
 		return Definition{code, http.StatusConflict, "account already exists"}, true
 	case CodeEmailInUse:

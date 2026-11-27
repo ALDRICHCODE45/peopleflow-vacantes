@@ -32,7 +32,7 @@ func (s *accountStore) GetByCognitoSub(context.Context, string) (*entities.User,
 	}
 	return s.user, nil
 }
-func (s *accountStore) CreateCandidate(_ context.Context, u *entities.User) (*entities.User, bool, error) {
+func (s *accountStore) CreateAccount(_ context.Context, u *entities.User) (*entities.User, bool, error) {
 	s.attempts++
 	if s.createErr != nil {
 		return nil, false, s.createErr
