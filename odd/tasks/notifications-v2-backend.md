@@ -26,6 +26,8 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - **S9** Constraint (user, 2026-11-22): «nadie TOQUE NADA DE AWS TODAVIA».
 - **S10** Copy, labels, fallbacks and path map: see L5 (verbatim).
 
+- **S11** Email design (frontend, user-chosen, seq 15, verbatim): «Dirección elegida: …/design/notification-emails/03-centrada.html («03 · Centrada»). Sin tarjeta, columna centrada sobre blanco, barra de 4 px del tono, sello circular de 64 px, título de 28 px y botón centrado de 52 px (con VML para Outlook), wordmark «people flow» en texto vivo y modo oscuro con prefers-color-scheme y [data-ogsc]/[data-ogsb]. Spec común: …/04-sistema-de-correo.html […] Si algo de la spec contradice a 03, manda 03. […] El copy no cambia. Pendientes: 1. Las etiquetas nuevas que usa el diseño («Postulaciones», «Pruebas», «Entrega», «Asignación», «Equipo», «Vencida», «Vence pronto», «Obligatorio»): usalas tal cual […] 2. La dirección postal del pie: dejá el placeholder del diseño detrás de una config key, hasta que el usuario pase la real. 3. Si 03 necesita company_name o las iniciales en plantillas que hoy no los tienen, agregalos como variables del lado del servidor. Avisame si cambia el contrato. Cuando esté, mandá un correo de cada plantilla (T1–T17, los dos pies, claro y oscuro) a Mailpit y pasame el commit. Sin AWS.»
+
 ## Tasks
 
 - T1 — S1–S10 — contract `docs/contracts/notifications-v2.md` — worker (docs) — agreed
@@ -37,6 +39,8 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - T7 — E6 — sender loop (claim/lease, re-check/skip, fenced finalize, backoff, throttle), start/stop in `main.go` — worker — done (uncommitted, L18)
 - T8 — E7 — unsubscribe token, public GET/POST, per-IP limit, `unsubscribe_link_invalid` — worker — done (uncommitted, L16)
 - T9 — E8 — purge of terminal deliveries, follow-up note in `docs/decision-email-provider.md` — worker — done (uncommitted, L21)
+
+- T10 — S11 — email visual design «03 · Centrada» in the Go templates, branch feat/notifications-email-design — worker — pending
 
 ## Log
 
@@ -586,3 +590,4 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - **L23** 2026-11-27, frontend confirms the unsubscribe route and the landing server action forward X-PF-Proxy-Secret and
   X-PF-Client-IP via auditForwardHeaders (lib/audit/forward.ts), independently verified on their side. Mailpit end-to-end
   test deferred until the user decides next steps; nothing to start now.
+- **L24** 2026-11-27, frontend relays the user's email design choice (S11, seq 15). New branch feat/notifications-email-design from main 20af99d8; T10 opened.
