@@ -159,3 +159,6 @@ client IP (`X-PF-Proxy-Secret`, `X-PF-Client-IP`, plus the user agent) from `aud
   link has a company, otherwise the candidate page), invalid «Este enlace ya no es válido.» with both preferences links,
   429 «Demasiados intentos. Inténtalo en unos minutos.», 5xx / network a generic «Reintentar» (page refresh, still GET).
   A failed confirm keeps the button for a retry. `middleware.ts` sends the page with no-referrer and no-store.
+- Production requirement: `AUDIT_PROXY_SECRET` (and the right `AUDIT_TRUSTED_PROXY_HOPS`) must be set; without the
+  secret no client IP reaches the backend and its per-IP invalid-token limiter would see the BFF address for everyone.
+  With several instances, set `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` so the landing's confirm action works across them.

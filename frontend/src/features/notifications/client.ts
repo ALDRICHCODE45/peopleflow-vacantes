@@ -265,7 +265,7 @@ export const UNSUBSCRIBE_MAX_BODY_BYTES = 1024;
 const UNSUBSCRIBE_TOKEN = /^[A-Za-z0-9_.-]{1,512}$/;
 const RETRY_AFTER = /^(?:\d{1,10}|[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} GMT)$/;
 /** A plain media type with simple or quoted parameters (multipart boundaries included), at most 256 characters. */
-const CONTENT_TYPE = /^(?=[\s\S]{1,256}$)[\w.+-]+\/[\w.+-]+(?:\s*;\s*[\w-]+=(?:"[^"\r\n]*"|[^\s;"]+))*$/;
+const CONTENT_TYPE = /^(?=[\s\S]{1,256}$)[\w.+-]+\/[\w.+-]+(?:[ \t]*;[ \t]*[\w-]+=(?:"[^"\r\n]*"|[^\s;"]+))*$/;
 
 /** Shape only (signed tokens are opaque): 1–512 characters of `[A-Za-z0-9_.-]`. */
 export const isUnsubscribeTokenShape = (token: unknown): token is string => typeof token === "string" && UNSUBSCRIBE_TOKEN.test(token);
