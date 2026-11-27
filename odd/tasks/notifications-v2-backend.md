@@ -36,7 +36,7 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
 - T6 — E5 — `Mailer` port, `log`/`smtp` adapters, Mailpit in compose, templates with the S10 copy, headers, dates, path map — worker — done (uncommitted, L14)
 - T7 — E6 — sender loop (claim/lease, re-check/skip, fenced finalize, backoff, throttle), start/stop in `main.go` — worker — done (uncommitted, L18)
 - T8 — E7 — unsubscribe token, public GET/POST, per-IP limit, `unsubscribe_link_invalid` — worker — done (uncommitted, L16)
-- T9 — E8 — purge of terminal deliveries, follow-up note in `docs/decision-email-provider.md` — worker — pending
+- T9 — E8 — purge of terminal deliveries, follow-up note in `docs/decision-email-provider.md` — worker — done (uncommitted, L21)
 
 ## Log
 
@@ -548,3 +548,32 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   (unit tests only); `go tool sqlc diff` clean; `go vet ./...` clean. Scratch:
   `backend/internal/features/notifications/.e6r-logs/` (logs and mutation backups; untracked, delete before
   committing). No binary written.
+- **L21** 2026-11-26, T9/E8 implemented (uncommitted, worktree only). `cmd/notifications-purge` gets a third pass:
+  terminal `notification_email_deliveries` (`sent`, `skipped`, `failed`) with `created_at` older than 180 days (D20;
+  the `notification_email_deliveries_created` index), never `pending`/`retry`/`sending` whatever their age. Queries
+  `CountExpiredNotificationEmailDeliveries` (exact forecast: no other pass changes the set) and
+  `DeleteExpiredNotificationEmailDeliveries` (batch, oldest first, `FOR UPDATE SKIP LOCKED`, same cutoff expression —
+  the comment now says six retention queries); sqlc regenerated (`internal/db`, two files). Order: notifications →
+  events → deliveries, one tx per batch, `drain` unchanged. FK confirmed `ON DELETE SET NULL` (`confdeltype = n`) and no
+  CHECK touches `email_delivery_id`, so a notification inside the retention linked to an expired delivery (coalescing
+  links rows up to the window close after the delivery's `created_at`) stays valid with NULL; the sender locks only
+  non-terminal rows, so it never contends with this pass. Command contract kept (flags, dry-run default, `-execute`,
+  counts-only output, `notifications purge failed`, `DATABASE_URL` only); output adds a third line
+  `notification_email_deliveries_would_delete=` / `_deleted=`; usage text and package doc updated. Contract D20 made
+  precise (statuses, `created_at`, order, SET NULL, output keys). `docs/decision-email-provider.md`: «Seguimiento»
+  note (Q10) — SES still the provider; transport DB-backed and in-process (no EventBridge/SQS/Fargate) until a queue is
+  justified; AWS work (domain/sender, SES verification, sandbox exit, `ses` adapter, bounce/complaint ingestion into
+  `email_suppressions`) pending the user's go-ahead. RED observed: unit `TestHelpAndInvalidArguments` (old usage); all
+  11 integration tests failed on the missing delivery line (e.g. dry run `"notifications_would_delete=3\nnotification_events_would_delete=3\n"`),
+  `TestFailureOutputIsStaticWhenATableIsMissing` exited 0 without the deliveries table; fixtures for every status
+  inserted cleanly. GREEN: `make test-integration PKG=./cmd/notifications-purge/` ok (11 integration + 3 unit = 14
+  PASS, 0 FAIL, 0 SKIP; new: per-status dry run ×2 deletes nothing (9 of 24), execute keeps terminal ≤179 d and every
+  old non-terminal row then 0/0 on re-run, batch size 3 across 9 deliveries + 4 notifications, linked notifications
+  (expired one gone in the first pass, 179-d one → NULL, links to an old `retry` and a fresh `sent` delivery intact, no
+  dangling reference, dry run leaves the link), a row held `FOR UPDATE` skipped then purged after release; failure
+  test also drops the deliveries table); `make test PKG='./cmd/notifications-purge/ ./internal/tools/archguard/'` ok;
+  `go tool sqlc diff` clean; `go vet ./...` clean. Mutations in the generated query (restored, sha256 verified), both
+  killed: no status filter (3 tests fail, e.g. `deleted=15`), no `SKIP LOCKED` (held-row test fails after its 30 s
+  context). Not observable by tests: the pass order (deliveries first would give the same rows; notifications first
+  only saves SET NULL updates). Scratch: `backend/cmd/notifications-purge/.e8-logs/` (RED/GREEN/mutation logs and the
+  generated-file backup; untracked, delete before committing).
