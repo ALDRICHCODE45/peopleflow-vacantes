@@ -76,3 +76,14 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   Cognito, no data risk); providers' email_verified to confirm in the AWS phase. E2e: PEM verifier mode (APP_ENV
   local|test, RS256, iss/aud/sub/iat/exp; add token_use and client_id for parity; helper in
   cmd/api/draft_flow_integration_test.go:192-249) plus a configurable GetUser stub.
+- **L7** (2026-11-27) User asked to evaluate https://github.com/aws/aws-emulator. Findings (GitHub API, no clone): official
+  AWS local emulator, CC0, created 2026-09-11, ~10k stars, AI-maintained with several releases a day (v1.0.665 on
+  2026-11-27), Docker/CLI/embedded, HTTPS on 127.0.0.1:9297, telemetry ON by default (`--telemetry off`), README: «Don't
+  use it for production workloads or to test security». Has cognito-idp, ses, sesv2, s3, sqs, secretsmanager, lambda,
+  eventbridge, ecs. Open known gaps relevant to us: Cognito Lambda triggers not invoked (PreSignUp linking can't be
+  tested); a HIGH issue where the pool's JWKS document is not served and InitiateAuth CUSTOM_AUTH is unimplemented
+  (our backend verifies via JWKS; USER_PASSWORD_AUTH status unverified); Lambda invoke cannot run deployment packages.
+  Agent recommendation: a time-boxed spike before relying on it — run the image with telemetry off and check exactly
+  SignUp, ConfirmSignUp, InitiateAuth USER_PASSWORD_AUTH + REFRESH_TOKEN_AUTH, ForgotPassword/Confirm, GetUser, the
+  JWKS URL, plus S3 and SES; adopt it for local/CI if those pass, otherwise keep the hand-made Cognito mock (PEM) for
+  e2e. Never a substitute for the real AWS test environment or for security testing.
