@@ -91,3 +91,7 @@ fixes; item 5 is a product conversation before AWS/deployment work.
   mandatory ones without List-Unsubscribe. Agent decisions on the backend's gap fills: candidate email without
   company_name uses the candidate tone's generic glyph instead of «…» (backend applying); T4/T6 emphasis and initials
   rule accepted. Canvas handoff marked implemented (preview Mailpit). Dark mode not viewable in Mailpit.
+- **L5** (2026-11-27) Candidate email without company_name: the seal shows the type glyph in violet without eyebrow —
+  T15 «→», T16 «+», T17 «…» (agent decision; «✓» rejected because it reads as done). Backend b4218e0c
+  (feat/notifications-email-design), test-first, 15 packages and go vet green. Copy keeps «una empresa». U1.1 done
+  pending the user's merge decision.
