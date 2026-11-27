@@ -43,6 +43,8 @@ describe("single application-facing request path", () => {
       "features/languages/use-language-catalog.ts",
       "features/manual-intake/file-client.ts",
       "features/manual-intake/upload.ts",
+      // Email unsubscribe (L23): raw one-click body and Retry-After, server-only to the configured origin, no session.
+      "features/notifications/client.ts",
       "features/org-candidates/cv/cv-client.ts",
       "features/org-candidates/cv/upload.ts",
       "features/org-candidates/detail/file-client.ts",
@@ -115,7 +117,7 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('cache: "no-store"');
   });
 
-  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts", "features/audit-log/client.ts", "features/company-metrics/export-client.ts", "features/employer-dashboard/export-client.ts", "features/stakeholder-invitations/client.ts", "features/vacancy-documents/binary-client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
+  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts", "features/audit-log/client.ts", "features/company-metrics/export-client.ts", "features/employer-dashboard/export-client.ts", "features/stakeholder-invitations/client.ts", "features/vacancy-documents/binary-client.ts", "features/notifications/client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
     const adapter = source(join(SRC, file));
     expect(adapter).toContain('import "server-only"');
     expect(adapter).toContain('redirect: "error"');
@@ -280,6 +282,16 @@ describe("single application-facing request path", () => {
     expect(forwarded).toHaveLength(1);
   });
 
+  it("keeps the email unsubscribe anonymous: proxy headers only, no session, cookies or redirects", () => {
+    const client = source(join(SRC, "features/notifications/client.ts"));
+    expect(client.match(/\bfetch\(/g) ?? []).toHaveLength(1);
+    expect(client).toContain('"/v2/notifications/unsubscribe"');
+    expect(client).toContain('credentials: "omit"');
+    expect(client).toContain('from "@/lib/audit/forward"');
+    const route = source(join(SRC, "app/api/notificaciones/baja/route.ts"));
+    expect(route).not.toMatch(/\bfetch\(|cookies\(|lib\/auth|authorization|getActionAccessToken|sec-fetch-site/i);
+  });
+
   it("reaches the transport only through the guarded API functions", () => {
     const importers = files.filter((file) =>
       /lib\/api\/server"/.test(source(file)),
@@ -425,6 +437,7 @@ describe("single application-facing request path", () => {
       "app/api/geo/countries/mx/states/[state]/municipalities/route.ts",
       "app/api/geo/countries/mx/states/route.ts",
       "app/api/geo/countries/route.ts",
+      "app/api/notificaciones/baja/route.ts",
       "app/media/sitios/[id]/route.ts",
     ]);
     for (const handler of handlers) {

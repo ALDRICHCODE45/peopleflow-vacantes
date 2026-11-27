@@ -8,6 +8,8 @@ type ClientFailure = {
   fields?: FilterIssue[];
   /** Local `preference_locked`: the types of the entries that target a locked pair. */
   lockedTypes?: string[];
+  /** 429 only: the backend's Retry-After, already checked by the client. */
+  retryAfter?: string;
 };
 const SAFE_CODES = new Set([
   "unauthenticated", "forbidden", "company_inactive", "invalid_filter", "invalid_cursor", "validation_error",
@@ -16,6 +18,8 @@ const SAFE_CODES = new Set([
   "account_required", "wrong_role",
   // Preferences PUT (L21): an entry on a mandatory type; 422 with `data.types`.
   "notification_preference_locked",
+  // Email unsubscribe (L23): any invalid, expired, tampered or mandatory link (422); the limiter (429).
+  "unsubscribe_link_invalid", "rate_limited",
 ]);
 const isValidationIssue = ({ field, code }: FilterIssue) =>
   ((VALIDATION_FIELDS as readonly string[]).includes(field) || PREFERENCE_FIELD_PATTERN.test(field)) && (VALIDATION_CODES as readonly string[]).includes(code);
@@ -24,7 +28,7 @@ const typeNames = (values: readonly unknown[] = []) =>
   [...new Set(values.filter((value): value is string => typeof value === "string" && PREFERENCE_TYPE_PATTERN.test(value)))];
 
 /** Only an allowlisted code and the status cross the boundary; the backend message never does. */
-export function toNotificationFailure({ error, envelope, fields, lockedTypes }: ClientFailure): NotificationFailure {
+export function toNotificationFailure({ error, envelope, fields, lockedTypes, retryAfter }: ClientFailure): NotificationFailure {
   const status = error.status;
   const code = envelope && SAFE_CODES.has(envelope.code) ? envelope.code : undefined;
   const reference = { ...(status !== undefined ? { status } : {}), ...(code ? { code } : {}) };
@@ -37,6 +41,9 @@ export function toNotificationFailure({ error, envelope, fields, lockedTypes }: 
   // A locked pair found locally is the same answer the backend's 422 would give.
   if (error.kind === "preference_locked") return fail("preference_locked", { lockedTypes: typeNames(lockedTypes) });
   if (status === 422 && code === "notification_preference_locked") return fail("preference_locked", { lockedTypes: typeNames(envelope?.data?.types) });
+  // A malformed unsubscribe token found locally is the same answer the backend's 422 would give.
+  if (error.kind === "invalid_link" || (status === 422 && code === "unsubscribe_link_invalid")) return fail("unsubscribe_link_invalid");
+  if (status === 429) return fail("rate_limited", retryAfter ? { retryAfter } : {});
   if (status === 400 && code === "invalid_filter") return fail("invalid_filter", envelope?.fields ? { fields: envelope.fields } : {});
   if (status === 400 && code === "invalid_cursor") return fail("invalid_cursor");
   if (status === 400 && code === "validation_error") {

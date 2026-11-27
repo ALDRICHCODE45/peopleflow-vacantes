@@ -130,3 +130,32 @@ UI (`ui/notification-preferences.tsx`, design 05):
   07's «Elegir qué me llega», both to `preferencesHref(scope)`; hidden for a stakeholder (`useCompanyMembershipState`).
   Configuración links to the page: company «Preferencias › Notificaciones» (not for stakeholders) and the candidate
   «Notificaciones › Mis preferencias» row, replacing the inert «Próximamente» switches.
+
+## Email unsubscribe (contract v2 E7, Q3/Q4, L23)
+
+Both paths live on the frontend origin, carry no session, cookie or Authorization, and forward the proxy secret and the
+client IP (`X-PF-Proxy-Secret`, `X-PF-Client-IP`, plus the user agent) from `auditForwardHeaders` in
+`lib/audit/forward.ts` — the global fetch wrapper only decorates authenticated calls, so `client.ts` adds them itself.
+
+- `client.ts`: `getUnsubscribe({token, incoming})` (`GET /v2/notifications/unsubscribe?token=`, never mutates) and
+  `postUnsubscribe({token, incoming, body, contentType})` (same URL, raw body ≤ 1 KiB, default content type
+  `application/x-www-form-urlencoded`). Both answer `{type, channel: "email", enabled, company {id, name} | null}`
+  (`unsubscribeStateSchema`). A token outside 1–512 characters of `[A-Za-z0-9_.-]` (`isUnsubscribeTokenShape`) is
+  refused as an invalid link and a body over 1 KiB as the backend's 413, both without a request. This is the client's
+  one direct `fetch` (raw body and Retry-After are beyond the shared JSON transport), listed in `requestPath.test.ts`.
+- `failure.ts`: 422 `unsubscribe_link_invalid` (or a malformed token) → `unsubscribe_link_invalid`; 429 → `rate_limited`
+  with `retryAfter` only when it is delta seconds or an IMF date; both codes are allowlisted. 413 stays
+  `unrecognized_response` with `reference.status` 413.
+- One-click target `app/api/notificaciones/baja/route.ts` (RFC 8058, mail providers POST cross-site): POST only, other
+  methods 405 (`Allow: POST`); no Origin or `sec-fetch-site` check. Answers 200 `{ok: true}`, 422
+  `{code: "unsubscribe_link_invalid"}`, 429 `{code: "rate_limited"}` with Retry-After, 413
+  `{code: "payload_too_large"}` (oversized bodies never reach the API), 502 `{code: "unavailable"}` for 5xx / network;
+  never the token or the backend body. Every answer: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`.
+- Landing `/notificaciones/baja?token=` (`ui/unsubscribe-page.tsx` server side, `ui/unsubscribe-landing.tsx` client,
+  wording in `unsubscribe-copy.ts`): the GET shows «Dejar de recibir por correo: {tipo}» (+ « de {empresa}») with the
+  «Mis preferencias» type titles; «Dejar de recibir» runs an inline Server Action (token kept in the encrypted closure)
+  that sends the one-click body to the backend POST. Outcomes: success «Listo. Ya no recibirás este tipo de correo.»,
+  already off «Ya no recibes este tipo de correo.» (both link «Ajustar mis preferencias» to the company page when the
+  link has a company, otherwise the candidate page), invalid «Este enlace ya no es válido.» with both preferences links,
+  429 «Demasiados intentos. Inténtalo en unos minutos.», 5xx / network a generic «Reintentar» (page refresh, still GET).
+  A failed confirm keeps the button for a retry. `middleware.ts` sends the page with no-referrer and no-store.

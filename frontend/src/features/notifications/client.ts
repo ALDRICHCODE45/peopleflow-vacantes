@@ -1,12 +1,14 @@
 import "server-only";
 import { z } from "zod";
+import { boundedJson } from "@/features/candidate-cvs/bounded-body";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
+import { auditForwardHeaders, parseAuditForwardEnv } from "@/lib/audit/forward";
 import {
   errorEnvelopeSchema, facetsSchema, isKnownNotificationType, markResultSchema, MAX_PREFERENCE_ENTRIES, NOTIFICATION_CHANNELS,
   NOTIFICATION_STATES, NOTIFICATION_TYPES, notificationPageSchema, PREFERENCE_TYPE_PATTERN, preferencesSchema, unreadCountSchema,
   type FilterIssue, type MarkAllInput, type MarkResult, type MarkTarget, type NotificationErrorEnvelope, type NotificationFacets,
   type NotificationPage, type NotificationPreferences, type NotificationScope, type NotificationState, type NotificationType,
-  type PreferenceEntry, type UnmarkTarget, type UnreadCount,
+  type PreferenceEntry, type UnmarkTarget, type UnreadCount, type UnsubscribeState, unsubscribeStateSchema,
 } from "./model";
 
 /** Fixed base path per scope (L14); anything outside the enum is refused before a request. Default: company. */
@@ -42,12 +44,14 @@ export type NotificationQuery = {
 };
 export type NotificationClientFailure = {
   ok: false;
-  error: { kind: RequestJsonError["kind"] | "missing_token" | "invalid_request" | "invalid_body" | "preference_locked"; retryable: boolean; status?: number };
+  error: { kind: RequestJsonError["kind"] | "missing_token" | "invalid_request" | "invalid_body" | "preference_locked" | "invalid_link"; retryable: boolean; status?: number };
   envelope?: NotificationErrorEnvelope;
   /** Local body issues (`invalid_body`), named and coded as the backend's 400 `validation_error` would. */
   fields?: FilterIssue[];
   /** Local `preference_locked`: types of the entries that target a locked pair of the catalog they were built from. */
   lockedTypes?: string[];
+  /** 429 only: a well-formed Retry-After (delta seconds or IMF-fixdate). */
+  retryAfter?: string;
 };
 type ClientResult<T> = Promise<{ ok: true; data: T } | NotificationClientFailure>;
 const noToken: NotificationClientFailure = { ok: false, error: { kind: "missing_token", retryable: false } };
@@ -247,3 +251,69 @@ export async function updatePreferences(
   if (locked.length) return { ok: false, error: { kind: "preference_locked", retryable: false }, lockedTypes: locked };
   return call(`${path}/preferences`, input.token, preferencesSchema, { body: built.body, method: "PUT" });
 }
+
+/*
+ * Email unsubscribe (contract v2 E7 / L23). Anonymous: the token is the only credential, so no session, cookie or
+ * Authorization ever travels. Like the rest of the BFF, the call carries the proxy secret and the client IP
+ * (`lib/audit/forward.ts`), which the backend's per-IP limiter trusts; the fetch wrapper only decorates authenticated
+ * calls, so they are added here from the incoming request. The shared JSON transport cannot send a raw body or read
+ * Retry-After, hence the one direct fetch. The token never reaches a log, an error or a returned value.
+ */
+const UNSUBSCRIBE_PATH = "/v2/notifications/unsubscribe";
+/** Backend body cap for the one-click POST (RFC 8058 `List-Unsubscribe=One-Click`). */
+export const UNSUBSCRIBE_MAX_BODY_BYTES = 1024;
+const UNSUBSCRIBE_TOKEN = /^[A-Za-z0-9_.-]{1,512}$/;
+const RETRY_AFTER = /^(?:\d{1,10}|[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} GMT)$/;
+/** A plain media type with simple or quoted parameters (multipart boundaries included), at most 256 characters. */
+const CONTENT_TYPE = /^(?=[\s\S]{1,256}$)[\w.+-]+\/[\w.+-]+(?:\s*;\s*[\w-]+=(?:"[^"\r\n]*"|[^\s;"]+))*$/;
+
+/** Shape only (signed tokens are opaque): 1–512 characters of `[A-Za-z0-9_.-]`. */
+export const isUnsubscribeTokenShape = (token: unknown): token is string => typeof token === "string" && UNSUBSCRIBE_TOKEN.test(token);
+
+export type UnsubscribeInput = { token: unknown; incoming: Headers };
+const invalidLink: NotificationClientFailure = { ok: false, error: { kind: "invalid_link", retryable: false } };
+/** The backend's own answer to an oversized body, given locally without a request. */
+const tooLarge: NotificationClientFailure = { ok: false, error: { kind: "status", retryable: false, status: 413 } };
+
+async function unsubscribeRequest(
+  input: UnsubscribeInput, init: { method: "GET" } | { method: "POST"; body: Uint8Array; contentType?: string | null },
+): ClientResult<UnsubscribeState> {
+  if (!isUnsubscribeTokenShape(input.token)) return invalidLink;
+  if (init.method === "POST" && init.body.byteLength > UNSUBSCRIBE_MAX_BODY_BYTES) return tooLarge;
+  try {
+    const serverEnv = await loadServerEnv();
+    const origin = new URL(serverEnv.apiBaseUrl);
+    const url = new URL(`${UNSUBSCRIBE_PATH}?${new URLSearchParams({ token: input.token })}`, origin);
+    if (url.origin !== origin.origin || !["http:", "https:"].includes(url.protocol)) return invalidRequest;
+    const forwarding = parseAuditForwardEnv(process.env);
+    const headers = new Headers({ accept: "application/json", ...(forwarding ? auditForwardHeaders({ ...forwarding, apiOrigin: origin.origin }, input.incoming) : {}) });
+    if (init.method === "POST") headers.set("content-type", init.contentType && CONTENT_TYPE.test(init.contentType) ? init.contentType : "application/x-www-form-urlencoded");
+    const signal = AbortSignal.timeout(serverEnv.apiTimeoutMs);
+    const response = await fetch(url, {
+      method: init.method, headers, ...(init.method === "POST" ? { body: init.body as BodyInit } : {}),
+      cache: "no-store", redirect: "error", credentials: "omit", referrerPolicy: "no-referrer", signal,
+    });
+    const status = response.status;
+    if (status === 200) {
+      try { return { ok: true, data: unsubscribeStateSchema.parse(await boundedJson(response, 8192, signal)) }; }
+      catch { return { ok: false, error: { kind: "invalid_response", retryable: false } }; }
+    }
+    if (response.ok) { void response.body?.cancel().catch(() => {}); return { ok: false, error: { kind: "invalid_response", retryable: false } }; }
+    let envelope: NotificationErrorEnvelope | undefined;
+    try { envelope = errorEnvelopeSchema.parse(await boundedJson(response, 8192, signal)); } catch { /* The status stays authoritative. */ }
+    const retryAfter = status === 429 ? response.headers.get("retry-after") : null;
+    return {
+      ok: false, error: { kind: "status", retryable: false, status },
+      ...(envelope ? { envelope } : {}), ...(retryAfter && RETRY_AFTER.test(retryAfter) ? { retryAfter } : {}),
+    };
+  } catch (error) {
+    return { ok: false, error: { kind: error instanceof DOMException && error.name === "TimeoutError" ? "timeout" : "network", retryable: false } };
+  }
+}
+
+/** `GET …/unsubscribe?token=` — the link's current state; never changes anything. */
+export const getUnsubscribe = (input: UnsubscribeInput): ClientResult<UnsubscribeState> => unsubscribeRequest(input, { method: "GET" });
+
+/** `POST …/unsubscribe?token=` with the raw body (≤ 1 KiB) — turns the email off; idempotent. */
+export const postUnsubscribe = (input: UnsubscribeInput & { body: Uint8Array; contentType?: string | null }): ClientResult<UnsubscribeState> =>
+  unsubscribeRequest(input, { method: "POST", body: input.body, contentType: input.contentType });

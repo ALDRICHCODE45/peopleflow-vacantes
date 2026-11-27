@@ -145,14 +145,29 @@ export type MarkTarget = { groupKeys: readonly string[] } | { ids: readonly stri
 export type UnmarkTarget = MarkTarget | { markedAt: string };
 export type MarkAllInput = { types?: readonly NotificationType[]; jobIds?: readonly string[]; before?: string };
 
+/*
+ * Email unsubscribe (contract v2 E7 / L23): `GET|POST /v2/notifications/unsubscribe?token=…` answer the link's type, the
+ * email channel, its current state (`enabled`; false after POST) and the company (null for candidates).
+ */
+export const unsubscribeStateSchema = z.object({
+  type: text,
+  channel: z.literal("email"),
+  enabled: z.boolean(),
+  company: z.object({ id: text, name: text }).nullable(),
+});
+export type UnsubscribeState = z.infer<typeof unsubscribeStateSchema>;
+
 export type NotificationFailure = {
   ok: false;
   reason:
     | "unauthenticated" | "forbidden" | "invalid_filter" | "invalid_cursor" | "validation_error"
-    | "server_error" | "no_response" | "unrecognized_response" | "preference_locked";
+    | "server_error" | "no_response" | "unrecognized_response" | "preference_locked"
+    | "unsubscribe_link_invalid" | "rate_limited";
   fields?: FilterIssue[];
   /** `preference_locked` only: the mandatory types the entries targeted (422 `data.types`, or found locally). */
   lockedTypes?: string[];
+  /** `rate_limited` only: the backend's Retry-After (delta seconds or HTTP date), when well formed. */
+  retryAfter?: string;
   reference: { status?: number; code?: string };
 };
 export type NotificationListResult = { ok: true; data: NotificationPage } | NotificationFailure;
@@ -160,3 +175,4 @@ export type UnreadCountResult = { ok: true; data: UnreadCount } | NotificationFa
 export type MarkResultResult = { ok: true; data: MarkResult } | NotificationFailure;
 export type FacetsResult = { ok: true; data: NotificationFacets } | NotificationFailure;
 export type PreferencesResult = { ok: true; data: NotificationPreferences } | NotificationFailure;
+export type UnsubscribeResult = { ok: true; data: UnsubscribeState } | NotificationFailure;
