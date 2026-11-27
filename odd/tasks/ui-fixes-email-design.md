@@ -36,7 +36,7 @@ fixes; item 5 is a product conversation before AWS/deployment work.
 | U1 | S1 | Email design directions on the canvas (`design/notification-emails/`), then backend applies the chosen one | |
 | U2 | S2 | Vacancy header actions into one ⋯ dropdown | |
 | U3 | S3 | Kanban column menu: no explanation, one-line options | |
-| U4 | S4 | Diagnose and fix the post-login redirect | |
+| U4 | S4 | Diagnose and fix the post-login redirect | 7f0ce75b |
 | U5 | S5 | Onboarding / company verification / embedded auth / social login proposal (discussion) | |
 
 ## Log
@@ -67,3 +67,11 @@ fixes; item 5 is a product conversation before AWS/deployment work.
   Entrega» header with «Editar publicación · Compartir · Ver página pública» centred; kanban column menu with
   «Reordena columnas y revisa el impacto antes de guardar» and «Mover a la izquierda / derecha» wrapping; /empresa/login
   showing «Sesión iniciada.» + «Ir a mi panel».
+- **L2** (2026-11-27) U4 cause (our code, not Cognito): EmployerAuthControls defaulted the sign-in callbackUrl to
+  /empresa/login and nothing moved a signed-in user on. Fixed in 7f0ce75b: the fallback is /empresa/dashboard (its guard
+  routes owner/recruiter, stakeholder → /empresa/metricas, candidate/no-company → RoleBlocked) and /empresa/login is
+  never accepted as a return target; explicit /empresa/... callbacks (guard returns, invitations) still win. U5
+  decisions (user): «Cognito con pantallas propias (recomendado)»; social login: Google, Microsoft, LinkedIn (GitHub
+  later); company sign-up «Cualquiera, autoservicio (recomendado)»; company verification: «No estoy seguro hermano..
+  dejame platicarlo con mis socios por favor, dejame tus propuestas y yo se las paso» — pending partners.
+  Pre-existing bug noted: vacancy-checklist/compare/ui.tsx:57 links /empresa/login?next=…, which the login ignores.
