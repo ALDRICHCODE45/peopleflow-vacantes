@@ -583,3 +583,6 @@ Branch `feat/notifications-v2-backend` (worktree `peopleflow-vacantes-notif`, fr
   13 packages ok, cmd/api TestNotification* 29 PASS, full unit suite 135 packages ok, notifications -race ok (0 races),
   go vet ok, sqlc diff clean. Pending human decisions: merge to main / push; AWS work (domain, SES, bounce ingestion).
   No real SMTP/Mailpit run yet (log adapter only end to end).
+- **L23** 2026-11-27, frontend confirms the unsubscribe route and the landing server action forward X-PF-Proxy-Secret and
+  X-PF-Client-IP via auditForwardHeaders (lib/audit/forward.ts), independently verified on their side. Mailpit end-to-end
+  test deferred until the user decides next steps; nothing to start now.
