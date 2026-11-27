@@ -34,7 +34,7 @@ describe("employer managed login", () => {
     expect(container.querySelector('input, form')).toBeNull();
     expect(screen.queryByText(/Google|Microsoft|Mantener sesión/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
-    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/login" }));
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/dashboard" }));
     expect(auth.signOut).not.toHaveBeenCalled();
   });
 
@@ -90,11 +90,11 @@ describe("employer return path", () => {
     await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/equipo" }));
   });
 
-  it.each(["https://evil.example/empresa", "//evil.example/empresa", "/candidato/perfil", "/empresa/../api/x", "/empresa\\evil", "empresa/equipo", "http://localhost:3000/empresa/login"])("never follows an unsafe return path %s", async callbackUrl => {
+  it.each(["https://evil.example/empresa", "//evil.example/empresa", "/candidato/perfil", "/empresa/../api/x", "/empresa\\evil", "empresa/equipo", "http://localhost:3000/empresa/login", "/empresa/login", "/empresa/login/"])("never follows an unsafe return path %s", async callbackUrl => {
     auth.query = new URLSearchParams({ callbackUrl });
     render(<EmployerAuthControls />);
     fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
-    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/login" }));
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/dashboard" }));
   });
 });
 
