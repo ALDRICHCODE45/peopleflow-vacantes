@@ -17,5 +17,17 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # Dev-only SMTP sink for notification emails (notifications-v2 D13, S7):
+  # NOTIFICATIONS_MAILER=smtp, NOTIFICATIONS_SMTP_HOST=localhost,
+  # NOTIFICATIONS_SMTP_PORT=1025; web UI on http://127.0.0.1:8025. Loopback
+  # only, no volume (mails are disposable). Not for production (S9: SES later).
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    container_name: peopleflow-mailpit
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    restart: unless-stopped
+
 volumes:
   postgres_data:
