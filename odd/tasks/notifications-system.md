@@ -222,3 +222,11 @@ first consumer («Dejar mi CV» from the careers site, slice C), delivery infras
   overlapped «Descartar»; fixed in 5e89495a (text column min width so the buttons wrap below), not re-checked in a
   browser. Both accounts left at defaults. Not triggered: 422 locked, email_deliverable false. The verifier printed
   the dev test-account password once in session tool output — the user should rotate it.
+- **L23** (2026-11-27) Backend E7 (unsubscribe) committed (feat/notifications-v2-backend 3c6f2180): GET
+  /v2/notifications/unsubscribe?token=… → 200 {type, channel:"email", enabled (current), company {id,name}|null}, never
+  mutates; POST same URL (RFC 8058 body List-Unsubscribe=One-Click, ≤1 KiB) → same shape with enabled:false,
+  idempotent. Any invalid/expired/tampered/mandatory token → 422 unsubscribe_link_invalid (identical); 429
+  rate_limited with Retry-After; body >1 KiB → 413; other methods → 405. The frontend route /api/notificaciones/baja
+  and the landing server action must forward X-PF-Proxy-Secret and X-PF-Client-IP like the rest of the BFF
+  (requestmeta) and send no cookies or session. Backend changes the limiter: per-IP counts invalid tokens only, valid
+  tokens are limited per token.
