@@ -98,3 +98,16 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   both password and social tokens; console checklist gains that allowed scope; IDENTITY_PROVIDER can switch before the
   frontend cutover. Console checklist (user): ALLOW_USER_PASSWORD_AUTH + ALLOW_REFRESH_TOKEN_AUTH, self sign-up, email
   auto-verified, scope aws.cognito.signin.user.admin; the app client is confidential → Next computes SECRET_HASH.
+- **L9** (2026-11-27) aws-emulator spike (v1.0.665, built from the official Dockerfile — no prebuilt image; 2.24 GB;
+  telemetry off; `--auth off` needed for dummy keys): Cognito with a confidential client passes CreateUserPool/Client,
+  SignUp (SECRET_HASH), AdminConfirmSignUp (+AdminUpdateUserAttributes email_verified=true), InitiateAuth
+  USER_PASSWORD_AUTH (RS256 access token, token_use=access, client_id, sub), REFRESH_TOKEN_AUTH (SECRET_HASH with the
+  sub, same as real Cognito), GetUser, GlobalSignOut, ResendConfirmationCode; JWKS and openid-configuration are served
+  and verify (the L7 HIGH issue is fixed). Gaps: the emailed confirmation/reset codes cannot be read (only a
+  CustomEmailSender Lambda gets them; SES messages unreadable), `iss` is always https://127.0.0.1:<port>/<pool>,
+  self-signed TLS, Lambda triggers not invoked, auth-off skips S3 signature checks; client default
+  PreventUserExistenceErrors LEGACY leaks existence (set ENABLED, as in real Cognito). Verdict: partial adoption — use
+  it for local/CI login, refresh, GetUser, logout, JWKS verification, error mapping and S3 (pin the version, seed users
+  via admin calls, backend IDENTITY_JWT_ISSUER=https://127.0.0.1:9297/<pool>, host networking); keep a small mock for
+  the code-entry screens; security testing only in real AWS. Agent decision: the AWS test environment must set
+  PreventUserExistenceErrors=ENABLED on the app client.
