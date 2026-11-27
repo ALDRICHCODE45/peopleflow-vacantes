@@ -34,8 +34,8 @@ fixes; item 5 is a product conversation before AWS/deployment work.
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | U1 | S1 | Email design directions on the canvas (`design/notification-emails/`), then backend applies the chosen one | |
-| U2 | S2 | Vacancy header actions into one ⋯ dropdown | |
-| U3 | S3 | Kanban column menu: no explanation, one-line options | |
+| U2 | S2 | Vacancy header actions into one ⋯ dropdown | b9ff00b3 |
+| U3 | S3 | Kanban column menu: no explanation, one-line options | a4aa3c61 |
 | U4 | S4 | Diagnose and fix the post-login redirect | 7f0ce75b |
 | U5 | S5 | Onboarding / company verification / embedded auth / social login proposal (discussion) | |
 
