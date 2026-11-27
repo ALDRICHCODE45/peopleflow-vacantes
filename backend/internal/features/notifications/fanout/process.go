@@ -134,9 +134,10 @@ func (p *Processor) process(ctx context.Context, tx pgx.Tx, q *db.Queries, row d
 	}
 	// notifications-v2 D8: the email delivery decision, in this tx and only
 	// for rows this attempt actually inserted (mailer off: none), isolated by
-	// a savepoint (L13): an email-side failure rolls back only the email part
-	// — the in-app rows stay, the event is processed, that batch gets no
-	// delivery — and is logged with step email and its SQLSTATE.
+	// a savepoint (L13): a non-transient email-side failure rolls back only
+	// the email part — the in-app rows stay, the event is processed, that
+	// batch gets no delivery — and is logged with step email and its
+	// SQLSTATE; a transient one fails the event for the v1 backoff (L20).
 	if p.email {
 		isolated, err := emaildelivery.CreateIsolated(ctx, tx, created)
 		if err != nil {

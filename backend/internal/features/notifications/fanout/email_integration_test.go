@@ -451,3 +451,61 @@ func TestFanOutSoftDeletedRecipientGetsNoDelivery(t *testing.T) {
 		t.Fatalf("owner rows %v deliveries %+v", ownerRows, got)
 	}
 }
+
+// shortLockPool is a second pool on the test database whose sessions give up
+// a lock wait after 200 ms (SQLSTATE 55P03, lock_not_available).
+func shortLockPool(t *testing.T, pool *pgxpool.Pool) *pgxpool.Pool {
+	t.Helper()
+	cfg := pool.Config().Copy()
+	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "200ms"
+	p, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+// L20 (R4): a transient failure inside the email step (here a lock timeout,
+// 55P03, while the deliverability read waits on a locked email_suppressions)
+// is not isolated by the savepoint: the whole event tx fails, so no in-app
+// row commits, and the v1 retry/backoff runs the event again — which then
+// creates the rows and the delivery.
+func TestFanOutTransientEmailFailureRetriesTheEvent(t *testing.T) {
+	pool := disposableDB(t)
+	ctx := context.Background()
+	w := newWorld(t, pool)
+	setPreference(t, pool, w.owner, &w.company, "application_received", "email", true)
+	var logs bytes.Buffer
+	p := newTestProcessor(shortLockPool(t, pool), &logs).WithEmailDeliveries(true)
+	application := w.insertEvent(t, pool, pending{eventType: audit.EventVacancyApplicationSubmitted, actor: &w.candidate, participation: &w.participation})
+	lock, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lock.Exec(ctx, `LOCK TABLE email_suppressions IN ACCESS EXCLUSIVE MODE`); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, p, 1)
+	if err := lock.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := readEvent(t, pool, application); got.processed || got.attempts != 1 {
+		t.Fatalf("event: %+v (want one failed attempt, not processed)", got)
+	}
+	if rows, _ := rowsOf(t, pool, "application_received", w.owner, application); len(rows) != 0 {
+		t.Fatalf("in-app rows committed despite the transient email failure: %v", rows)
+	}
+	if !strings.Contains(logs.String(), `"step":"email"`) || !strings.Contains(logs.String(), `"sqlstate":"55P03"`) {
+		t.Fatalf("attempt log:\n%s", logs.String())
+	}
+	mustExec(t, pool, `UPDATE notification_events SET next_attempt_at = now() - interval '1 second' WHERE id=$1`, application)
+	tick(t, p, 1)
+	ownerRows, _ := rowsOf(t, pool, "application_received", w.owner, application)
+	if got := readEvent(t, pool, application); !got.processed || len(ownerRows) != 1 {
+		t.Fatalf("retry: %+v rows %v", got, ownerRows)
+	}
+	if got := readDeliveries(t, pool); len(got) != 1 || !reflect.DeepEqual(got[0].Linked, ownerRows) {
+		t.Fatalf("retry deliveries: %+v", got)
+	}
+}

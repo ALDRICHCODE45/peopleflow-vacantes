@@ -203,7 +203,10 @@ WHERE id = sqlc.arg('notification_id')::uuid
 -- with SKIP LOCKED so instances never take the same row, then set sending with
 -- a fresh lease. next_attempt_at is cleared (CHECK retry ⇔ next_attempt_at);
 -- the returned lease fences the finalize. Leaving 'pending' closes the
--- coalescing window (the partial unique index only covers 'pending').
+-- coalescing window (the partial unique index only covers 'pending'). An
+-- expired lease is reclaimed only below max_attempts: a row that already used
+-- every attempt is failed by FailExhaustedNotificationEmailDeliveries instead
+-- of being sent again.
 UPDATE notification_email_deliveries d
 SET status = 'sending',
     attempts = d.attempts + 1,
@@ -215,12 +218,23 @@ WHERE d.id = (
     FROM notification_email_deliveries c
     WHERE (c.status = 'pending' AND c.send_after <= now())
        OR (c.status = 'retry' AND c.next_attempt_at <= now())
-       OR (c.status = 'sending' AND c.lease_until < now())
+       OR (c.status = 'sending' AND c.lease_until < now() AND c.attempts < sqlc.arg('max_attempts')::integer)
     ORDER BY c.send_after, c.id
     LIMIT 1
     FOR UPDATE SKIP LOCKED
 )
 RETURNING d.id, d.recipient_user_id, d.recipient_kind, d.company_id, d.type, d.job_id, d.attempts, d.lease_until;
+
+-- name: FailExhaustedNotificationEmailDeliveries :execrows
+-- Attempt cap on lease reclaim (L20): a delivery left 'sending' by a crashed
+-- or stuck sender whose lease expired after its last allowed attempt is
+-- failed (transient, lease cleared) without another send. Live leases are
+-- left to their sender.
+UPDATE notification_email_deliveries
+SET status = 'failed', error_class = 'transient', lease_until = NULL, updated_at = now()
+WHERE status = 'sending'
+  AND lease_until < now()
+  AND attempts >= sqlc.arg('max_attempts')::integer;
 
 -- name: GetNotificationEmailRecipient :one
 -- Sender re-check (v2 D11, D19): the recipient's state at send time. The

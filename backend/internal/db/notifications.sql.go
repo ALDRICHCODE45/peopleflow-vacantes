@@ -24,13 +24,18 @@ WHERE d.id = (
     FROM notification_email_deliveries c
     WHERE (c.status = 'pending' AND c.send_after <= now())
        OR (c.status = 'retry' AND c.next_attempt_at <= now())
-       OR (c.status = 'sending' AND c.lease_until < now())
+       OR (c.status = 'sending' AND c.lease_until < now() AND c.attempts < $2::integer)
     ORDER BY c.send_after, c.id
     LIMIT 1
     FOR UPDATE SKIP LOCKED
 )
 RETURNING d.id, d.recipient_user_id, d.recipient_kind, d.company_id, d.type, d.job_id, d.attempts, d.lease_until
 `
+
+type ClaimNextNotificationEmailDeliveryParams struct {
+	LeaseMs     int64 `json:"lease_ms"`
+	MaxAttempts int32 `json:"max_attempts"`
+}
 
 type ClaimNextNotificationEmailDeliveryRow struct {
 	ID              uuid.UUID          `json:"id"`
@@ -49,9 +54,12 @@ type ClaimNextNotificationEmailDeliveryRow struct {
 // with SKIP LOCKED so instances never take the same row, then set sending with
 // a fresh lease. next_attempt_at is cleared (CHECK retry ⇔ next_attempt_at);
 // the returned lease fences the finalize. Leaving 'pending' closes the
-// coalescing window (the partial unique index only covers 'pending').
-func (q *Queries) ClaimNextNotificationEmailDelivery(ctx context.Context, leaseMs int64) (ClaimNextNotificationEmailDeliveryRow, error) {
-	row := q.db.QueryRow(ctx, claimNextNotificationEmailDelivery, leaseMs)
+// coalescing window (the partial unique index only covers 'pending'). An
+// expired lease is reclaimed only below max_attempts: a row that already used
+// every attempt is failed by FailExhaustedNotificationEmailDeliveries instead
+// of being sent again.
+func (q *Queries) ClaimNextNotificationEmailDelivery(ctx context.Context, arg ClaimNextNotificationEmailDeliveryParams) (ClaimNextNotificationEmailDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, claimNextNotificationEmailDelivery, arg.LeaseMs, arg.MaxAttempts)
 	var i ClaimNextNotificationEmailDeliveryRow
 	err := row.Scan(
 		&i.ID,
@@ -213,6 +221,26 @@ WHERE id IN (
 // the next batch or run.
 func (q *Queries) DeleteExpiredNotifications(ctx context.Context, batchSize int32) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteExpiredNotifications, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const failExhaustedNotificationEmailDeliveries = `-- name: FailExhaustedNotificationEmailDeliveries :execrows
+UPDATE notification_email_deliveries
+SET status = 'failed', error_class = 'transient', lease_until = NULL, updated_at = now()
+WHERE status = 'sending'
+  AND lease_until < now()
+  AND attempts >= $1::integer
+`
+
+// Attempt cap on lease reclaim (L20): a delivery left 'sending' by a crashed
+// or stuck sender whose lease expired after its last allowed attempt is
+// failed (transient, lease cleared) without another send. Live leases are
+// left to their sender.
+func (q *Queries) FailExhaustedNotificationEmailDeliveries(ctx context.Context, maxAttempts int32) (int64, error) {
+	result, err := q.db.Exec(ctx, failExhaustedNotificationEmailDeliveries, maxAttempts)
 	if err != nil {
 		return 0, err
 	}

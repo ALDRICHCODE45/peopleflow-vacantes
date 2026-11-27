@@ -18,8 +18,11 @@ type Querier interface {
 	// with SKIP LOCKED so instances never take the same row, then set sending with
 	// a fresh lease. next_attempt_at is cleared (CHECK retry ⇔ next_attempt_at);
 	// the returned lease fences the finalize. Leaving 'pending' closes the
-	// coalescing window (the partial unique index only covers 'pending').
-	ClaimNextNotificationEmailDelivery(ctx context.Context, leaseMs int64) (ClaimNextNotificationEmailDeliveryRow, error)
+	// coalescing window (the partial unique index only covers 'pending'). An
+	// expired lease is reclaimed only below max_attempts: a row that already used
+	// every attempt is failed by FailExhaustedNotificationEmailDeliveries instead
+	// of being sent again.
+	ClaimNextNotificationEmailDelivery(ctx context.Context, arg ClaimNextNotificationEmailDeliveryParams) (ClaimNextNotificationEmailDeliveryRow, error)
 	// Fan-out claim (notifications-v1 D4): the oldest pending, due event not
 	// already tried in this tick, locked for the caller's tx; other instances
 	// skip it. An event in retry backoff waits for next_attempt_at.
@@ -154,6 +157,11 @@ type Querier interface {
 	// One purge batch, oldest first; rows another connection holds are left for
 	// the next batch or run.
 	DeleteExpiredNotifications(ctx context.Context, batchSize int32) (int64, error)
+	// Attempt cap on lease reclaim (L20): a delivery left 'sending' by a crashed
+	// or stuck sender whose lease expired after its last allowed attempt is
+	// failed (transient, lease cleared) without another send. Live leases are
+	// left to their sender.
+	FailExhaustedNotificationEmailDeliveries(ctx context.Context, maxAttempts int32) (int64, error)
 	// Sender finalize: a permanent failure (ErrPermanent, or a delivery that can
 	// never render) fails at once, no retry; fenced.
 	FinishNotificationEmailDeliveryFailed(ctx context.Context, arg FinishNotificationEmailDeliveryFailedParams) (int64, error)

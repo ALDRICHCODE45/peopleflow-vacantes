@@ -96,7 +96,7 @@ digest is stage 3 (S1). The system is not in production and all data is disposab
 | D5 | — | **Preference changes (settings or unsubscribe) are not audited.** The audit log is the company's record of actions on company data (owner screen); personal channel choices are not company data, candidates have no company, and the row keeps `source` + `updated_at` for support. Same reasoning as v1 D23. |
 | D6 | S5, S8 | **In-app off ⇒ the row is still created, hidden (`notifications.in_app = false`), decided at creation and never resurfaced.** Full justification in §In-app off. |
 | D7 | S2 | **Preferences are evaluated when the notification is created** (both channels, same tx) and the email preference is **re-checked at send time** — a change applies to everything not yet sent; nothing is re-created or resurrected afterwards. |
-| D8 | S4, S7 | **A new table `notification_email_deliveries` holds one row per email to send**, created by the fan-out and the scheduler **in the same tx, isolated by a savepoint, and only for notification rows actually inserted** (`InsertNotification` becomes `:execrows`) — exactly-once per notification inherits v1 D21, no extra infrastructure; an email-side failure rolls back only to the savepoint, so the in-app rows (and the scheduler run) still commit and that batch gets no email (L13). |
+| D8 | S4, S7 | **A new table `notification_email_deliveries` holds one row per email to send**, created by the fan-out and the scheduler **in the same tx, isolated by a savepoint, and only for notification rows actually inserted** (`InsertNotification` becomes `:execrows`) — exactly-once per notification inherits v1 D21, no extra infrastructure; a **non-transient** email-side failure rolls back only to the savepoint, so the in-app rows (and the scheduler run) still commit and that batch gets no email (L13), while a **transient** one (SQLSTATE 40001, 40P01, 55P03, 57014, class 08, or a non-database error such as a lost connection) fails the whole tx so the fan-out's v1 backoff or the next scheduler run makes the decision again (L20). |
 | D9 | S2, S3, S7 | **Email eligibility at creation** = mailer not `off` ∧ effective email preference on ∧ recipient user live (`deleted_at IS NULL`) with a non-empty email ∧ `lower(btrim(email))` not in `email_suppressions`. Candidates are reached only through accounts (stage-1 rows already exist only for organic participations, v1 D6). Suppression wins over mandatory: a bounced address is never mailed. |
 | D10 | S4 | **Coalescing per `(recipient, group_key)` with a fixed 10-minute window** for the three grouped types; single groups (`n:<id>`, every mandatory type) send immediately. One open delivery per recipient and group, enforced by a partial unique index. Exact rules in §Coalescing. |
 | D11 | S4, S6 | **At send time a delivery is skipped** (no email) when the recipient is gone or has no address, the address got suppressed, the email preference is now off, every linked notification is resolved (any kind), or — non-mandatory only — every linked notification was already read in the app. |
@@ -345,11 +345,15 @@ For each notification row **actually inserted** (fan-out: `InsertNotification` c
 3. `UPDATE notifications SET email_delivery_id = $returned_id WHERE id = $notification_id`.
 
 Steps 2–3 (and their email-preference / deliverability reads) run inside a **savepoint** of the creating tx
-(`emaildelivery.CreateIsolated`, L13). If any of them fails, the tx rolls back to the savepoint only: the in-app rows
+(`emaildelivery.CreateIsolated`, L13). If any of them fails with a **non-transient** error (constraint, missing object,
+an unlinkable row — a retry would fail the same way), the tx rolls back to the savepoint only: the in-app rows
 stay, the event is marked processed (no failed attempt) or the scheduler run commits its rows and resolution, those rows
 get **no delivery** (no email, never retried), and the failure is logged with `step = email` and its SQLSTATE only. A
-failure of the in-app steps still fails the event's tx like any stage-1 insert (v1 D4 backoff); a failure to open,
-release or roll back the savepoint itself fails the tx too. With `NOTIFICATIONS_MAILER=off` steps 2–3 are skipped.
+**transient** failure of the email steps (SQLSTATE 40001 serialization, 40P01 deadlock, 55P03 lock not available, 57014
+statement timeout / cancel, any class-08 connection error, or a non-database error: cancelled context, lost connection)
+is not isolated: it fails the whole tx — no in-app row commits — so the fan-out's v1 backoff retries the event, or the
+next scheduler run (≤ 15 min) decides again (L20). A failure of the in-app steps still fails the event's tx like any
+stage-1 insert (v1 D4 backoff); a failure to open, release or roll back the savepoint itself fails the tx too. With `NOTIFICATIONS_MAILER=off` steps 2–3 are skipped.
 
 ### Coalescing (D10, S4)
 
@@ -384,10 +388,13 @@ Every instance, every **5 s** (and once at start), up to **20 deliveries per tic
 
 1. **Claim** (own short tx): the oldest due row —
    `status = 'pending' AND send_after <= now()`, or `status = 'retry' AND next_attempt_at <= now()`, or
-   `status = 'sending' AND lease_until < now()` (crashed sender) — `ORDER BY send_after, id LIMIT 1 FOR UPDATE SKIP
-   LOCKED`; set `status = 'sending'`, `attempts = attempts + 1`, `lease_until = now() + 2 min`, `next_attempt_at = NULL`
+   `status = 'sending' AND lease_until < now() AND attempts < 8` (crashed sender) — `ORDER BY send_after, id LIMIT 1
+   FOR UPDATE SKIP LOCKED`; set `status = 'sending'`, `attempts = attempts + 1`, `lease_until = now() + 2 min`, `next_attempt_at = NULL`
    (the timer CHECK); one autocommit statement. No network call ever happens inside a tx, so the fan-out is never
-   blocked behind an SMTP call.
+   blocked behind an SMTP call. **Attempt cap on reclaim** (L20): each tick first fails (`error_class = 'transient'`,
+   lease cleared, no send) every `sending` row whose lease expired with `attempts >= 8`, so a sender that keeps dying
+   mid-send cannot resend forever. The claim runs only after a shutdown check and is itself detached from shutdown
+   (5 s timeout): a committed claim is always followed by its attempt and finalize.
 2. **Re-check** (D11, read-only, each read its own autocommit statement), in this order: recipient exists, live and —
    for a member delivery — still a member of the delivery's company, company not soft-deleted (`recipient_gone`);
    non-blank address (`no_address`); address not suppressed (`suppressed`); effective email preference still on,
@@ -399,7 +406,11 @@ Every instance, every **5 s** (and once at start), up to **20 deliveries per tic
    linked row, payload enums of the latest; the link through the inbox rule `inbox.LinkFor`, member `can_open` = owner or
    active assignment, candidates only while they participate) and **send** through the `Mailer` with a 15 s timeout,
    after taking a throttle slot. A view that cannot render (unknown label code, inconsistent link) is a permanent
-   failure; a throttle refused by shutdown is a transient one.
+   failure; a throttle refused by shutdown is a transient one. **Shutdown never cuts a send** (L20): the re-check reads
+   and the `Send` run on a context detached from shutdown, bounded by their own timeouts (10 s / 15 s), so an email in
+   flight completes and is finalized `sent`; shutdown only interrupts the throttle wait (nothing sent, `retry`). A
+   candidate who no longer participates in the process still gets the email, with the fallbacks («una vacante», «una
+   empresa») and the null-link path `/candidato/postulaciones` (L6).
 4. **Finalize** (own tx, fenced by `WHERE id = $id AND status = 'sending' AND lease_until = $lease`):
    - success → `sent`, `sent_at`, `provider_message_id`, `error_class NULL`;
    - transient error (network, timeout, SMTP 4xx, provider throttling) → `retry` with
@@ -412,7 +423,7 @@ Every instance, every **5 s** (and once at start), up to **20 deliveries per tic
   one slot every 1/rate, burst one, taken only right before a send (skips cost nothing), so no second ever exceeds
   the rate; the global rate is that value × instances (Q5). A tick waits for its slots (a 20-claim tick at 1/s lasts
   ~20 s; the next tick starts after it) instead of stopping early, which with a one-second bucket would cap the rate at
-  one email per period. The finalize runs even on shutdown (an attempt cut short becomes a `retry`).
+  one email per period. The finalize runs even on shutdown; stop waits for the in-flight delivery.
 - **At-least-once**: an instance that crashes after the provider accepted a message but before finalizing leaves a
   `sending` row whose lease expires; it is sent again. Accepted (rare, non-production); the stable `Message-ID`
   (`<delivery_id@sender domain>`) lets clients collapse duplicates.

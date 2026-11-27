@@ -133,9 +133,10 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 	// notifications-v2 D8: the email delivery decision, in the run's tx and
 	// only for rows this run inserted (mailer off: none). Every scheduled
 	// type is a single group: immediate deliveries. Isolated by a savepoint
-	// (L13): an email-side failure rolls back only the email part — the run
-	// still commits its rows and resolution — and is logged with step email
-	// and its SQLSTATE.
+	// (L13): a non-transient email-side failure rolls back only the email
+	// part — the run still commits its rows and resolution — and is logged
+	// with step email and its SQLSTATE; a transient one fails the run, and
+	// the next run decides again (L20).
 	if r.email {
 		isolated, err := emaildelivery.CreateIsolated(ctx, tx, created)
 		if err != nil {

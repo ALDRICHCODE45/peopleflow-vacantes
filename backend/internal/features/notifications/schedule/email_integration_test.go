@@ -198,3 +198,43 @@ func TestScheduleSoftDeletedRecipientGetsNoDelivery(t *testing.T) {
 		t.Fatalf("got %v want %v", got, want)
 	}
 }
+
+// L20 (R4): a transient failure inside the email step (lock timeout, 55P03,
+// on a locked email_suppressions) fails the whole run — nothing commits — so
+// the next run creates the rows and their deliveries.
+func TestScheduleTransientEmailFailureFailsTheRun(t *testing.T) {
+	pool := disposableDB(t)
+	ctx := context.Background()
+	w := newWorld(t, pool)
+	j := w.newJob(t, pool, "published", "active", date(25))
+	cfg := pool.Config().Copy()
+	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "200ms"
+	short, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(short.Close)
+	lock, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lock.Exec(ctx, `LOCK TABLE email_suppressions IN ACCESS EXCLUSIVE MODE`); err != nil {
+		t.Fatal(err)
+	}
+	runner := NewRunner(short, func() time.Time { return at(26) }).WithEmailDeliveries(true)
+	_, runErr := runner.RunOnce(ctx)
+	if err := lock.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if step, sqlstate := classify(runErr); step != "email" || sqlstate != "55P03" {
+		t.Fatalf("run error %v (step %s sqlstate %s), want the email step's lock timeout", runErr, step, sqlstate)
+	}
+	assertItems(t, pool, j.id)
+	if res, err := runner.RunOnce(ctx); err != nil || res.DeliveryCreated != 2 {
+		t.Fatalf("next run %+v %v", res, err)
+	}
+	want := map[mailed]bool{{"delivery_overdue", w.owner.String(), true}: true, {"delivery_overdue", w.recruiter.String(), true}: true}
+	if got := scheduledDeliveries(t, pool, w.company); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+}

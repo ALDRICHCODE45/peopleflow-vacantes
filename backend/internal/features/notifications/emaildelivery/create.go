@@ -10,12 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/domain"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/notifications/preferences"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -92,12 +94,16 @@ func Create(ctx context.Context, q *db.Queries, rows []Row) error {
 }
 
 // CreateIsolated runs Create inside a savepoint of the caller's tx
-// (notifications-v2 D8 as refined by L13): when the email decision fails,
-// only its own writes are rolled back to the savepoint, so the caller keeps
-// its in-app rows and commits; that batch simply gets no delivery. isolated
-// is the rolled-back email error (nil on success) for the caller to log with
-// step email and its SQLSTATE; err means the savepoint itself could not be
-// opened, released or rolled back, and the caller's tx must fail.
+// (notifications-v2 D8 as refined by L13 and L20). A non-transient failure
+// (constraint, missing object, a link that cannot be made — retrying would
+// fail the same way) is rolled back to the savepoint only, so the caller
+// keeps its in-app rows and commits; that batch simply gets no delivery, and
+// isolated carries the error for the caller to log with step email and its
+// SQLSTATE. A transient failure (see transient) is returned as err without
+// isolation: the caller's tx must fail so its own retry absorbs it (the
+// fan-out's v1 backoff, the scheduler's next run) and the email decision is
+// made again. err also covers a savepoint that could not be opened, released
+// or rolled back.
 func CreateIsolated(ctx context.Context, tx pgx.Tx, rows []Row) (isolated, err error) {
 	if len(rows) == 0 {
 		return nil, nil
@@ -107,12 +113,32 @@ func CreateIsolated(ctx context.Context, tx pgx.Tx, rows []Row) (isolated, err e
 		return nil, err
 	}
 	if cerr := Create(ctx, db.New(sp), rows); cerr != nil {
+		if transient(cerr) {
+			return nil, cerr
+		}
 		if rerr := sp.Rollback(ctx); rerr != nil { // ROLLBACK TO SAVEPOINT
 			return cerr, rerr
 		}
 		return cerr, nil
 	}
 	return nil, sp.Commit(ctx) // RELEASE SAVEPOINT
+}
+
+// transient reports an email-step failure that a retry may cure: SQLSTATE
+// 40001 (serialization), 40P01 (deadlock), 55P03 (lock not available),
+// 57014 (statement timeout / cancel), any connection-class 08 error, and every
+// non-database error except errNotLinked (a cancelled context, a lost
+// connection, a network error).
+func transient(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "40001", "40P01", "55P03", "57014":
+			return true
+		}
+		return strings.HasPrefix(pgErr.Code, "08")
+	}
+	return !errors.Is(err, errNotLinked)
 }
 
 // create inserts or joins the row's delivery and links the row to it.

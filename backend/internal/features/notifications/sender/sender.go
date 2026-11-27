@@ -45,6 +45,10 @@ const (
 	// context was cancelled (shutdown) so a claimed row never waits for its
 	// lease to expire.
 	finalizeTimeout = 10 * time.Second
+	// claimTimeout bounds the claim and the exhausted-lease sweep; both run
+	// detached from shutdown so a committed claim is always followed by its
+	// attempt and finalize.
+	claimTimeout = 5 * time.Second
 )
 
 // Skip reasons of the D11 re-check (the skip_reason CHECK values).
@@ -116,11 +120,18 @@ type result struct {
 	cause    error
 }
 
-// Tick processes up to BatchSize due deliveries, oldest first, each claimed,
+// Tick first fails the expired leases that already used every attempt, then
+// processes up to BatchSize due deliveries, oldest first, each claimed,
 // attempted and finalized on its own. It returns the number claimed and stops
 // early when nothing is due, the claim fails (database unavailable) or ctx
-// ends.
+// ends — checked before every claim, never between a claim and its finalize.
 func (s *Sender) Tick(ctx context.Context) (int, error) {
+	if ctx.Err() != nil {
+		return 0, nil
+	}
+	if err := s.failExhausted(ctx); err != nil {
+		return 0, err
+	}
 	n := 0
 	for n < s.batch {
 		if ctx.Err() != nil {
@@ -135,10 +146,31 @@ func (s *Sender) Tick(ctx context.Context) (int, error) {
 	return n, nil
 }
 
+// failExhausted is the attempt cap on lease reclaim (L20): 'sending' rows
+// whose lease expired after their last allowed attempt end failed
+// (transient) without another send.
+func (s *Sender) failExhausted(ctx context.Context) error {
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), claimTimeout)
+	defer cancel()
+	n, err := db.New(s.pool).FailExhaustedNotificationEmailDeliveries(cctx, int32(s.maxAttempts))
+	if err != nil {
+		return stepErr(stepClaim, err)
+	}
+	if n > 0 {
+		s.logger.Error("notification email deliveries exhausted on an expired lease", "exhausted", n, "status", "failed", "error_class", "transient")
+	}
+	return nil
+}
+
 // processNext claims one due delivery (autocommit: no tx stays open),
-// attempts it and finalizes it. false with nil = nothing due.
+// attempts it and finalizes it. false with nil = nothing due. The claim is
+// detached from shutdown (the caller checked ctx just before): once it
+// commits, the attempt and the finalize always follow.
 func (s *Sender) processNext(ctx context.Context) (bool, error) {
-	row, err := db.New(s.pool).ClaimNextNotificationEmailDelivery(ctx, s.lease.Milliseconds())
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), claimTimeout)
+	defer cancel()
+	row, err := db.New(s.pool).ClaimNextNotificationEmailDelivery(cctx, db.ClaimNextNotificationEmailDeliveryParams{
+		LeaseMs: s.lease.Milliseconds(), MaxAttempts: int32(s.maxAttempts)})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -154,15 +186,21 @@ func (s *Sender) processNext(ctx context.Context) (bool, error) {
 }
 
 // attempt re-checks, renders, waits for the throttle and sends — outside any
-// transaction. A panic becomes a transient failure (its value is dropped), so
-// a poisoned delivery still ends after MaxAttempts.
+// transaction. Shutdown only interrupts the throttle wait (nothing sent yet,
+// the attempt retries); the re-check reads and the Send itself are detached
+// from it, bounded by their own timeouts, so an email in flight completes and
+// is finalized sent. A panic becomes a transient failure (its value is
+// dropped), so a poisoned delivery still ends after MaxAttempts.
 func (s *Sender) attempt(ctx context.Context, c claimed) (res result) {
+	detached := context.WithoutCancel(ctx)
 	defer func() {
 		if recover() != nil {
 			res = result{outcome: outcomeTransient, cause: stepErr(stepPanic, errPanic)}
 		}
 	}()
-	view, skip, err := s.prepare(ctx, c)
+	pctx, cancelPrepare := context.WithTimeout(detached, finalizeTimeout)
+	view, skip, err := s.prepare(pctx, c)
+	cancelPrepare()
 	if err != nil {
 		return result{outcome: outcomeTransient, cause: err}
 	}
@@ -178,7 +216,7 @@ func (s *Sender) attempt(ctx context.Context, c claimed) (res result) {
 	if err := s.throttle.Wait(ctx); err != nil {
 		return result{outcome: outcomeTransient, cause: stepErr(stepThrottle, err)}
 	}
-	sendCtx, cancel := context.WithTimeout(ctx, s.sendTimeout)
+	sendCtx, cancel := context.WithTimeout(detached, s.sendTimeout)
 	defer cancel()
 	provider, err := s.mailer.Send(sendCtx, msg)
 	if err != nil {
