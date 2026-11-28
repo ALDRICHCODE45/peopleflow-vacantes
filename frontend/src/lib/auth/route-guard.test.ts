@@ -176,4 +176,120 @@ describe("social sign-in authorization params", () => {
     await guarded(new NextRequest(`${SITE}/api/auth/callback/password`, { method: "POST" }), ctx);
     expect(handler).toHaveBeenCalledTimes(2);
   });
+
+  it.each([
+    ["a scope override", "/api/auth/signin/cognito?scope=openid"],
+    ["a disabled provider", "/api/auth/signin/cognito?identity_provider=LinkedIn"],
+    ["a redirect override", "/api/auth/signin/%63ognito/x?redirect_uri=https://evil.example"],
+  ])("passes a GET with %s to NextAuth unchanged: GET never starts an authorization (only POST does)", async (_label, path) => {
+    const { guarded, handler } = setup();
+    const request = new NextRequest(`${SITE}${path}`, { method: "GET" });
+    await guarded(request, ctx);
+    expect(handler).toHaveBeenCalledExactlyOnceWith(request, ctx);
+  });
+});
+
+describe("lazy social flags", () => {
+  it("resolves the enabled providers on each sign-in, not when the route is built", async () => {
+    const handler = vi.fn(async () => new Response("{}", { status: 200 }));
+    const socialProviders = vi.fn(() => [{ id: "google" as const, identityProvider: "Google" }]);
+    const guarded = guardAuthRoute(handler, { secret: SECRET, siteUrl: SITE, socialProviders });
+    expect(socialProviders).not.toHaveBeenCalled();
+    await guarded(new NextRequest(`${SITE}/api/auth/session`), ctx);
+    expect(socialProviders).not.toHaveBeenCalled();
+    await guarded(new NextRequest(`${SITE}/api/auth/signin/cognito?identity_provider=Google`, { method: "POST" }), ctx);
+    expect(socialProviders).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses identity_provider sign-ins when the provider config cannot be read, and leaves every other auth route working", async () => {
+    const handler = vi.fn(async () => new Response("{}", { status: 200 }));
+    const guarded = guardAuthRoute(handler, {
+      secret: SECRET, siteUrl: SITE,
+      socialProviders: () => { throw new Error("AUTH_SOCIAL_GOOGLE: must be on or off"); },
+    });
+    const social = await guarded(new NextRequest(`${SITE}/api/auth/signin/cognito?identity_provider=Google`, { method: "POST" }), ctx);
+    expect(social.status).toBe(400);
+    expect(handler).not.toHaveBeenCalled();
+    for (const request of [
+      new NextRequest(`${SITE}/api/auth/session`),
+      new NextRequest(`${SITE}/api/auth/csrf`),
+      new NextRequest(`${SITE}/api/auth/providers`),
+      new NextRequest(`${SITE}/api/auth/callback/password`, { method: "POST" }),
+    ]) {
+      expect((await guarded(request, ctx)).status).toBe(200);
+    }
+    expect(handler).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("password callback rate limiting", () => {
+  function passwordPost(body: Record<string, string>, ip = "198.51.100.1", contentType = "application/x-www-form-urlencoded") {
+    return new NextRequest(`${SITE}/api/auth/callback/password`, {
+      method: "POST",
+      headers: { "content-type": contentType, "x-forwarded-for": ip },
+      body: contentType.includes("json") ? JSON.stringify(body) : new URLSearchParams(body).toString(),
+    });
+  }
+
+  type Attempt = (operation: string, keys: { ip: string; email?: string }) => { ok: true } | { ok: false; retryAfterMs: number };
+  function setupLimited(attempt = vi.fn<Attempt>(() => ({ ok: true }))) {
+    const handler = vi.fn(async (request: NextRequest) => {
+      // NextAuth reads the body itself: the guard must leave it readable.
+      const body = new URLSearchParams(await request.text());
+      return new Response(JSON.stringify({ url: `${SITE}/empresa/dashboard`, email: body.get("email") }), { status: 200 });
+    });
+    const guarded = guardAuthRoute(handler as never, { secret: SECRET, siteUrl: SITE, socialProviders: [], rateLimiter: { attempt } });
+    return { guarded, handler, attempt };
+  }
+
+  it("checks the client address and the submitted email before NextAuth runs, and leaves the body readable", async () => {
+    const { guarded, handler, attempt } = setupLimited();
+    const response = await guarded(passwordPost({ email: "Laura@Empresa.mx", password: "fixture-password", csrfToken: "c", json: "true" }), ctx);
+    expect(attempt).toHaveBeenCalledExactlyOnceWith("signIn", { ip: "198.51.100.1", email: "Laura@Empresa.mx" });
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(await response.json()).toMatchObject({ email: "Laura@Empresa.mx" });
+    expect(JSON.stringify(attempt.mock.calls)).not.toContain("fixture-password");
+  });
+
+  it("reads the email from a JSON body as NextAuth does", async () => {
+    const { guarded, attempt } = setupLimited();
+    await guarded(passwordPost({ email: "a@x.mx", password: "p" }, "198.51.100.2", "application/json"), ctx);
+    expect(attempt).toHaveBeenCalledWith("signIn", { ip: "198.51.100.2", email: "a@x.mx" });
+  });
+
+  it("answers too_many_attempts over the limit without reaching NextAuth (so never Cognito)", async () => {
+    const { guarded, handler } = setupLimited(vi.fn(() => ({ ok: false as const, retryAfterMs: 61_500 })));
+    const response = await guarded(passwordPost({ email: "a@x.mx", password: "fixture-password", json: "true" }), ctx);
+    expect(handler).not.toHaveBeenCalled();
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("62");
+    expect(await response.json()).toEqual({ url: `${SITE}/api/auth/error?error=too_many_attempts` });
+  });
+
+  it("limits through the real attempt limiter per email across addresses", async () => {
+    const { createAuthAttemptLimiter, AUTH_RATE_LIMITS } = await import("./rate-limit");
+    const handler = vi.fn(async () => new Response("{}", { status: 200 }));
+    const guarded = guardAuthRoute(handler, { secret: SECRET, siteUrl: SITE, socialProviders: [], rateLimiter: createAuthAttemptLimiter({ now: () => 0 }) });
+    const { limit } = AUTH_RATE_LIMITS.signIn.perEmail;
+    for (let i = 0; i < limit; i++) await guarded(passwordPost({ email: "a@x.mx", password: "p" }, `198.51.100.${i}`), ctx);
+    const blocked = await guarded(passwordPost({ email: " A@X.MX", password: "p" }, "203.0.113.9"), ctx);
+    expect(blocked.status).toBe(429);
+    expect(handler).toHaveBeenCalledTimes(limit);
+  });
+
+  it("does not rate limit other auth requests", async () => {
+    const { guarded, attempt } = setupLimited();
+    await guarded(new NextRequest(`${SITE}/api/auth/session`), ctx);
+    await guarded(new NextRequest(`${SITE}/api/auth/callback/password`), ctx);
+    expect(attempt).not.toHaveBeenCalled();
+  });
+
+  it("limits the password callback reached through decoded or extra segments", async () => {
+    const { guarded, attempt } = setupLimited();
+    for (const path of ["/api/auth/callback/%70assword", "/api/auth/callback/password/x", "/api/auth/CALLBACK/password/"]) {
+      await guarded(new NextRequest(`${SITE}${path}`, { method: "POST", body: "email=a%40x.mx", headers: { "content-type": "application/x-www-form-urlencoded" } }), ctx);
+    }
+    expect(attempt).toHaveBeenCalledTimes(3);
+  });
 });

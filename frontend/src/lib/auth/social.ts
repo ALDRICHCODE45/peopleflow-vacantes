@@ -67,9 +67,44 @@ export function socialProvidersFromEnv(env: AuthEnvSource): SocialProvider[] {
 }
 
 /**
- * Server helper for the sign-in screens: the enabled providers (id + Cognito
- * IdP name), read from the server environment on each call.
+ * Server helper: the enabled providers (id + Cognito IdP name), read from the
+ * server environment on each call. Throws on an invalid value; the screens and
+ * the auth route use `resolveSocialProviders` instead.
  */
 export function getSocialProviders(): SocialProvider[] {
   return socialProvidersFromEnv(process.env);
+}
+
+/** Fixed prefix operators can alert on; the line names the key only, never its value. */
+export const SOCIAL_CONFIG_ERROR_PREFIX = "[auth] social_config_invalid";
+
+const SOCIAL_KEYS: readonly string[] = SOCIAL_PROVIDER_IDS.flatMap((id) => [SOCIAL_ENV_KEYS[id].flag, SOCIAL_ENV_KEYS[id].identityProvider]);
+
+function keyOf(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  const key = message.slice(0, message.indexOf(":"));
+  return SOCIAL_KEYS.includes(key) ? key : "unknown";
+}
+
+/**
+ * Lazy, non-throwing resolution (L16 R3/R4) for the sign-in screens and the
+ * auth route guard, called per request: an invalid AUTH_SOCIAL_* value turns
+ * every social provider off (no buttons, identity_provider sign-ins refused)
+ * and leaves one operator line, while password sign-in and every other
+ * /api/auth/* route keep working.
+ */
+export function resolveSocialProviders(
+  env: AuthEnvSource = process.env,
+  log: (line: string) => void = (line) => console.warn(line),
+): SocialProvider[] {
+  try {
+    return socialProvidersFromEnv(env);
+  } catch (error) {
+    try {
+      log(`${SOCIAL_CONFIG_ERROR_PREFIX} key=${keyOf(error)}`);
+    } catch {
+      // Logging must never alter authentication.
+    }
+    return [];
+  }
 }

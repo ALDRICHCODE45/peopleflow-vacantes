@@ -281,6 +281,19 @@ describe("password (credentials) sessions in the production callbacks", () => {
     expect(session).toEqual({ expires: publicSession.expires, error: "RefreshAccessTokenError" });
   });
 
+  it("wires the throttled-refresh operator signal into the production callbacks", async () => {
+    const { client } = fakeCognito({ ok: false, reason: "too_many_attempts" });
+    const onServiceError = vi.fn();
+    const options = buildAuthOptions(env, undefined, {}, { cognito: () => client, onServiceError });
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    const token = await options.callbacks!.jwt!({
+      token: { sub: SUB, name: "Laura", authKind: "password", accessToken: "fixture-old", refreshToken: "fixture-private-refresh", expiresAt: 1 } as JWT,
+      account: null, user: { id: SUB },
+    });
+    expect(token.error).toBe("RefreshAccessTokenError");
+    expect(onServiceError).toHaveBeenCalledExactlyOnceWith("refresh", "RefreshThrottled");
+  });
+
   it("keeps OAuth sessions on the token endpoint even when a Cognito client exists", async () => {
     const { client, refresh } = fakeCognito();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ access_token: "fixture-new-access", expires_in: 3600 }) }));

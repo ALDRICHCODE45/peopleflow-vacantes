@@ -1,4 +1,5 @@
 import type { CognitoClient } from "./cognito/client";
+import type { CognitoClientOperation } from "./cognito/errors";
 import { isCognitoSubject } from "./token-shape";
 import {
   classifyRefreshCategory,
@@ -172,7 +173,17 @@ export type SessionRefreshConfig = {
   oauth: Omit<RefreshAccessTokenOptions, "refreshToken">;
   /** Password sessions: InitiateAuth REFRESH_TOKEN_AUTH through the server-only client. */
   cognito?: () => Pick<CognitoClient, "refresh">;
+  /**
+   * Operator hook (service-log.ts). The Cognito client reports configuration
+   * and service failures itself, but maps throttling to `too_many_attempts`
+   * silently; a throttled refresh expires a live session, so it is reported
+   * here as `RefreshThrottled` (L16 R4). Token-free: operation and name only.
+   */
+  onServiceError?: (operation: CognitoClientOperation, errorName: string | null) => void;
 };
+
+/** Synthetic error name for a password refresh Cognito refused with throttling. */
+export const REFRESH_THROTTLED = "RefreshThrottled";
 
 /**
  * The one refresh entry for both session kinds. Password sessions refresh with
@@ -196,7 +207,16 @@ export async function refreshSessionTokens(
   } catch {
     throw new Error(REFRESH_FAILED);
   }
-  if (!result.ok) throw new Error(REFRESH_FAILED);
+  if (!result.ok) {
+    if (result.reason === "too_many_attempts") {
+      try {
+        config.onServiceError?.("refresh", REFRESH_THROTTLED);
+      } catch {
+        // An observer must never change the auth outcome.
+      }
+    }
+    throw new Error(REFRESH_FAILED);
+  }
   return { accessToken: result.tokens.accessToken, refreshToken: result.tokens.refreshToken, expiresAt: result.tokens.expiresAt };
 }
 

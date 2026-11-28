@@ -1,12 +1,12 @@
 import * as React from "react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import CandidateLoginPage, { metadata as candidateMetadata } from "../../app/(auth)/candidato/login/page";
-import EmployerLoginPage, { metadata as employerMetadata } from "../../app/(auth)/empresa/login/page";
+import CandidateLoginPage, { dynamic as candidateDynamic, metadata as candidateMetadata } from "../../app/(auth)/candidato/login/page";
+import EmployerLoginPage, { dynamic as employerDynamic, metadata as employerMetadata } from "../../app/(auth)/empresa/login/page";
 import { LoginScreen } from "./LoginScreen";
 
 // UISC-02: no rendered implementation-status vocabulary may survive. Sales copy
@@ -21,21 +21,25 @@ const visualPanelCss = readFileSync(
   "utf8",
 );
 
-// The shell must never read the network. A named spy makes the negative
-// assertion inspectable instead of implied by the stubbed rejection.
+// The shell itself never reads the network: only its injected controls do.
 const fetchSpy = vi.fn(() => Promise.reject(new Error("login shell must not call any API")));
 
 // CCP-R7D2C: jsdom has no WebGL, so the OGL leaf is stubbed here and the real
 // canvas/palette/blend proof lives in the Chromium slice. The stub renders the
 // leaf's own host element and echoes the `variant` prop, which is exactly what
-// the shell must wire.
-// The real managed-login leaf is covered by EmployerAuthControls.test.tsx.
-// Keep shell regression tests independent of live session fetching.
+// the shell must wire. The real sign-in leaves are covered by their own tests
+// (EmployerAuthControls, CandidateAuthControls, sign-in/SignInForm); here they
+// echo the social providers the route resolved on the server.
+type Providers = { socialProviders?: readonly { id: string; identityProvider: string }[] };
 vi.mock("./CandidateAuthControls", () => ({
-  CandidateAuthControls: () => <button type="button">Ingresar</button>,
+  CandidateAuthControls: ({ socialProviders = [] }: Providers) => (
+    <div data-testid="candidate-controls" data-providers={socialProviders.map((p) => p.id).join(",")}><button type="button">Ingresar</button></div>
+  ),
 }));
 vi.mock("./EmployerAuthControls", () => ({
-  EmployerAuthControls: () => <button type="button">Ingresar con Cognito</button>,
+  EmployerAuthControls: ({ socialProviders = [] }: Providers) => (
+    <div data-testid="employer-controls" data-providers={socialProviders.map((p) => p.id).join(",")}><button type="button">Ingresar</button></div>
+  ),
 }));
 
 vi.mock("./FloatingLines", () => ({
@@ -44,11 +48,12 @@ vi.mock("./FloatingLines", () => ({
   ),
 }));
 
+const controls = <div data-testid="controls"><button type="button">Ingresar</button></div>;
+
 beforeAll(() => {
   // The shell mounts the persisted ThemeToggle client leaf; jsdom implements
   // neither matchMedia nor, therefore, that leaf's media listener.
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
-  // Visual-only stage: rendering must never trigger a network read.
   vi.stubGlobal("fetch", fetchSpy);
 });
 
@@ -56,107 +61,40 @@ beforeEach(() => {
   fetchSpy.mockClear();
 });
 
+afterEach(() => {
+  cleanup();
+  vi.unstubAllEnvs();
+});
+
 describe("LoginScreen variant copy", () => {
-  it("renders the employer reference copy and providers", () => {
-    render(<LoginScreen variant="employer" />);
+  it("renders the employer reference copy around its sign-in controls", () => {
+    render(<LoginScreen variant="employer" authControls={controls} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ingresa a tu cuenta");
     expect(screen.getByText("Gestiona tus vacantes y tu pipeline.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /continuar con microsoft/i })).toBeInTheDocument();
+    expect(screen.getByText("Acceso empresas")).toBeInTheDocument();
+    expect(screen.getByTestId("controls")).toBeInTheDocument();
   });
 
-  it("renders the candidate reference copy and providers", () => {
-    render(<LoginScreen variant="candidate" />);
+  it("renders the candidate reference copy around its sign-in controls", () => {
+    render(<LoginScreen variant="candidate" authControls={controls} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ingresa a tu perfil");
     expect(screen.getByText("Sigue tus postulaciones y su estado.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /continuar con linkedin/i })).toBeInTheDocument();
+    expect(screen.getByText("Acceso candidatos")).toBeInTheDocument();
   });
 });
 
-describe("LoginScreen truthfulness and security", () => {
-  it("renders no form, no submit surface and no credential names", () => {
-    const { container } = render(<LoginScreen variant="employer" />);
-    expect(container.querySelector("form")).toBeNull();
-    expect(document.querySelector('[name="email"], [name="password"], [name="remember"]')).toBeNull();
-    expect(document.querySelectorAll('button[type="submit"], input[type="submit"]')).toHaveLength(0);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("keeps both credential inputs non-editable, unnamed and fixed empty", () => {
-    render(<LoginScreen variant="employer" />);
-    const email = screen.getByLabelText("Email corporativo");
-    const password = screen.getByLabelText("Contraseña");
-    expect(email).toHaveAttribute("type", "email");
-    expect(password).toHaveAttribute("type", "password");
-    for (const field of [email, password]) {
-      expect(field).toHaveAttribute("readonly");
-      expect(field).toHaveValue("");
-      expect(field).not.toHaveAttribute("name");
-    }
-  });
-
-  it("enables exactly the intended visible auth actions and drops the preview disclosure", () => {
-    const { container } = render(<LoginScreen variant="candidate" />);
-    // The visible <p role="status"> disclosure is gone, not merely reworded.
-    expect(container.querySelectorAll('[role="status"], [role="alert"]')).toHaveLength(0);
-    // No placeholder is left disabled: every rendered control is enabled.
-    expect(container.querySelectorAll("[disabled], [aria-disabled='true']")).toHaveLength(0);
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(6); // theme toggle + CTA + 2 providers + forgot + register
-    for (const button of buttons) expect(button).toBeEnabled();
-    for (const name of [
-      "Ingresar",
-      "Continuar con Google",
-      "Continuar con LinkedIn",
-      "¿Olvidaste tu contraseña?",
-      "Crea tu perfil",
-    ]) {
-      expect(screen.getByRole("button", { name})).toBeEnabled();
-    }
-    expect(screen.getByRole("checkbox", { name: "Mantener sesión iniciada" })).toBeEnabled();
-    expect(screen.getByRole("group", { name: "Datos de acceso" })).toBeInTheDocument();
-  });
-
-  it("renders recovery and registration as enabled, keyboard-focusable buttons, never links", () => {
-    const { container } = render(<LoginScreen variant="employer" />);
-    const forgot = screen.getByRole("button", { name: "¿Olvidaste tu contraseña?" });
-    const register = screen.getByRole("button", { name: "Registra tu empresa" });
-    for (const control of [forgot, register]) {
-      expect(control.tagName).toBe("BUTTON");
-      expect(control).toHaveAttribute("type", "button");
-      expect(control).toBeEnabled();
-      expect(control).not.toHaveAttribute("href");
-      expect(control).not.toHaveAttribute("onclick");
-      expect(control.closest("form")).toBeNull();
-      expect(control.closest("a")).toBeNull();
-    }
-    // Only the root and the genuine reciprocal route stay real anchors.
-    const hrefs = Array.from(container.querySelectorAll("a")).map((anchor) => anchor.getAttribute("href"));
-    expect(hrefs.length).toBeGreaterThanOrEqual(2);
-    expect(hrefs.every((href) => href === "/" || href === "/candidato/login")).toBe(true);
-  });
-
-  it("keeps every auth control inert: activation neither navigates nor reaches the network", () => {
-    const { container } = render(<LoginScreen variant="employer" />);
-    const controls = Array.from(container.querySelectorAll("button, input[type='checkbox']"));
-    expect(controls.length).toBeGreaterThanOrEqual(6);
-    for (const control of controls) {
-      expect(control).not.toHaveAttribute("href");
-      expect(control).not.toHaveAttribute("onclick");
-      expect(control.closest("a")).toBeNull();
-      expect(control.closest("form")).toBeNull();
-    }
-    const before = window.location.href;
-    fireEvent.click(screen.getByRole("button", { name: "¿Olvidaste tu contraseña?" }));
-    fireEvent.click(screen.getByRole("button", { name: "Registra tu empresa" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ingresar" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Mantener sesión iniciada" }));
-    expect(window.location.href).toBe(before);
+describe("LoginScreen shell truthfulness", () => {
+  it("no longer carries the inert placeholder shell: no read-only credential inputs or handler-less auth buttons", () => {
+    const { container } = render(<LoginScreen variant="employer" authControls={controls} />);
+    expect(container.querySelectorAll("input[readonly]")).toHaveLength(0);
+    expect(screen.queryByRole("group", { name: "Datos de acceso" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Registra tu empresa|Olvidaste/ })).not.toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("bans implementation-status and demo vocabulary from the rendered shell copy", () => {
     for (const variant of ["employer", "candidate"] as const) {
-      const { container, unmount } = render(<LoginScreen variant={variant} />);
+      const { container, unmount } = render(<LoginScreen variant={variant} authControls={controls} />);
       expect(container.textContent ?? "").not.toMatch(PROHIBITED_COPY);
       unmount();
     }
@@ -164,24 +102,41 @@ describe("LoginScreen truthfulness and security", () => {
 });
 
 describe("LoginScreen navigation and theme control", () => {
+  it("links each variant to its own account-creation route (A4.4 / A4.5)", () => {
+    const employer = render(<LoginScreen variant="employer" authControls={controls} />);
+    expect(screen.getByText(/¿No tienes cuenta\?/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Registra tu empresa" })).toHaveAttribute("href", "/empresa/registro");
+    employer.unmount();
+    render(<LoginScreen variant="candidate" authControls={controls} />);
+    expect(screen.getByText(/¿No tienes perfil\?/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Crea tu perfil" })).toHaveAttribute("href", "/candidato/registro");
+  });
+
   it("links each variant to its genuine reciprocal route and back to the root", () => {
-    const employer = render(<LoginScreen variant="employer" />);
+    const employer = render(<LoginScreen variant="employer" authControls={controls} />);
     expect(screen.getByRole("link", { name: /ingresa aquí/i })).toHaveAttribute("href", "/candidato/login");
     expect(document.querySelectorAll('a[href="/"]').length).toBeGreaterThan(0);
     employer.unmount();
-    render(<LoginScreen variant="candidate" />);
+    render(<LoginScreen variant="candidate" authControls={controls} />);
     expect(screen.getByRole("link", { name: /ingresa aquí/i })).toHaveAttribute("href", "/empresa/login");
   });
 
+  it("keeps 44 px targets on the footer links", () => {
+    render(<LoginScreen variant="candidate" authControls={controls} />);
+    for (const name of ["Crea tu perfil", "Ingresa aquí", "Volver al inicio"]) {
+      expect(screen.getByRole("link", { name }).className).toContain("min-h-11");
+    }
+  });
+
   it("keeps the persisted ThemeToggle as the shell's own client leaf", () => {
-    render(<LoginScreen variant="candidate" />);
+    render(<LoginScreen variant="candidate" authControls={controls} />);
     expect(screen.getByRole("button", { name: /cambiar tema/i })).toHaveAttribute("data-pf-theme-toggle");
   });
 });
 
 describe("LoginScreen static visual panel", () => {
   it("renders one decorative desktop-only panel with the white wordmark the animation needs in both themes", () => {
-    const { container } = render(<LoginScreen variant="employer" />);
+    const { container } = render(<LoginScreen variant="employer" authControls={controls} />);
     const panel = container.querySelector("[data-login-visual-panel]");
     expect(panel).not.toBeNull();
     expect(panel).toHaveAttribute("aria-hidden", "true");
@@ -209,7 +164,7 @@ describe("LoginScreen static visual panel", () => {
   });
 
   it("keeps one main landmark and the mobile brand link", () => {
-    const { container } = render(<LoginScreen variant="candidate" />);
+    const { container } = render(<LoginScreen variant="candidate" authControls={controls} />);
     expect(container.querySelectorAll("main")).toHaveLength(1);
     const brandLink = container.querySelector('a[href="/"]');
     expect(brandLink).not.toBeNull();
@@ -221,7 +176,7 @@ describe("LoginScreen static visual panel", () => {
       ["employer", "Ingresa a tu cuenta"],
       ["candidate", "Ingresa a tu perfil"],
     ] as const) {
-      const { container, unmount } = render(<LoginScreen variant={variant} />);
+      const { container, unmount } = render(<LoginScreen variant={variant} authControls={controls} />);
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(heading);
       const panel = container.querySelector("[data-login-visual-panel]");
       expect(panel).not.toBeNull();
@@ -236,7 +191,7 @@ describe("LoginScreen static visual panel", () => {
   });
 
   it("keeps the animated leaf as the first child under the z-10 white wordmark and the static tint layer", () => {
-    const { container } = render(<LoginScreen variant="employer" />);
+    const { container } = render(<LoginScreen variant="employer" authControls={controls} />);
     const panel = container.querySelector("[data-login-visual-panel]")!;
     expect(panel.firstElementChild).toBe(panel.querySelector("[data-floating-lines-host]"));
     // The static branded tint stays wired on the panel as the fallback layer.
@@ -254,14 +209,40 @@ describe("login routes", () => {
     expect(candidateMetadata.robots).toEqual({ index: false, follow: false });
   });
 
-  it("renders the exact variant from each route", () => {
+  it("renders the exact variant from each route with its real sign-in controls", () => {
     const employer = render(<EmployerLoginPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ingresa a tu cuenta");
-    expect(screen.getByRole("button", { name: "Ingresar con Cognito" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Contraseña")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /continuar con microsoft/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("employer-controls")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cognito/ })).not.toBeInTheDocument();
     employer.unmount();
     render(<CandidateLoginPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ingresa a tu perfil");
+    expect(screen.getByTestId("candidate-controls")).toBeInTheDocument();
+  });
+
+  it("hands the server-enabled social providers to each route's controls", () => {
+    vi.stubEnv("AUTH_SOCIAL_GOOGLE", "on");
+    vi.stubEnv("AUTH_SOCIAL_LINKEDIN", "on");
+    vi.stubEnv("AUTH_SOCIAL_MICROSOFT", "off");
+    const employer = render(<EmployerLoginPage />);
+    expect(screen.getByTestId("employer-controls")).toHaveAttribute("data-providers", "google,linkedin");
+    employer.unmount();
+    render(<CandidateLoginPage />);
+    expect(screen.getByTestId("candidate-controls")).toHaveAttribute("data-providers", "google,linkedin");
+  });
+
+  it("still renders both routes, without social buttons, when a social flag is invalid", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("AUTH_SOCIAL_GOOGLE", "yes");
+    const employer = render(<EmployerLoginPage />);
+    expect(screen.getByTestId("employer-controls")).toHaveAttribute("data-providers", "");
+    employer.unmount();
+    render(<CandidateLoginPage />);
+    expect(screen.getByTestId("candidate-controls")).toHaveAttribute("data-providers", "");
+  });
+
+  it("renders per request so social flags are read at runtime, not frozen at build", () => {
+    expect(employerDynamic).toBe("force-dynamic");
+    expect(candidateDynamic).toBe("force-dynamic");
   });
 });

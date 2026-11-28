@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { IDENTITY_PROVIDER_PARAM, SOCIAL_ENV_KEYS, getSocialProviders, socialProvidersFromEnv } from "./social";
+import { IDENTITY_PROVIDER_PARAM, SOCIAL_CONFIG_ERROR_PREFIX, SOCIAL_ENV_KEYS, getSocialProviders, resolveSocialProviders, socialProvidersFromEnv } from "./social";
 
 describe("social provider flags", () => {
   it("names the per-provider flags and configurable Cognito IdP names", () => {
@@ -67,5 +67,29 @@ describe("getSocialProviders (server helper for the screens)", () => {
     vi.stubEnv("AUTH_SOCIAL_MICROSOFT", "off");
     vi.stubEnv("AUTH_SOCIAL_LINKEDIN", "");
     expect(getSocialProviders()).toEqual([{ id: "google", identityProvider: "Google" }]);
+  });
+});
+
+describe("resolveSocialProviders (lazy, never throws)", () => {
+  it("returns the enabled providers when the config is valid, without logging", () => {
+    const log = vi.fn();
+    expect(resolveSocialProviders({ AUTH_SOCIAL_LINKEDIN: "on" }, log)).toEqual([{ id: "linkedin", identityProvider: "LinkedIn" }]);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ AUTH_SOCIAL_GOOGLE: "yes" }, "AUTH_SOCIAL_GOOGLE"],
+    [{ AUTH_SOCIAL_MICROSOFT: "on", AUTH_SOCIAL_MICROSOFT_IDP: "bad name<x>" }, "AUTH_SOCIAL_MICROSOFT_IDP"],
+    [{ AUTH_SOCIAL_GOOGLE: "on", AUTH_SOCIAL_LINKEDIN: "on", AUTH_SOCIAL_LINKEDIN_IDP: "Google" }, "AUTH_SOCIAL_LINKEDIN_IDP"],
+  ])("disables every social provider on an invalid value and leaves one operator line naming only the key: %j", (env, key) => {
+    const log = vi.fn();
+    expect(resolveSocialProviders(env, log)).toEqual([]);
+    expect(log).toHaveBeenCalledExactlyOnceWith(`${SOCIAL_CONFIG_ERROR_PREFIX} key=${key}`);
+    const line = String(log.mock.calls[0]?.[0]);
+    for (const value of Object.values(env)) if (value !== "on") expect(line).not.toContain(value);
+  });
+
+  it("never lets a throwing log sink escape", () => {
+    expect(resolveSocialProviders({ AUTH_SOCIAL_GOOGLE: "1" }, () => { throw new Error("sink down"); })).toEqual([]);
   });
 });

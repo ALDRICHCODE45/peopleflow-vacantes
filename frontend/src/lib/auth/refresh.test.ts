@@ -467,6 +467,34 @@ describe("refreshSessionTokens (one refresh for both session kinds)", () => {
     expect(JSON.stringify(error)).not.toContain("old-refresh");
   });
 
+  it("leaves one token-free operator signal when a password refresh is throttled by Cognito", async () => {
+    const { factory } = cognito({ ok: false, reason: "too_many_attempts" });
+    const onServiceError = vi.fn();
+    await expect(refreshSessionTokens({ sub: SUB, authKind: "password" }, "fixture-private-refresh", { oauth, cognito: factory, onServiceError }))
+      .rejects.toThrow("Cognito token refresh failed");
+    expect(onServiceError).toHaveBeenCalledExactlyOnceWith("refresh", "RefreshThrottled");
+    expect(JSON.stringify(onServiceError.mock.calls)).not.toContain("fixture-private-refresh");
+    expect(JSON.stringify(onServiceError.mock.calls)).not.toContain(SUB);
+  });
+
+  it.each([
+    ["a rejected refresh token", { ok: false, reason: "invalid_credentials" }],
+    ["Cognito unavailable (the client already reported it)", { ok: false, reason: "unavailable" }],
+    ["success", { ok: true, tokens: { accessToken: "a", refreshToken: "r", expiresAt: 1 } }],
+  ])("emits no throttling signal on %s", async (_label, answer) => {
+    const { factory } = cognito(answer);
+    const onServiceError = vi.fn();
+    await refreshSessionTokens({ sub: SUB, authKind: "password" }, "r", { oauth, cognito: factory, onServiceError }).catch(() => {});
+    expect(onServiceError).not.toHaveBeenCalled();
+  });
+
+  it("keeps the generic failure when the signal sink throws", async () => {
+    const { factory } = cognito({ ok: false, reason: "too_many_attempts" });
+    await expect(refreshSessionTokens({ sub: SUB, authKind: "password" }, "r", {
+      oauth, cognito: factory, onServiceError: () => { throw new Error("sink down"); },
+    })).rejects.toThrow("Cognito token refresh failed");
+  });
+
   it.each([
     ["no subject", { authKind: "password" }],
     ["a subject outside the Cognito alphabet", { authKind: "password", sub: "a b" }],

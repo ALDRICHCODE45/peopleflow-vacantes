@@ -93,6 +93,7 @@ export function buildAuthOptions(authEnv: AuthEnv, observer?: RefreshObserver, h
               clientSecret: authEnv.clientSecret,
             },
             cognito,
+            onServiceError,
           }),
         });
       },

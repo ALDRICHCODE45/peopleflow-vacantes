@@ -22,8 +22,10 @@ for this step.
 | `frontend/src/lib/auth/options.ts` | Guarded server-only entry, supplying validated config and the development observer to the factory. |
 | `frontend/src/lib/auth/credentials.ts` | Embedded password sign-in: NextAuth `CredentialsProvider` (`password`) over the server-only Cognito client. |
 | `frontend/src/lib/auth/token-shape.ts` | Well-formedness checks for Cognito JWTs (no signature verification; identifiers and display only). |
-| `frontend/src/lib/auth/social.ts` | Per-provider social flags and the `getSocialProviders()` server helper. |
-| `frontend/src/lib/auth/route-guard.ts` | Wraps the NextAuth handler: social sign-in param allowlist and the sign-out session-kind hint. |
+| `frontend/src/lib/auth/social.ts` | Per-provider social flags; `resolveSocialProviders()` (lazy, never throws) for the screens and the route guard. |
+| `frontend/src/lib/auth/route-guard.ts` | Wraps the NextAuth handler: POST social sign-in param allowlist, password-callback rate limiting and the sign-out session-kind hint. |
+| `frontend/src/lib/auth/rate-limit.ts` | In-memory per-IP and per-email limiter for the password callback and the A4.4–A4.6 routes. |
+| `frontend/src/components/auth/sign-in/` | Embedded «Ingresar» form (artboard 01), error mapping and copy, social buttons, planned A4.4–A4.6 paths. |
 | `frontend/src/lib/auth/service-log.ts` | One-line, token-free operator log for the Cognito client's `onServiceError`. |
 | `frontend/src/app/api/auth/[...nextauth]/route.ts` | Node `GET`/`POST` NextAuth route handler (guarded). |
 | `frontend/src/app/api/auth/cognito/logout/route.ts` | Same-origin logout handoff (Cognito hop only for OAuth sessions). |
@@ -46,7 +48,7 @@ Social sign-in flags (names only; unset or `off` hides the button):
 
 | Variable | Rules |
 | --- | --- |
-| `AUTH_SOCIAL_GOOGLE`, `AUTH_SOCIAL_MICROSOFT`, `AUTH_SOCIAL_LINKEDIN` | `on` or `off`; any other value fails naming the key. |
+| `AUTH_SOCIAL_GOOGLE`, `AUTH_SOCIAL_MICROSOFT`, `AUTH_SOCIAL_LINKEDIN` | `on` or `off`. Read per request; any other value (or a bad `*_IDP` below) turns every social provider off and logs `[auth] social_config_invalid key=<KEY>` (never the value). Password sign-in and the rest of `/api/auth/*` keep working. |
 | `AUTH_SOCIAL_GOOGLE_IDP`, `AUTH_SOCIAL_MICROSOFT_IDP`, `AUTH_SOCIAL_LINKEDIN_IDP` | Optional Cognito identity provider name (`[A-Za-z0-9._-]{1,32}`); defaults `Google`, `Microsoft`, `LinkedIn`. Two providers may not share a name. |
 
 Derived values (never request-controlled):
@@ -87,15 +89,12 @@ add the new scope.
 
 ## Registro de candidatos y configuración en Cognito
 
-«Ingresar» de candidato conserva `signIn("cognito", { callbackUrl:
-"/candidato/ingresar" })`. «Crear cuenta» obtiene el CSRF con `getCsrfToken()`
-y envía el POST estándar de NextAuth a `/api/auth/signin/cognito`, con
-`csrfToken`, `callbackUrl=/candidato/ingresar` y `json=true`. En NextAuth v4,
-`redirect: false` no devuelve la URL para proveedores OAuth. Este POST permite
-obtenerla sin omitir la transacción: NextAuth genera los parámetros y las cookies
-de state/PKCE. Solo se cambia la ruta exacta `/oauth2/authorize` a `/signup`;
-el origen y la consulta se conservan sin reconstruir ni normalizar parámetros.
-Si la URL devuelta no es la de autorización esperada, se navega a ella sin cambios.
+Desde A4.3, «Ingresar» de candidato usa el formulario propio (correo y
+contraseña, `signIn("password", …)`) con `callbackUrl=/candidato/ingresar`, y
+el registro es la ruta propia `/candidato/registro` (A4.4). Ya no se reescribe
+`/oauth2/authorize` a `/signup` de Cognito (`signup-url.ts` quedó sin uso).
+Solo el asistente de postulación conserva `signIn("cognito")` sin parámetros
+hasta A4.7.
 
 **Acción del usuario en la consola de AWS:** en el app client del user pool,
 en la configuración de managed login/Hosted UI, agregar estas dos entradas en
@@ -112,14 +111,16 @@ En local, las entradas exactas son:
 
 El callback en **Allowed callback URLs** no cambia:
 `<NEXTAUTH_URL>/api/auth/callback/cognito` (local:
-`http://localhost:3000/api/auth/callback/cognito`). `/signup` no es un callback.
+`http://localhost:3000/api/auth/callback/cognito`).
 Además, el user pool debe tener habilitado **self sign-up** (autorregistro) para
-que `/signup` muestre el formulario de registro.
+que la API `SignUp` del registro propio (A4.4/A4.5) funcione, y el app client
+**ALLOW_USER_PASSWORD_AUTH** + **ALLOW_REFRESH_TOKEN_AUTH** para «Ingresar»
+con contraseña (L8); sin ese ajuste el formulario responde «No pudimos
+conectarnos.».
 
 Después de guardar, verificar «Cerrar sesión» como candidato y como empresa:
 cada uno debe volver a su login (`/candidato/login` o `/empresa/login`), sin
-mostrar la página de error de Cognito. Sin sesión, «Crear cuenta» debe abrir el
-formulario de registro de Cognito. La configuración en AWS y la comprobación
+mostrar la página de error de Cognito. La configuración en AWS y la comprobación
 real quedan a cargo del usuario; ver el paso 89 de
 [`employer-manual-test.md`](employer-manual-test.md).
 
@@ -153,7 +154,7 @@ Two ways produce the same encrypted JWT cookie shape — `sub`, `name`, `email`,
 | `authKind` | Established by | Refresh | Logout |
 | --- | --- | --- | --- |
 | `password` | `signIn("password", { email, password })` → `CredentialsProvider` → Cognito `InitiateAuth USER_PASSWORD_AUTH` (server-only client with `SECRET_HASH`) | `InitiateAuth REFRESH_TOKEN_AUTH`, `SECRET_HASH` over the stored `sub` | Clear cookies, return to the audience login page; no Cognito `/logout` |
-| `oauth` (or absent: cookies issued before A4.2) | Cognito OAuth provider (social, or the hosted page until A4.3 retires it) | `/oauth2/token` `refresh_token` grant (unchanged) | Clear cookies, Cognito `/logout` hop |
+| `oauth` (or absent: cookies issued before A4.2) | Cognito OAuth provider (social; the bare hosted page only from the candidate apply wizard until A4.7) | `/oauth2/token` `refresh_token` grant (unchanged) | Clear cookies, Cognito `/logout` hop |
 
 **Password sign-in.** `authorize()` returns only `{ id: sub, name, email, image: null }`.
 The Cognito tokens travel to the `jwt` callback on that same object under a
@@ -164,14 +165,49 @@ segments, signed `alg`, `token_use: "access"`, Cognito subject alphabet); the
 signature is not verified here — the token comes straight from Cognito over
 TLS, the claim is only an identifier, and the backend verifies every token.
 `name` is a display hint from the ID token. Failures throw a stable code that
-NextAuth returns as `error` (the screens map it, A4.3):
+NextAuth returns as `error`; the «Ingresar» screens map it (A4.3, copy from
+artboard 01):
 
 | Code | When |
 | --- | --- |
-| `invalid_credentials` | Wrong email/password, unknown user, `PasswordResetRequiredException`, malformed or oversized input (email > 254, password > 256) |
-| `not_confirmed` | Correct password on an unconfirmed account |
-| `too_many_attempts` | Cognito throttling |
-| `unavailable` | Cognito unreachable or misconfigured (incl. hash mismatch), a challenge with no screen yet (`NEW_PASSWORD_REQUIRED`, MFA), a malformed access token |
+| `invalid_credentials` | Wrong email/password, unknown user, `PasswordResetRequiredException`, malformed or oversized input (email > 254, password > 256) → «Correo o contraseña incorrectos.» (both fields marked, password cleared, focus on the summary) |
+| `not_confirmed` | Correct password on an unconfirmed account → the verify-code route (`/empresa/verificar`, `/candidato/verificar`, A4.4), email carried in `sessionStorage` (`peopleflow.auth.pendingEmail`), never in the URL |
+| `too_many_attempts` | Cognito throttling, or our rate limit (below) → «Demasiados intentos.» with a link to reset the password |
+| `unavailable` | Cognito unreachable or misconfigured (incl. hash mismatch), a challenge with no screen yet (`NEW_PASSWORD_REQUIRED`, MFA), a malformed access token → «No pudimos conectarnos.» (also on a thrown request or after 10 s), what was typed stays |
+
+**Screens (A4.3).** `/empresa/login` and `/candidato/login` render
+`LoginScreen` (FloatingLines panel unchanged) with `EmployerAuthControls` /
+`CandidateAuthControls`, which show `sign-in/SignInForm` when there is no live
+session: email (`autocomplete=username`) and password
+(`current-password`, show/hide toggle with `aria-pressed`), «¿Olvidaste tu
+contraseña?» (→ `/empresa/recuperar`, `/candidato/recuperar`, A4.6),
+«Ingresar» → `signIn("password", { redirect: false, email, password,
+callbackUrl })`, then a full navigation to the callback: employers to the safe
+`callbackUrl` or `/empresa/dashboard`, candidates to `/candidato/ingresar`
+(with the safe `next`). The shell links «Registra tu empresa» /
+«Crea tu perfil» to `/empresa/registro` / `/candidato/registro` (A4.5 / A4.4).
+Those routes do not exist yet: the links 404 until their slices land. «Ingresar
+con Cognito» and the candidate hosted sign-up rewrite are gone, with no
+rollback flag (`signup-url.ts` is now unused). An expired session shows «Tu
+sesión venció. Vuelve a ingresar.»; any `?error=` shows the generic callback
+failure, except `?error=email_in_use`, which shows the L5 notice «Ese correo ya
+tiene cuenta. Entra con tu contraseña.» (nothing sets it yet: the social
+onboarding redirect is a follow-up).
+
+**Rate limiting.** The route guard counts every POST to the password callback
+per client address and per normalized email (SHA-256 of trim+lowercase; the
+raw email is never stored or logged, the password never read) before NextAuth
+runs; over either limit it answers `429 { url: …/api/auth/error?error=too_many_attempts }`
+with `Retry-After`, without calling Cognito. Budgets (`AUTH_RATE_LIMITS`):
+sign-in 50/IP and 10/email per 15 min; sign-up 10/IP and 5/email per hour;
+confirm and confirm-forgot 30/IP and 10/email per 15 min; resend and forgot
+10/IP and 3/email per 15 min. The A4.4–A4.6 routes call
+`createAuthAttemptLimiter().attempt(<operation>, { ip, email })` the same way.
+The client address is the right-most `X-Forwarded-For` entry (else
+`X-Real-IP`). Limits: counters are in memory per instance (N instances give N×
+the budget; a restart resets them) and, without a trusted proxy in front, the
+header is client-controlled, so only the per-email limit holds. The AWS phase
+must move counters to a shared store or WAF rules and pin the trusted hop.
 
 **Refresh decision.** OAuth sessions stay on `/oauth2/token`: that grant keeps
 the OAuth scopes the hosted/social tokens were issued with, and
@@ -198,16 +234,22 @@ just this session; per-session revocation (`RevokeToken`) is a follow-up.
 `openid email profile aws.cognito.signin.user.admin` (L8; the app client must
 allow that scope). A social button calls
 `signIn("cognito", { callbackUrl }, { identity_provider: <name> })` with a name
-from `getSocialProviders()`; Cognito forwards straight to the provider. The
+from `resolveSocialProviders()`; Cognito forwards straight to the provider.
+Employers see Google, Microsoft and LinkedIn, candidates Google and LinkedIn,
+each only when its flag is on (no divider when none is). The
 route guard matches the Cognito sign-in on the decoded, lower-cased route
 segments, from both the URL and Next's `nextauth` params. NextAuth reads only
 the first two segments, so `/signin/cognito/x`, `/signin/cognito/` and
 `/signin/%63ognito` count as the same route; a segment that cannot be decoded
-is refused. On that route it admits either no query params
-(hosted page, until A4.3) or exactly one `identity_provider` naming an enabled
-provider; anything else (disabled provider, `scope`/`redirect_uri` overrides,
-repeated params) gets `400 { url: …/api/auth/error?error=OAuthSignin }`
-without reaching NextAuth.
+is refused. On a POST to that route it admits either no query params (the
+bare hosted page, still used by the candidate apply wizard until A4.7) or
+exactly one `identity_provider` naming an enabled provider; anything else
+(disabled provider, `scope`/`redirect_uri` overrides, repeated params) gets
+`400 { url: …/api/auth/error?error=OAuthSignin }` without reaching NextAuth.
+GET passes through unchanged: NextAuth only starts an authorization on POST
+(GET renders or redirects to the sign-in page). The enabled providers are
+resolved on each social sign-in; if the flags are invalid every
+`identity_provider` is refused.
 
 **Operator signal.** The Cognito client's `onServiceError` writes one line,
 `[auth] cognito_service_error operation=<op> name=<ErrorName|none>`, with values
@@ -216,7 +258,10 @@ outside the closed operation set or the error-name alphabet replaced. A
 hash for client» (wrong or rotated client credential) is classified in the
 transport as `unavailable` with `name=SecretHashMismatch`; the message is read
 only for that check and never returned or logged. Sign-in also signals
-`ChallengeNotSupported`, `MalformedAccessToken` and `ConfigurationError`.
+`ChallengeNotSupported`, `MalformedAccessToken` and `ConfigurationError`; a
+password refresh Cognito refuses with throttling (which the client maps to
+`too_many_attempts` silently and which expires the session) signals
+`operation=refresh name=RefreshThrottled`.
 
 ## Refresh behavior
 
@@ -377,10 +422,16 @@ or perform real Cognito requests. When isolation from private app environment is
 required, the same public auth files are copied into a project-contained
 scratch directory with a node-environment Vitest config and fake fixtures.
 
-The employer UI uses a local `SessionProvider` with a 60-second refetch interval
-and focus refresh, accessible generic error/relogin feedback, and separate
-sign-in/sign-out pending states. Los controles de candidato conservan el bloqueo,
-los estados pendientes y los mensajes de error; el registro usa el flujo descrito
-arriba. Browser
+A4.3 adds `rate-limit.test.ts`, the rate-limit, lazy-flag and GET pass-through
+cases in `route-guard.test.ts`, `resolveSocialProviders` in `social.test.ts`,
+the throttled-refresh signal in `refresh.test.ts` and `options.test.ts`, and
+`components/auth/sign-in/*.test.ts(x)` (submit arguments, every error mapping
+and its copy, focus and `aria-describedby`, social buttons per flag and
+audience, the 10 s timeout, the verify-code handoff).
+
+Both login UIs use a local `SessionProvider` with a 60-second refetch interval
+and focus refresh; signed in, they offer the way to the account and «Cerrar
+sesión». The e2e `tests/e2e/login-acceptance.spec.ts` still asserts the old
+inert shell and is retired in A4.7. Browser
 visual and actual Cognito acceptance are still human-owned; TypeScript/Vitest
 proof is not an end-to-end login claim.

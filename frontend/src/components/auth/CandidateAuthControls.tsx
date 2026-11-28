@@ -3,65 +3,56 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { SessionProvider, getCsrfToken, signIn, useSession } from "next-auth/react";
+import { SessionProvider, useSession } from "next-auth/react";
 import { signOutWithAudit } from "@/lib/audit/sign-out";
 import { candidateAuthHref } from "@/features/identity/return-to";
-import { toCognitoSignupUrl } from "@/lib/auth/signup-url";
+import type { SocialProvider } from "@/lib/auth/social";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { signInNotice } from "./sign-in/notice";
+import { SignInForm } from "./sign-in/SignInForm";
 
-function ManagedCandidateLogin() {
+/**
+ * Candidate «Ingresar»: every sign-in (password or social) lands on
+ * /candidato/ingresar, which checks or creates the candidate account and then
+ * follows the validated `next`. Sign-up is the PeopleFlow route linked by the
+ * login shell (A4.4); the hosted Cognito sign-up is gone.
+ */
+function CandidateSignIn({ socialProviders }: { socialProviders: readonly SocialProvider[] }) {
   const { data: session, status } = useSession();
   const params = useSearchParams();
   const callbackUrl = candidateAuthHref("ingresar", params.get("next"));
   const statusId = React.useId();
   const [pending, setPending] = React.useState(false);
   const lock = React.useRef(false);
-  const [actionError, setActionError] = React.useState<string | null>(null);
+  const [logoutError, setLogoutError] = React.useState<string | null>(null);
   const expired = Boolean(session?.error);
   const authenticated = status === "authenticated" && !expired;
-  const error = actionError ?? (expired ? "Tu sesión venció. Vuelve a ingresar." : params.has("error") && !authenticated ? "No pudimos completar el acceso. Inténtalo de nuevo." : null);
-  async function start(logout = false, signup = false) {
-    if (lock.current || status === "loading") return;
-    lock.current = true; setPending(true); setActionError(null);
+
+  async function logout() {
+    if (lock.current) return;
+    lock.current = true; setPending(true); setLogoutError(null);
     try {
-      if (logout) await signOutWithAudit("/api/auth/cognito/logout?to=candidato");
-      else if (signup) {
-        // NextAuth v4 ignores redirect:false for OAuth. Use its standard CSRF
-        // POST so NextAuth still creates the state/PKCE cookies and parameters.
-        const csrfToken = await getCsrfToken();
-        if (!csrfToken) throw new Error("Sign-in failed");
-        const response = await fetch("/api/auth/signin/cognito", {
-          method: "post",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ csrfToken, callbackUrl, json: "true" }),
-        });
-        if (!response.ok) throw new Error("Sign-in failed");
-        const data: unknown = await response.json();
-        if (!data || typeof data !== "object" || !("url" in data) || typeof data.url !== "string" || !data.url.trim()) throw new Error("Sign-in failed");
-        // Only an absolute http(s) URL navigates; anything else is a failed sign-in.
-        if (!/^https?:$/.test(new URL(data.url).protocol)) throw new Error("Sign-in failed");
-        window.location.assign(toCognitoSignupUrl(data.url));
-      } else await signIn("cognito", { callbackUrl });
+      await signOutWithAudit("/api/auth/cognito/logout?to=candidato");
     } catch {
-      const message = logout ? "No pudimos cerrar la sesión. Inténtalo de nuevo." : "No pudimos iniciar el acceso. Inténtalo de nuevo.";
-      setActionError(message);
-      notifyActionResult({ key: "candidate-login", type: "error", title: logout ? "No pudimos cerrar la sesión" : "No pudimos iniciar el acceso", description: message, reference: { at: new Date().toISOString() } });
+      const message = "No pudimos cerrar la sesión. Inténtalo de nuevo.";
+      setLogoutError(message);
+      notifyActionResult({ key: "candidate-login", type: "error", title: "No pudimos cerrar la sesión", description: message, reference: { at: new Date().toISOString() } });
     } finally { lock.current = false; setPending(false); }
   }
-  return <div className="mt-8 flex flex-col gap-5" aria-busy={pending || status === "loading"}>
-    {error && !actionError && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {authenticated ? <Button nativeButton={false} role="link" render={<Link href={callbackUrl} />} className="min-h-10">Ir a mi cuenta</Button> : <>
-      <p className="text-sm text-muted-foreground">Ingresa con tu email y contraseña. Puedes crear tu acceso en la pantalla segura de Cognito.</p>
-      <Button type="button" className="min-h-10" aria-describedby={actionError ? statusId : undefined} onClick={() => void start()} disabled={pending || status === "loading"}>{pending && <Spinner aria-hidden="true" />}Ingresar</Button>
-      <Button type="button" variant="outline" className="min-h-10" aria-describedby={actionError ? statusId : undefined} onClick={() => void start(false, true)} disabled={pending || status === "loading"}>Crear cuenta</Button>
-    </>}
-    {(authenticated || expired) && <Button type="button" variant="outline" className="min-h-10" aria-describedby={actionError ? statusId : undefined} disabled={pending} onClick={() => void start(true)}>Cerrar sesión</Button>}
-    <ActionStatusSlot>{actionError && <ActionStatus id={statusId} tone="error" text={actionError} />}</ActionStatusSlot>
+
+  if (!authenticated) {
+    return <SignInForm audience="candidate" callbackUrl={callbackUrl} socialProviders={socialProviders} notice={signInNotice(expired, params)} disabled={status === "loading"} />;
+  }
+  return <div className="mt-8 flex flex-col gap-5" aria-busy={pending}>
+    <Button nativeButton={false} role="link" render={<Link href={callbackUrl} />} className="h-12 w-full text-[15px] font-semibold">Ir a mi cuenta</Button>
+    <Button type="button" variant="outline" className="h-12 w-full text-[15px]" aria-describedby={logoutError ? statusId : undefined} disabled={pending} onClick={() => void logout()}>{pending && <Spinner aria-hidden="true" />}Cerrar sesión</Button>
+    <ActionStatusSlot>{logoutError && <ActionStatus id={statusId} tone="error" text={logoutError} />}</ActionStatusSlot>
   </div>;
 }
-export function CandidateAuthControls() {
-  return <SessionProvider refetchInterval={60} refetchOnWindowFocus><ManagedCandidateLogin /></SessionProvider>;
+
+export function CandidateAuthControls({ socialProviders = [] }: { socialProviders?: readonly SocialProvider[] }) {
+  return <SessionProvider refetchInterval={60} refetchOnWindowFocus><CandidateSignIn socialProviders={socialProviders} /></SessionProvider>;
 }
