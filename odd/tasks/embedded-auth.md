@@ -29,7 +29,7 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 | A4.1 | S1, S2 | Server-only Cognito client (SECRET_HASH; InitiateAuth, SignUp, ConfirmSignUp, Resend, ForgotPassword, ConfirmForgotPassword) + mock Cognito fixture | c62f757d, 09c14ac9 |
 | A4.2 | S1–S3 | NextAuth CredentialsProvider into the same JWT cookie; refresh via REFRESH_TOKEN_AUTH; logout per session kind; OAuth scope + identity_provider with per-provider flags | 45833b2d, 7fd8bbdd |
 | A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | 12833dc7, a1a1ce93, e25d74f8, 8917f183 |
-| A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | |
+| A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | fe5f4832, cac98023 |
 | A4.5 | S1, S4 | Company sign-up: Tu cuenta → Verifica tu correo → Tu empresa (employer-account + POST /companies) | |
 | A4.6 | S1 | ¿Olvidaste tu contraseña? request → code + new password → done | |
 | A4.7 | S1–S4 | E2e on the mock Cognito + PEM backend; retire inert-shell assertions; docs | |
@@ -240,3 +240,10 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 - **L23** (2026-11-28) User decision on the terms links: «Páginas provisorias en el sitio (recomendado)» — create
   /terminos and /aviso-de-privacidad with provisional text clearly marked as a draft; the partners supply the real
   legal text before publication; the sign-up checkbox links to both.
+- **L24** (2026-11-28) A4.4 follow-ups cac98023: server-side terms consent (`terms === true`, before limiter and
+  Cognito) and provisional /terminos and /aviso-de-privacidad (draft banner, headings only, noindex) linked from the
+  sign-up consent line. Independent verify of fe5f4832: no blockers. Native review UNAVAILABLE for A4.4: the
+  candidate (fe5f4832 + cac98023, ~2.7k lines with tests) exceeds the reviewer context budget
+  (lens_context_budget_exceeded, no authority created); recorded as nativeReviewOutcome=unavailable. Lesson applied
+  to A4.5–A4.7: smaller work units (backend-of-the-screen and screen as separate commits) so each fits the native
+  review.
