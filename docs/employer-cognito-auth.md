@@ -654,7 +654,82 @@ and `app/(auth)/recover-routes.test.tsx`.
 
 Both login UIs use a local `SessionProvider` with a 60-second refetch interval
 and focus refresh; signed in, they offer the way to the account and «Cerrar
-sesión». The e2e `tests/e2e/login-acceptance.spec.ts` still asserts the old
-inert shell and is retired in A4.7. Browser
-visual and actual Cognito acceptance are still human-owned; TypeScript/Vitest
-proof is not an end-to-end login claim.
+sesión».
+
+A4.7 adds the browser end to end (`frontend/tests/e2e/`), against the mock
+Cognito and the fixture API, never a real pool:
+
+- `embedded-auth.spec.ts`: candidate sign-up → code (read from the mock's
+  `/__cognito/codes`) → «Tu correo quedó verificado.» → sign-in → «Crear mi
+  cuenta de candidato» → `/candidato/dashboard`; employer sign-up → code →
+  sign-in → «Tu empresa» → `/empresa/dashboard`; a wrong password and an unknown
+  email get the same «Correo o contraseña incorrectos.» (401); an unconfirmed
+  account goes to «Verifica tu correo», which resends a code on arrival; forgot
+  password → code → new password → «Tu contraseña se actualizó.» → the old
+  password fails, the new one signs in; «Cerrar sesión» ends a password session
+  without the Cognito `/logout` hop; after 10 refused sign-ins for one email the
+  11th, even with the right password, gets 429 «Demasiados intentos.». Every test
+  records every requested and navigated URL and fails if a password or a code
+  appears in one, and the auth pages keep the FloatingLines panel and canvas.
+- `login-acceptance.spec.ts` (rewritten; it asserted the inert shell): the real
+  form on both login routes in light/dark × desktop/mobile with axe WCAG A/AA
+  (`@a11y`), 40 px targets, the Tab order email → «¿Olvidaste tu contraseña?» →
+  password → «Mostrar contraseña» → «Ingresar» → sign-up → other audience with a
+  visible focus paint, Enter on an empty form (field errors, nothing sent), the
+  show/hide toggle, and the load boundaries (no business mutation, only
+  `GET /api/auth/session`, storage unchanged except NextAuth's own
+  `nextauth.message` broadcast).
+- `tests/fixtures/embedded-auth-accounts.test.ts`: the fixture's identity and
+  company routes against the real mock.
+
+The unit follow-ups in A4.7: `takeSignInHandoff` (and `takeVerifiedEmail`)
+ignore an implausible stored email with the same `validEmail` as
+`readRecoveryEmail`; after a confirm that failed as «No pudimos conectarnos.»
+(the answer may have been lost after Cognito changed the password), a later
+«El código no es correcto o ya venció.» adds «Si ya cambiaste tu contraseña,
+ingresa con la nueva.» with a link to «Ingresar»; the actions tests locate their
+module from `import.meta.url`, not the working directory.
+
+**Running the e2e.** From `frontend/`:
+
+```sh
+pnpm test:e2e tests/e2e/embedded-auth.spec.ts
+pnpm test:e2e tests/e2e/login-acceptance.spec.ts
+pnpm test:a11y tests/e2e/login-acceptance.spec.ts
+```
+
+`playwright.config.ts` starts the stack when `PLAYWRIGHT_APP_ORIGIN` is unset:
+the mock Cognito (`:4599`), the fixture API (`:4010`) and `next dev` on
+`http://127.0.0.1:3100` with `NODE_ENV=test` and `COGNITO_IDP_ENDPOINT` on the
+mock (the override is refused under `NODE_ENV=production`). Outside CI it reuses
+servers already listening on those ports. Details, the fixture routes and the
+rate-limit budget per run: `frontend/tests/fixtures/README.md` («E2e stack»,
+«Embedded-auth accounts», «Mock Cognito»). Browser visual review and acceptance
+against the real pool stay human-owned (below).
+
+## Local run against the real pool
+
+For the human check with real accounts (L20); agents do not touch AWS or read
+local environment files. Names only, values come from the operator:
+
+- **Backend** (`backend/`): the usual local configuration plus
+  `IDENTITY_PROVIDER=cognito_getuser` and `IDENTITY_COGNITO_REGION=us-east-1`
+  (GetUser accepts the access tokens of password sign-in; without these the
+  backend keeps the UserInfo provider and onboarding answers 503). Do not set
+  `IDENTITY_COGNITO_ENDPOINT` (local/test loopback override for the mock only).
+- **Frontend** (`frontend/`, `pnpm dev`): `PEOPLEFLOW_API_BASE_URL` (the local
+  backend origin), `PEOPLEFLOW_SITE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`,
+  `COGNITO_CLIENT_ID`, `COGNITO_CLIENT_SECRET`, `COGNITO_ISSUER` and
+  `COGNITO_DOMAIN` (Configuration above). Leave `COGNITO_IDP_ENDPOINT` unset: the
+  client then calls `https://cognito-idp.<region>.amazonaws.com/` with the region
+  of `COGNITO_ISSUER`. `AUTH_SOCIAL_*` stay unset or `off` until the providers
+  exist (AWS phase).
+- **Pool** (console checklist, done by the user, L20): `ALLOW_USER_PASSWORD_AUTH`
+  and `ALLOW_REFRESH_TOKEN_AUTH` on the confidential app client, self sign-up with
+  email verification by code, required attributes email and name, scope
+  `aws.cognito.signin.user.admin`, `PreventUserExistenceErrors` on.
+
+Then walk the same paths as `embedded-auth.spec.ts` with real mail: create a
+candidate and a company account, verify with the emailed code, sign in, finish
+onboarding / «Tu empresa», reset a password, sign out. The verification email
+text is still Cognito's default English (SES phase).

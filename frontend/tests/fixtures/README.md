@@ -175,3 +175,45 @@ Test-only controls (loopback, never in production):
 Validation: `pnpm test --config tests/fixtures/vitest.config.ts tests/fixtures/cognito-mock.test.ts` (raw HTTP contract,
 SECRET_HASH, existence hiding, RS256 verification with the published key, GetUser shapes, controls) and
 `pnpm test src/lib/auth/cognito` (includes the real client against this mock).
+
+## Embedded-auth accounts (A4.7)
+
+`embedded-auth-accounts.mjs`, mounted first in `jobs-server.mjs`, answers the identity and company routes of the sign-up →
+onboarding flows **only for access tokens minted by the mock Cognito** (unverified `iss` equal to the mock issuer, then
+verified by calling the mock's own `GetUser`, exactly as the backend's `cognito_getuser` provider does: signature, issuer,
+`token_use`, expiry, existing user). Any other `Bearer` falls through to the older fixtures above, which keep answering
+it as the Nexo Labs recruiter. In memory, per process; `/__reset` (or `POST /__embedded-auth/reset`) clears it. Set
+`COGNITO_MOCK_ORIGIN` (default `http://127.0.0.1:4599`) when the mock runs elsewhere. Never logs tokens, emails or names.
+
+- `GET /v2/me` → `{role, user}`, or `{role: null, user: null}` before onboarding.
+- `POST /v2/me/candidate-account` / `POST /v2/me/employer-account` `{full_name}` (2–120, strict body) → 201 created,
+  200 already that role, 409 `account_exists` (other role), 409 `email_in_use`, 422 `email_not_verified`, 400
+  `validation_error`; an unknown or tampered token → 401, the mock unreachable → 503 `identity_unavailable`.
+- `GET /me/company` → membership (`owner`), 404 `not_found` for a recruiter without a company, 401 without an account,
+  403 for a candidate.
+- `POST /companies` `{name, rfc, industry_id, website?}` → 201 company (`location: null`), 409 `already_exists` (own
+  company or RFC taken), 409 `industry_unavailable`, 400 `validation_error`, 401 / 403 as above.
+- `POST /v2/me/session/start|end` → 204 (session audit acknowledged, nothing recorded).
+- `GET /industries` (anonymous, any caller): `tecnologia`, `manufactura`, `servicios`.
+
+## E2e stack (A4.7)
+
+`playwright.config.ts` starts the stack itself unless `PLAYWRIGHT_APP_ORIGIN` is set (then nothing is started, the old
+hand-started workflow). Order: the mock Cognito on `:4599`, this fixture API on `:4010` (with `COGNITO_MOCK_ORIGIN`),
+then `next dev` on `127.0.0.1:3100` with `NODE_ENV=test` (the Cognito endpoint override is refused under
+`NODE_ENV=production`), `COGNITO_IDP_ENDPOINT=http://127.0.0.1:4599`, the mock's client id / secret, fixture-only
+`NEXTAUTH_*`, `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:4010` and every social flag `off`. With `NODE_ENV=test` Next
+reads `.env` but never `.env.local`; the keys the auth flows depend on are pinned in the config. Outside CI an already
+listening server on those ports is reused, so a hand-started stack (or a server without the mock) is used as is.
+`next dev` writes its output into `frontend/.next`, replacing a previous production build there.
+
+From `frontend/`: `pnpm test:e2e tests/e2e/embedded-auth.spec.ts` (sign-up → code → onboarding for both audiences,
+generic sign-in error, unconfirmed → verify with auto-resend, password reset, logout, rate limit; no password or code
+ever in a URL), `pnpm test:e2e tests/e2e/login-acceptance.spec.ts`, `pnpm test:a11y tests/e2e/login-acceptance.spec.ts`.
+Each run starts a fresh Next (fresh in-memory rate-limit counters). Next fills `X-Forwarded-For` with the loopback
+socket address, so the per-IP budgets apply: one spec run spends about 19 of the 50 sign-ins per 15 min and 2 of the
+10 sign-ups per hour. Re-running several times against a reused, still-running server can hit them; restart it.
+
+The fixture server loads product TypeScript through `site-product-model.cjs`, which maps the `@/` alias to `src/`
+while loading (a product import through `@/features/candidate/model` used to stop the server at startup, L13).
+Validation: `pnpm test --config tests/fixtures/vitest.config.ts tests/fixtures/embedded-auth-accounts.test.ts`.
