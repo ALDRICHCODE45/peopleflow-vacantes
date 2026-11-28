@@ -59,6 +59,9 @@ describe("single application-facing request path", () => {
       // Document upload/download (multipart stream and attachment), server-only to the configured origin.
       "features/vacancy-documents/binary-client.ts",
       "lib/api/requestJson.ts",
+      // Embedded auth (A4.1): unsigned awsJson1_1 calls to the Cognito IdP endpoint derived from validated
+      // server config (COGNITO_ISSUER region, loopback-only override in test/local preview), server-only.
+      "lib/auth/cognito/transport.ts",
     ]);
   });
 
@@ -117,7 +120,7 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('cache: "no-store"');
   });
 
-  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts", "features/audit-log/client.ts", "features/company-metrics/export-client.ts", "features/employer-dashboard/export-client.ts", "features/stakeholder-invitations/client.ts", "features/vacancy-documents/binary-client.ts", "features/notifications/client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
+  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts", "features/audit-log/client.ts", "features/company-metrics/export-client.ts", "features/employer-dashboard/export-client.ts", "features/stakeholder-invitations/client.ts", "features/vacancy-documents/binary-client.ts", "features/notifications/client.ts", "lib/auth/cognito/transport.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
     const adapter = source(join(SRC, file));
     expect(adapter).toContain('import "server-only"');
     expect(adapter).toContain('redirect: "error"');

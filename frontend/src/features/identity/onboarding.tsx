@@ -35,7 +35,9 @@ export function CandidateOnboarding() {
   const identity = useIdentity();
   const router = useRouter();
   const params = useSearchParams();
-  const [name, setName] = React.useState("");
+  // The name given at «Crea tu perfil» (session name, L20) is prefilled so it is
+  // not asked twice; the person still confirms it with an explicit submit.
+  const [name, setName] = React.useState(() => normalizedName(identity.name ?? ""));
   const [fieldError, setFieldError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
   const [failure, setFailure] = React.useState<IdentityFailure | null>(null);

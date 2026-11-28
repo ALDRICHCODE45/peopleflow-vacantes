@@ -19,6 +19,27 @@ presentación» (frontend `d348896b`, backend migration 00062 drops both columns
 placement and vacancy documents (not started), replacement processes linked to the original vacancy (not started),
 prefill from CV/LinkedIn/OCC (postponed: feasibility and terms), login and cloud on AWS (postponed to the end).
 
+## Company onboarding, verification and embedded auth (decided to build; details pending — 2026-11-27)
+
+Source: `odd/tasks/ui-fixes-email-design.md` S5/L2 and `docs/propuestas/verificacion-de-empresas.md`. The user: «de que
+se va a hacer se va a hacer, eso es seguro». Decided: Cognito with our own screens (no AWS hosted UI), social login
+with Google, Microsoft and LinkedIn (GitHub later, needs an adapter), self-service company sign-up. Pending with the
+partners: the verification option (A dominio + constancia SAT + aprobación, B solo aprobación, C automática por
+dominio, D por niveles), personas físicas (RFC 13) or only morales, the «Empresa verificada» badge, who reviews and in
+what time. Needed whatever the option:
+
+- [ ] Internal PeopleFlow back office: review, approve, ask for a correction, reject and suspend companies; support.
+- [ ] Company verification state: drafts and team invitations from day one; publishing gated on verification.
+- [ ] Owner emails: «recibimos tu solicitud», «tu empresa fue aprobada», «necesitamos un dato más» (03 Centrada design).
+- [ ] Suspension rule on reports that unpublishes the company's vacancies.
+- [ ] Define who at PeopleFlow reviews and the promised turnaround.
+- [ ] Own sign-in, sign-up, email code, forgot password (and later MFA) screens on the Cognito API.
+- [ ] «Continuar con Google / Microsoft / LinkedIn» straight to the provider, no Cognito hosted page.
+- [ ] Candidate self sign-up with email verification and profile completion.
+- [ ] Email footer postal address for `NOTIFICATIONS_EMAIL_POSTAL_ADDRESS` (none yet).
+- [ ] Real legal text for /terminos and /aviso-de-privacidad (provisional drafts ship with embedded auth, L23).
+- [ ] Pre-existing bug: `vacancy-checklist/compare/ui.tsx:57` links `/empresa/login?next=…`, which the login ignores.
+
 ## Product gaps
 
 - **«Mantener sesión iniciada» does nothing** (login, `components/auth/LoginScreen.tsx:125`, 2026-11-24): user: «Por el

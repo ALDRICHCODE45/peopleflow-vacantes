@@ -151,3 +151,14 @@ it("derives the metrics capability from the role when a pre-v1 backend omits it"
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company } });
   expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", canViewMetrics: false });
 });
+it("posts the normalized optional website and nothing when it is blank (A4.5)", async () => {
+  vi.mocked(createCompany).mockResolvedValue({ ok: true, data: company });
+  await createCompanyAction({ ...valid, website: "www.empresa.mx" });
+  expect(createCompany).toHaveBeenLastCalledWith({ token: "secret", body: { name: "Empresa", rfc: "ABC123456789", industry_id: "i", website: "https://www.empresa.mx" } });
+  await createCompanyAction({ ...valid, website: " " });
+  expect(createCompany).toHaveBeenLastCalledWith({ token: "secret", body: { name: "Empresa", rfc: "ABC123456789", industry_id: "i" } });
+});
+it("rejects an invalid website before posting", async () => {
+  expect(await createCompanyAction({ ...valid, website: "empresa" })).toEqual({ kind: "invalid", fields: { website: "Escribe un sitio válido, como grupoaltavista.mx." }, reference: {} });
+  expect(createCompany).not.toHaveBeenCalled();
+});

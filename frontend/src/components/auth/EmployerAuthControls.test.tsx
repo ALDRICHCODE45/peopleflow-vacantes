@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
-  signIn: vi.fn(), signOut: vi.fn(),
+  signIn: vi.fn(), signOut: vi.fn(), navigate: vi.fn(),
   session: { status: "unauthenticated", data: null } as {
     status: "loading" | "authenticated" | "unauthenticated";
     data: { user?: { name?: string }; error?: string } | null;
@@ -14,57 +14,53 @@ const auth = vi.hoisted(() => ({
 vi.mock("next-auth/react", () => ({
   SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useSession: () => auth.session,
-  signIn: auth.signIn, signOut: auth.signOut,
+  signIn: auth.signIn, signOut: auth.signOut, getSession: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => auth.query }));
+vi.mock("./sign-in/navigate", () => ({ navigateTo: auth.navigate }));
 
 import { EmployerAuthControls } from "./EmployerAuthControls";
+
+const PASSWORD = "Fixture#Pass2026";
 
 afterEach(cleanup);
 beforeEach(() => {
   auth.session = { status: "unauthenticated", data: null };
   auth.query = new URLSearchParams();
-  auth.signIn.mockReset().mockResolvedValue(undefined);
+  auth.signIn.mockReset().mockResolvedValue({ ok: true, error: null, status: 200, url: "http://localhost:3000/empresa/dashboard" });
   auth.signOut.mockReset().mockResolvedValue(undefined);
+  auth.navigate.mockReset();
 });
 
-describe("employer managed login", () => {
-  it("delegates login to Cognito without collecting credentials or offering unsupported providers", async () => {
-    const { container } = render(<EmployerAuthControls />);
-    expect(container.querySelector('input, form')).toBeNull();
-    expect(screen.queryByText(/Google|Microsoft|Mantener sesión/i)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
-    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/dashboard" }));
+function signInWithPassword() {
+  fireEvent.change(screen.getByLabelText("Correo corporativo"), { target: { value: "laura@empresa.mx" } });
+  fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: PASSWORD } });
+  fireEvent.click(screen.getByRole("button", { name: "Ingresar" }));
+}
+
+describe("employer embedded sign-in", () => {
+  it("collects email and password in PeopleFlow and no longer offers the hosted Cognito page", async () => {
+    render(<EmployerAuthControls />);
+    expect(screen.queryByRole("button", { name: /Cognito/i })).not.toBeInTheDocument();
+    signInWithPassword();
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledExactlyOnceWith("password", {
+      redirect: false, email: "laura@empresa.mx", password: PASSWORD, callbackUrl: "/empresa/dashboard",
+    }));
+    await waitFor(() => expect(auth.navigate).toHaveBeenCalledExactlyOnceWith("/empresa/dashboard"));
     expect(auth.signOut).not.toHaveBeenCalled();
   });
 
-  it("disables login while session state is loading", () => {
+  it("shows social buttons only for the providers the server enabled", () => {
+    render(<EmployerAuthControls socialProviders={[{ id: "microsoft", identityProvider: "Microsoft" }]} />);
+    expect(screen.getByRole("button", { name: "Continuar con Microsoft" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continuar con Google" })).not.toBeInTheDocument();
+  });
+
+  it("disables sign-in while session state is loading", () => {
     auth.session = { status: "loading", data: null };
     render(<EmployerAuthControls />);
-    expect(screen.getByRole("button", { name: /ingresar/i })).toBeDisabled();
+    signInWithPassword();
     expect(auth.signIn).not.toHaveBeenCalled();
-  });
-
-  it("prevents duplicate login requests while redirect initiation is pending", async () => {
-    let resolve!: () => void;
-    auth.signIn.mockImplementation(() => new Promise<void>((done) => { resolve = done; }));
-    render(<EmployerAuthControls />);
-    const button = screen.getByRole("button", { name: "Ingresar con Cognito" });
-    fireEvent.click(button);
-    expect(button).toBeDisabled();
-    fireEvent.click(button);
-    expect(auth.signIn).toHaveBeenCalledTimes(1);
-    resolve();
-    await waitFor(() => expect(button).toBeEnabled());
-  });
-
-  it("shows a generic accessible login failure without exposing provider detail", async () => {
-    auth.signIn.mockRejectedValue(new Error("secret-provider-response"));
-    render(<EmployerAuthControls />);
-    fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No pudimos iniciar el acceso. Inténtalo de nuevo."));
-    expect(screen.queryByText(/secret-provider-response/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ingresar con Cognito" })).toBeEnabled();
   });
 
   it("renders generic callback error feedback without reflecting untrusted query text", () => {
@@ -73,12 +69,11 @@ describe("employer managed login", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("No pudimos completar el acceso. Inténtalo de nuevo.");
     expect(screen.queryByText(/private-token-from-query/)).not.toBeInTheDocument();
   });
-});
 
-describe("employer login shape", () => {
-  it("uses the shared pill button shape like the candidate login, never a hard-coded rounded-lg", () => {
+  it("shows the already-registered notice for a social sign-in whose email has a password account", () => {
+    auth.query = new URLSearchParams("error=email_in_use");
     render(<EmployerAuthControls />);
-    expect(screen.getByRole("button", { name: "Ingresar con Cognito" }).className).not.toContain("rounded-lg");
+    expect(screen.getByRole("status")).toHaveTextContent("Ese correo ya tiene cuenta. Entra con tu contraseña.");
   });
 });
 
@@ -86,15 +81,25 @@ describe("employer return path", () => {
   it("returns to the requested employer page after signing in", async () => {
     auth.query = new URLSearchParams("callbackUrl=%2Fempresa%2Fequipo");
     render(<EmployerAuthControls />);
-    fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
-    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/equipo" }));
+    signInWithPassword();
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("password", expect.objectContaining({ callbackUrl: "/empresa/equipo" })));
+    await waitFor(() => expect(auth.navigate).toHaveBeenCalledWith("/empresa/equipo"));
+  });
+
+  it("carries the same return path into a social sign-in", () => {
+    auth.signIn.mockReturnValue(new Promise(() => {}));
+    auth.query = new URLSearchParams("callbackUrl=%2Fempresa%2Fequipo");
+    render(<EmployerAuthControls socialProviders={[{ id: "google", identityProvider: "Google" }]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Continuar con Google" }));
+    expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/equipo" }, { identity_provider: "Google" });
   });
 
   it.each(["https://evil.example/empresa", "//evil.example/empresa", "/candidato/perfil", "/empresa/../api/x", "/empresa\\evil", "empresa/equipo", "http://localhost:3000/empresa/login", "/empresa/login", "/empresa/login/"])("never follows an unsafe return path %s", async callbackUrl => {
     auth.query = new URLSearchParams({ callbackUrl });
     render(<EmployerAuthControls />);
-    fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
-    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/dashboard" }));
+    signInWithPassword();
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("password", expect.objectContaining({ callbackUrl: "/empresa/dashboard" })));
+    await waitFor(() => expect(auth.navigate).toHaveBeenCalledWith("/empresa/dashboard"));
   });
 });
 
@@ -104,13 +109,12 @@ describe("employer session and logout", () => {
     render(<EmployerAuthControls />);
     expect(screen.getByRole("status")).toHaveTextContent("Sesión iniciada.");
     expect(screen.queryByRole("button", { name: /ingresar/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Contraseña")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeEnabled();
     expect(screen.queryByText(/permisos confirmados|empresa verificada/i)).not.toBeInTheDocument();
   });
 
   it("ignores a stale callback error once signed in and links to the company panel", () => {
-    // A slow first token exchange can leave ?error=OAuthCallback in the URL even
-    // though a later attempt signed in: the page must not claim the access failed.
     auth.session = { status: "authenticated", data: { user: { name: "Recruiter" } } };
     auth.query = new URLSearchParams("error=OAuthCallback");
     render(<EmployerAuthControls />);
@@ -118,7 +122,7 @@ describe("employer session and logout", () => {
     expect(screen.getByRole("link", { name: "Ir a mi panel" })).toHaveAttribute("href", "/empresa/dashboard");
   });
 
-  it("clears the local session via NextAuth before its redirect to the same-origin federated logout endpoint", async () => {
+  it("clears the local session via NextAuth before its redirect to the same-origin logout endpoint", async () => {
     auth.session = { status: "authenticated", data: { user: {} } };
     render(<EmployerAuthControls />);
     fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" }));
@@ -126,13 +130,35 @@ describe("employer session and logout", () => {
     expect(auth.signIn).not.toHaveBeenCalled();
   });
 
-  it("does not claim a valid session after refresh failure and offers relogin plus session clearing", () => {
+  it("does not claim a valid session after refresh failure and offers the sign-in form with the expired banner", () => {
     auth.session = { status: "authenticated", data: { error: "RefreshAccessTokenError" } };
     render(<EmployerAuthControls />);
     expect(screen.queryByText("Sesión iniciada.")).not.toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Tu sesión venció. Vuelve a ingresar.");
-    expect(screen.getByRole("button", { name: "Ingresar con Cognito" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeEnabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Tu sesión venció. Vuelve a ingresar.");
+    expect(screen.getByLabelText("Contraseña")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ingresar" })).toBeInTheDocument();
+  });
+
+  it("keeps «Cerrar sesión» next to the form when the session expired, clearing it through the same logout", async () => {
+    auth.session = { status: "authenticated", data: { error: "RefreshAccessTokenError" } };
+    render(<EmployerAuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledWith({ callbackUrl: "/api/auth/cognito/logout" }));
+    expect(auth.signIn).not.toHaveBeenCalled();
+  });
+
+  it("offers no «Cerrar sesión» without any session", () => {
+    render(<EmployerAuthControls />);
+    expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
+  });
+
+  it("reports a logout failure from the expired state without its detail", async () => {
+    auth.session = { status: "authenticated", data: { error: "RefreshAccessTokenError" } };
+    auth.signOut.mockRejectedValue(new Error("private-refresh-token"));
+    render(<EmployerAuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No pudimos cerrar la sesión. Inténtalo de nuevo."));
+    expect(screen.queryByText(/private-refresh-token/)).not.toBeInTheDocument();
   });
 
   it("reports logout failure and never claims successful logout", async () => {

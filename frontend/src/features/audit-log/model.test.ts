@@ -72,8 +72,13 @@ describe("labels (contract Annex)", () => {
     expect(eventLabel("StakeholderInvitationAccepted")).toBe("Aceptó una invitación de stakeholder");
     expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "StakeholderInvitationAccepted", category: "members" });
     expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "MetricsDetailExported", category: "sensitive_read" });
-    expect(KNOWN_EVENT_TYPES).toHaveLength(75);
-    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(75);
+    // Embedded auth v1 D4 (backend 248d8846): self-service employer onboarding, members, after the stakeholder events.
+    expect(eventLabel("EmployerAccountCreated")).toBe("Creó su cuenta de empresa");
+    expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "EmployerAccountCreated", category: "members" });
+    const order = KNOWN_EVENT_TYPES.map(type => type.event_type);
+    expect(order[order.indexOf("StakeholderInvitationAccepted") + 1]).toBe("EmployerAccountCreated");
+    expect(KNOWN_EVENT_TYPES).toHaveLength(76);
+    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(76);
     expect(KNOWN_EVENT_TYPES.filter(type => eventLabel(type.event_type) === UNKNOWN_EVENT_LABEL)).toEqual([]);
   });
 

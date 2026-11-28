@@ -1,9 +1,10 @@
 "use server";
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { createCompany, getMyCompany, listIndustries, updateCompanyLocation, companyTimestampSchema } from "./api/company-client";
-import type { Company, Industry, Membership, CompanyFailure, CompanyEditor } from "./api/company-client";
-import { validateCompany, validateCompanyLocation, companyGeographyErrors } from "./validation";
+import { getMyCompany, listIndustries, updateCompanyLocation, companyTimestampSchema } from "./api/company-client";
+import type { Company, Industry, Membership, CompanyEditor } from "./api/company-client";
+import { validateCompanyLocation, companyGeographyErrors } from "./validation";
+import { createCompanyWithToken, reference, status, unavailable } from "./company-write";
 import type { CompanyInput, CompanyFieldErrors } from "./validation";
 
 import type { LocationWrite } from "@/features/geo/model";
@@ -13,7 +14,7 @@ export type UpdateCompanyLocationState =
   | { kind: "conflict"; company: CompanyEditor; reference: Reference }
   | Exclude<CreateCompanyState, { kind: "created" }>;
 
-type Reference = { status?: number; code?: string };
+export type Reference = { status?: number; code?: string };
 export type CompanyUnavailable = { kind: "server_error" | "no_response" | "unrecognized_response"; reference: Reference };
 export type CompanyState =
   | { kind: "unauthenticated"; reference: Reference }
@@ -25,19 +26,6 @@ export type CreateCompanyState =
   | { kind: "invalid"; fields?: CompanyFieldErrors; message?: string; reference: Reference }
   | { kind: "unauthenticated" | "forbidden" | "already_exists" | "industry_unavailable"; reference: Reference }
   | CompanyUnavailable;
-
-function status(result: CompanyFailure): number | undefined {
-  return "status" in result.error ? result.error.status : undefined;
-}
-function reference(result: CompanyFailure): Reference {
-  return { ...(status(result) === undefined ? {} : { status: status(result) }), ...(result.envelope ? { code: result.envelope.code } : {}) };
-}
-function unavailable(result?: CompanyFailure): CompanyUnavailable {
-  const http = result && status(result);
-  const kind = http !== undefined && http >= 500 && http < 600 ? "server_error"
-    : !result || result.error.kind === "network" || result.error.kind === "timeout" ? "no_response" : "unrecognized_response";
-  return { kind, reference: result ? reference(result) : {} };
-}
 
 export async function loadCompanyStateAction(): Promise<CompanyState> {
   try {
@@ -88,24 +76,7 @@ export async function createCompanyAction(input: CompanyInput): Promise<CreateCo
   try {
     const token = await getActionAccessToken();
     if (!token?.trim()) return { kind: "unauthenticated", reference: {} };
-    const { value, fields } = validateCompany(input);
-    if (Object.keys(fields).length) return { kind: "invalid", fields, reference: {} };
-    const result = await createCompany({ token, body: { name: value.name, rfc: value.rfc, industry_id: value.industryId, ...(value.location === undefined ? {} : { location: value.location }) } });
-    if (result.ok) return { kind: "created", company: result.data };
-    const code = result.envelope?.code;
-    const ref = reference(result);
-    const geography = companyGeographyErrors(status(result), result.envelope);
-    if (geography) return { kind: "invalid", fields: { location: geography.location }, reference: ref };
-    switch (status(result)) {
-      case 401: return { kind: "unauthenticated", reference: ref };
-      case 403: return { kind: "forbidden", reference: ref };
-      case 400:
-        if (code === "invalid_request" && result.envelope?.error) return { kind: "invalid", message: result.envelope.error, reference: ref };
-        break;
-      case 409:
-        if (code === "already_exists" || code === "industry_unavailable") return { kind: code, reference: ref };
-    }
-    return unavailable(result);
+    return await createCompanyWithToken(token, input);
   } catch {
     return unavailable();
   }

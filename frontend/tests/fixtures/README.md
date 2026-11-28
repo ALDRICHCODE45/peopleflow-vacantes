@@ -112,3 +112,108 @@ image. Use it only to judge composition with realistic photos; never commit the 
 `GET /v2/me` (identity, role `recruiter` user type) and `GET /me/company` (membership: Nexo Labs, `role` following
 `/__site-draft?role=`) answer any `Bearer` token so the `(empresa)` layout and the careers editor load against the
 fixture with a real browser session. They never validate or mint tokens.
+
+## Mock Cognito (embedded auth)
+
+`node tests/fixtures/cognito-mock.mjs` (default `127.0.0.1:4599`, `COGNITO_MOCK_PORT=0` for an ephemeral port; prints
+`cognito mock listening on <port>`). In-memory, test-only mock of the Cognito user pools API (awsJson1_1: `POST /`,
+`Content-Type: application/x-amz-json-1.1`, `X-Amz-Target: AWSCognitoIdentityProviderService.<Op>`, no
+`Authorization` header — anything else is `400 SerializationException`). It backs the frontend Cognito client
+(`src/lib/auth/cognito/`, via `COGNITO_IDP_ENDPOINT`, never accepted when `NODE_ENV=production` — not even with
+`PEOPLEFLOW_LOCAL_PREVIEW=true` — otherwise only with `NODE_ENV=test` or `PEOPLEFLOW_LOCAL_PREVIEW=true` and a loopback
+origin; so the Next side of the e2e runs with `NODE_ENV=test`) and the backend's GetUser provider
+(`IDENTITY_COGNITO_ENDPOINT`). It never logs passwords, codes or tokens.
+
+Defaults (env overrides): client id `peopleflow-e2e` (`COGNITO_MOCK_CLIENT_ID`), client secret `peopleflow-e2e-secret`
+(`COGNITO_MOCK_CLIENT_SECRET`), issuer `https://e2e.peopleflow.test/identity` (`COGNITO_MOCK_ISSUER`), audience
+`peopleflow-e2e` (`COGNITO_MOCK_AUDIENCE`) — the backend contract's §e2e values.
+
+Operations (PreventUserExistenceErrors=ENABLED behavior; SECRET_HASH verified on every call except GetUser).
+Usernames are matched **exactly** (no trimming or case folding, unlike real Cognito's case-insensitive pools) so a
+client that forgets to normalize the email (`trim().toLowerCase()`, done by `createCognitoClient`) fails here:
+
+- `InitiateAuth` `USER_PASSWORD_AUTH` (hash of the username) → tokens; unknown user and wrong password give the same
+  `NotAuthorizedException`; correct password on an unconfirmed user → `UserNotConfirmedException`.
+  `REFRESH_TOKEN_AUTH` (hash of the **sub**, as real Cognito) → new access/ID tokens, no new refresh token. Other flows →
+  `InvalidParameterException`.
+- `SignUp` (policy: 8+ chars, lower, upper, number, symbol → else `InvalidPasswordException`; duplicate →
+  `UsernameExistsException`; the `name` attribute is required, as in the real pool (L20) → else
+  `InvalidParameterException` «Attributes did not conform to the schema: name: The attribute is required»), `ConfirmSignUp`, `ResendConfirmationCode`, `ForgotPassword`, `ConfirmForgotPassword`.
+  Codes are 6 random digits; 5 wrong attempts → `TooManyFailedAttemptsException` until a new code. Unknown users get a
+  delivery answer on resend/forgot and `CodeMismatchException` on confirm. `ForgotPassword` for an existing user without a
+  verified email — every UNCONFIRMED sign-up, or a user seeded with `confirmed: false` / `emailVerified: false` — answers
+  `InvalidParameterException` «Cannot reset password for the user as there is no registered/verified email or
+  phone_number» and issues **no** reset code, as real Cognito does (L14 advisory 2); the frontend client maps it to the
+  same silent ok an unknown email gets.
+- `GetUser` (contract §GetUser stub): body exactly `{"AccessToken": "<token>"}`; verifies the RS256 signature, `iss`,
+  `token_use=access` and `exp`; `200` success (`email_verified` `"true"`), `200` unverified (`"false"` for users seeded
+  with `emailVerified: false`), `NotAuthorizedException` for an invalid, tampered, expired or orphaned token.
+  `email_verified` always carries a `Value`.
+
+Access tokens: header `{"alg":"RS256","typ":"JWT","kid":"e2e"}`, claims `iss`, `aud`, `sub`, `iat`, `exp` (`iat + 3600`),
+`token_use=access`, `client_id`, `username=sub`, `scope=aws.cognito.signin.user.admin` (backend PEM mode, contract D12).
+
+**Keys:** no private key is committed. Each start generates an ephemeral RSA-2048 pair, unless the e2e orchestrator
+passes `COGNITO_MOCK_PRIVATE_KEY_FILE=<path to a PKCS#8 PEM>`. Only the SPKI public key is exposed.
+**Startup order for e2e:** start the mock first → `GET /__cognito/public-key` → start the backend with that PEM in
+`IDENTITY_JWT_PUBLIC_KEY_PEM` (real newlines), `IDENTITY_JWT_MODE=pem`, `APP_ENV=test`, issuer/audience above,
+`IDENTITY_PROVIDER=cognito_getuser`, `IDENTITY_COGNITO_REGION=us-east-1`, `IDENTITY_COGNITO_ENDPOINT=http://127.0.0.1:<port>`
+→ start Next with `COGNITO_IDP_ENDPOINT=http://127.0.0.1:<port>`, `COGNITO_CLIENT_ID`/`COGNITO_CLIENT_SECRET` = the
+mock's values.
+
+Test-only controls (loopback, never in production):
+
+- `GET /__cognito/public-key` — SPKI PEM (`-----BEGIN PUBLIC KEY-----`).
+- `GET /__cognito/codes?email=<email>` → `{"confirmation": "123456" | null, "reset": "123456" | null}` (last unused codes).
+- `POST /__cognito/users` `{"email","password","name"?,"sub"?,"confirmed"?: true,"emailVerified"?: true}` → `201 {"sub"}`
+  (seeds a confirmed user; `409` on duplicates).
+- `POST /__cognito/expire-code` `{"email","kind": "confirmation" | "reset"}` → the code answers `ExpiredCodeException`.
+- `POST /__cognito/fault` `{"operation": "<Op>","error": "<Name>Exception" | "ServiceUnavailable"}` → the next call of
+  that operation answers that error (`500` for `InternalErrorException`/`ServiceUnavailable`, else `400`), once.
+- `POST /__cognito/reset` — clears users, codes, refresh tokens and faults (the key pair stays).
+
+Validation: `pnpm test --config tests/fixtures/vitest.config.ts tests/fixtures/cognito-mock.test.ts` (raw HTTP contract,
+SECRET_HASH, existence hiding, RS256 verification with the published key, GetUser shapes, controls) and
+`pnpm test src/lib/auth/cognito` (includes the real client against this mock).
+
+## Embedded-auth accounts (A4.7)
+
+`embedded-auth-accounts.mjs`, mounted first in `jobs-server.mjs`, answers the identity and company routes of the sign-up →
+onboarding flows **only for access tokens minted by the mock Cognito** (unverified `iss` equal to the mock issuer, then
+verified by calling the mock's own `GetUser`, exactly as the backend's `cognito_getuser` provider does: signature, issuer,
+`token_use`, expiry, existing user). Any other `Bearer` falls through to the older fixtures above, which keep answering
+it as the Nexo Labs recruiter. In memory, per process; `/__reset` (or `POST /__embedded-auth/reset`) clears it. Set
+`COGNITO_MOCK_ORIGIN` (default `http://127.0.0.1:4599`) when the mock runs elsewhere. Never logs tokens, emails or names.
+
+- `GET /v2/me` → `{role, user}`, or `{role: null, user: null}` before onboarding.
+- `POST /v2/me/candidate-account` / `POST /v2/me/employer-account` `{full_name}` (2–120, strict body) → 201 created,
+  200 already that role, 409 `account_exists` (other role), 409 `email_in_use`, 422 `email_not_verified`, 400
+  `validation_error`; an unknown or tampered token → 401, the mock unreachable → 503 `identity_unavailable`.
+- `GET /me/company` → membership (`owner`), 404 `not_found` for a recruiter without a company, 401 without an account,
+  403 for a candidate.
+- `POST /companies` `{name, rfc, industry_id, website?}` → 201 company (`location: null`), 409 `already_exists` (own
+  company or RFC taken), 409 `industry_unavailable`, 400 `validation_error`, 401 / 403 as above.
+- `POST /v2/me/session/start|end` → 204 (session audit acknowledged, nothing recorded).
+- `GET /industries` (anonymous, any caller): `tecnologia`, `manufactura`, `servicios`.
+
+## E2e stack (A4.7)
+
+`playwright.config.ts` starts the stack itself unless `PLAYWRIGHT_APP_ORIGIN` is set (then nothing is started, the old
+hand-started workflow). Order: the mock Cognito on `:4599`, this fixture API on `:4010` (with `COGNITO_MOCK_ORIGIN`),
+then `next dev` on `127.0.0.1:3100` with `NODE_ENV=test` (the Cognito endpoint override is refused under
+`NODE_ENV=production`), `COGNITO_IDP_ENDPOINT=http://127.0.0.1:4599`, the mock's client id / secret, fixture-only
+`NEXTAUTH_*`, `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:4010` and every social flag `off`. With `NODE_ENV=test` Next
+reads `.env` but never `.env.local`; the keys the auth flows depend on are pinned in the config. Outside CI an already
+listening server on those ports is reused, so a hand-started stack (or a server without the mock) is used as is.
+`next dev` writes its output into `frontend/.next`, replacing a previous production build there.
+
+From `frontend/`: `pnpm test:e2e tests/e2e/embedded-auth.spec.ts` (sign-up → code → onboarding for both audiences,
+generic sign-in error, unconfirmed → verify with auto-resend, password reset, logout, rate limit; no password or code
+ever in a URL), `pnpm test:e2e tests/e2e/login-acceptance.spec.ts`, `pnpm test:a11y tests/e2e/login-acceptance.spec.ts`.
+Each run starts a fresh Next (fresh in-memory rate-limit counters). Next fills `X-Forwarded-For` with the loopback
+socket address, so the per-IP budgets apply: one spec run spends about 19 of the 50 sign-ins per 15 min and 2 of the
+10 sign-ups per hour. Re-running several times against a reused, still-running server can hit them; restart it.
+
+The fixture server loads product TypeScript through `site-product-model.cjs`, which maps the `@/` alias to `src/`
+while loading (a product import through `@/features/candidate/model` used to stop the server at startup, L13).
+Validation: `pnpm test --config tests/fixtures/vitest.config.ts tests/fixtures/embedded-auth-accounts.test.ts`.

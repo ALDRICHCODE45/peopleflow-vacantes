@@ -3,10 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { SessionProvider, signIn, useSession } from "next-auth/react";
+import { SessionProvider, useSession } from "next-auth/react";
 import { signOutWithAudit } from "@/lib/audit/sign-out";
+import type { SocialProvider } from "@/lib/auth/social";
 
 import { Button } from "../ui/button";
+import { signInNotice } from "./sign-in/notice";
+import { SignInForm } from "./sign-in/SignInForm";
 
 /**
  * Where to land after signing in: only a same-site employer page the area guard
@@ -19,81 +22,75 @@ function employerReturnPath(value: string | null): string {
 }
 
 // Identity here is not proof of company membership or API authorization.
-function ManagedLoginControls() {
+function EmployerSignIn({ socialProviders }: { socialProviders: readonly SocialProvider[] }) {
   const { data: session, status } = useSession();
   const params = useSearchParams();
   const [pending, setPending] = React.useState(false);
-  const [actionError, setActionError] = React.useState<string | null>(null);
-  const sessionError = (session as { error?: string } | null)?.error;
-  const expired = Boolean(sessionError);
+  const [logoutError, setLogoutError] = React.useState<string | null>(null);
+  const expired = Boolean((session as { error?: string } | null)?.error);
   const authenticated = status === "authenticated" && !expired;
-  const error = actionError ?? (expired
-    ? "Tu sesión venció. Vuelve a ingresar."
-    // A callback error left in the URL is stale once a later attempt signed in.
-    : params.has("error") && !authenticated ? "No pudimos completar el acceso. Inténtalo de nuevo." : null);
-
-  async function login() {
-    if (pending || status === "loading") return;
-    setActionError(null);
-    setPending(true);
-    try {
-      await signIn("cognito", { callbackUrl: employerReturnPath(params.get("callbackUrl")) });
-    } catch {
-      setActionError("No pudimos iniciar el acceso. Inténtalo de nuevo.");
-    } finally {
-      setPending(false);
-    }
-  }
 
   async function logout() {
     if (pending) return;
-    setActionError(null);
+    setLogoutError(null);
     setPending(true);
     try {
       // NextAuth posts its CSRF-protected sign-out before navigating to our
-      // same-origin endpoint, which then exits Cognito's managed-login cookie.
+      // same-origin endpoint, which ends the session by its kind (logout.ts).
       await signOutWithAudit("/api/auth/cognito/logout");
     } catch {
-      setActionError("No pudimos cerrar la sesión. Inténtalo de nuevo.");
+      setLogoutError("No pudimos cerrar la sesión. Inténtalo de nuevo.");
     } finally {
       setPending(false);
     }
   }
 
+  const logoutButton = (
+    <Button type="button" variant="outline" onClick={logout} disabled={pending}
+      className="h-12 w-full text-[15px]">
+      Cerrar sesión
+    </Button>
+  );
+
+  if (!authenticated) {
+    return (
+      <>
+        <SignInForm
+          audience="employer"
+          callbackUrl={employerReturnPath(params.get("callbackUrl"))}
+          socialProviders={socialProviders}
+          notice={signInNotice(expired, params)}
+          disabled={status === "loading"}
+        />
+        {/* An expired session still holds a cookie: let the person clear it (baseline behavior). */}
+        {expired && (
+          <div className="mt-3 flex flex-col gap-3" aria-busy={pending}>
+            {logoutError && <p role="alert" className="text-sm text-destructive">{logoutError}</p>}
+            {logoutButton}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // A stale callback error in the URL is ignored once signed in.
   return (
-    <div className="mt-8 flex flex-col gap-5" aria-busy={pending || status === "loading"}>
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {authenticated ? (
-        <>
-          <p role="status" className="text-sm text-muted-foreground">Sesión iniciada.</p>
-          <Button nativeButton={false} role="link" render={<Link href="/empresa/dashboard" />}
-            className="h-12 w-full text-[15px] font-semibold">
-            Ir a mi panel
-          </Button>
-        </>
-      ) : (
-        <>
-          <p className="text-sm text-muted-foreground">Ingresa de forma segura con tu cuenta de empresa.</p>
-          <Button type="button" onClick={login} disabled={pending || status === "loading"}
-            className="h-12 w-full text-[15px] font-semibold">
-            Ingresar con Cognito
-          </Button>
-        </>
-      )}
-      {(authenticated || expired) && (
-        <Button type="button" variant="outline" onClick={logout} disabled={pending}
-          className="h-12 w-full text-[15px]">
-          Cerrar sesión
-        </Button>
-      )}
+    <div className="mt-8 flex flex-col gap-5" aria-busy={pending}>
+      {logoutError && <p role="alert" className="text-sm text-destructive">{logoutError}</p>}
+      <p role="status" className="text-sm text-muted-foreground">Sesión iniciada.</p>
+      <Button nativeButton={false} role="link" render={<Link href="/empresa/dashboard" />}
+        className="h-12 w-full text-[15px] font-semibold">
+        Ir a mi panel
+      </Button>
+      {logoutButton}
     </div>
   );
 }
 
-export function EmployerAuthControls() {
+export function EmployerAuthControls({ socialProviders = [] }: { socialProviders?: readonly SocialProvider[] }) {
   return (
     <SessionProvider refetchInterval={60} refetchOnWindowFocus>
-      <ManagedLoginControls />
+      <EmployerSignIn socialProviders={socialProviders} />
     </SessionProvider>
   );
 }

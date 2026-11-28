@@ -2,5 +2,5 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("../../src", import.meta.url)) } },
-  test: { environment: "node", include: ["tests/fixtures/jobs-server.test.ts"] },
+  test: { environment: "node", include: ["tests/fixtures/jobs-server.test.ts", "tests/fixtures/cognito-mock.test.ts", "tests/fixtures/embedded-auth-accounts.test.ts"] },
 });

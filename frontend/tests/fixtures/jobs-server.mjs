@@ -2,7 +2,10 @@ import { createServer } from "node:http";
 import { publicPayload, publicPage, publicSearchRank, matchesPublic, catalogResponse } from "./public-jobs.mjs";
 import { createEmployerDashboardFixture } from "./employer-dashboard.mjs";
 import { createCompanySitesFixture, nexoCompanyId, nexoJobs } from "./company-sites.mjs";
+import { createEmbeddedAuthAccounts } from "./embedded-auth-accounts.mjs";
 const employerDashboardFixture = createEmployerDashboardFixture();
+// Mock-Cognito tokens only (README «Embedded-auth accounts»); other Bearers keep the Nexo fixtures.
+const embeddedAuthAccounts = createEmbeddedAuthAccounts();
 const companySitesFixture = createCompanySitesFixture();
 
 const port = Number(process.env.JOBS_FIXTURE_PORT ?? 4010);
@@ -372,6 +375,7 @@ function sendJson(response, status, payload) {
 
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
+  if (embeddedAuthAccounts.handle(request, response, url)) return;
   if (employerDashboardFixture(request, response, url)) return;
   // A public company without a published careers site, with other catalog jobs.
   if (request.method === "GET" && url.pathname === `/companies/${job.company.id}`) {
@@ -390,6 +394,7 @@ const server = createServer((request, response) => {
   if (url.pathname === "/__requests") return send(response, 200, requests);
   if (url.pathname === "/__reset") {
     companySitesFixture.reset();
+    embeddedAuthAccounts.reset();
     requests.length = 0;
     failureState.kind = null;
     hiddenJobs.clear();

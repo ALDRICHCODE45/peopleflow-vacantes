@@ -1,8 +1,30 @@
 import { z } from "zod";
 import { locationWriteSchema, parseGeographyErrors, type LocationWrite, type LocationIssue } from "@/features/geo/model";
 
-export type CompanyInput = { name: string; rfc: string; industryId: string; location?: LocationWrite };
-export type CompanyFieldErrors = Partial<Record<"name" | "rfc" | "industryId", string>> & { location?: LocationIssue[] };
+export type CompanyInput = { name: string; rfc: string; industryId: string; location?: LocationWrite; /** Optional (A4.5 «Tu empresa»); blank means none. */ website?: string };
+export type CompanyFieldErrors = Partial<Record<"name" | "rfc" | "industryId" | "website", string>> & { location?: LocationIssue[] };
+
+export const WEBSITE_ERROR = "Escribe un sitio válido, como grupoaltavista.mx.";
+const MAX_WEBSITE_LENGTH = 2048;
+const LABEL = "[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?";
+const WEBSITE_SHAPE = new RegExp(`^(?:${LABEL}\\.)+[A-Za-z]{2,63}(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?$`);
+
+/**
+ * The «Sitio web» rule of artboard 01 (co-err): with or without `https://` and
+ * `www`, rejecting only what does not look like a domain. Returns the URL to
+ * send (https unless http was typed), `undefined` when blank, `null` when invalid.
+ */
+export function normalizeWebsite(raw: string): string | null | undefined {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (text === "") return undefined;
+  const scheme = /^(https?):\/\//i.exec(text);
+  const rest = scheme ? text.slice(scheme[0].length) : text;
+  // Any other scheme (javascript:, ftp://…) fails the shape: a host label never holds «:».
+  const host = rest.split(/[/?#:]/, 1)[0];
+  if (host.length > 253 || !WEBSITE_SHAPE.test(rest)) return null;
+  const url = `${scheme ? scheme[1].toLowerCase() : "https"}://${rest}`;
+  return url.length <= MAX_WEBSITE_LENGTH ? url : null;
+}
 
 export function validateCompanyLocation(location: unknown): LocationIssue[] {
   const parsed = locationWriteSchema.safeParse(location);
@@ -28,6 +50,7 @@ export function validateCompany(input: CompanyInput) {
     industryId: typeof input?.industryId === "string" ? input.industryId.trim() : "",
     ...(input?.location === undefined ? {} : { location: input.location }),
   };
+  const website = input?.website === undefined ? undefined : normalizeWebsite(input.website);
   const characters = (text: string) => Array.from(text).length;
   const fields: CompanyFieldErrors = {};
   if (characters(value.name) < 4) fields.name = "El nombre debe tener al menos 4 caracteres.";
@@ -37,5 +60,6 @@ export function validateCompany(input: CompanyInput) {
     const issues = validateCompanyLocation(input.location);
     if (issues.length) fields.location = issues;
   }
-  return { value, fields };
+  if (website === null) fields.website = WEBSITE_ERROR;
+  return { value: typeof website === "string" ? { ...value, website } : value, fields };
 }

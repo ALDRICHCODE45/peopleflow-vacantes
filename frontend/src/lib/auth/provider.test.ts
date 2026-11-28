@@ -26,11 +26,16 @@ describe("buildCognitoProvider", () => {
     expect(effectiveProvider().checks).toEqual(["pkce", "state"]);
   });
 
-  it("requests the openid, email and profile OIDC scopes", () => {
-    expect(COGNITO_SCOPES).toBe("openid email profile");
+  it("requests the OIDC scopes plus aws.cognito.signin.user.admin so the backend GetUser accepts social tokens (L8)", () => {
+    expect(COGNITO_SCOPES).toBe("openid email profile aws.cognito.signin.user.admin");
     expect(effectiveProvider().authorization).toMatchObject({
-      params: { scope: "openid email profile" },
+      params: { scope: "openid email profile aws.cognito.signin.user.admin" },
     });
+  });
+
+  it("fixes no identity_provider itself: the social button supplies it per sign-in", () => {
+    const params = (effectiveProvider().authorization as { params: Record<string, unknown> }).params;
+    expect(params).not.toHaveProperty("identity_provider");
   });
 
   it("gives the code exchange with Cognito 10 seconds instead of the library's 3.5", () => {

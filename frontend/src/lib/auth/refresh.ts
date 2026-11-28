@@ -1,3 +1,6 @@
+import type { CognitoClient } from "./cognito/client";
+import type { CognitoClientOperation } from "./cognito/errors";
+import { isCognitoSubject } from "./token-shape";
 import {
   classifyRefreshCategory,
   createRefreshSignalId,
@@ -12,7 +15,21 @@ export const REFRESH_ERROR = "RefreshAccessTokenError" as const;
 export const DEFAULT_REFRESH_TIMEOUT_MS = 8000;
 export const DEFAULT_EXPIRY_SKEW_MS = 30_000;
 
+/** The single generic refresh failure: no token, body or provider error ever reaches it. */
+const REFRESH_FAILED = "Cognito token refresh failed";
+
 export type RefreshError = typeof REFRESH_ERROR;
+
+/**
+ * How the session was established: `password` (embedded sign-in, Cognito
+ * USER_PASSWORD_AUTH) or `oauth` (Cognito OAuth: hosted/social). Cookies issued
+ * before the marker existed are OAuth sessions.
+ */
+export type SessionKind = "password" | "oauth";
+
+export function sessionKindOf(token: { authKind?: unknown }): SessionKind {
+  return token.authKind === "password" ? "password" : "oauth";
+}
 
 export type TokenLike = {
   sub?: string;
@@ -23,6 +40,7 @@ export type TokenLike = {
   refreshToken?: string;
   expiresAt?: number;
   idToken?: string;
+  authKind?: SessionKind;
   error?: RefreshError;
   [key: string]: unknown;
 };
@@ -116,7 +134,7 @@ export async function refreshAccessToken(
       idToken: typeof payload.id_token === "string" ? payload.id_token : undefined,
     };
   } catch {
-    throw new Error("Cognito token refresh failed");
+    throw new Error(REFRESH_FAILED);
   } finally {
     clearTimeout(timer);
   }
@@ -144,8 +162,62 @@ export function expireSession(token: TokenLike): TokenLike {
     name: token.name,
     email: token.email,
     picture: token.picture,
+    // Kept so logout still skips the Cognito hop for an expired password session.
+    authKind: token.authKind,
     error: REFRESH_ERROR,
   };
+}
+
+export type SessionRefreshConfig = {
+  /** OAuth sessions: the /oauth2/token refresh_token grant (unchanged). */
+  oauth: Omit<RefreshAccessTokenOptions, "refreshToken">;
+  /** Password sessions: InitiateAuth REFRESH_TOKEN_AUTH through the server-only client. */
+  cognito?: () => Pick<CognitoClient, "refresh">;
+  /**
+   * Operator hook (service-log.ts). The Cognito client reports configuration
+   * and service failures itself, but maps throttling to `too_many_attempts`
+   * silently; a throttled refresh expires a live session, so it is reported
+   * here as `RefreshThrottled` (L16 R4). Token-free: operation and name only.
+   */
+  onServiceError?: (operation: CognitoClientOperation, errorName: string | null) => void;
+};
+
+/** Synthetic error name for a password refresh Cognito refused with throttling. */
+export const REFRESH_THROTTLED = "RefreshThrottled";
+
+/**
+ * The one refresh entry for both session kinds. Password sessions refresh with
+ * REFRESH_TOKEN_AUTH and SECRET_HASH over the stored `sub` (taken from the
+ * access token at sign-in); OAuth sessions keep the /oauth2/token grant, which
+ * preserves the OAuth scopes of the hosted/social tokens and needs no Cognito
+ * username (federated usernames are not the `sub`). Every failure is the same
+ * generic error, which `refreshSessionToken` turns into an expired session.
+ */
+export async function refreshSessionTokens(
+  token: TokenLike,
+  refreshToken: string,
+  config: SessionRefreshConfig,
+): Promise<RefreshedTokens> {
+  if (sessionKindOf(token) === "oauth") return refreshAccessToken({ ...config.oauth, refreshToken });
+
+  if (!config.cognito || !isCognitoSubject(token.sub)) throw new Error(REFRESH_FAILED);
+  let result: Awaited<ReturnType<CognitoClient["refresh"]>>;
+  try {
+    result = await config.cognito().refresh(refreshToken, token.sub);
+  } catch {
+    throw new Error(REFRESH_FAILED);
+  }
+  if (!result.ok) {
+    if (result.reason === "too_many_attempts") {
+      try {
+        config.onServiceError?.("refresh", REFRESH_THROTTLED);
+      } catch {
+        // An observer must never change the auth outcome.
+      }
+    }
+    throw new Error(REFRESH_FAILED);
+  }
+  return { accessToken: result.tokens.accessToken, refreshToken: result.tokens.refreshToken, expiresAt: result.tokens.expiresAt };
 }
 
 /**
@@ -195,6 +267,7 @@ export async function refreshSessionToken({
       accessToken: refreshed.accessToken,
       refreshToken: refreshed.refreshToken ?? token.refreshToken,
       expiresAt: refreshed.expiresAt,
+      authKind: token.authKind,
     };
   } catch {
     if (signal) reportRefreshSignal(observer, "onOutcome", { label: "FAILURE", ...signal });

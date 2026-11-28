@@ -10,15 +10,18 @@ export type IdentityState = {
   status: "loading" | "unauthenticated" | "ready";
   result?: IdentityResult;
   email: string | null;
+  /** Display-only name from the session (the name given at sign-up, L20); never an authorization input. */
+  name?: string | null;
   retry: () => void;
   update: (identity: Identity) => void;
 };
-export const IdentityContext = React.createContext<IdentityState>({ status: "loading", email: null, retry() {}, update() {} });
+export const IdentityContext = React.createContext<IdentityState>({ status: "loading", email: null, name: null, retry() {}, update() {} });
 export function useIdentity() { return React.useContext(IdentityContext); }
 
 function IdentityLoader({ children, session }: { children: React.ReactNode; session: ReturnType<typeof useSession> }) {
   const authenticated = session.status === "authenticated" && !session.data?.error;
   const email = authenticated ? session.data?.user?.email ?? null : null;
+  const name = authenticated ? session.data?.user?.name ?? null : null;
   // Invalidate synchronously when the public session changes: never flash the
   // previous account's content while the next effect is still pending.
   const sessionKey = authenticated ? JSON.stringify([email, session.data?.user?.name]) : null;
@@ -40,7 +43,7 @@ function IdentityLoader({ children, session }: { children: React.ReactNode; sess
   }, [key, attempt]);
   const result = key !== null && loaded?.key === key ? loaded.result : undefined;
   const status = session.status === "loading" ? "loading" : !authenticated ? "unauthenticated" : result ? "ready" : "loading";
-  return <IdentityContext.Provider value={{ status, result, email,
+  return <IdentityContext.Provider value={{ status, result, email, name,
     retry: () => setAttempt(value => value + 1),
     update: identity => { if (key !== null) setLoaded({ key, result: { ok: true, data: identity } }); },
   }}>{children}</IdentityContext.Provider>;
