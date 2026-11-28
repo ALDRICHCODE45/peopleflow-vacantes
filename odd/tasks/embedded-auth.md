@@ -143,3 +143,13 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   body {"AccessToken":"<bearer>"}; a non-200 2xx or an email_verified without Value counts as malformed. Frontend
   follow-ups (A4.7): saved-vacancies/fixtures/real-responses.json:351 «candidate role required» → «account role not
   allowed»; audit catalog now 76 types (EmployerAccountCreated, members, «Creó su cuenta de empresa»).
+- **L13** (2026-11-27) A4.1 committed c62f757d (server-only Cognito client, 7 operations, closed outcome unions, no
+  logging, existence hiding except sign-up email_taken, 16 KiB/timeout transport, loopback-only override; mock Cognito
+  with ephemeral RSA key and public key at /__cognito/public-key, GetUser stub per L12). Independent verify: no
+  blockers; fixes requested (in progress): email normalization (trim+lowercase) for Username/attribute/SECRET_HASH,
+  an `onServiceError(operation, errorName)` operator hook for silent and unavailable outcomes (a wrong client secret
+  would otherwise look like «code sent»), refuse the override under NODE_ENV=production even with local preview, and
+  a comment on not_confirmed. Console checklist addition: confirm the real pool's password policy matches
+  PASSWORD_REQUIREMENTS (8+, lower, upper, number, symbol) and that usernames are case-insensitive. Pre-existing break
+  noted for the backlog: tests/fixtures/jobs-server.test.ts fails in beforeAll (jobs-server.mjs cannot resolve
+  '@/features/candidate/model').
