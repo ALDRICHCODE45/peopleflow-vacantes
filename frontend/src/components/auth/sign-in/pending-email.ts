@@ -73,11 +73,12 @@ export function rememberVerifiedEmail(email: string): void {
   }
 }
 
+/** Reads and forgets the verified email; anything implausible counts as none. */
 export function takeVerifiedEmail(): string | null {
   try {
     const email = window.sessionStorage.getItem(VERIFIED_EMAIL_KEY);
     window.sessionStorage.removeItem(VERIFIED_EMAIL_KEY);
-    return email || null;
+    return plausibleEmail(email);
   } catch {
     return null;
   }
@@ -97,6 +98,8 @@ export type SignInHandoff = { email: string; notice: "verified" | "password_rese
 /**
  * Reads and forgets both «Ingresar» handoffs. The password reset wins: it is
  * the later step (a verified email left over from an earlier visit is stale).
+ * Storage is writable by any script on the origin, so an implausible stored
+ * email counts as no handoff (defense in depth; it is only ever a prefill).
  */
 export function takeSignInHandoff(): SignInHandoff | null {
   let reset: string | null = null;
@@ -107,7 +110,8 @@ export function takeSignInHandoff(): SignInHandoff | null {
     // Storage disabled: nothing was carried.
   }
   const verified = takeVerifiedEmail();
-  if (reset) return { email: reset, notice: "password_reset" };
+  const resetEmail = plausibleEmail(reset);
+  if (resetEmail) return { email: resetEmail, notice: "password_reset" };
   return verified ? { email: verified, notice: "verified" } : null;
 }
 
@@ -123,11 +127,14 @@ export function rememberRecoveryEmail(email: string): void {
 /** Reads (without forgetting) the recovery email; anything implausible counts as none. */
 export function readRecoveryEmail(): string | null {
   try {
-    const email = window.sessionStorage.getItem(RECOVERY_EMAIL_KEY);
-    return email && validEmail(email) ? email : null;
+    return plausibleEmail(window.sessionStorage.getItem(RECOVERY_EMAIL_KEY));
   } catch {
     return null;
   }
+}
+
+function plausibleEmail(email: string | null): string | null {
+  return email && validEmail(email) ? email : null;
 }
 
 export function forgetRecoveryEmail(): void {

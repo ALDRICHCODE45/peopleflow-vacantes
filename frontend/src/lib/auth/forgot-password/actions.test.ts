@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const deps = vi.hoisted(() => ({
@@ -23,7 +23,15 @@ beforeEach(() => {
 
 describe("forgot-password server actions", () => {
   it("is a Server Actions module (Next checks Origin against Host on every action POST)", () => {
-    const source = readFileSync(join(process.cwd(), "src/lib/auth/forgot-password/actions.ts"), "utf8");
+    // Run from elsewhere on purpose: the module is located from this file, not the cwd.
+    const cwd = process.cwd();
+    process.chdir(tmpdir());
+    let source: string;
+    try {
+      source = readFileSync(new URL("./actions.ts", import.meta.url), "utf8");
+    } finally {
+      process.chdir(cwd);
+    }
     expect(source.trimStart().startsWith('"use server";')).toBe(true);
   });
 

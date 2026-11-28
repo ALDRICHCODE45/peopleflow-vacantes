@@ -114,7 +114,7 @@ export function VacancyPanel({ vacancies, selectedId, onPick }: { vacancies: Aud
 /**
  * Many actions, grouped by category: each group is a `ChoiceList` under a heading with the count and a compact «Elegir todas» link
  * (artboard `audit-log-redesign/01`), not a full «Seleccionar todo» row. The shared rows are one tab stop each, so this list keeps a
- * roving tab stop instead of 75: one Tab enters it, the arrow keys (and Home / End) move between options across groups, Space toggles.
+ * roving tab stop instead of 76: one Tab enters it, the arrow keys (and Home / End) move between options across groups, Space toggles.
  */
 export function ActionPanel({ types, selected, onChange }: { types: AuditOptions["types"]; selected: string[]; onChange: (next: string[]) => void }) {
   const [query, setQuery] = useState("");

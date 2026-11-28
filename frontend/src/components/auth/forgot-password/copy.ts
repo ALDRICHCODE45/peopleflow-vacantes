@@ -26,6 +26,16 @@ export const RESET_COPY = {
 
 export const BACK_TO_SIGN_IN = "Volver a ingresar";
 
+/**
+ * Invented (A4.7, L29): shown under «El código no es correcto o ya venció.» only
+ * after an earlier confirm failed as «No pudimos conectarnos.», whose answer may
+ * have been lost after Cognito already changed the password.
+ */
+export const LOST_RESPONSE_ADVISORY = {
+  text: "Si ya cambiaste tu contraseña, ingresa con la nueva.",
+  link: "Ingresar",
+} as const;
+
 export const RECOVER_ERRORS = {
   email: "Escribe un correo válido, como nombre@correo.com.",
   // Invented in A4.4 (VerifyForm): the artboard has no incomplete-code state.

@@ -136,6 +136,7 @@ const ANNEX: readonly (readonly [string, string, string])[] = [
   ["StakeholderInvitationCreated", "members", "Invitó a un stakeholder"],
   ["StakeholderInvitationRevoked", "members", "Revocó una invitación de stakeholder"],
   ["StakeholderInvitationAccepted", "members", "Aceptó una invitación de stakeholder"],
+  ["EmployerAccountCreated", "members", "Creó su cuenta de empresa"],
   ["AuditLogExported", "audit", "Exportó la auditoría"],
 ];
 const EVENT_LABELS = new Map(ANNEX.map(([type, , label]) => [type, label]));

@@ -84,3 +84,21 @@ it("never stores anything but a plausible email for recovery", () => {
   window.sessionStorage.setItem(RECOVERY_EMAIL_KEY, "not an email");
   expect(readRecoveryEmail()).toBeNull();
 });
+
+it("never hands an implausible stored email to «Ingresar» (verified or reset), and still consumes it", () => {
+  window.sessionStorage.setItem(VERIFIED_EMAIL_KEY, "not an email");
+  expect(takeVerifiedEmail()).toBeNull();
+  expect(window.sessionStorage.getItem(VERIFIED_EMAIL_KEY)).toBeNull();
+
+  window.sessionStorage.setItem(VERIFIED_EMAIL_KEY, "<script>@x");
+  expect(takeSignInHandoff()).toBeNull();
+
+  window.sessionStorage.setItem(PASSWORD_RESET_EMAIL_KEY, `${"a".repeat(260)}@correo.com`);
+  expect(takeSignInHandoff()).toBeNull();
+  expect(window.sessionStorage.getItem(PASSWORD_RESET_EMAIL_KEY)).toBeNull();
+
+  // An implausible reset handoff counts as none; a plausible verified one still applies.
+  window.sessionStorage.setItem(PASSWORD_RESET_EMAIL_KEY, "nope");
+  rememberVerifiedEmail("ximena@correo.com");
+  expect(takeSignInHandoff()).toEqual({ email: "ximena@correo.com", notice: "verified" });
+});

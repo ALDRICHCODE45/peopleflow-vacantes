@@ -200,6 +200,55 @@ describe("step 2 · code and new password", () => {
     expect(deps.assign).not.toHaveBeenCalled();
   });
 
+  it("a first wrong code never suggests the password may already have changed", async () => {
+    deps.confirm.mockResolvedValue({ ok: false, reason: "code_mismatch" });
+    await mount();
+    await requestCode();
+    fillReset();
+    change();
+    await screen.findByRole("alert");
+    expect(screen.queryByText(/Si ya cambiaste tu contraseña/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["unavailable", () => deps.confirm.mockResolvedValueOnce({ ok: false, reason: "unavailable" })],
+    ["thrown", () => deps.confirm.mockRejectedValueOnce(new Error("lost"))],
+  ] as const)("after a %s confirm (possibly a lost response), a rejected code links to «Ingresar» with the new password", async (_, armFirst) => {
+    for (const reason of ["code_expired", "code_mismatch"]) {
+      cleanup();
+      deps.confirm.mockReset();
+      window.sessionStorage.clear();
+      armFirst();
+      deps.confirm.mockResolvedValueOnce({ ok: false, reason });
+      await mount("candidate");
+      await requestCode();
+      fillReset();
+      change();
+      expect(await screen.findByRole("alert")).toHaveTextContent("No pudimos conectarnos.");
+      expect(screen.queryByText(/Si ya cambiaste tu contraseña/)).not.toBeInTheDocument();
+      change();
+      const alert = await screen.findByText("El código no es correcto o ya venció.");
+      const box = alert.closest('[role="alert"]') as HTMLElement;
+      expect(box).toHaveTextContent("Si ya cambiaste tu contraseña, ingresa con la nueva.");
+      expect(within(box).getByRole("link", { name: "Ingresar" })).toHaveAttribute("href", "/candidato/login");
+    }
+  });
+
+  it("«Usar otro correo» drops the lost-response advisory (a different account)", async () => {
+    deps.confirm.mockResolvedValueOnce({ ok: false, reason: "unavailable" }).mockResolvedValue({ ok: false, reason: "code_mismatch" });
+    await mount();
+    await requestCode();
+    fillReset();
+    change();
+    await screen.findByText("No pudimos conectarnos.");
+    fireEvent.click(screen.getByRole("button", { name: "Usar otro correo" }));
+    await requestCode("otra@empresa.mx");
+    fillReset();
+    change();
+    await screen.findByText("El código no es correcto o ya venció.");
+    expect(screen.queryByText(/Si ya cambiaste tu contraseña/)).not.toBeInTheDocument();
+  });
+
   it("invalid_password: marks the password with its requirements and focuses it", async () => {
     deps.confirm.mockResolvedValue({ ok: false, reason: "invalid_password" });
     await mount();

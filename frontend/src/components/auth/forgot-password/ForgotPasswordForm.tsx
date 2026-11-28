@@ -26,6 +26,7 @@ import { RESEND_COOLDOWN_SECONDS, RESEND_LABEL, RESEND_LEAD, formatCooldown } fr
 import { useCooldown } from "../verify/use-cooldown";
 import {
   BACK_TO_SIGN_IN,
+  LOST_RESPONSE_ADVISORY,
   RECOVER_ALERTS,
   RECOVER_ERRORS,
   RECOVER_EYEBROW,
@@ -78,6 +79,10 @@ export function ForgotPasswordForm({ audience }: { audience: SignInAudience }) {
   const [digits, setDigits] = React.useState<string[]>(emptyCode);
   const [codeError, setCodeError] = React.useState(false);
   const [codeRejected, setCodeRejected] = React.useState(false);
+  // A confirm that failed as `unavailable` (or threw) may still have changed the
+  // password at Cognito with the answer lost; a later «código vencido» then
+  // points to «Ingresar» too (L29). Cleared only when the account changes.
+  const [confirmMaybeApplied, setConfirmMaybeApplied] = React.useState(false);
   const [password, setPassword] = React.useState("");
   const [passwordError, setPasswordError] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
@@ -190,6 +195,7 @@ export function ForgotPasswordForm({ audience }: { audience: SignInAudience }) {
     setDigits(emptyCode());
     setCodeError(false);
     setCodeRejected(false);
+    setConfirmMaybeApplied(false);
     setPasswordError(false);
     setAlertKind(null);
     setStep("request");
@@ -258,6 +264,7 @@ export function ForgotPasswordForm({ audience }: { audience: SignInAudience }) {
       case "too_many_attempts":
         return failWith("too_many_attempts");
       default:
+        setConfirmMaybeApplied(true);
         return failWith("network");
     }
   }
@@ -275,7 +282,14 @@ export function ForgotPasswordForm({ audience }: { audience: SignInAudience }) {
     </p>
   );
   const alertBox = alert && (
-    <AuthAlert ref={alertRef} id={ids.alert} tone={alert.tone} title={alert.title} body={alert.body} offline={alertKind === "network"} />
+    <AuthAlert ref={alertRef} id={ids.alert} tone={alert.tone} title={alert.title} body={alert.body} offline={alertKind === "network"}>
+      {alertAboutCode && confirmMaybeApplied && (
+        <p className="mt-0.5 text-[13px] leading-[18px]">
+          {LOST_RESPONSE_ADVISORY.text}{" "}
+          <Link href={paths.login} className={`${styles.accentText} font-semibold underline underline-offset-4 ${AUTH_FOCUS_RING}`}>{LOST_RESPONSE_ADVISORY.link}</Link>
+        </p>
+      )}
+    </AuthAlert>
   );
 
   if (step === "request") {

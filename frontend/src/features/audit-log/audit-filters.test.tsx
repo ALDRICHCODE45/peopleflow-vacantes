@@ -286,7 +286,7 @@ describe("action panel", () => {
     expect(boxes[2]).toHaveAttribute("aria-checked", "true");
     await user.keyboard(" ");
     expect(onChange).toHaveBeenLastCalledWith({ event_type: undefined });
-    // The tab stop follows the focus, so Shift+Tab / Tab do not walk 75 rows.
+    // The tab stop follows the focus, so Shift+Tab / Tab do not walk 76 rows.
     expect(boxes.filter(box => box.tabIndex === 0)).toEqual([boxes[2]]);
   });
 

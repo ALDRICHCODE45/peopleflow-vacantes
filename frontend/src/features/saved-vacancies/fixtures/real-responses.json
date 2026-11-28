@@ -348,7 +348,7 @@
     "path": "/v2/me/saved-jobs/40000000-0000-4000-8000-000000000001",
     "status": 403,
     "body": {
-      "error": "candidate role required",
+      "error": "account role not allowed",
       "code": "wrong_role"
     }
   },
