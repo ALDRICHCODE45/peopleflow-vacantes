@@ -28,7 +28,7 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 | A4 | S1–S4 | Implementation of design 01 · Panel dividido, test-first, behind the existing session model | |
 | A4.1 | S1, S2 | Server-only Cognito client (SECRET_HASH; InitiateAuth, SignUp, ConfirmSignUp, Resend, ForgotPassword, ConfirmForgotPassword) + mock Cognito fixture | c62f757d, 09c14ac9 |
 | A4.2 | S1–S3 | NextAuth CredentialsProvider into the same JWT cookie; refresh via REFRESH_TOKEN_AUTH; logout per session kind; OAuth scope + identity_provider with per-provider flags | 45833b2d, 7fd8bbdd |
-| A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | |
+| A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | 12833dc7, a1a1ce93 |
 | A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | |
 | A4.5 | S1, S4 | Company sign-up: Tu cuenta → Verifica tu correo → Tu empresa (employer-account + POST /companies) | |
 | A4.6 | S1 | ¿Olvidaste tu contraseña? request → code + new password → done | |
@@ -196,3 +196,22 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   404 until A4.4–A4.6 (no publication before then); tests/e2e/login-acceptance.spec.ts breaks (A4.7); nothing sets
   ?error=email_in_use yet (identity onboarding redirect, A4.4/A4.5); the verify screen must resend on arrival.
   Independent verify running.
+- **L19** (2026-11-28) A4.3 verify fixes a1a1ce93 (8 KiB capped body read → 413 after counting the IP; password
+  cleared with flushSync before the verify handoff; stale pending email dropped on submit; .checkbox removed). Native
+  review approved and acknowledged (lineage review-b32a34524cd28c7c; risk, resilience, reliability; the request
+  context file was omitted because it exceeded the reviewer budget). Advisory follow-ups taken before A4.4 (A4.3b):
+  per-email budget counted only for requests with a valid NextAuth CSRF cookie/token pair (no free targeted lockout);
+  no per-IP limiting when the client address is unknown (no shared «unknown» bucket), per-email still applies;
+  over-limit keys are never evicted before expiry; restore «Cerrar sesión» in the expired-session state; after the
+  10 s timeout re-check the session and continue if it became authenticated; log an invalid AUTH_SOCIAL_* key once
+  per process. Known and accepted: dead-end /registro /verificar /recuperar until A4.4–A4.6 and the failing
+  login-acceptance e2e until A4.7 (no publication before A4.7); no hosted-login fallback (rollback = revert; the
+  hosted UI config is untouched in Cognito).
+- **L20** (2026-11-28) The user configured the real Cognito console (pool «User pool - shqlba», us-east-1, app client
+  peopleflow-web-dev; no agent touched AWS; details in backend odd/tasks/embedded-auth-backend.md L8): ALLOW_USER_PASSWORD_AUTH
+  added (REFRESH_TOKEN_AUTH, USER_SRP_AUTH and USER_AUTH remain); OAuth scope aws.cognito.signin.user.admin added;
+  PreventUserExistenceErrors and token revocation already on; confidential client (SECRET_HASH); access/ID 60 min,
+  refresh 5 days; self sign-up on with email verification by CODE; required attributes email AND name (SignUp must
+  send name); sign-in identifier is email; verification email text still English (SES phase); hosted UI and callback
+  URLs untouched as rollback. Backend will set IDENTITY_PROVIDER=cognito_getuser, IDENTITY_COGNITO_REGION=us-east-1.
+  Local test with real accounts once the own screens are complete.
