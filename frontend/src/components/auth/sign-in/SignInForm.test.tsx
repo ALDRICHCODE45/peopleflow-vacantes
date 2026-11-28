@@ -8,7 +8,7 @@ vi.mock("next-auth/react", () => ({ signIn: auth.signIn, getSession: auth.getSes
 vi.mock("./navigate", () => ({ navigateTo: auth.assign }));
 
 import { SignInForm, type SignInFormProps } from "./SignInForm";
-import { PENDING_EMAIL_KEY, PENDING_ORIGIN_KEY, VERIFIED_EMAIL_KEY } from "./pending-email";
+import { PASSWORD_RESET_EMAIL_KEY, PENDING_EMAIL_KEY, PENDING_ORIGIN_KEY, VERIFIED_EMAIL_KEY } from "./pending-email";
 
 const PASSWORD = "Fixture#Pass2026";
 const GOOGLE = { id: "google" as const, identityProvider: "Google" };
@@ -385,6 +385,31 @@ describe("notice after «Verifica tu correo»", () => {
     renderForm({ audience: "candidate", callbackUrl: "/candidato/ingresar", notice: "expired" });
     await waitFor(() => expect(screen.getByLabelText("Correo")).toHaveValue("ximena@correo.com"));
     expect(screen.getByRole("status")).toHaveTextContent("Tu sesión venció. Vuelve a ingresar.");
+  });
+});
+
+describe("notice after «Recupera tu acceso»", () => {
+  it("opens with «Tu contraseña se actualizó. Ingresa con tu nueva contraseña.», the email filled in and the focus on the password", async () => {
+    window.sessionStorage.setItem(PASSWORD_RESET_EMAIL_KEY, "laura@empresa.mx");
+    renderForm();
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Tu contraseña se actualizó. Ingresa con tu nueva contraseña.");
+    expect(status).not.toHaveTextContent(/verificado/);
+    expect(screen.getByLabelText("Correo corporativo")).toHaveValue("laura@empresa.mx");
+    expect(screen.getByLabelText("Contraseña")).toHaveValue("");
+    await waitFor(() => expect(screen.getByLabelText("Contraseña")).toHaveFocus());
+    expect(window.sessionStorage.getItem(PASSWORD_RESET_EMAIL_KEY)).toBeNull();
+  });
+
+  it("gives way to the next attempt's result", async () => {
+    window.sessionStorage.setItem(PASSWORD_RESET_EMAIL_KEY, "laura@empresa.mx");
+    auth.signIn.mockResolvedValue({ ok: false, error: "invalid_credentials", status: 401, url: null });
+    renderForm();
+    await screen.findByRole("status");
+    fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: PASSWORD } });
+    submit();
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Correo o contraseña incorrectos."));
+    expect(screen.queryByText(/se actualizó/)).not.toBeInTheDocument();
   });
 });
 

@@ -15,7 +15,7 @@ import styles from "../login-screen.module.css";
 import { ALERT_COPY, FIELD_COPY, MISSING_EMAIL, MISSING_PASSWORD, PROVIDER_LABEL, type SignInAlertKind } from "./copy";
 import { navigateTo } from "./navigate";
 import { classifySignInResult } from "./outcome";
-import { forgetPendingEmail, rememberPendingEmail, takeVerifiedEmail } from "./pending-email";
+import { forgetPendingEmail, rememberPendingEmail, takeSignInHandoff, type SignInHandoff } from "./pending-email";
 import { ProviderIcon } from "./provider-icons";
 import { AUTH_PATHS, type SignInAudience } from "./routes";
 
@@ -67,7 +67,7 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
   const [pending, setPending] = React.useState<"password" | "social" | null>(null);
   const [result, setResult] = React.useState<SignInAlertKind | null>(null);
   const [noticeDismissed, setNoticeDismissed] = React.useState(false);
-  const [verified, setVerified] = React.useState(false);
+  const [handoffNotice, setHandoffNotice] = React.useState<SignInHandoff["notice"] | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
   const [focusRequest, setFocusRequest] = React.useState<{ target: FocusTarget; n: number } | null>(null);
   const lock = React.useRef(false);
@@ -94,11 +94,11 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
   }, []);
 
   React.useEffect(() => {
-    // Back from «Verifica tu correo»: the email is filled in, the password is next.
-    const verifiedEmail = takeVerifiedEmail();
-    if (verifiedEmail === null) return;
-    setEmail(verifiedEmail);
-    setVerified(true);
+    // Back from «Verifica tu correo» or «Recupera tu acceso»: the email is filled in, the password is next.
+    const handoff = takeSignInHandoff();
+    if (handoff === null) return;
+    setEmail(handoff.email);
+    setHandoffNotice(handoff.notice);
     requestFocus("password");
   }, []);
 
@@ -107,7 +107,7 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
     if (notice === "email_in_use") requestFocus("password");
   }, [notice]);
 
-  const alertKind: SignInAlertKind | null = result ?? (noticeDismissed ? null : notice ?? (verified ? "verified" : null));
+  const alertKind: SignInAlertKind | null = result ?? (noticeDismissed ? null : notice ?? handoffNotice);
   const alert = alertKind ? ALERT_COPY[alertKind] : null;
   const credentialsRejected = result === "invalid_credentials";
   const alertCitedByFields = result === "invalid_credentials" || result === "too_many_attempts";

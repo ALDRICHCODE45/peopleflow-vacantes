@@ -8,8 +8,8 @@ import { FloatingLines } from "./FloatingLines";
 import styles from "./login-screen.module.css";
 import { AUTH_PATHS } from "./sign-in/routes";
 
-// LOGIN-01 / A4.3 / A4.4: shared shell for the login, sign-up and verify-code
-// routes (`screen`); a server component
+// LOGIN-01 / A4.3 / A4.4 / A4.6: shared shell for the login, sign-up,
+// verify-code and password-recovery routes (`screen`); a server component
 // whose own client leaves are the persisted ThemeToggle, the OGL FloatingLines
 // panel (LOGIN-02 / CCP-R7D2C, kept exactly as is per L11) and the injected
 // sign-in controls (EmployerAuthControls / CandidateAuthControls, which render
@@ -25,9 +25,11 @@ export type LoginVariant = "employer" | "candidate";
  * Which embedded-auth screen the shell frames. «verify» leaves the heading and
  * the footer to its form: both depend on the email carried in session storage
  * (A4.4), which only the client can read. «company» («Tu empresa», A4.5) also
- * owns both: they name the signed-in account and offer «Salir».
+ * owns both: they name the signed-in account and offer «Salir». «recover»
+ * («¿Olvidaste tu contraseña?», A4.6) owns both: its heading changes with the
+ * step and names the email the code went to.
  */
-export type AuthScreen = "signIn" | "signUp" | "verify" | "company";
+export type AuthScreen = "signIn" | "signUp" | "verify" | "company" | "recover";
 
 type ShellCopy = {
   eyebrow: string; heading: string; subheading: string;
@@ -38,7 +40,7 @@ type ShellCopy = {
 };
 
 // Artboard 01 COPY (design/embedded-auth/_src/ui.js): Ingresar and Crear cuenta per audience.
-const COPY: Record<Exclude<AuthScreen, "verify" | "company">, Record<LoginVariant, ShellCopy>> = {
+const COPY: Record<Exclude<AuthScreen, "verify" | "company" | "recover">, Record<LoginVariant, ShellCopy>> = {
   signIn: {
     employer: {
       eyebrow: "Acceso empresas", heading: "Ingresa a tu cuenta",
@@ -75,7 +77,8 @@ const FOCUS_RING = `rounded-md ${FOCUS_OUTLINE}`;
 const accentClass = { employer: styles.accentEmployer, candidate: styles.accentCandidate } as const;
 
 export function LoginScreen({ variant, authControls, screen = "signIn" }: { variant: LoginVariant; authControls: React.ReactNode; screen?: AuthScreen }) {
-  const copy = screen === "verify" || screen === "company" ? null : COPY[screen][variant];
+  // «verify», «company» and «recover» render their own heading and footer.
+  const copy = screen === "signIn" || screen === "signUp" ? COPY[screen][variant] : null;
 
   // <main> gives the route its one main landmark (axe landmark-one-main).
   return (

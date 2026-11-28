@@ -8,10 +8,17 @@
  *   arrival (the sign-up just sent one).
  * - «Verifica tu correo» → «Ingresar», to prefill the email under the
  *   «Tu correo quedó verificado.» notice.
+ * - «Recupera tu acceso» → «Ingresar» (A4.6), to prefill the email under the
+ *   «Tu contraseña se actualizó.» notice; and the recovery email itself, kept
+ *   while the code step is open so a reload does not lose it.
  */
+import { validEmail } from "@/lib/auth/sign-up/contract";
+
 export const PENDING_EMAIL_KEY = "peopleflow.auth.pendingEmail";
 export const PENDING_ORIGIN_KEY = "peopleflow.auth.pendingOrigin";
 export const VERIFIED_EMAIL_KEY = "peopleflow.auth.verifiedEmail";
+export const PASSWORD_RESET_EMAIL_KEY = "peopleflow.auth.passwordResetEmail";
+export const RECOVERY_EMAIL_KEY = "peopleflow.auth.recoveryEmail";
 
 export type PendingOrigin = "sign-in" | "sign-up";
 export type PendingVerification = { email: string; origin: PendingOrigin | null };
@@ -73,5 +80,60 @@ export function takeVerifiedEmail(): string | null {
     return email || null;
   } catch {
     return null;
+  }
+}
+
+export function rememberPasswordResetEmail(email: string): void {
+  try {
+    window.sessionStorage.setItem(PASSWORD_RESET_EMAIL_KEY, email.trim());
+  } catch {
+    // Storage disabled: «Ingresar» opens without the notice.
+  }
+}
+
+/** Why «Ingresar» opens with an email filled in: a verified sign-up or a changed password. */
+export type SignInHandoff = { email: string; notice: "verified" | "password_reset" };
+
+/**
+ * Reads and forgets both «Ingresar» handoffs. The password reset wins: it is
+ * the later step (a verified email left over from an earlier visit is stale).
+ */
+export function takeSignInHandoff(): SignInHandoff | null {
+  let reset: string | null = null;
+  try {
+    reset = window.sessionStorage.getItem(PASSWORD_RESET_EMAIL_KEY);
+    window.sessionStorage.removeItem(PASSWORD_RESET_EMAIL_KEY);
+  } catch {
+    // Storage disabled: nothing was carried.
+  }
+  const verified = takeVerifiedEmail();
+  if (reset) return { email: reset, notice: "password_reset" };
+  return verified ? { email: verified, notice: "verified" } : null;
+}
+
+/** The email whose reset code was requested, for a reload of the code step. */
+export function rememberRecoveryEmail(email: string): void {
+  try {
+    window.sessionStorage.setItem(RECOVERY_EMAIL_KEY, email.trim());
+  } catch {
+    // Storage disabled: a reload starts the recovery again.
+  }
+}
+
+/** Reads (without forgetting) the recovery email; anything implausible counts as none. */
+export function readRecoveryEmail(): string | null {
+  try {
+    const email = window.sessionStorage.getItem(RECOVERY_EMAIL_KEY);
+    return email && validEmail(email) ? email : null;
+  } catch {
+    return null;
+  }
+}
+
+export function forgetRecoveryEmail(): void {
+  try {
+    window.sessionStorage.removeItem(RECOVERY_EMAIL_KEY);
+  } catch {
+    // Storage disabled: nothing was carried.
   }
 }

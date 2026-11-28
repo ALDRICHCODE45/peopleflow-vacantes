@@ -2,12 +2,19 @@ import { beforeEach, expect, it } from "vitest";
 import {
   PENDING_EMAIL_KEY,
   PENDING_ORIGIN_KEY,
+  PASSWORD_RESET_EMAIL_KEY,
+  RECOVERY_EMAIL_KEY,
   VERIFIED_EMAIL_KEY,
   forgetPendingEmail,
+  forgetRecoveryEmail,
+  readRecoveryEmail,
+  rememberPasswordResetEmail,
   rememberPendingEmail,
+  rememberRecoveryEmail,
   rememberVerifiedEmail,
   takePendingEmail,
   takePendingVerification,
+  takeSignInHandoff,
   takeVerifiedEmail,
 } from "./pending-email";
 
@@ -49,4 +56,31 @@ it("carries a verified email to «Ingresar» once", () => {
   expect(window.sessionStorage.getItem(VERIFIED_EMAIL_KEY)).toBe("ximena@correo.com");
   expect(takeVerifiedEmail()).toBe("ximena@correo.com");
   expect(takeVerifiedEmail()).toBeNull();
+});
+
+it("carries a reset email to «Ingresar» once, and that handoff wins over a stale verified one (both consumed)", () => {
+  expect(takeSignInHandoff()).toBeNull();
+  rememberVerifiedEmail("old@correo.com");
+  rememberPasswordResetEmail(" ximena@correo.com ");
+  expect(window.sessionStorage.getItem(PASSWORD_RESET_EMAIL_KEY)).toBe("ximena@correo.com");
+  expect(takeSignInHandoff()).toEqual({ email: "ximena@correo.com", notice: "password_reset" });
+  expect(takeSignInHandoff()).toBeNull();
+  expect(window.sessionStorage.getItem(VERIFIED_EMAIL_KEY)).toBeNull();
+  rememberVerifiedEmail("ximena@correo.com");
+  expect(takeSignInHandoff()).toEqual({ email: "ximena@correo.com", notice: "verified" });
+});
+
+it("keeps the recovery email across a reload of «Recupera tu acceso» until it is forgotten", () => {
+  expect(readRecoveryEmail()).toBeNull();
+  rememberRecoveryEmail(" ximena@correo.com ");
+  expect(window.sessionStorage.getItem(RECOVERY_EMAIL_KEY)).toBe("ximena@correo.com");
+  expect(readRecoveryEmail()).toBe("ximena@correo.com");
+  expect(readRecoveryEmail()).toBe("ximena@correo.com");
+  forgetRecoveryEmail();
+  expect(readRecoveryEmail()).toBeNull();
+});
+
+it("never stores anything but a plausible email for recovery", () => {
+  window.sessionStorage.setItem(RECOVERY_EMAIL_KEY, "not an email");
+  expect(readRecoveryEmail()).toBeNull();
 });

@@ -1,7 +1,6 @@
 /**
- * Embedded-auth routes per audience. Sign-in exists (A4.3); the others are the
- * planned paths of the sign-up, verify-code and recovery screens (A4.4–A4.6),
- * linked from here so those slices only add the pages.
+ * Embedded-auth routes per audience: sign-in (A4.3), sign-up and verify-code
+ * (A4.4 / A4.5) and password recovery (A4.6).
  */
 export type SignInAudience = "employer" | "candidate";
 

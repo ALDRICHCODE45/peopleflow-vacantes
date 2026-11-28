@@ -16,7 +16,8 @@ export type SignInAlertKind =
   | "expired"
   | "callback"
   | "email_in_use"
-  | "verified";
+  | "verified"
+  | "password_reset";
 
 export type SignInAlertCopy = { tone: AlertTone; title: string; body?: string; resetLink?: string };
 
@@ -37,6 +38,8 @@ export const ALERT_COPY: Record<SignInAlertKind, SignInAlertCopy> = {
   email_in_use: { tone: "info", title: "Ese correo ya tiene cuenta. Entra con tu contraseña." },
   // A4.4: after «Verifica tu correo» (Cognito's confirmation does not sign in).
   verified: { tone: "success", title: "Tu correo quedó verificado. Ingresa para continuar." },
+  // A4.6: after «Recupera tu acceso» (Cognito's ConfirmForgotPassword does not sign in).
+  password_reset: { tone: "success", title: "Tu contraseña se actualizó. Ingresa con tu nueva contraseña." },
 };
 
 export const MISSING_EMAIL = "Escribe tu correo.";

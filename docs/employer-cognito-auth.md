@@ -25,11 +25,13 @@ for this step.
 | `frontend/src/lib/auth/social.ts` | Per-provider social flags; `resolveSocialProviders()` (lazy, never throws) for the screens and the route guard. |
 | `frontend/src/lib/auth/route-guard.ts` | Wraps the NextAuth handler: POST social sign-in param allowlist, password-callback rate limiting and the sign-out session-kind hint. |
 | `frontend/src/lib/auth/rate-limit.ts` | In-memory per-IP and per-email limiter for the password callback and the A4.4–A4.6 routes. |
-| `frontend/src/components/auth/sign-in/` | Embedded «Ingresar» form (artboard 01), error mapping and copy, social buttons, planned A4.4–A4.6 paths. |
+| `frontend/src/components/auth/sign-in/` | Embedded «Ingresar» form (artboard 01), error mapping and copy, social buttons, the A4.3–A4.6 paths and the `sessionStorage` email handoffs. |
+| `frontend/src/components/auth/forgot-password/` | «¿Olvidaste tu contraseña?» (A4.6): request a code, then the code and the new password. |
 | `frontend/src/components/auth/sign-up/`, `frontend/src/components/auth/verify/` | «Crea tu perfil» / «Registra tu empresa» and «Verifica tu correo» (A4.4, A4.5 by audience): live password requirements, six-box code input, resend cooldown. |
 | `frontend/src/components/auth/company/` | «Tu empresa» (A4.5): company sign-up step 3. |
 | `frontend/src/features/employer-company/company-step-actions.ts` | Server Actions of «Tu empresa»: employer account, then POST /companies. |
 | `frontend/src/lib/auth/sign-up/` | Server Actions for sign-up, confirm and resend (validation, rate limiting, closed results). |
+| `frontend/src/lib/auth/forgot-password/` | Server Actions for the password reset: request a code and confirm it with the new password (A4.6). |
 | `frontend/src/lib/auth/password-policy.ts` | Client-safe password requirements shared by the Cognito client and the screens. |
 | `frontend/src/lib/auth/cognito-shared.ts` | The one lazily built server-only Cognito client per process (NextAuth and the actions). |
 | `frontend/src/lib/auth/service-log.ts` | One-line, token-free operator log for the Cognito client's `onServiceError`. |
@@ -412,6 +414,58 @@ it to `/empresa/login?error=email_in_use` would need the logout route
 (`app/api/auth/cognito/logout`) to carry a closed notice value through the Cognito
 `/logout` hop. That is a follow-up.
 
+## Password recovery (A4.6)
+
+`/empresa/recuperar` and `/candidato/recuperar` (the paths «¿Olvidaste tu
+contraseña?» already linked to) render `forgot-password/ForgotPasswordForm` inside
+`LoginScreen` (`screen="recover"`, FloatingLines unchanged, the audience's accent).
+The form owns the heading and the footer, because both change with the step.
+
+1. **Restablece tu contraseña.** Only the email (`autocomplete=username`) and
+   «Enviar código». An admitted request always moves on to step 2 with «Si hay una
+   cuenta con ese correo, te enviamos un código.» (existence hiding).
+2. **Crea una contraseña nueva.** «Para <email>. Usar otro correo», the six-box
+   code, «Nueva contraseña» (`new-password`, show/hide, the live requirements, no
+   «confirm password»), «Cambiar contraseña» and «Reenviar código», which calls
+   `forgotPasswordAction` again. The resend waits 60 s between sends, the same as
+   «Verifica tu correo». A wrong or expired code gets one message, «El código no
+   es correcto o ya venció.», and the new password typed so far is kept.
+   `invalid_password` marks the field. `too_many_attempts` and failures show the
+   shared alerts.
+3. **Done.** There is no separate «Listo» screen: ConfirmForgotPassword returns no
+   tokens, so the form stores the email under `peopleflow.auth.passwordResetEmail`
+   and goes to the audience's «Ingresar». There the form opens with «Tu contraseña
+   se actualizó. Ingresa con tu nueva contraseña.», the email filled in and the
+   focus on the password. That handoff takes precedence over a leftover
+   «verified» one. Both are consumed together.
+
+The email lives in component state. While step 2 is open it is also kept in
+`peopleflow.auth.recoveryEmail`, so a reload stays on step 2 without sending
+anything. «Usar otro correo» and a successful reset forget it. It never goes in
+the URL. The code and the new password stay in memory only, and the password is
+cleared before the browser leaves.
+
+**Server Actions** (`lib/auth/forgot-password/actions.ts`, same-origin only like
+the sign-up actions). Input is validated before the limiter and Cognito: the
+email as in sign-up, the code as exactly six ASCII digits, and `newPassword`
+against `PASSWORD_REQUIREMENTS` (≤ 256). Valid input is then counted per client
+address (`clientIpFrom`) and per normalized email, with the `forgotPassword` /
+`confirmForgotPassword` budgets. Nothing is logged by these actions. The Cognito
+client's value-free `onServiceError` line still reports silent and unavailable
+outcomes:
+
+| Action | Results |
+| --- | --- |
+| `forgotPasswordAction({ email })` | `ok` (also for unknown, unconfirmed or unverified accounts: the client maps `UserNotFoundException`, `UserNotConfirmedException`, `InvalidParameterException` and `NotAuthorizedException` to a silent success), `invalid_input`, `too_many_attempts`, `unavailable` |
+| `confirmForgotPasswordAction({ email, code, newPassword })` | `ok`, `invalid_input` (fields `email` / `code` / `password`), `code_mismatch`, `code_expired`, `invalid_password`, `too_many_attempts`, `unavailable` |
+
+**Unconfirmed accounts.** Real Cognito sends a reset code only to a verified
+email. An UNCONFIRMED sign-up gets `InvalidParameterException` and no code. The
+mock Cognito now does the same (L14 advisory 2), so the silent-ok path is
+exercised end to end (`client.mock.test.ts`). Such a person sees the same step
+2, receives no email, and still has to finish «Verifica tu correo» (signing in
+with the right password leads there).
+
 ## Refresh behavior
 
 The `jwt` callback stores `accessToken`, `refreshToken`, and a millisecond
@@ -588,6 +642,15 @@ notice), the routes test under `app/(auth)/candidato/`, the late-settle attempt
 counter and the verified notice in `SignInForm.test.tsx`, the prefilled name in
 `features/identity/flow.test.tsx`, and the required `name` in the mock Cognito
 test.
+
+A4.6 adds `forgot-password/operations.test.ts` (validation before the limiter,
+per-IP and per-email budgets, each outcome mapping, nothing sensitive returned or
+logged), `forgot-password/actions.test.ts`, the unconfirmed-account silent ok in
+`cognito/client.mock.test.ts` and `tests/fixtures/cognito-mock.test.ts`,
+`components/auth/forgot-password/ForgotPasswordForm.test.tsx` (both steps, every
+error, resend wait, «Usar otro correo», reload, handoff to «Ingresar»), the reset
+notice in `SignInForm.test.tsx`, the handoff helpers in `pending-email.test.ts`
+and `app/(auth)/recover-routes.test.tsx`.
 
 Both login UIs use a local `SessionProvider` with a 60-second refetch interval
 and focus refresh; signed in, they offer the way to the account and «Cerrar
