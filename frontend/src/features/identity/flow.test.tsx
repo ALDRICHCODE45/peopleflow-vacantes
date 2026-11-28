@@ -230,7 +230,9 @@ describe("area role guards", () => {
   it.each(["candidate", "recruiter", null] as const)("employer area handles %s", async role => {
     mocks.load.mockResolvedValue(result(role)); guard("employer");
     if (role === "recruiter") expect(await screen.findByText("private content")).toBeInTheDocument();
-    else { expect(await screen.findByText(role === null ? "Esta cuenta todavía no tiene acceso a empresa" : "Esta cuenta es de candidato")).toBeInTheDocument(); expect(screen.queryByText("private content")).toBeNull(); }
+    // A4.5: an account without a users row is a freshly signed-up employer → «Tu empresa».
+    else if (role === null) { await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/empresa/registro/empresa")); expect(screen.queryByText("private content")).toBeNull(); }
+    else { expect(await screen.findByText("Esta cuenta es de candidato")).toBeInTheDocument(); expect(screen.queryByText("private content")).toBeNull(); }
   });
   it.each(["no_response", "server_error"])("employer preserves access on transient %s", async reason => {
     mocks.load.mockResolvedValue(failure(reason)); guard("employer"); expect(await screen.findByText("private content")).toBeInTheDocument();

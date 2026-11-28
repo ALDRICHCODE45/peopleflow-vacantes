@@ -26,7 +26,9 @@ for this step.
 | `frontend/src/lib/auth/route-guard.ts` | Wraps the NextAuth handler: POST social sign-in param allowlist, password-callback rate limiting and the sign-out session-kind hint. |
 | `frontend/src/lib/auth/rate-limit.ts` | In-memory per-IP and per-email limiter for the password callback and the A4.4–A4.6 routes. |
 | `frontend/src/components/auth/sign-in/` | Embedded «Ingresar» form (artboard 01), error mapping and copy, social buttons, planned A4.4–A4.6 paths. |
-| `frontend/src/components/auth/sign-up/`, `frontend/src/components/auth/verify/` | «Crea tu perfil» and «Verifica tu correo» (A4.4): live password requirements, six-box code input, resend cooldown. |
+| `frontend/src/components/auth/sign-up/`, `frontend/src/components/auth/verify/` | «Crea tu perfil» / «Registra tu empresa» and «Verifica tu correo» (A4.4, A4.5 by audience): live password requirements, six-box code input, resend cooldown. |
+| `frontend/src/components/auth/company/` | «Tu empresa» (A4.5): company sign-up step 3. |
+| `frontend/src/features/employer-company/company-step-actions.ts` | Server Actions of «Tu empresa»: employer account, then POST /companies. |
 | `frontend/src/lib/auth/sign-up/` | Server Actions for sign-up, confirm and resend (validation, rate limiting, closed results). |
 | `frontend/src/lib/auth/password-policy.ts` | Client-safe password requirements shared by the Cognito client and the screens. |
 | `frontend/src/lib/auth/cognito-shared.ts` | The one lazily built server-only Cognito client per process (NextAuth and the actions). |
@@ -190,7 +192,7 @@ callbackUrl })`, then a full navigation to the callback: employers to the safe
 `callbackUrl` or `/empresa/dashboard`, candidates to `/candidato/ingresar`
 (with the safe `next`). The shell links «Registra tu empresa» /
 «Crea tu perfil» to `/empresa/registro` / `/candidato/registro` (A4.5 / A4.4).
-`/candidato/registro` exists since A4.4; the employer route 404s until A4.5. «Ingresar
+`/candidato/registro` exists since A4.4 and `/empresa/registro` since A4.5. «Ingresar
 con Cognito» and the candidate hosted sign-up rewrite are gone, with no
 rollback flag (`signup-url.ts` is now unused). An expired session shows «Tu
 sesión venció. Vuelve a ingresar.» with the form and «Cerrar sesión» below it; any `?error=` shows the generic callback
@@ -355,6 +357,60 @@ with the new address. The old user stays UNCONFIRMED: it cannot sign in, and its
 code expires after 24 h. Whether Cognito ever purges unconfirmed users is not
 verified here. Until an operator deletes it, that email answers `email_taken` on
 sign-up.
+
+## Company sign-up (A4.5)
+
+Three steps, the step read in the eyebrow («Registro de empresa · Paso N de 3»):
+
+1. **Tu cuenta** — `/empresa/registro`: the A4.4 `SignUpForm` with
+   `audience="employer"` (violet accent, «Correo corporativo» with the hint «De
+   preferencia el de tu empresa; te ayudará cuando la verifiquemos.», same terms
+   consent, same Server Actions and limits). The email goes to the next step in
+   `sessionStorage`, as for candidates.
+2. **Verifica tu correo** — `/empresa/verificar`: the A4.4 `VerifyForm`. A correct
+   code leads to `/empresa/login` with «Tu correo quedó verificado.»; no automatic
+   sign-in (same reasons as A4.4).
+3. **Tu empresa** — `/empresa/registro/empresa` (inside `LoginScreen`,
+   `screen="company"`, FloatingLines unchanged). It needs a session: without one
+   it goes to `/empresa/login?callbackUrl=/empresa/registro/empresa`. Fields follow
+   `POST /companies`: «Nombre comercial» (`name`, at least 4 characters), «RFC»
+   (exactly 12), «Industria» (required) and an optional «Sitio web»: accepted with
+   or without `https://` and `www`, rejected only when it does not look like a
+   domain, and sent as `https://…` (`http://` kept if typed). The artboard's
+   «Razón social» has no API field, so it is not asked. The name for the account
+   is the session name (given at step 1). Only when the session has no usable
+   name does the form ask for it.
+
+**Server Actions** (`features/employer-company/company-step-actions.ts`; the token
+is resolved on the server, never sent to the browser):
+
+| Action | Results |
+| --- | --- |
+| `loadCompanyStepAction()` | `ready` (industries) for an account without a users row or a recruiter whose `GET /me/company` is 404 `not_found`; `done` (already in a company: own or invited) → dashboard; `candidate_account`; `unauthenticated` → login; `unavailable` (retry) |
+| `completeCompanyStepAction({ fullName, name, rfc, industryId, website? })` | validates every field before any write, then `POST /v2/me/employer-account {full_name}` (201 created / 200 already recruiter), then `POST /companies`: `created` → `/empresa/dashboard`; `invalid` (fields); `candidate_account` (409 `account_exists`); `email_in_use` (409); `email_not_verified` (422); `industry_unavailable`; `forbidden`; `unauthenticated`; `unavailable` (503 `identity_unavailable`, 5xx, network) |
+
+**Idempotence.** The form holds a lock while a request is in flight, so a double
+click sends one request. A repeat after a lost response is safe: the account
+answers 200 when it is already a recruiter, and the backend refuses a second
+company for the same user (409 `already_exists`, «user already has a company
+membership»). On that 409 the action reads `GET /me/company`. If this account has
+a company, the result is `created`. If it has none, the 409 means the RFC belongs
+to another company («Ese RFC ya está registrado.»).
+
+**Guard.** `EmployerGuard` sends an account without a users row (`role: null`)
+from any employer page to «Tu empresa», replacing the old «Esta cuenta todavía no
+tiene acceso a empresa» screen. It also sends a recruiter whose membership is
+`none` there, but only from the landings (`/empresa`, `/empresa/dashboard`), so
+Configuración keeps creating a company (e.g. after the local bootstrap) and deep
+links stay put. Invitation pages (`/empresa/invitacion/**`) are never redirected:
+an invitee joins a company instead of creating one. Candidates still see «Esta
+cuenta es de candidato», and stakeholders still land on Métricas.
+
+**`?error=email_in_use`.** It is not wired. A 409 `email_in_use` on the employer
+account shows the L5 notice inline on «Tu empresa», with «Cerrar sesión». Moving
+it to `/empresa/login?error=email_in_use` would need the logout route
+(`app/api/auth/cognito/logout`) to carry a closed notice value through the Cognito
+`/logout` hop. That is a follow-up.
 
 ## Refresh behavior
 

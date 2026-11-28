@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useIdentity } from "./identity-session";
 import { IdentityCheck, IdentityError, RoleBlocked, StakeholderRouteBlocked } from "./identity-states";
 import { STAKEHOLDER_HOME, isInvitationRoute, stakeholderRoute } from "./stakeholder-routes";
+import { EMPLOYER_COMPANY_STEP, isEmployerLanding } from "./employer-onboarding";
 import { useCompanyMembershipState } from "@/features/employer-company/company-membership-context";
 import { candidateAuthHref, safeReturnTo } from "./return-to";
 
@@ -57,7 +58,14 @@ export function EmployerGuard({ children }: { children: React.ReactNode }) {
   const employer = result?.ok && result.data.role === "recruiter";
   const membership = shared && employer && shared.userId !== null ? shared.state : undefined;
   const stakeholder = membership?.kind === "exists" && membership.role === "stakeholder" ? stakeholderRoute(pathname) : null;
-  const destination = login ?? (stakeholder === "landing" ? STAKEHOLDER_HOME : null);
+  // A4.5 «Tu empresa»: an account without a users row (a freshly signed-up employer) on any employer page, or a
+  // recruiter without a company on the landing, finishes the sign-up there. Invitation pages are never redirected
+  // (an invitee joins a company instead of creating one); other pages keep a company-less recruiter (Configuración
+  // still creates the company, e.g. after the local bootstrap).
+  const needsAccount = !invitation && result?.ok === true && result.data.role === null;
+  const needsCompany = !invitation && membership?.kind === "none" && isEmployerLanding(pathname);
+  const onboarding = needsAccount || needsCompany ? EMPLOYER_COMPANY_STEP : null;
+  const destination = login ?? onboarding ?? (stakeholder === "landing" ? STAKEHOLDER_HOME : null);
   React.useEffect(() => { if (destination) router.replace(destination); }, [destination, router]);
   if (invitation) return <>{children}</>;
   if (identity.status === "loading" || destination) return <IdentityFrame area="employer"><IdentityCheck /></IdentityFrame>;
@@ -71,6 +79,5 @@ export function EmployerGuard({ children }: { children: React.ReactNode }) {
     return <IdentityFrame area="employer"><IdentityError retry={identity.retry} /></IdentityFrame>;
   }
   if (result.data.role === "candidate") return <IdentityFrame area="employer"><RoleBlocked kind="candidate" area="candidate" /></IdentityFrame>;
-  if (result.data.role === null) return <IdentityFrame area="employer"><RoleBlocked kind="no-company" area="employer" /></IdentityFrame>;
   return <>{children}</>;
 }
