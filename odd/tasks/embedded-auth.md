@@ -281,3 +281,8 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   signal on this path; a lost confirm response leads to a misleading «código vencido» on retry (link to «Ingresar»);
   reload resets the resend cooldown (server budget still applies); actions.test depends on cwd; untested
   invalid_input branches. Independent verify running.
+- **L30** (2026-11-28) A4.6 independent verify: no blockers (validation first, neutral forgot result, confirm maps
+  account-state errors to code errors, no leaks, reload never resends, password cleared before navigation, mock
+  positive and negative paths covered). Non-blocking, folded into A4.7: validate the stored email in
+  takeSignInHandoff (defense in depth); Cognito LimitExceeded on ForgotPassword could hint that an account exists
+  (map to ok or accept). A4.6 done.
