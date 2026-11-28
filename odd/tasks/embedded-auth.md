@@ -27,7 +27,7 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 | A3 | S1–S4 | Technical design + backend needs (with the backend session) + AWS console checklist for the user (AWS stays untouched by agents) | |
 | A4 | S1–S4 | Implementation of design 01 · Panel dividido, test-first, behind the existing session model | |
 | A4.1 | S1, S2 | Server-only Cognito client (SECRET_HASH; InitiateAuth, SignUp, ConfirmSignUp, Resend, ForgotPassword, ConfirmForgotPassword) + mock Cognito fixture | c62f757d, 09c14ac9 |
-| A4.2 | S1–S3 | NextAuth CredentialsProvider into the same JWT cookie; refresh via REFRESH_TOKEN_AUTH; logout per session kind; OAuth scope + identity_provider with per-provider flags | |
+| A4.2 | S1–S3 | NextAuth CredentialsProvider into the same JWT cookie; refresh via REFRESH_TOKEN_AUTH; logout per session kind; OAuth scope + identity_provider with per-provider flags | 45833b2d, 7fd8bbdd |
 | A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | |
 | A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | |
 | A4.5 | S1, S4 | Company sign-up: Tu cuenta → Verifica tu correo → Tu empresa (employer-account + POST /companies) | |
@@ -173,3 +173,11 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   operation=… name=…». 750 scoped tests, 5638 related tests pass. Console checklist: confirm the pool uses email as
   the sign-in attribute with username = sub (refresh SECRET_HASH depends on it). Independent verify running.
 
+- **L16** (2026-11-27) A4.2 done: 45833b2d + verify fixes 7fd8bbdd (guard on decoded NextAuth segments incl. extra or
+  encoded segments, undecodable segment → 400; __Host-peopleflow.logout-kind on https, plain name only for http
+  loopback, scheme from validated NEXTAUTH_URL). Native review approved and acknowledged (lineage
+  review-2adb3651539a0926). Advisory follow-ups folded into A4.3: R1 per-IP and per-email rate limiting on the
+  password callback (and the sign-up/code/forgot routes) before the screens ship — the provider is live once deployed;
+  R3/R4 resolve social flags lazily so a bad AUTH_SOCIAL_* value only disables identity_provider sign-ins (operator log
+  line) and never breaks /api/auth/*; R3 apply the sign-in param allowlist to POST only (pin GET with a test); R4 a
+  token-free operator signal when a password refresh fails on Cognito throttling.
