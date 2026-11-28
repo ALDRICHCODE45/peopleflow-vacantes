@@ -237,3 +237,6 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   Known: «Cambiar correo» leaves the old UNCONFIRMED user in Cognito (still answers email_taken for that address);
   ?next= not carried through registro → verificar → login; flaky unrelated test pipeline-movement/board.test.tsx
   «reports its live coverage». Independent verify running.
+- **L23** (2026-11-28) User decision on the terms links: «Páginas provisorias en el sitio (recomendado)» — create
+  /terminos and /aviso-de-privacidad with provisional text clearly marked as a draft; the partners supply the real
+  legal text before publication; the sign-up checkbox links to both.
