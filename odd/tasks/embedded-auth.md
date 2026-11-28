@@ -30,7 +30,7 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 | A4.2 | S1–S3 | NextAuth CredentialsProvider into the same JWT cookie; refresh via REFRESH_TOKEN_AUTH; logout per session kind; OAuth scope + identity_provider with per-provider flags | 45833b2d, 7fd8bbdd |
 | A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | 12833dc7, a1a1ce93, e25d74f8, 8917f183 |
 | A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | fe5f4832, cac98023 |
-| A4.5 | S1, S4 | Company sign-up: Tu cuenta → Verifica tu correo → Tu empresa (employer-account + POST /companies) | |
+| A4.5 | S1, S4 | Company sign-up: Tu cuenta → Verifica tu correo → Tu empresa (employer-account + POST /companies) | f0ee0c63, 3eb0d88e |
 | A4.6 | S1 | ¿Olvidaste tu contraseña? request → code + new password → done | |
 | A4.7 | S1–S4 | E2e on the mock Cognito + PEM backend; retire inert-shell assertions; docs | |
 
@@ -250,3 +250,15 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 - **L25** (2026-11-28) User: once everything current is finished (A4.5–A4.7 and the local test with real Cognito), both
   sessions (frontend and backend) close before AWS; the AWS work starts in new sessions. Before closing, each session
   leaves its full state in Engram and its feature documents. Communicated to the backend session.
+- **L26** (2026-11-28) A4.5 committed as two reviewable units: f0ee0c63 data layer (employer-account client, company step
+  server actions with the token kept in a non-"use server" helper, optional normalized website, EmployerGuard: role
+  null → «Tu empresa» on non-invitation pages, recruiter without company → step only from /empresa and
+  /empresa/dashboard) and 3eb0d88e screens (/empresa/registro «Paso 1 de 3» with corporate-email hint,
+  /empresa/verificar «Paso 2 de 3», /empresa/registro/empresa «Paso 3 de 3» in the (auth) LoginScreen layout,
+  session-required). Native review approved for both (lineages review-f1a4bb90739fb37a and review-600b73bfe2f949ab).
+  Design deviation (backend contract): «Tu empresa» asks Nombre comercial, RFC (12), Industria and optional Sitio web;
+  «Razón social» has no API field. Advisory follow-ups: possible guard ping-pong after «created» if contexts are not
+  refreshed (R4, checked by the verifier); untested branches (load kinds, settle paths, industry_unavailable keeps the
+  retired option selected); website length limits untested; partial write (account without company) has no
+  server-side signal; ?error=email_in_use still not wired (needs the logout route); RoleBlocked «no-company» unused.
+  Product question for the user: persona física RFC (13) is refused by the backend. Independent verify running.
