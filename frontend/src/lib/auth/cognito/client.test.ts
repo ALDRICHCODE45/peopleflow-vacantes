@@ -427,6 +427,21 @@ describe("onServiceError operator signal", () => {
     ]);
   });
 
+  it.each([
+    ["signIn", (c: CognitoClient) => c.signIn(EMAIL, PASSWORD)],
+    ["refresh", (c: CognitoClient) => c.refresh("refresh-token-value", SUB)],
+    ["confirmSignUp", (c: CognitoClient) => c.confirmSignUp(EMAIL, CODE)],
+    ["forgotPassword", (c: CognitoClient) => c.forgotPassword(EMAIL)],
+  ] as const)("%s treats a secret-hash rejection as a configuration failure (L14), not a user error", async (op, call) => {
+    fetchMock.mockResolvedValue(
+      cognitoError("NotAuthorizedException", `Unable to verify secret hash for client ${CLIENT_ID}`),
+    );
+    const result = await call(client);
+    expect(result).toEqual({ ok: false, reason: "unavailable" });
+    expect(signal).toHaveBeenCalledExactlyOnceWith(op, "SecretHashMismatch");
+    expect(JSON.stringify(result)).not.toMatch(/secret hash|Unable to verify/i);
+  });
+
   it("is not called for successes or mapped user-facing failures", async () => {
     fetchMock.mockResolvedValueOnce(reply(200, AUTH_RESULT));
     await client.signIn(EMAIL, PASSWORD);

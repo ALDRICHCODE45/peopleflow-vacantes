@@ -4,7 +4,7 @@ vi.mock("@/lib/auth/env", async importOriginal => {
   return { ...original, validateAuthEnv: () => ({ siteUrl: "http://localhost:3000", domain: "https://cognito.example.test", clientId: "synthetic-client", employerLoginUrl: "http://localhost:3000/empresa/login" }) };
 });
 import { GET } from "./route";
-import { AUTH_COOKIE_NAMES } from "@/lib/auth/logout";
+import { AUTH_COOKIE_NAMES, LOGOUT_KIND_COOKIE } from "@/lib/auth/logout";
 describe("federated logout destination allowlist", () => {
   it.each([
     ["?to=candidato", "/candidato/login"], ["", "/empresa/login"], ["?to=empresa", "/empresa/login"],
@@ -19,5 +19,28 @@ describe("federated logout destination allowlist", () => {
     expect(destination.pathname).toBe("/logout");
     expect(destination.searchParams.get("logout_uri")).toBe(`http://localhost:3000${path}`);
     for (const cookie of AUTH_COOKIE_NAMES) expect(response.cookies.get(cookie)?.value).toBe("");
+  });
+});
+
+describe("logout per session kind", () => {
+  const withHint = (query: string, value: string) =>
+    GET(new Request(`http://localhost:3000/api/auth/cognito/logout${query}`, { headers: { cookie: `${LOGOUT_KIND_COOKIE}=${value}` } }));
+
+  it.each([
+    ["?to=candidato", "http://localhost:3000/candidato/login"],
+    ["", "http://localhost:3000/empresa/login"],
+    ["?to=https://evil.example", "http://localhost:3000/empresa/login"],
+  ])("a password session (%s) returns to the audience login page without the Cognito hop", (query, expected) => {
+    const response = withHint(query, "password");
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(expected);
+    for (const cookie of AUTH_COOKIE_NAMES) expect(response.cookies.get(cookie)?.value).toBe("");
+    expect(response.cookies.get(LOGOUT_KIND_COOKIE)?.value).toBe("");
+  });
+
+  it.each(["oauth", "PASSWORD", ""])("any other hint (%j) keeps the Cognito /logout hop and clears the hint", (value) => {
+    const response = withHint("?to=candidato", value);
+    expect(new URL(response.headers.get("location")!).origin).toBe("https://cognito.example.test");
+    expect(response.cookies.get(LOGOUT_KIND_COOKIE)?.value).toBe("");
   });
 });

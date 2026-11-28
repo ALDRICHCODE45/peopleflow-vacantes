@@ -4,6 +4,8 @@ import {
   isTokenExpired,
   refreshAccessToken,
   refreshSessionToken,
+  refreshSessionTokens,
+  sessionKindOf,
   type TokenLike,
 } from "./refresh";
 import { createRefreshObserver, type RefreshSignal } from "./refresh-observer";
@@ -393,5 +395,104 @@ describe("development refresh signal", () => {
     expect(result).toEqual({ name: "Ada", error: REFRESH_ERROR });
     expect(result.accessToken).toBeUndefined();
     expect(result.refreshToken).toBeUndefined();
+  });
+});
+
+describe("session kinds", () => {
+  it("reads `password` only from an exact marker; everything else (incl. legacy cookies) is an OAuth session", () => {
+    expect(sessionKindOf({ authKind: "password" })).toBe("password");
+    expect(sessionKindOf({ authKind: "oauth" })).toBe("oauth");
+    expect(sessionKindOf({})).toBe("oauth");
+    expect(sessionKindOf({ authKind: "PASSWORD" })).toBe("oauth");
+  });
+
+  it("keeps the session kind and subject across a refresh and on expiry", async () => {
+    const token: TokenLike = {
+      sub: "a1b2c3d4-5678-40ab-8def-0123456789ab", authKind: "password",
+      accessToken: "old-access", refreshToken: "old-refresh", expiresAt: 100_000,
+    };
+    const refreshed = await refreshSessionToken({
+      token, now: 90_000,
+      refresh: vi.fn().mockResolvedValue({ accessToken: "new-access", expiresAt: 200_000 }),
+    });
+    expect(refreshed).toMatchObject({ sub: token.sub, authKind: "password", accessToken: "new-access", refreshToken: "old-refresh" });
+    const expired = await refreshSessionToken({ token, now: 90_000, refresh: vi.fn().mockRejectedValue(new Error("x")) });
+    expect(expired).toEqual({ sub: token.sub, authKind: "password", error: REFRESH_ERROR });
+  });
+});
+
+describe("refreshSessionTokens (one refresh for both session kinds)", () => {
+  const SUB = "a1b2c3d4-5678-40ab-8def-0123456789ab";
+  const oauth = { tokenEndpoint: TOKEN_ENDPOINT, clientId: "client-id", clientSecret: "client-secret" };
+
+  function cognito(result: unknown) {
+    const refresh = vi.fn().mockResolvedValue(result);
+    return { refresh, factory: vi.fn(() => ({ refresh })) };
+  }
+
+  it("refreshes a password session through Cognito REFRESH_TOKEN_AUTH with the sub, never the token endpoint", async () => {
+    const fetchImpl = vi.fn();
+    const { refresh, factory } = cognito({ ok: true, tokens: { accessToken: "new-access", refreshToken: "old-refresh", expiresAt: 500_000, idToken: "id" } });
+    const result = await refreshSessionTokens({ sub: SUB, authKind: "password" }, "old-refresh", {
+      oauth: { ...oauth, fetchImpl: fetchImpl as unknown as typeof fetch }, cognito: factory,
+    });
+    expect(refresh).toHaveBeenCalledExactlyOnceWith("old-refresh", SUB);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result).toEqual({ accessToken: "new-access", refreshToken: "old-refresh", expiresAt: 500_000 });
+  });
+
+  it("keeps OAuth (and legacy kind-less) sessions on the /oauth2/token grant", async () => {
+    const { factory } = cognito({ ok: false, reason: "unavailable" });
+    for (const token of [{ sub: SUB, authKind: "oauth" }, { sub: SUB }] as TokenLike[]) {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { access_token: "oauth-access", expires_in: 60 }));
+      const result = await refreshSessionTokens(token, "old-refresh", {
+        oauth: { ...oauth, fetchImpl: fetchImpl as unknown as typeof fetch, now: () => 0 }, cognito: factory,
+      });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(bodyOf(fetchImpl.mock.calls[0]).get("grant_type")).toBe("refresh_token");
+      expect(result.accessToken).toBe("oauth-access");
+    }
+    expect(factory).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a rejected refresh token", { ok: false, reason: "invalid_credentials" }],
+    ["Cognito unavailable", { ok: false, reason: "unavailable" }],
+    ["throttling", { ok: false, reason: "too_many_attempts" }],
+  ])("fails a password refresh with the generic error on %s", async (_label, answer) => {
+    const { factory } = cognito(answer);
+    const error = await refreshSessionTokens({ sub: SUB, authKind: "password" }, "old-refresh", { oauth, cognito: factory })
+      .then(() => null, (reason: unknown) => reason as Error);
+    expect(error?.message).toBe("Cognito token refresh failed");
+    expect(JSON.stringify(error)).not.toContain("old-refresh");
+  });
+
+  it.each([
+    ["no subject", { authKind: "password" }],
+    ["a subject outside the Cognito alphabet", { authKind: "password", sub: "a b" }],
+  ] as const)("fails a password refresh with %s without calling Cognito", async (_label, token) => {
+    const { refresh, factory } = cognito({ ok: true, tokens: {} });
+    await expect(refreshSessionTokens(token as TokenLike, "old-refresh", { oauth, cognito: factory })).rejects.toThrow("Cognito token refresh failed");
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("fails a password refresh when no Cognito client is configured or it cannot be built", async () => {
+    await expect(refreshSessionTokens({ sub: SUB, authKind: "password" }, "r", { oauth })).rejects.toThrow("Cognito token refresh failed");
+    await expect(refreshSessionTokens({ sub: SUB, authKind: "password" }, "r", {
+      oauth, cognito: () => { throw new Error("COGNITO_ISSUER: bad"); },
+    })).rejects.toThrow("Cognito token refresh failed");
+  });
+
+  it("expires a password session whose Cognito refresh fails (30 s skew kept)", async () => {
+    const { factory } = cognito({ ok: false, reason: "invalid_credentials" });
+    const token: TokenLike = { sub: SUB, authKind: "password", name: "Laura", accessToken: "a", refreshToken: "r", expiresAt: 100_000 };
+    const stillValid = await refreshSessionToken({
+      token, now: 100_000 - 30_001, refresh: (rt) => refreshSessionTokens(token, rt, { oauth, cognito: factory }),
+    });
+    expect(stillValid).toBe(token);
+    const result = await refreshSessionToken({
+      token, now: 100_000 - 30_000, refresh: (rt) => refreshSessionTokens(token, rt, { oauth, cognito: factory }),
+    });
+    expect(result).toEqual({ sub: SUB, authKind: "password", name: "Laura", error: REFRESH_ERROR });
   });
 });

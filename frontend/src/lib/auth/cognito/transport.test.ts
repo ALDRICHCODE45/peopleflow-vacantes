@@ -102,6 +102,55 @@ describe("callCognito responses", () => {
   });
 });
 
+describe("callCognito secret-hash classification (L14)", () => {
+  const MESSAGE = "Unable to verify secret hash for client 1example23456789app";
+
+  it.each([
+    ["header name + body message", { "x-amzn-errortype": "NotAuthorizedException:http://internal.amazon.com/" }, { __type: "NotAuthorizedException", message: MESSAGE }],
+    ["body __type + message", {}, { __type: "com.amazonaws.cognito#NotAuthorizedException", message: MESSAGE }],
+    ["body __type + capitalised Message", {}, { __type: "NotAuthorizedException", Message: MESSAGE }],
+  ])("classifies the secret-hash NotAuthorizedException from %s as unavailable/SecretHashMismatch", async (_label, headers, body) => {
+    fetchMock.mockResolvedValue(json(400, body, headers));
+    const result = await callCognito(ENDPOINT, "InitiateAuth", {});
+    expect(result).toEqual({ ok: false, kind: "unavailable", errorName: "SecretHashMismatch" });
+    expect(JSON.stringify(result)).not.toMatch(/Unable to verify|secret hash|1example/);
+  });
+
+  it.each([
+    ["a wrong password", { __type: "NotAuthorizedException", message: "Incorrect username or password." }],
+    ["no message", { __type: "NotAuthorizedException" }],
+    ["the prefix not at the start", { __type: "NotAuthorizedException", message: `x ${MESSAGE}` }],
+    ["a non-string message", { __type: "NotAuthorizedException", message: 42 }],
+  ])("keeps NotAuthorizedException as a service error for %s", async (_label, body) => {
+    fetchMock.mockResolvedValue(json(400, body, { "x-amzn-errortype": "NotAuthorizedException" }));
+    await expect(callCognito(ENDPOINT, "InitiateAuth", {})).resolves.toEqual({
+      ok: false,
+      kind: "service_error",
+      errorName: "NotAuthorizedException",
+    });
+  });
+
+  it("reads the message of no other error name", async () => {
+    fetchMock.mockResolvedValue(json(400, { __type: "UserNotFoundException", message: MESSAGE }, { "x-amzn-errortype": "UserNotFoundException" }));
+    await expect(callCognito(ENDPOINT, "InitiateAuth", {})).resolves.toEqual({
+      ok: false,
+      kind: "service_error",
+      errorName: "UserNotFoundException",
+    });
+  });
+
+  it("keeps NotAuthorizedException when the error body is unreadable", async () => {
+    fetchMock.mockResolvedValue(
+      new Response("<html>", { status: 400, headers: { "x-amzn-errortype": "NotAuthorizedException" } }),
+    );
+    await expect(callCognito(ENDPOINT, "InitiateAuth", {})).resolves.toEqual({
+      ok: false,
+      kind: "service_error",
+      errorName: "NotAuthorizedException",
+    });
+  });
+});
+
 describe("callCognito timeout", () => {
   it("aborts at the default API timeout and returns unavailable", async () => {
     vi.useFakeTimers();

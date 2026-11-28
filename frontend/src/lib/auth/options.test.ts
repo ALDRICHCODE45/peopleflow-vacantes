@@ -168,3 +168,128 @@ describe("redirect allowlist for NextAuth sign-in and sign-out callbacks", () =>
     expect(await redirect({ url, baseUrl })).toBe(`${baseUrl}/`);
   });
 });
+
+describe("password (credentials) sessions in the production callbacks", () => {
+  const env = validateAuthEnv({
+    NODE_ENV: "test", NEXTAUTH_URL: "http://localhost:3000",
+    NEXTAUTH_SECRET: "fixture-secret-not-a-real-credential",
+    COGNITO_CLIENT_ID: "fixture-client-id", COGNITO_CLIENT_SECRET: "fixture-client-secret",
+    COGNITO_ISSUER: "https://cognito-idp.us-east-1.amazonaws.com/fixture_pool",
+    COGNITO_DOMAIN: "https://fixture.auth.example.com",
+  });
+  const SUB = "a1b2c3d4-5678-40ab-8def-0123456789ab";
+  const b64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const ACCESS = `${b64({ alg: "RS256", kid: "k" })}.${b64({ sub: SUB, token_use: "access", client_id: "fixture-client-id" })}.c2ln`;
+  const ID = `${b64({ alg: "RS256", kid: "k" })}.${b64({ sub: SUB, token_use: "id", name: "Laura Gómez" })}.c2ln`;
+
+  function fakeCognito(refreshResult: unknown = { ok: false, reason: "invalid_credentials" }) {
+    const signIn = vi.fn().mockResolvedValue({
+      ok: true, kind: "tokens", tokens: { accessToken: ACCESS, idToken: ID, refreshToken: "fixture-private-refresh", expiresAt: NOW + 3_600_000 },
+    });
+    const refresh = vi.fn().mockResolvedValue(refreshResult);
+    return { signIn, refresh, client: { signIn, refresh } as never };
+  }
+
+  function passwordProvider(options: NextAuthOptions) {
+    const provider = options.providers.find((p) => p.id === "password") as unknown as {
+      options: { authorize: (c: Record<string, string>, r: unknown) => Promise<unknown> };
+    };
+    return provider.options;
+  }
+
+  async function signInWithPassword(options: NextAuthOptions) {
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    const user = await passwordProvider(options).authorize({ email: "laura@empresa.mx", password: "Sup3r-secret-pass!" }, {}) as { id: string; name: string; email: string; image: null };
+    return options.callbacks!.jwt!({
+      token: { name: user.name, email: user.email, picture: user.image, sub: user.id },
+      user: user as never,
+      account: { provider: "password", type: "credentials", providerAccountId: user.id },
+    });
+  }
+
+  it("registers the password provider next to the Cognito OAuth provider only when a Cognito client is supplied", () => {
+    expect(buildAuthOptions(env).providers.map((p) => p.id)).toEqual(["cognito"]);
+    const { client } = fakeCognito();
+    expect(buildAuthOptions(env, undefined, {}, { cognito: () => client }).providers.map((p) => p.id)).toEqual(["cognito", "password"]);
+  });
+
+  it("stores the Cognito tokens in the same JWT cookie shape the OAuth path uses, marked as a password session", async () => {
+    const { client } = fakeCognito();
+    const options = buildAuthOptions(env, undefined, {}, { cognito: () => client });
+    const passwordToken = await signInWithPassword(options);
+    const oauthToken = await options.callbacks!.jwt!({
+      token: { name: "Laura Gómez", email: "laura@empresa.mx", picture: null, sub: SUB },
+      account: account({ access_token: "fixture-access", refresh_token: "fixture-refresh", expires_at: (NOW + 3_600_000) / 1000 }),
+      user: { id: SUB },
+    });
+    expect(Object.keys(passwordToken).sort()).toEqual(Object.keys(oauthToken).sort());
+    expect(passwordToken).toEqual({
+      sub: SUB, name: "Laura Gómez", email: "laura@empresa.mx", picture: null,
+      accessToken: ACCESS, refreshToken: "fixture-private-refresh", expiresAt: NOW + 3_600_000, authKind: "password",
+    });
+    expect(oauthToken.authKind).toBe("oauth");
+  });
+
+  it("runs the sign-in hook once with the password session's access token", async () => {
+    const { client } = fakeCognito();
+    const onSignIn = vi.fn().mockResolvedValue(undefined);
+    await signInWithPassword(buildAuthOptions(env, undefined, { onSignIn }, { cognito: () => client }));
+    expect(onSignIn).toHaveBeenCalledExactlyOnceWith(ACCESS);
+  });
+
+  it("fails closed when a credentials account arrives without the hidden tokens", async () => {
+    const { client } = fakeCognito();
+    const options = buildAuthOptions(env, undefined, {}, { cognito: () => client });
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    const token = await options.callbacks!.jwt!({
+      token: { sub: SUB, name: "x" },
+      user: { id: SUB, accessToken: "forged" } as never,
+      account: { provider: "password", type: "credentials", providerAccountId: SUB },
+    });
+    expect(token.accessToken).toBeUndefined();
+    expect(token.error).toBe("RefreshAccessTokenError");
+  });
+
+  it("refreshes an expired password session through Cognito with the sub and keeps it a password session", async () => {
+    const { client, refresh } = fakeCognito({ ok: true, tokens: { accessToken: "fixture-new-access", refreshToken: "fixture-private-refresh", expiresAt: NOW + 7_200_000 } });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const options = buildAuthOptions(env, undefined, {}, { cognito: () => client });
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    const token = await options.callbacks!.jwt!({
+      token: { sub: SUB, name: "Laura", authKind: "password", accessToken: "fixture-old", refreshToken: "fixture-private-refresh", expiresAt: NOW + 10_000 } as JWT,
+      account: null, user: { id: SUB },
+    });
+    expect(refresh).toHaveBeenCalledExactlyOnceWith("fixture-private-refresh", SUB);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(token).toMatchObject({ authKind: "password", accessToken: "fixture-new-access", expiresAt: NOW + 7_200_000 });
+  });
+
+  it("expires a password session whose Cognito refresh fails and projects the generic error", async () => {
+    const { client } = fakeCognito({ ok: false, reason: "invalid_credentials" });
+    const options = buildAuthOptions(env, undefined, {}, { cognito: () => client });
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    const token = await options.callbacks!.jwt!({
+      token: { sub: SUB, name: "Laura", authKind: "password", accessToken: "fixture-old", refreshToken: "fixture-private-refresh", expiresAt: 1 } as JWT,
+      account: null, user: { id: SUB },
+    });
+    const session = await options.callbacks!.session!({
+      session: publicSession, token, newSession: undefined, trigger: "update",
+      user: { id: SUB, email: "x", emailVerified: null },
+    });
+    expect(token).toEqual({ sub: SUB, name: "Laura", authKind: "password", error: "RefreshAccessTokenError" });
+    expect(session).toEqual({ expires: publicSession.expires, error: "RefreshAccessTokenError" });
+  });
+
+  it("keeps OAuth sessions on the token endpoint even when a Cognito client exists", async () => {
+    const { client, refresh } = fakeCognito();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ access_token: "fixture-new-access", expires_in: 3600 }) }));
+    const options = buildAuthOptions(env, undefined, {}, { cognito: () => client });
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    const token = await options.callbacks!.jwt!({
+      token: { sub: SUB, authKind: "oauth", accessToken: "a", refreshToken: "r", expiresAt: 1 } as JWT, account: null, user: { id: SUB },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(token).toMatchObject({ authKind: "oauth", accessToken: "fixture-new-access" });
+  });
+});

@@ -1,5 +1,6 @@
 import "server-only";
 import { DEFAULT_API_TIMEOUT_MS } from "../../env/validate";
+import { SECRET_HASH_MISMATCH } from "./errors";
 
 /** Same cap the backend applies to Cognito answers (contract D11). */
 export const COGNITO_MAX_RESPONSE_BYTES = 16 * 1024;
@@ -23,6 +24,12 @@ export type CognitoTransportResult =
 
 const UNAVAILABLE = { ok: false, kind: "unavailable" } as const;
 const ERROR_NAME = /^[A-Za-z][A-Za-z0-9]{0,99}$/;
+/**
+ * Stable prefix of Cognito's answer to a wrong or rotated client secret
+ * (NotAuthorizedException «Unable to verify secret hash for client <id>»).
+ * Without this, a misconfiguration looks like a wrong password or code (L14).
+ */
+const SECRET_HASH_FAILURE_PREFIX = "Unable to verify secret hash for client";
 
 /**
  * awsJson1_1 error names may carry a `namespace#` prefix or a `:uri` suffix
@@ -70,6 +77,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isSecretHashFailure(body: unknown): boolean {
+  if (!isObject(body)) return false;
+  const message = typeof body.message === "string" ? body.message : body.Message;
+  return typeof message === "string" && message.startsWith(SECRET_HASH_FAILURE_PREFIX);
+}
+
 /**
  * One unsigned awsJson1_1 call to the Cognito IdP endpoint: POST `/`, no AWS
  * credentials, no redirects, no caching, bounded time and size. Never throws,
@@ -108,13 +121,18 @@ export async function callCognito(
     }
 
     let errorName = sanitizeErrorName(response.headers.get("x-amzn-errortype"));
-    if (errorName === undefined) {
-      const body = await readBoundedJson(response, controller.signal).catch(() => undefined);
-      errorName = isObject(body) ? sanitizeErrorName(body.__type) : undefined;
+    let body: unknown;
+    if (errorName === undefined || errorName === "NotAuthorizedException") {
+      body = await readBoundedJson(response, controller.signal).catch(() => undefined);
+      errorName ??= isObject(body) ? sanitizeErrorName(body.__type) : undefined;
     } else {
       void response.body?.cancel().catch(() => {});
     }
-    return errorName === undefined ? UNAVAILABLE : { ok: false, kind: "service_error", errorName };
+    if (errorName === undefined) return UNAVAILABLE;
+    // The message is read only for this classification; it is never returned or logged.
+    if (errorName === "NotAuthorizedException" && isSecretHashFailure(body))
+      return { ok: false, kind: "unavailable", errorName: SECRET_HASH_MISMATCH };
+    return { ok: false, kind: "service_error", errorName };
   } catch {
     return UNAVAILABLE;
   } finally {

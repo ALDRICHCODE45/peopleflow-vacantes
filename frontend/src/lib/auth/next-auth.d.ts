@@ -1,4 +1,4 @@
-import type { RefreshError } from "./refresh";
+import type { RefreshError, SessionKind } from "./refresh";
 
 declare module "next-auth" {
   interface Session {
@@ -12,6 +12,8 @@ declare module "next-auth/jwt" {
     refreshToken?: string;
     expiresAt?: number;
     idToken?: string;
+    /** How the session was established; absent on cookies issued before A4.2 (= OAuth). */
+    authKind?: SessionKind;
     error?: RefreshError;
   }
 }

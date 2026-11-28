@@ -34,6 +34,13 @@ export type CognitoClientOperation =
   | "forgotPassword"
   | "confirmForgotPassword";
 
+/**
+ * Synthetic error name for a NotAuthorizedException caused by a wrong or rotated
+ * client secret (L14): a configuration failure, answered as `unavailable` and
+ * reported through onServiceError, never as invalid credentials or a bad code.
+ */
+export const SECRET_HASH_MISMATCH = "SecretHashMismatch";
+
 /** `ok` = existence-hiding silent success (the same answer as a delivered code). */
 type Mapped = CognitoFailureReason | "ok";
 

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { AuthEnv } from "./env";
 import {
+  LOGOUT_KIND_COOKIE,
   buildCognitoLogoutUrl,
   buildEmployerLoginUrl,
+  buildLogoutDestination,
   cookieClearOptions,
+  logoutKindCookie,
+  readLogoutKind,
 } from "./logout";
 
 const config: AuthEnv = {
@@ -56,6 +60,40 @@ describe("employer logout destination", () => {
       maxAge: 0,
       path: "/",
       secure: true,
+    });
+  });
+});
+
+describe("logout per session kind", () => {
+  it.each([
+    ["candidato", "http://localhost:3000/candidato/login"],
+    [undefined, "http://localhost:3000/empresa/login"],
+    ["https://evil.example", "http://localhost:3000/empresa/login"],
+    ["//evil.example", "http://localhost:3000/empresa/login"],
+  ])("sends a password session (to=%s) straight to the audience login page, without the Cognito /logout hop", (to, expected) => {
+    expect(buildLogoutDestination(config, to, "password")).toBe(expected);
+  });
+
+  it("keeps the Cognito /logout hop for OAuth/social sessions", () => {
+    expect(buildLogoutDestination(config, "candidato", "oauth")).toBe(buildCognitoLogoutUrl(config, "candidato"));
+    expect(new URL(buildLogoutDestination(config, undefined, "oauth")).origin).toBe(config.domain);
+  });
+
+  it("reads the kind hint only from an exact `password` value; anything else keeps the Cognito hop", () => {
+    expect(LOGOUT_KIND_COOKIE).toBe("peopleflow.logout-kind");
+    expect(readLogoutKind("a=1; peopleflow.logout-kind=password; b=2")).toBe("password");
+    for (const header of [null, "", "peopleflow.logout-kind=oauth", "peopleflow.logout-kind=PASSWORD", "x-peopleflow.logout-kind=password", "peopleflow.logout-kind=password2"])
+      expect(readLogoutKind(header)).toBe("oauth");
+  });
+
+  it("scopes the hint cookie to the logout route, HttpOnly and short-lived; clears it for other kinds", () => {
+    expect(logoutKindCookie("password", false)).toEqual({
+      name: LOGOUT_KIND_COOKIE, value: "password",
+      options: { httpOnly: true, sameSite: "lax", path: "/api/auth/cognito/logout", maxAge: 120, secure: false },
+    });
+    expect(logoutKindCookie("oauth", true)).toEqual({
+      name: LOGOUT_KIND_COOKIE, value: "",
+      options: { httpOnly: true, sameSite: "lax", path: "/api/auth/cognito/logout", maxAge: 0, secure: true },
     });
   });
 });

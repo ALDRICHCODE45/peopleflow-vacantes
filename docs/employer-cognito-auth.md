@@ -20,8 +20,13 @@ for this step.
 | `frontend/src/lib/auth/callbacks.ts` | Production callback factory, exercised with synthetic config in regression tests. |
 | `frontend/src/lib/auth/refresh-observer.ts` | Development-only, whitelisted refresh signal formatter and observer. |
 | `frontend/src/lib/auth/options.ts` | Guarded server-only entry, supplying validated config and the development observer to the factory. |
-| `frontend/src/app/api/auth/[...nextauth]/route.ts` | Node `GET`/`POST` NextAuth route handler. |
-| `frontend/src/app/api/auth/cognito/logout/route.ts` | Same-origin federated logout handoff. |
+| `frontend/src/lib/auth/credentials.ts` | Embedded password sign-in: NextAuth `CredentialsProvider` (`password`) over the server-only Cognito client. |
+| `frontend/src/lib/auth/token-shape.ts` | Well-formedness checks for Cognito JWTs (no signature verification; identifiers and display only). |
+| `frontend/src/lib/auth/social.ts` | Per-provider social flags and the `getSocialProviders()` server helper. |
+| `frontend/src/lib/auth/route-guard.ts` | Wraps the NextAuth handler: social sign-in param allowlist and the sign-out session-kind hint. |
+| `frontend/src/lib/auth/service-log.ts` | One-line, token-free operator log for the Cognito client's `onServiceError`. |
+| `frontend/src/app/api/auth/[...nextauth]/route.ts` | Node `GET`/`POST` NextAuth route handler (guarded). |
+| `frontend/src/app/api/auth/cognito/logout/route.ts` | Same-origin logout handoff (Cognito hop only for OAuth sessions). |
 
 ## Configuration
 
@@ -36,6 +41,13 @@ of these values is exposed to the browser bundle.
 | `COGNITO_CLIENT_SECRET` | yes | Server-only client secret placeholder; supplied by the human operator. |
 | `COGNITO_ISSUER` | yes | HTTPS Cognito user pool issuer URL, no query or fragment. |
 | `COGNITO_DOMAIN` | yes | HTTPS Cognito hosted domain origin, no path, query, or fragment. |
+
+Social sign-in flags (names only; unset or `off` hides the button):
+
+| Variable | Rules |
+| --- | --- |
+| `AUTH_SOCIAL_GOOGLE`, `AUTH_SOCIAL_MICROSOFT`, `AUTH_SOCIAL_LINKEDIN` | `on` or `off`; any other value fails naming the key. |
+| `AUTH_SOCIAL_GOOGLE_IDP`, `AUTH_SOCIAL_MICROSOFT_IDP`, `AUTH_SOCIAL_LINKEDIN_IDP` | Optional Cognito identity provider name (`[A-Za-z0-9._-]{1,32}`); defaults `Google`, `Microsoft`, `LinkedIn`. Two providers may not share a name. |
 
 Derived values (never request-controlled):
 
@@ -133,6 +145,72 @@ The public session is projected by `toPublicSession` and contains at most:
   generic `"RefreshAccessTokenError"` so the UI can request a new login.
 - The session provider state alone does not authorize company membership.
 
+## Session kinds (embedded auth, A4.2)
+
+Two ways produce the same encrypted JWT cookie shape — `sub`, `name`, `email`,
+`picture`, `accessToken`, `refreshToken`, `expiresAt` (ms) — plus `authKind`:
+
+| `authKind` | Established by | Refresh | Logout |
+| --- | --- | --- | --- |
+| `password` | `signIn("password", { email, password })` → `CredentialsProvider` → Cognito `InitiateAuth USER_PASSWORD_AUTH` (server-only client with `SECRET_HASH`) | `InitiateAuth REFRESH_TOKEN_AUTH`, `SECRET_HASH` over the stored `sub` | Clear cookies, return to the audience login page; no Cognito `/logout` |
+| `oauth` (or absent: cookies issued before A4.2) | Cognito OAuth provider (social, or the hosted page until A4.3 retires it) | `/oauth2/token` `refresh_token` grant (unchanged) | Clear cookies, Cognito `/logout` hop |
+
+**Password sign-in.** `authorize()` returns only `{ id: sub, name, email, image: null }`.
+The Cognito tokens travel to the `jwt` callback on that same object under a
+non-enumerable symbol, so a serialized, spread or logged user never carries
+them; NextAuth gives the user object only to server-side callbacks. `sub` is
+read from the access token after a well-formedness check (three base64url
+segments, signed `alg`, `token_use: "access"`, Cognito subject alphabet); the
+signature is not verified here — the token comes straight from Cognito over
+TLS, the claim is only an identifier, and the backend verifies every token.
+`name` is a display hint from the ID token. Failures throw a stable code that
+NextAuth returns as `error` (the screens map it, A4.3):
+
+| Code | When |
+| --- | --- |
+| `invalid_credentials` | Wrong email/password, unknown user, `PasswordResetRequiredException`, malformed or oversized input (email > 254, password > 256) |
+| `not_confirmed` | Correct password on an unconfirmed account |
+| `too_many_attempts` | Cognito throttling |
+| `unavailable` | Cognito unreachable or misconfigured (incl. hash mismatch), a challenge with no screen yet (`NEW_PASSWORD_REQUIRED`, MFA), a malformed access token |
+
+**Refresh decision.** OAuth sessions stay on `/oauth2/token`: that grant keeps
+the OAuth scopes the hosted/social tokens were issued with, and
+`REFRESH_TOKEN_AUTH` needs the Cognito *username* in `SECRET_HASH`, which for
+federated users is `Google_…`-style rather than the `sub`. The existing tests
+do not show the two paths equivalent, so `refreshSessionTokens` dispatches on
+`authKind`. The 30 s skew and «a failed refresh expires the session» behavior
+are shared; `authKind` survives refresh and expiry.
+
+**Logout.** NextAuth clears the session cookie before the logout route runs,
+so the route guard sets `peopleflow.logout-kind=password` on the sign-out
+response (HttpOnly, `SameSite=Lax`, `Path=/api/auth/cognito/logout`, 120 s;
+cleared for any other kind). The logout route reads it, clears it and sends a
+password session straight to `/empresa/login` or `/candidato/login`. The hint
+grants nothing: a forged value only skips the Cognito hop for that browser, and
+a missing one falls back to the hop. `GlobalSignOut` is deliberately not called:
+it revokes the user's refresh tokens on every device (sign out everywhere), not
+just this session; per-session revocation (`RevokeToken`) is a follow-up.
+
+**Social.** The OAuth provider requests
+`openid email profile aws.cognito.signin.user.admin` (L8; the app client must
+allow that scope). A social button calls
+`signIn("cognito", { callbackUrl }, { identity_provider: <name> })` with a name
+from `getSocialProviders()`; Cognito forwards straight to the provider. The
+route guard admits on `POST /api/auth/signin/cognito` either no query params
+(hosted page, until A4.3) or exactly one `identity_provider` naming an enabled
+provider; anything else (disabled provider, `scope`/`redirect_uri` overrides,
+repeated params) gets `400 { url: …/api/auth/error?error=OAuthSignin }`
+without reaching NextAuth.
+
+**Operator signal.** The Cognito client's `onServiceError` writes one line,
+`[auth] cognito_service_error operation=<op> name=<ErrorName|none>`, with values
+outside the closed operation set or the error-name alphabet replaced. A
+`NotAuthorizedException` whose message starts with «Unable to verify secret
+hash for client» (wrong or rotated client credential) is classified in the
+transport as `unavailable` with `name=SecretHashMismatch`; the message is read
+only for that check and never returned or logged. Sign-in also signals
+`ChallengeNotSupported`, `MalformedAccessToken` and `ConfigurationError`.
+
 ## Refresh behavior
 
 The `jwt` callback stores `accessToken`, `refreshToken`, and a millisecond
@@ -222,9 +300,11 @@ until the human observes it.
 
 1. The UI calls `signOut({ callbackUrl: "/api/auth/cognito/logout" })`.
 2. NextAuth clears the local session and redirects to the same-origin logout
-   route.
-3. `GET /api/auth/cognito/logout` clears the NextAuth cookies defensively and
-   redirects to `${COGNITO_DOMAIN}/logout?client_id=...&logout_uri=...`.
+   route; the route guard leaves the session-kind hint on that response.
+3. `GET /api/auth/cognito/logout` clears the NextAuth cookies (and the hint)
+   defensively and redirects OAuth sessions to
+   `${COGNITO_DOMAIN}/logout?client_id=...&logout_uri=...`, password sessions
+   straight to the audience login page (see Session kinds).
 
 The destination is built only from validated configuration and the request URL
 is never used as a redirect target, so the endpoint cannot become an open
@@ -267,6 +347,14 @@ does not claim that already-issued access JWTs are revoked.
   compatibility source.
 
 ## Tests
+
+A4.2 adds `credentials.test.ts` (authorize mapping, hidden tokens, nothing
+sensitive in errors/logs), `credentials-flow.test.ts` (the real NextAuth
+pipeline issues the password-session cookie; error codes),
+`route-guard.test.ts`, `social.test.ts`, `service-log.test.ts`, the per-kind
+cases in `options.test.ts`, `refresh.test.ts`, `logout.test.ts` and the logout
+route test, and the hash-mismatch classification in
+`cognito/transport.test.ts` and `cognito/client.test.ts`.
 
 `cd frontend && pnpm test src/lib/auth` covers
 configuration validation, provider PKCE/state wiring, session redaction,

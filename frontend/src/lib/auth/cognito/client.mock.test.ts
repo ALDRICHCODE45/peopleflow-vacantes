@@ -60,9 +60,11 @@ describe("Cognito client ↔ mock Cognito", () => {
     if (!signedIn.ok || signedIn.kind !== "tokens") throw new Error("expected tokens");
     const refreshed = await client.refresh(signedIn.tokens.refreshToken, sub(signedIn.tokens.accessToken));
     expect(refreshed).toMatchObject({ ok: true, tokens: { refreshToken: signedIn.tokens.refreshToken } });
+    // A SECRET_HASH over the wrong username is Cognito's secret-hash rejection: a
+    // configuration failure since A4.2 (L14), not a user error. Either way the session expires.
     expect(await client.refresh(signedIn.tokens.refreshToken, "not-the-sub")).toEqual({
       ok: false,
-      reason: "invalid_credentials",
+      reason: "unavailable",
     });
   });
 
