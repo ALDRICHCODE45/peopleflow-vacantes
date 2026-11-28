@@ -16,8 +16,8 @@ Cognito hosted UI with an embedded login (frontend feature `odd/tasks/embedded-a
 ## Tasks
 
 - T1 — S1–S6 — contract `docs/contracts/embedded-auth-v1.md` (Draft) for frontend review — worker (docs) — agreed (48298aab + review L4)
-- T2 — S1, S2 — employer onboarding endpoint, generalized identity error messages — implemented, uncommitted (L5), pending review
-- T3 — S3, S4 — GetUser identity provider adapter selected by config, test endpoint — implemented, uncommitted (L5), pending review
+- T2 — S1, S2 — employer onboarding endpoint, generalized identity error messages — done: 248d8846; verified (L7)
+- T3 — S3, S4 — GetUser identity provider adapter selected by config, test endpoint — done: a5df82ee + 134945e9; verified (L7)
 
 ## Log
 
@@ -32,3 +32,9 @@ Cognito hosted UI with an embedded login (frontend feature `odd/tasks/embedded-a
   Native review `review-3be63f1aea5295bc` approved; advisories fixed by the parent (RED observed): GetUser caller
   cancellation logged as class `canceled` (not `timeout`); audit annex count text 76; console checklist item 2c
   (PreventUserExistenceErrors=ENABLED, frontend seq 24). Follow-up: the same-subject race test relies on a 200 ms sleep.
+- **L7** 2026-11-27, independent verify of T2+T3: 6/6 pass (onboarding order and atomicity, no unverified path to recruiter,
+  GetUser request/limits/classes/logging, config D8/D14 and wiring, messages and catalog 76); integration 30/0/0, unit 136 ok,
+  vet clean. Follow-ups: race test relies on a 200 ms sleep and covers only a recruiter winner; `canceled` class unit-tested
+  only via transportClass; loopback check also accepts ::ffff:127.x; GetUser uses the default transport (HTTP(S)_PROXY);
+  soft-deleted subs can onboard again (pre-existing). Frontend fixture with the old message and any audit-type-count pin are
+  frontend follow-ups. Pending human decision: merge to main.
