@@ -262,3 +262,5 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   retired option selected); website length limits untested; partial write (account without company) has no
   server-side signal; ?error=email_in_use still not wired (needs the logout route); RoleBlocked «no-company» unused.
   Product question for the user: persona física RFC (13) is refused by the backend. Independent verify running.
+- **L27** (2026-11-28) User decision: RFC — «Solo morales por ahora (recomendado)»; personas físicas (RFC 13) revisited
+  with the partners' company-verification decision (frontend-backlog).
