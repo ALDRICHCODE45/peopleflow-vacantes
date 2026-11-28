@@ -58,7 +58,6 @@
 .accentText.accentText { color: var(--pf-login-accent-link); }
 .cta.cta { background-color: var(--pf-login-cta-bg); color: var(--pf-login-cta-fg); }
 .cta.cta:hover:enabled { filter: brightness(1.06); }
-.checkbox.checkbox { accent-color: var(--pf-login-accent-link); }
 
 /* A4.3 sign-in alerts (artboard 01 `.al`): a tinted card per tone from the
    global status tokens, focusable (tabindex=-1) for the error summary. */

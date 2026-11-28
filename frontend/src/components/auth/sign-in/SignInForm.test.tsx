@@ -217,6 +217,32 @@ describe("error mapping and copy", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("clears the password before leaving for the verify-code screen", async () => {
+    auth.signIn.mockResolvedValue({ ok: false, error: "not_confirmed", status: 401, url: null });
+    let valueAtNavigation: string | undefined;
+    auth.assign.mockImplementation(() => {
+      valueAtNavigation = (screen.getByLabelText("Contraseña") as HTMLInputElement).value;
+    });
+    renderForm();
+    fill();
+    submit();
+    await waitFor(() => expect(auth.assign).toHaveBeenCalledWith("/empresa/verificar"));
+    // At navigation time the password is no longer held in the form.
+    expect(valueAtNavigation).toBe("");
+    expect(screen.getByLabelText("Contraseña")).toHaveValue("");
+  });
+
+  it("drops a stale pending email when a new attempt starts", async () => {
+    window.sessionStorage.setItem(PENDING_EMAIL_KEY, "old@correo.com");
+    auth.signIn.mockResolvedValue({ ok: false, error: "invalid_credentials", status: 401, url: null });
+    renderForm();
+    fill();
+    submit();
+    expect(window.sessionStorage.getItem(PENDING_EMAIL_KEY)).toBeNull();
+    await waitFor(() => screen.getByRole("alert"));
+    expect(window.sessionStorage.getItem(PENDING_EMAIL_KEY)).toBeNull();
+  });
+
   it("clears the previous error when the next attempt starts", async () => {
     auth.signIn.mockResolvedValueOnce({ ok: false, error: "invalid_credentials", status: 401, url: null });
     renderForm();

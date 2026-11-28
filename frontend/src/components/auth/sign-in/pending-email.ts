@@ -13,6 +13,15 @@ export function rememberPendingEmail(email: string): void {
   }
 }
 
+/** Drops a carried email (a new sign-in attempt starts). */
+export function forgetPendingEmail(): void {
+  try {
+    window.sessionStorage.removeItem(PENDING_EMAIL_KEY);
+  } catch {
+    // Storage disabled: nothing was carried.
+  }
+}
+
 /** Reads and forgets the carried email (for the A4.4 verify screen). */
 export function takePendingEmail(): string | null {
   try {

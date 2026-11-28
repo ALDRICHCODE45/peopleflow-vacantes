@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { flushSync } from "react-dom";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { CircleAlertIcon, EyeIcon, EyeOffIcon, HourglassIcon, InfoIcon, WifiOffIcon } from "lucide-react";
@@ -14,7 +15,7 @@ import styles from "../login-screen.module.css";
 import { ALERT_COPY, FIELD_COPY, MISSING_EMAIL, MISSING_PASSWORD, PROVIDER_LABEL, type SignInAlertKind } from "./copy";
 import { navigateTo } from "./navigate";
 import { classifySignInResult } from "./outcome";
-import { rememberPendingEmail } from "./pending-email";
+import { forgetPendingEmail, rememberPendingEmail } from "./pending-email";
 import { ProviderIcon } from "./provider-icons";
 import { AUTH_PATHS, type SignInAudience } from "./routes";
 
@@ -128,6 +129,8 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
       return;
     }
     setFieldErrors({});
+    // A carried email from an earlier not_confirmed attempt never outlives a new one.
+    forgetPendingEmail();
     // The password never stays visible into the next screen.
     setShowPassword(false);
     startAttempt("password");
@@ -153,6 +156,8 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
       case "not_confirmed":
         // Only reachable with the right password (credentials.ts), so it reveals nothing new.
         rememberPendingEmail(typedEmail);
+        // Committed before the browser leaves, so no password is held past here.
+        flushSync(() => setPassword(""));
         return navigateTo(paths.verify);
       case "invalid_credentials":
         setPassword("");

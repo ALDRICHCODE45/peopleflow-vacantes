@@ -62,22 +62,58 @@ async function routeFromContext(context: RouteContext): Promise<{ action?: strin
 }
 
 /**
- * The `email` field of a password-callback body, read from a clone (NextAuth
- * reads the original) exactly as NextAuth parses it: form-encoded or JSON, last
- * value wins. The password is never read into a variable.
+ * Cap on a password-callback body. A real one is the email (≤ 254), password
+ * (≤ 256), CSRF token, callbackUrl and flags: well under 1 KiB encoded.
  */
-async function submittedEmail(request: NextRequest): Promise<string | undefined> {
+export const MAX_PASSWORD_CALLBACK_BODY_BYTES = 8 * 1024;
+
+const OVERSIZED = Symbol("oversized");
+
+/** Reads at most `limit` bytes of a clone; past it, stops (cancels) and reports OVERSIZED. */
+async function readCapped(request: NextRequest, limit: number): Promise<string | typeof OVERSIZED> {
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > limit) return OVERSIZED;
+  const body = request.clone().body;
+  if (!body) return "";
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      // Not awaited: cancelling one branch of a cloned (teed) body settles only
+      // when the other branch is cancelled too. Reading stops here, so nothing
+      // more is pulled or buffered.
+      reader.cancel().catch(() => {});
+      return OVERSIZED;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * The `email` field of a password-callback body, read from a bounded clone
+ * (NextAuth reads the original) exactly as NextAuth parses it: form-encoded or
+ * JSON, last value wins. The password is never read into a variable.
+ */
+async function submittedEmail(request: NextRequest): Promise<string | undefined | typeof OVERSIZED> {
   try {
     const contentType = request.headers.get("content-type") ?? "";
-    const clone = request.clone();
+    const text = await readCapped(request, MAX_PASSWORD_CALLBACK_BODY_BYTES);
+    if (text === OVERSIZED) return OVERSIZED;
     if (contentType.includes("application/json")) {
-      const body: unknown = await clone.json();
+      const body: unknown = JSON.parse(text);
       const email = body && typeof body === "object" ? (body as { email?: unknown }).email : undefined;
       return typeof email === "string" ? email : undefined;
     }
     if (contentType.includes("application/x-www-form-urlencoded")) {
-      const values = new URLSearchParams(await clone.text()).getAll("email");
-      return values.at(-1);
+      return new URLSearchParams(text).getAll("email").at(-1);
     }
   } catch {
     // An unreadable body is limited by address only; NextAuth rejects it anyway.
@@ -101,6 +137,8 @@ async function submittedEmail(request: NextRequest): Promise<string | undefined>
  * 2. POST to the password callback is rate limited per client address and per
  *    submitted email before NextAuth (and so Cognito) runs; over the limit it
  *    answers NextAuth's own `{ url }` shape with `error=too_many_attempts`.
+ *    A body over MAX_PASSWORD_CALLBACK_BODY_BYTES (declared or actual; the
+ *    read stops at the cap) is refused with 413 after counting the address.
  * 3. Sign-out leaves the session kind for the logout route, because NextAuth
  *    clears the session cookie before that route runs (logout.ts).
  *
@@ -158,7 +196,16 @@ export function guardAuthRoute(handler: AuthRouteHandler, config: AuthRouteGuard
     }
 
     if (rateLimiter && is("callback", PASSWORD_PROVIDER) && request.method === "POST") {
-      const verdict = rateLimiter.attempt("signIn", { ip: clientIpFrom(request.headers), email: await submittedEmail(request) });
+      const ip = clientIpFrom(request.headers);
+      const email = await submittedEmail(request);
+      if (email === OVERSIZED) {
+        // Refused rather than passed on: padding a body past the cap would
+        // otherwise skip the per-email limit. The address is still counted.
+        const verdict = rateLimiter.attempt("signIn", { ip });
+        if (!verdict.ok) return tooManyAttempts(verdict.retryAfterMs);
+        return NextResponse.json({ url: new URL("/api/auth/error?error=invalid_request", config.siteUrl).toString() }, { status: 413 });
+      }
+      const verdict = rateLimiter.attempt("signIn", { ip, email });
       if (!verdict.ok) return tooManyAttempts(verdict.retryAfterMs);
       return handler(request, context);
     }

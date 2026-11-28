@@ -171,7 +171,7 @@ artboard 01):
 | Code | When |
 | --- | --- |
 | `invalid_credentials` | Wrong email/password, unknown user, `PasswordResetRequiredException`, malformed or oversized input (email > 254, password > 256) → «Correo o contraseña incorrectos.» (both fields marked, password cleared, focus on the summary) |
-| `not_confirmed` | Correct password on an unconfirmed account → the verify-code route (`/empresa/verificar`, `/candidato/verificar`, A4.4), email carried in `sessionStorage` (`peopleflow.auth.pendingEmail`), never in the URL |
+| `not_confirmed` | Correct password on an unconfirmed account → the verify-code route (`/empresa/verificar`, `/candidato/verificar`, A4.4), email carried in `sessionStorage` (`peopleflow.auth.pendingEmail`), never in the URL; the password is cleared before leaving, and each new attempt drops any earlier carried email |
 | `too_many_attempts` | Cognito throttling, or our rate limit (below) → «Demasiados intentos.» with a link to reset the password |
 | `unavailable` | Cognito unreachable or misconfigured (incl. hash mismatch), a challenge with no screen yet (`NEW_PASSWORD_REQUIRED`, MFA), a malformed access token → «No pudimos conectarnos.» (also on a thrown request or after 10 s), what was typed stays |
 
@@ -198,7 +198,13 @@ onboarding redirect is a follow-up).
 per client address and per normalized email (SHA-256 of trim+lowercase; the
 raw email is never stored or logged, the password never read) before NextAuth
 runs; over either limit it answers `429 { url: …/api/auth/error?error=too_many_attempts }`
-with `Retry-After`, without calling Cognito. Budgets (`AUTH_RATE_LIMITS`):
+with `Retry-After`, without calling Cognito. The email is read from a clone
+of the body capped at 8 KiB (`MAX_PASSWORD_CALLBACK_BODY_BYTES`; a real body is
+under 1 KiB): a larger declared `Content-Length` or more actual bytes stops the
+read and answers `413 { url: …/api/auth/error?error=invalid_request }` after
+counting the address (429 if the address is already over), never reaching
+NextAuth. Passing it on would let a padded body skip the per-email limit.
+Budgets (`AUTH_RATE_LIMITS`):
 sign-in 50/IP and 10/email per 15 min; sign-up 10/IP and 5/email per hour;
 confirm and confirm-forgot 30/IP and 10/email per 15 min; resend and forgot
 10/IP and 3/email per 15 min. The A4.4–A4.6 routes call

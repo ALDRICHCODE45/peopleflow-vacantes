@@ -155,6 +155,13 @@ describe("LoginScreen static visual panel", () => {
     expect(mobile.map(mark => mark.className.match(/brand-mark-(light|dark)/)?.[0])).toEqual(["brand-mark-light", "brand-mark-dark"]);
   });
 
+  it("carries no keep-signed-in checkbox or its style (L18)", () => {
+    render(<LoginScreen variant="employer" authControls={controls} />);
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Mantener sesión iniciada/)).not.toBeInTheDocument();
+    expect(visualPanelCss).not.toMatch(/\.checkbox\b/);
+  });
+
   it("keeps a theme-aware panel fallback: warm light base over the dark baseline", () => {
     // Dark baseline stays the repository --background value.
     expect(visualPanelCss).toContain("#0c0912");

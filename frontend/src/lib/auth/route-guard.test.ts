@@ -3,7 +3,7 @@ import { encode } from "next-auth/jwt";
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 import { LOGOUT_KIND_COOKIE, SECURE_LOGOUT_KIND_COOKIE } from "./logout";
-import { guardAuthRoute } from "./route-guard";
+import { MAX_PASSWORD_CALLBACK_BODY_BYTES, guardAuthRoute } from "./route-guard";
 
 const SECRET = "fixture-secret-not-a-real-credential";
 const SITE = "http://localhost:3000";
@@ -276,6 +276,66 @@ describe("password callback rate limiting", () => {
     const blocked = await guarded(passwordPost({ email: " A@X.MX", password: "p" }, "203.0.113.9"), ctx);
     expect(blocked.status).toBe(429);
     expect(handler).toHaveBeenCalledTimes(limit);
+  });
+
+  it("refuses an oversized body by its declared length with 413, still counting the address, without NextAuth", async () => {
+    const { guarded, handler, attempt } = setupLimited();
+    const request = new NextRequest(`${SITE}/api/auth/callback/password`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "x-forwarded-for": "198.51.100.3", "content-length": String(MAX_PASSWORD_CALLBACK_BODY_BYTES + 1) },
+      body: "email=a%40x.mx",
+    });
+    const response = await guarded(request, ctx);
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ url: `${SITE}/api/auth/error?error=invalid_request` });
+    expect(handler).not.toHaveBeenCalled();
+    expect(attempt).toHaveBeenCalledExactlyOnceWith("signIn", { ip: "198.51.100.3" });
+  });
+
+  it("refuses a body whose actual bytes exceed the cap (padding cannot dodge the per-email limit)", async () => {
+    const { guarded, handler, attempt } = setupLimited();
+    const padded = passwordPost({ email: "a@x.mx", password: "p", pad: "x".repeat(MAX_PASSWORD_CALLBACK_BODY_BYTES) }, "198.51.100.4");
+    const response = await guarded(padded, ctx);
+    expect(response.status).toBe(413);
+    expect(handler).not.toHaveBeenCalled();
+    expect(attempt).toHaveBeenCalledExactlyOnceWith("signIn", { ip: "198.51.100.4" });
+  });
+
+  it("refuses an oversized streamed body without a length header, stopping at the cap", async () => {
+    const { guarded, handler } = setupLimited();
+    let pulled = 0;
+    const chunk = new TextEncoder().encode("x".repeat(1024));
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        if (pulled > 1000) controller.close();
+        else controller.enqueue(chunk);
+      },
+    });
+    const request = new NextRequest(`${SITE}/api/auth/callback/password`, {
+      method: "POST", body, headers: { "content-type": "application/x-www-form-urlencoded" }, duplex: "half",
+      // Node needs `duplex` for a streamed request body; NextRequest's init type omits it.
+    } as ConstructorParameters<typeof NextRequest>[1]);
+    const response = await guarded(request, ctx);
+    expect(response.status).toBe(413);
+    expect(handler).not.toHaveBeenCalled();
+    // Read stops just past the cap instead of buffering the ~1 MB stream.
+    expect(pulled * 1024).toBeLessThan(MAX_PASSWORD_CALLBACK_BODY_BYTES * 4);
+  });
+
+  it("answers 429, not 413, when the address is already over its limit", async () => {
+    const { guarded } = setupLimited(vi.fn<Attempt>(() => ({ ok: false, retryAfterMs: 1_000 })));
+    const response = await guarded(passwordPost({ email: "a@x.mx", password: "p", pad: "x".repeat(MAX_PASSWORD_CALLBACK_BODY_BYTES) }), ctx);
+    expect(response.status).toBe(429);
+  });
+
+  it("admits a body right at the cap", async () => {
+    const { guarded, handler } = setupLimited();
+    const base = new URLSearchParams({ email: "a@x.mx", password: "p", pad: "" }).toString();
+    const pad = "x".repeat(MAX_PASSWORD_CALLBACK_BODY_BYTES - base.length);
+    const response = await guarded(passwordPost({ email: "a@x.mx", password: "p", pad }), ctx);
+    expect(response.status).toBe(200);
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 
   it("does not rate limit other auth requests", async () => {
