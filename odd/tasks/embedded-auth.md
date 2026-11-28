@@ -31,7 +31,7 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 | A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | 12833dc7, a1a1ce93, e25d74f8, 8917f183 |
 | A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | fe5f4832, cac98023 |
 | A4.5 | S1, S4 | Company sign-up: Tu cuenta → Verifica tu correo → Tu empresa (employer-account + POST /companies) | f0ee0c63, 3eb0d88e |
-| A4.6 | S1 | ¿Olvidaste tu contraseña? request → code + new password → done | |
+| A4.6 | S1 | ¿Olvidaste tu contraseña? request → code + new password → done | e598bef3, d816cb7b |
 | A4.7 | S1–S4 | E2e on the mock Cognito + PEM backend; retire inert-shell assertions; docs | |
 
 ## Log
@@ -270,3 +270,14 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   full reload, website limited to http(s)). Non-blocking: a role-null account with a pending invitation that opens
   /empresa/dashboard is sent to create a company (design choice; the step copy could mention the invitation link).
   A4.5 done.
+- **L29** (2026-11-28) A4.6 committed as two units: e598bef3 data layer (forgotPassword/confirmForgotPassword server
+  actions: validation → limiter → Cognito, neutral result, closed outcomes; mock refuses resets for unconfirmed or
+  unverified users with InvalidParameterException and no code) and d816cb7b screens (/empresa/recuperar and
+  /candidato/recuperar: email → code + new password with live requirements and 60 s resend → audience login with
+  «Tu contraseña se actualizó. Ingresa con tu nueva contraseña.»; email only in state/sessionStorage). Native review
+  approved for both (lineages review-24e6d9af841bae40, review-ec1683fce9b633e9). Advisory follow-ups: per-email budget
+  enables a targeted reset lockout (accepted, same trade-off as sign-in); budget is spent even when Cognito is
+  briefly unavailable (consider not counting `unavailable`); a shared client that cannot be built gives no operator
+  signal on this path; a lost confirm response leads to a misleading «código vencido» on retry (link to «Ingresar»);
+  reload resets the resend cooldown (server budget still applies); actions.test depends on cwd; untested
+  invalid_input branches. Independent verify running.
