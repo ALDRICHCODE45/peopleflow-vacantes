@@ -218,3 +218,26 @@ describe("«Cambiar correo»", () => {
     expect(window.sessionStorage.getItem(PENDING_EMAIL_KEY)).toBeNull();
   });
 });
+
+describe("employer audience (A4.5 · Paso 2 de 3)", () => {
+  async function arriveEmployer(origin: "sign-up" | "sign-in") {
+    rememberPendingEmail("andrea@altavista.mx", origin);
+    render(<VerifyForm audience="employer" />);
+    await act(async () => {});
+  }
+
+  it("shows the step in the eyebrow after «Tu cuenta» and sends a correct code to /empresa/login with the verified notice", async () => {
+    await arriveEmployer("sign-up");
+    expect(screen.getByText("Registro de empresa · Paso 2 de 3")).toBeInTheDocument();
+    paste(cell(1), "123456");
+    verify();
+    await waitFor(() => expect(deps.assign).toHaveBeenCalledWith("/empresa/login"));
+    expect(window.sessionStorage.getItem(VERIFIED_EMAIL_KEY)).toBe("andrea@altavista.mx");
+  });
+
+  it("keeps «Verificar cuenta» without a step for the sign-in not_confirmed handoff", async () => {
+    await arriveEmployer("sign-in");
+    expect(screen.getByText("Verificar cuenta")).toBeInTheDocument();
+    expect(screen.queryByText(/Paso 2 de 3/)).not.toBeInTheDocument();
+  });
+});

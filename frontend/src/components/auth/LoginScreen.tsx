@@ -24,9 +24,10 @@ export type LoginVariant = "employer" | "candidate";
 /**
  * Which embedded-auth screen the shell frames. «verify» leaves the heading and
  * the footer to its form: both depend on the email carried in session storage
- * (A4.4), which only the client can read.
+ * (A4.4), which only the client can read. «company» («Tu empresa», A4.5) also
+ * owns both: they name the signed-in account and offer «Salir».
  */
-export type AuthScreen = "signIn" | "signUp" | "verify";
+export type AuthScreen = "signIn" | "signUp" | "verify" | "company";
 
 type ShellCopy = {
   eyebrow: string; heading: string; subheading: string;
@@ -37,7 +38,7 @@ type ShellCopy = {
 };
 
 // Artboard 01 COPY (design/embedded-auth/_src/ui.js): Ingresar and Crear cuenta per audience.
-const COPY: Record<Exclude<AuthScreen, "verify">, Record<LoginVariant, ShellCopy>> = {
+const COPY: Record<Exclude<AuthScreen, "verify" | "company">, Record<LoginVariant, ShellCopy>> = {
   signIn: {
     employer: {
       eyebrow: "Acceso empresas", heading: "Ingresa a tu cuenta",
@@ -54,7 +55,8 @@ const COPY: Record<Exclude<AuthScreen, "verify">, Record<LoginVariant, ShellCopy
   },
   signUp: {
     employer: {
-      eyebrow: "Registro de empresa", heading: "Registra tu empresa",
+      // Artboard 01 reads the company sign-up steps in the eyebrow (FLOWS.upE, `stepTxt`).
+      eyebrow: "Registro de empresa · Paso 1 de 3", heading: "Registra tu empresa",
       subheading: "Primero tu cuenta; después, los datos de tu empresa.",
       primaryLead: "¿Ya tienes cuenta?", primaryAction: "Ingresa", primaryHref: AUTH_PATHS.employer.login,
       reciprocalLead: "¿Buscas empleo?", reciprocalAction: "Crea tu perfil de candidato", reciprocalHref: AUTH_PATHS.candidate.signUp,
@@ -73,7 +75,7 @@ const FOCUS_RING = `rounded-md ${FOCUS_OUTLINE}`;
 const accentClass = { employer: styles.accentEmployer, candidate: styles.accentCandidate } as const;
 
 export function LoginScreen({ variant, authControls, screen = "signIn" }: { variant: LoginVariant; authControls: React.ReactNode; screen?: AuthScreen }) {
-  const copy = screen === "verify" ? null : COPY[screen][variant];
+  const copy = screen === "verify" || screen === "company" ? null : COPY[screen][variant];
 
   // <main> gives the route its one main landmark (axe landmark-one-main).
   return (

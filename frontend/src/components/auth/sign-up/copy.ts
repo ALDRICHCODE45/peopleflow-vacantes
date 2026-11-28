@@ -3,8 +3,8 @@ import type { SignInAudience } from "../sign-in/routes";
 import type { AlertTone } from "../sign-in/copy";
 
 /** Artboard 01 · Crear cuenta (design/embedded-auth/_src/ui.js `signup`, REQS). */
-export const SIGN_UP_FIELD_COPY: Record<SignInAudience, { emailLabel: string; emailPlaceholder: string; submit: string; pending: string }> = {
-  employer: { emailLabel: "Correo corporativo", emailPlaceholder: "tu@empresa.com", submit: "Continuar", pending: "Creando cuenta…" },
+export const SIGN_UP_FIELD_COPY: Record<SignInAudience, { emailLabel: string; emailPlaceholder: string; emailHint?: string; submit: string; pending: string }> = {
+  employer: { emailLabel: "Correo corporativo", emailPlaceholder: "tu@empresa.com", emailHint: "De preferencia el de tu empresa; te ayudará cuando la verifiquemos.", submit: "Continuar", pending: "Creando cuenta…" },
   candidate: { emailLabel: "Correo", emailPlaceholder: "tu@correo.com", submit: "Crear perfil", pending: "Creando perfil…" },
 };
 

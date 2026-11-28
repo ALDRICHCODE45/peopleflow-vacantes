@@ -48,7 +48,7 @@ export function SignUpForm({ audience }: { audience: SignInAudience }) {
   const idBase = `${audience}-sign-up`;
   const ids = {
     name: `${idBase}-name`, email: `${idBase}-email`, password: `${idBase}-password`, terms: `${idBase}-terms`,
-    requirements: `${idBase}-requirements`, alert: `${idBase}-alert`, legal: `${idBase}-legal`,
+    requirements: `${idBase}-requirements`, emailHint: `${idBase}-email-hint`, alert: `${idBase}-alert`, legal: `${idBase}-legal`,
     error: (field: FieldName) => `${idBase}-${field}-error`,
   };
 
@@ -210,9 +210,10 @@ export function SignUpForm({ audience }: { audience: SignInAudience }) {
             readOnly={pending}
             aria-required="true"
             aria-invalid={invalid("email")}
-            aria-describedby={describedBy("email")}
+            aria-describedby={describedBy("email", copy.emailHint ? [ids.emailHint] : [])}
             className={FIELD_CLASS}
           />
+          {copy.emailHint && <p id={ids.emailHint} className="text-[13px] leading-[18px] text-muted-foreground">{copy.emailHint}</p>}
           {errors.email && <ErrorText id={ids.error("email")}>{errors.email}</ErrorText>}
         </div>
 

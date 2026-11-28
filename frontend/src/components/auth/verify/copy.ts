@@ -5,7 +5,8 @@ import type { SignInAudience } from "../sign-in/routes";
 export const VERIFY_HEADING = "Verifica tu correo";
 
 export const VERIFY_EYEBROW: Record<SignInAudience, { signUp: string; unverified: string }> = {
-  employer: { signUp: "Registro de empresa", unverified: "Verificar cuenta" },
+  // The company sign-up reads its steps in the eyebrow (artboard 01, FLOWS.upE); the candidate flow keeps A4.4's.
+  employer: { signUp: "Registro de empresa · Paso 2 de 3", unverified: "Verificar cuenta" },
   candidate: { signUp: "Crear perfil", unverified: "Verificar cuenta" },
 };
 

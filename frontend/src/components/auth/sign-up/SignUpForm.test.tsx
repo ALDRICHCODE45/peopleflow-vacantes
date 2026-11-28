@@ -235,3 +235,34 @@ describe("server outcomes", () => {
     await waitFor(() => expect(screen.getByLabelText("Correo")).toHaveFocus());
   });
 });
+
+describe("«Registra tu empresa» · Tu cuenta (A4.5, employer audience)", () => {
+  it("asks for the corporate email with the artboard hint tied to the field; candidates get no hint", () => {
+    const view = render(<SignUpForm audience="employer" />);
+    const email = screen.getByLabelText("Correo corporativo");
+    expect(email).toHaveAttribute("placeholder", "tu@empresa.com");
+    const hint = screen.getByText("De preferencia el de tu empresa; te ayudará cuando la verifiquemos.");
+    expect(email.getAttribute("aria-describedby")?.split(" ")).toContain(hint.id);
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument();
+    view.unmount();
+    render(<SignUpForm audience="candidate" />);
+    expect(screen.queryByText(/De preferencia el de tu empresa/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Correo")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("requires the same terms consent and hands the email to /empresa/verificar", async () => {
+    render(<SignUpForm audience="employer" />);
+    fireEvent.change(screen.getByLabelText("Nombre completo"), { target: { value: "Andrea Salinas" } });
+    fireEvent.change(screen.getByLabelText("Correo corporativo"), { target: { value: "andrea.salinas@altavista.mx" } });
+    fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: PASSWORD } });
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(await screen.findByText("Acepta los Términos y el Aviso de privacidad para continuar.")).toBeInTheDocument();
+    expect(deps.signUp).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Acepto los Términos/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await waitFor(() => expect(deps.assign).toHaveBeenCalledWith("/empresa/verificar"));
+    expect(deps.signUp).toHaveBeenCalledWith({ name: "Andrea Salinas", email: "andrea.salinas@altavista.mx", password: PASSWORD, terms: true });
+    expect(window.sessionStorage.getItem(PENDING_EMAIL_KEY)).toBe("andrea.salinas@altavista.mx");
+    expect(window.sessionStorage.getItem(PENDING_ORIGIN_KEY)).toBe("sign-up");
+  });
+});
