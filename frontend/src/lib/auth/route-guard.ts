@@ -140,16 +140,17 @@ function csrfCookieName(secureCookie: boolean): string {
  * NextAuth's double-submit check (core/lib/csrf-token.js), done here so the
  * per-email budget is only spent by requests NextAuth would accept: the cookie
  * is `token|sha256(token + secret)` and the body's csrfToken equals `token`.
- * An attacker without the victim's browser cannot produce a pair, so an email
- * can no longer be locked out for free; NextAuth still makes the final call.
+ * The cookie is split exactly like NextAuth (`split("|")`, first two parts), so
+ * every pair NextAuth accepts also spends the email budget. A pair is not tied to
+ * a person: anyone can fetch one from /api/auth/csrf, so this only stops bare
+ * scripted requests from burning an email's budget; targeted lockout of a known
+ * email stays possible (accepted, bounded by the window). NextAuth makes the final call.
  */
 function hasValidCsrfPair(request: NextRequest, secret: string, secureCookie: boolean, bodyToken: string | undefined): boolean {
   const cookie = request.cookies.get(csrfCookieName(secureCookie))?.value;
   if (!cookie || !bodyToken) return false;
-  const separator = cookie.indexOf("|");
-  if (separator <= 0) return false;
-  const token = cookie.slice(0, separator);
-  const hash = cookie.slice(separator + 1);
+  const [token, hash] = cookie.split("|");
+  if (!token || hash === undefined) return false;
   const expected = createHash("sha256").update(`${token}${secret}`).digest("hex");
   const same = (a: string, b: string) => {
     const left = Buffer.from(a);

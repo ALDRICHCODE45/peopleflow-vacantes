@@ -284,6 +284,14 @@ describe("password callback rate limiting", () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
+  it("spends the email budget for a cookie with extra segments, exactly as NextAuth accepts it", async () => {
+    // NextAuth reads only the first two `|` parts, so `token|hash|x` passes its check and must count the email.
+    const { guarded, attempt } = setupLimited();
+    const valid = csrfCookie();
+    await guarded(passwordPost({ email: "victim@empresa.mx", password: "p", csrfToken: CSRF_TOKEN }, "198.51.100.9", "application/x-www-form-urlencoded", `${valid}${encodeURIComponent("|extra")}`), ctx);
+    expect(attempt).toHaveBeenCalledExactlyOnceWith("signIn", { ip: "198.51.100.9", email: "victim@empresa.mx" });
+  });
+
   it("accepts the __Host- CSRF cookie (and only it) on an https site", async () => {
     const attempt = vi.fn<Attempt>(() => ({ ok: true }));
     const handler = vi.fn(async () => new Response("{}", { status: 200 }));

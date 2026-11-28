@@ -46,20 +46,19 @@ describe("fixed-window limiter", () => {
     expect(limiter.size()).toBe(1);
   });
 
-  it("never evicts a key that is over its limit before its window expires", () => {
+  it("always admits a new key when every tracked key is over its limit, evicting the one that resets soonest", () => {
     let now = 0;
     const limiter = createFixedWindowLimiter({ limit: 1, windowMs: 1_000, maxKeys: 2, now: () => now });
-    limiter.hit("blocked"); // at its limit
-    limiter.hit("free");
-    limiter.hit("free"); // refused, still at limit
+    limiter.hit("early"); // over its limit, resets at 1000
+    now = 50;
+    limiter.hit("late"); // over its limit, resets at 1050
     now = 100;
-    // Both tracked keys are over the limit: the newcomer is refused, not admitted by evicting one.
-    expect(limiter.hit("newcomer")).toEqual({ ok: false, retryAfterMs: 900 });
+    // A full table of over-limit keys must not lock out someone not yet tracked.
+    expect(limiter.hit("newcomer")).toEqual({ ok: true });
     expect(limiter.size()).toBe(2);
-    expect(limiter.hit("blocked")).toEqual({ ok: false, retryAfterMs: 900 });
-    // Once a window expires there is room again.
-    now = 1_000;
-    expect(limiter.hit("newcomer").ok).toBe(true);
+    // The key closest to expiry was the one evicted; the other keeps its lockout.
+    expect(limiter.hit("late")).toEqual({ ok: false, retryAfterMs: 950 });
+    expect(limiter.hit("early")).toEqual({ ok: true });
   });
 
   it("evicts an under-limit key rather than an older over-limit one", () => {

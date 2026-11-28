@@ -200,9 +200,13 @@ raw email is never stored or logged, the password never read) before NextAuth
 runs. The email is counted only when the request carries a valid NextAuth CSRF
 pair (cookie `next-auth.csrf-token`, or `__Host-next-auth.csrf-token` on https,
 holding `token|sha256(token + NEXTAUTH_SECRET)`, and the body `csrfToken`
-equal to `token`, compared in constant time), so nobody can lock another
-person's email out without that person's browser; requests without a valid
-pair spend only the address budget and reach NextAuth, which rejects them.
+equal to `token`, compared in constant time; the cookie is split like NextAuth,
+`split("|")`, first two parts). Requests without a valid pair spend only the
+address budget and reach NextAuth, which rejects them, so bare scripted requests
+cannot burn an email's budget. A pair is not tied to a person (anyone can fetch
+one from `/api/auth/csrf`), so targeted lockout of a known email for one window
+remains possible: an accepted trade-off of per-account limiting. A full counter
+table never refuses a new key: the key whose window ends soonest is evicted.
 When no client address can be derived, the per-IP limit is skipped (no shared
 «unknown» bucket) and the per-email limit still applies; over either limit it answers `429 { url: …/api/auth/error?error=too_many_attempts }`
 with `Retry-After`, without calling Cognito. The email is read from a clone

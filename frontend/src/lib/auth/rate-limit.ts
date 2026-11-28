@@ -53,26 +53,30 @@ export function createFixedWindowLimiter({ limit, windowMs, maxKeys = DEFAULT_MA
   }
 
   /**
-   * Frees one slot for a new key: expired windows first, then the oldest key
-   * still under its limit. A key over its limit is never evicted before its
-   * window ends (that would reset a lockout). When every tracked key is over
-   * its limit there is no room: returns the time until the first one expires,
-   * and the new key is refused for that long (fail closed, existing keys keep
-   * their state).
+   * Frees one slot for a new key, so a new key is always admitted (a full table
+   * must never turn into a sign-in outage for people not yet tracked): expired
+   * windows first, then the oldest key still under its limit, and only when every
+   * tracked key is over its limit, the one whose window ends soonest.
    */
-  function makeRoom(at: number): number | undefined {
-    if (windows.size < maxKeys) return undefined;
+  function makeRoom(at: number): void {
+    if (windows.size < maxKeys) return;
     for (const [key, entry] of windows) if (entry.resetAt <= at) windows.delete(key);
-    if (windows.size < maxKeys) return undefined;
+    if (windows.size < maxKeys) return;
     for (const [key, entry] of windows) {
       if (entry.count < limit) {
         windows.delete(key);
-        return undefined;
+        return;
       }
     }
-    let firstReset = Infinity;
-    for (const entry of windows.values()) firstReset = Math.min(firstReset, entry.resetAt);
-    return firstReset - at;
+    let soonest: string | undefined;
+    let soonestReset = Infinity;
+    for (const [key, entry] of windows) {
+      if (entry.resetAt < soonestReset) {
+        soonest = key;
+        soonestReset = entry.resetAt;
+      }
+    }
+    if (soonest !== undefined) windows.delete(soonest);
   }
 
   function check(key: string): RateLimitResult {
@@ -91,8 +95,7 @@ export function createFixedWindowLimiter({ limit, windowMs, maxKeys = DEFAULT_MA
       const entry = current(key, at);
       if (entry) entry.count += 1;
       else {
-        const full = makeRoom(at);
-        if (full !== undefined) return { ok: false, retryAfterMs: full };
+        makeRoom(at);
         windows.set(key, { count: 1, resetAt: at + windowMs });
       }
       return { ok: true };
@@ -184,10 +187,9 @@ export function createAuthAttemptLimiter({
       const verdicts = [...(ipKey ? [pair.ip.check(ipKey)] : []), ...(emailKey ? [pair.email.check(emailKey)] : [])];
       const refused = verdicts.filter((verdict): verdict is { ok: false; retryAfterMs: number } => !verdict.ok);
       if (refused.length > 0) return { ok: false, retryAfterMs: Math.max(...refused.map((verdict) => verdict.retryAfterMs)) };
-      // A full table refuses a new key on hit (makeRoom): that refusal stands.
-      const hits = [...(ipKey ? [pair.ip.hit(ipKey)] : []), ...(emailKey ? [pair.email.hit(emailKey)] : [])];
-      const full = hits.filter((verdict): verdict is { ok: false; retryAfterMs: number } => !verdict.ok);
-      if (full.length > 0) return { ok: false, retryAfterMs: Math.max(...full.map((verdict) => verdict.retryAfterMs)) };
+      // Both keys had budget, and a hit always admits a new key (makeRoom), so both are counted.
+      if (ipKey) pair.ip.hit(ipKey);
+      if (emailKey) pair.email.hit(emailKey);
       return { ok: true };
     },
   };
