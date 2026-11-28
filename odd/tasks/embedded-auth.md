@@ -227,3 +227,13 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   AWS phase / A4.7: requests with no derivable client IP skip the per-IP limit (needs the trusted proxy setting);
   retry-then-late-settle navigation race in SignInForm (attempt counter); invalid AUTH_SOCIAL_* logged once per
   process could go silent (rate-limited log).
+- **L22** (2026-11-28) A4.4 committed fe5f4832: /candidato/registro and /candidato/verificar on the LoginScreen shell
+  (FloatingLines untouched); server actions signUp/confirmSignUp/resendCode with validation, shared limiter per IP and
+  normalized email, closed outcomes; email handed off only via sessionStorage with an origin; auto-resend on arrival
+  only from the sign-in not_confirmed handoff; after a correct code → /candidato/login with «Tu correo quedó
+  verificado. Ingresa para continuar.» (no auto sign-in); onboarding prefills the name from the session; shared
+  password-policy module; mock SignUp requires name; SignInForm attempt counter (L21 race). 1096 scoped tests pass.
+  Open for the user: Términos / Aviso de privacidad URLs (no legal pages exist; the terms checkbox is required).
+  Known: «Cambiar correo» leaves the old UNCONFIRMED user in Cognito (still answers email_taken for that address);
+  ?next= not carried through registro → verificar → login; flaky unrelated test pipeline-movement/board.test.tsx
+  «reports its live coverage». Independent verify running.
