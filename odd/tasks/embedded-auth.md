@@ -28,7 +28,7 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 | A4 | S1–S4 | Implementation of design 01 · Panel dividido, test-first, behind the existing session model | |
 | A4.1 | S1, S2 | Server-only Cognito client (SECRET_HASH; InitiateAuth, SignUp, ConfirmSignUp, Resend, ForgotPassword, ConfirmForgotPassword) + mock Cognito fixture | c62f757d, 09c14ac9 |
 | A4.2 | S1–S3 | NextAuth CredentialsProvider into the same JWT cookie; refresh via REFRESH_TOKEN_AUTH; logout per session kind; OAuth scope + identity_provider with per-provider flags | 45833b2d, 7fd8bbdd |
-| A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | 12833dc7, a1a1ce93 |
+| A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | 12833dc7, a1a1ce93, e25d74f8, 8917f183 |
 | A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | |
 | A4.5 | S1, S4 | Company sign-up: Tu cuenta → Verifica tu correo → Tu empresa (employer-account + POST /companies) | |
 | A4.6 | S1 | ¿Olvidaste tu contraseña? request → code + new password → done | |
@@ -215,3 +215,15 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   send name); sign-in identifier is email; verification email text still English (SES phase); hosted UI and callback
   URLs untouched as rollback. Backend will set IDENTITY_PROVIDER=cognito_getuser, IDENTITY_COGNITO_REGION=us-east-1.
   Local test with real accounts once the own screens are complete.
+- **L21** (2026-11-28) A4.3b e25d74f8 + review correction 8917f183. Independent verify blocked e25d74f8 on (B1) the CSRF
+  cookie split differing from NextAuth (`token|hash|x` passed NextAuth but skipped the email budget → unlimited
+  guesses bounded only per IP) and (B2) the overstated «no free targeted lockout» claim; native review required a
+  correction for the fail-closed full table (a filled table refused every untracked user → global sign-in outage, a
+  regression introduced by my own L19 request). Correction (one plan, 90 lines): split the cookie exactly like
+  NextAuth with a test for the 3-segment cookie; a full table always admits a new key, evicting expired, then the
+  oldest under-limit, then the over-limit key whose window ends soonest; docs state honestly that a CSRF pair is not
+  tied to a person, so targeted lockout of a known email for one window remains (accepted trade-off). Native review
+  approved after correction and acknowledged (lineage review-d15f13a1f791f1d1). Remaining advisories carried to the
+  AWS phase / A4.7: requests with no derivable client IP skip the per-IP limit (needs the trusted proxy setting);
+  retry-then-late-settle navigation race in SignInForm (attempt counter); invalid AUTH_SOCIAL_* logged once per
+  process could go silent (rate-limited log).
