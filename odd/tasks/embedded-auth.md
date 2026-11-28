@@ -181,3 +181,7 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   R3/R4 resolve social flags lazily so a bad AUTH_SOCIAL_* value only disables identity_provider sign-ins (operator log
   line) and never breaks /api/auth/*; R3 apply the sign-in param allowlist to POST only (pin GET with a test); R4 a
   token-free operator signal when a password refresh fails on Cognito throttling.
+- **L17** (2026-11-28) Backend embedded auth merged to local main by the backend session with the user's approval
+  (4e26564e, not pushed): independent verify without blockers; build, 136 packages, 30 identity integration tests,
+  go vet, sqlc diff clean. IDENTITY_PROVIDER unset keeps today's behaviour. The user received the Cognito console
+  checklist from the backend session.
