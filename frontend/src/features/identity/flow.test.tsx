@@ -144,6 +144,20 @@ describe("explicit candidate onboarding", () => {
     expect(await screen.findByText("Escribe un nombre de 2 a 120 caracteres.")).toBeInTheDocument();
     expect(input).toHaveFocus(); expect(input).toHaveAttribute("aria-invalid", "true"); expect(mocks.create).not.toHaveBeenCalled();
   });
+  it("prefills the name given at sign-up (session name) so it is not asked twice, still waiting for an explicit submit", async () => {
+    mocks.session = { status: "authenticated", data: { user: { email: "session@example.com", name: "  Ximena Ruiz " } } as never };
+    mocks.create.mockResolvedValue(result("candidate"));
+    const input = await form();
+    expect(input).toHaveValue("Ximena Ruiz");
+    expect(mocks.create).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Crear mi cuenta de candidato" }));
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledExactlyOnceWith({ full_name: "Ximena Ruiz" }));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/candidato/dashboard"));
+  });
+  it("leaves the name empty when the session has none (social sign-in without a name)", async () => {
+    const input = await form();
+    expect(input).toHaveValue("");
+  });
   it("allows an explicit Enter submission", async () => {
     mocks.create.mockResolvedValue(result("candidate"));
     const input = await form();

@@ -26,6 +26,10 @@ for this step.
 | `frontend/src/lib/auth/route-guard.ts` | Wraps the NextAuth handler: POST social sign-in param allowlist, password-callback rate limiting and the sign-out session-kind hint. |
 | `frontend/src/lib/auth/rate-limit.ts` | In-memory per-IP and per-email limiter for the password callback and the A4.4–A4.6 routes. |
 | `frontend/src/components/auth/sign-in/` | Embedded «Ingresar» form (artboard 01), error mapping and copy, social buttons, planned A4.4–A4.6 paths. |
+| `frontend/src/components/auth/sign-up/`, `frontend/src/components/auth/verify/` | «Crea tu perfil» and «Verifica tu correo» (A4.4): live password requirements, six-box code input, resend cooldown. |
+| `frontend/src/lib/auth/sign-up/` | Server Actions for sign-up, confirm and resend (validation, rate limiting, closed results). |
+| `frontend/src/lib/auth/password-policy.ts` | Client-safe password requirements shared by the Cognito client and the screens. |
+| `frontend/src/lib/auth/cognito-shared.ts` | The one lazily built server-only Cognito client per process (NextAuth and the actions). |
 | `frontend/src/lib/auth/service-log.ts` | One-line, token-free operator log for the Cognito client's `onServiceError`. |
 | `frontend/src/app/api/auth/[...nextauth]/route.ts` | Node `GET`/`POST` NextAuth route handler (guarded). |
 | `frontend/src/app/api/auth/cognito/logout/route.ts` | Same-origin logout handoff (Cognito hop only for OAuth sessions). |
@@ -171,7 +175,7 @@ artboard 01):
 | Code | When |
 | --- | --- |
 | `invalid_credentials` | Wrong email/password, unknown user, `PasswordResetRequiredException`, malformed or oversized input (email > 254, password > 256) → «Correo o contraseña incorrectos.» (both fields marked, password cleared, focus on the summary) |
-| `not_confirmed` | Correct password on an unconfirmed account → the verify-code route (`/empresa/verificar`, `/candidato/verificar`, A4.4), email carried in `sessionStorage` (`peopleflow.auth.pendingEmail`), never in the URL; the password is cleared before leaving, and each new attempt drops any earlier carried email |
+| `not_confirmed` | Correct password on an unconfirmed account → the verify-code route (`/empresa/verificar`, `/candidato/verificar`, A4.4), email carried in `sessionStorage` (`peopleflow.auth.pendingEmail`, origin `sign-in` in `peopleflow.auth.pendingOrigin`, so the verify screen resends a code on arrival), never in the URL; the password is cleared before leaving, and each new attempt drops any earlier carried email |
 | `too_many_attempts` | Cognito throttling, or our rate limit (below) → «Demasiados intentos.» with a link to reset the password |
 | `unavailable` | Cognito unreachable or misconfigured (incl. hash mismatch), a challenge with no screen yet (`NEW_PASSWORD_REQUIRED`, MFA), a malformed access token → «No pudimos conectarnos.» (also on a thrown request or after 10 s), what was typed stays. After a timeout, once the request settles the screen calls `getSession()` and continues to the destination if a live session exists |
 
@@ -186,7 +190,7 @@ callbackUrl })`, then a full navigation to the callback: employers to the safe
 `callbackUrl` or `/empresa/dashboard`, candidates to `/candidato/ingresar`
 (with the safe `next`). The shell links «Registra tu empresa» /
 «Crea tu perfil» to `/empresa/registro` / `/candidato/registro` (A4.5 / A4.4).
-Those routes do not exist yet: the links 404 until their slices land. «Ingresar
+`/candidato/registro` exists since A4.4; the employer route 404s until A4.5. «Ingresar
 con Cognito» and the candidate hosted sign-up rewrite are gone, with no
 rollback flag (`signup-url.ts` is now unused). An expired session shows «Tu
 sesión venció. Vuelve a ingresar.» with the form and «Cerrar sesión» below it; any `?error=` shows the generic callback
@@ -283,6 +287,66 @@ only for that check and never returned or logged. Sign-in also signals
 password refresh Cognito refuses with throttling (which the client maps to
 `too_many_attempts` silently and which expires the session) signals
 `operation=refresh name=RefreshThrottled`.
+
+## Sign-up and email verification (A4.4)
+
+`/candidato/registro` and `/candidato/verificar` render inside `LoginScreen`
+(`screen="signUp"` / `screen="verify"`, FloatingLines unchanged). They call
+three Server Actions in `lib/auth/sign-up/actions.ts`: `signUpAction`,
+`confirmSignUpAction` and `resendCodeAction`. Next accepts a Server Action POST
+only when its `Origin` matches the host (no `serverActions.allowedOrigins` is
+configured), so only same-origin pages can call them. Each action validates
+again on the server: email trimmed, ≤ 254 characters, plausible shape; name
+2–120 code points without control characters (the candidate-account rule);
+password against `PASSWORD_REQUIREMENTS` (≤ 256); code exactly six ASCII
+digits. Invalid input never reaches the limiter or Cognito. Valid input is
+counted per client address (`clientIpFrom`, the same derivation as the route
+guard; skipped when none can be derived) and per normalized email with the
+`signUp` / `confirmSignUp` / `resendCode` budgets above. Over budget, the
+action answers `too_many_attempts` without calling Cognito. Results are closed
+unions with no password, code or Cognito detail:
+
+| Action | Results |
+| --- | --- |
+| `signUpAction({ name, email, password })` | `ok` (`confirmed`), `invalid_input` (fields), `email_taken`, `invalid_password`, `too_many_attempts`, `unavailable` |
+| `confirmSignUpAction({ email, code })` | `ok`, `invalid_input`, `code_mismatch`, `code_expired`, `too_many_attempts`, `unavailable` |
+| `resendCodeAction({ email })` | `ok` (also for unknown or confirmed accounts: existence hiding), `invalid_input`, `too_many_attempts`, `unavailable` |
+
+SignUp always sends the `name` attribute: the real pool requires email and name (L20).
+`email_taken` is the only existence signal (Cognito answers it on SignUp). The copy
+says no more than «Ese correo no se puede usar para crear un perfil. Si ya tienes
+perfil con ese correo, ingresa o restablece tu contraseña.», with links to sign in
+and to recover.
+
+**Handoff.** After a successful sign-up, the email (never the password) goes to
+`sessionStorage` with origin `sign-up`, the password is cleared and the browser
+goes to `/candidato/verificar`; nothing travels in the URL. The verify screen
+reads the email once and keeps it without its origin, so a reload keeps the email
+but never resends again. It resends a code on arrival **only** for origin
+`sign-in` (the A4.3 `not_confirmed` handoff: InitiateAuth sends no code). For
+sign-up, SignUp has just sent one, and the 60 s resend wait starts at once.
+Without a carried email it asks for one and sends nothing by itself.
+
+**After the code.** Cognito's ConfirmSignUp returns no tokens. The screen
+deliberately does not keep the password from the sign-up step to sign in
+automatically: that would mean carrying it across a navigation (storage) or
+merging both screens to keep it in memory, and the verify screen is also reached
+from «Ingresar» and with no context at all. On success it stores the email under
+`peopleflow.auth.verifiedEmail` and goes to «Ingresar». There the form opens with
+«Tu correo quedó verificado. Ingresa para continuar.», the email filled in and
+the focus on the password. The first sign-in lands on `/candidato/ingresar`,
+which creates the candidate account (`POST /v2/me/candidate-account`, which
+requires `email_verified`). The name field there is prefilled from the session
+name (the ID token `name` given at sign-up), so the person only confirms it.
+The backend still requires `full_name` in the body, and the route never creates
+an account by rendering.
+
+**«Cambiar correo».** An unconfirmed Cognito user cannot change its sign-in
+email, so «Cambiar correo» drops the carried email and starts the sign-up again
+with the new address. The old user stays UNCONFIRMED: it cannot sign in, and its
+code expires after 24 h. Whether Cognito ever purges unconfirmed users is not
+verified here. Until an operator deletes it, that email answers `email_taken` on
+sign-up.
 
 ## Refresh behavior
 
@@ -449,6 +513,17 @@ the throttled-refresh signal in `refresh.test.ts` and `options.test.ts`, and
 `components/auth/sign-in/*.test.ts(x)` (submit arguments, every error mapping
 and its copy, focus and `aria-describedby`, social buttons per flag and
 audience, the 10 s timeout, the verify-code handoff).
+
+A4.4 adds `password-policy.test.ts`, `sign-up/operations.test.ts` (validation,
+per-IP and per-email limits without calling Cognito, each outcome mapping, nothing
+sensitive returned), `sign-up/actions.test.ts` (Server Actions module, client
+address as the route guard derives it), `components/auth/sign-up/*.test.tsx`,
+`components/auth/verify/*.test.tsx` (paste, auto-advance, Backspace, arrows, the
+60 s wait, auto-resend only from the sign-in handoff, the success → «Ingresar»
+notice), the routes test under `app/(auth)/candidato/`, the late-settle attempt
+counter and the verified notice in `SignInForm.test.tsx`, the prefilled name in
+`features/identity/flow.test.tsx`, and the required `name` in the mock Cognito
+test.
 
 Both login UIs use a local `SessionProvider` with a 60-second refetch interval
 and focus refresh; signed in, they offer the way to the account and «Cerrar

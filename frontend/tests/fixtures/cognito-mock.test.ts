@@ -131,6 +131,17 @@ describe("sign-up and confirmation", () => {
     expect(typeof ok.json.UserSub).toBe("string");
   });
 
+  test("requires the name attribute, like the real pool (L20: required attributes email and name)", async () => {
+    const base = { ClientId: CLIENT_ID, SecretHash: secretHash("laura@empresa.mx"), Username: "laura@empresa.mx", Password: PASSWORD };
+    for (const UserAttributes of [undefined, [{ Name: "email", Value: "laura@empresa.mx" }], [{ Name: "name", Value: "  " }], [{ Name: "name", Value: 7 }]]) {
+      const result = await cognito("SignUp", { ...base, ...(UserAttributes ? { UserAttributes } : {}) });
+      expectError(result, "InvalidParameterException");
+      expect(result.json.message).toMatch(/name: The attribute is required/);
+    }
+    // Nothing was created: the same email can still sign up with a name.
+    expect((await signUp("laura@empresa.mx")).status).toBe(200);
+  });
+
   test("enforces the password policy and unique usernames", async () => {
     expectError(await signUp("laura@empresa.mx", "short"), "InvalidPasswordException");
     expectError(await signUp("laura@empresa.mx", "alllowercase1!"), "InvalidPasswordException");

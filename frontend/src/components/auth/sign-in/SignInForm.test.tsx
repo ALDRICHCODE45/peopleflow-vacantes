@@ -8,7 +8,7 @@ vi.mock("next-auth/react", () => ({ signIn: auth.signIn, getSession: auth.getSes
 vi.mock("./navigate", () => ({ navigateTo: auth.assign }));
 
 import { SignInForm, type SignInFormProps } from "./SignInForm";
-import { PENDING_EMAIL_KEY } from "./pending-email";
+import { PENDING_EMAIL_KEY, PENDING_ORIGIN_KEY, VERIFIED_EMAIL_KEY } from "./pending-email";
 
 const PASSWORD = "Fixture#Pass2026";
 const GOOGLE = { id: "google" as const, identityProvider: "Google" };
@@ -252,6 +252,44 @@ describe("error mapping and copy", () => {
       expect(auth.assign).not.toHaveBeenCalled();
     });
 
+    it("lets only the latest attempt navigate: a timed-out attempt that settles after a retry stays silent", async () => {
+      vi.useFakeTimers();
+      let settleFirst!: (value: unknown) => void;
+      auth.signIn.mockReturnValueOnce(new Promise((done) => { settleFirst = done; }));
+      auth.getSession.mockResolvedValue({ user: { name: "Laura" }, expires: "2099-01-01T00:00:00.000Z" });
+      renderForm({ callbackUrl: "/empresa/equipo" });
+      fill();
+      submit();
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(screen.getByRole("alert")).toHaveTextContent("No pudimos conectarnos.");
+      // The person retries; the retry is rejected.
+      auth.signIn.mockResolvedValueOnce({ ok: false, error: "invalid_credentials", status: 401, url: null });
+      fill();
+      submit();
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(screen.getByRole("alert")).toHaveTextContent("Correo o contraseña incorrectos.");
+      // The first attempt settles late with a live session: it must not navigate.
+      await act(async () => { settleFirst({ ok: true, error: null, status: 200, url: "http://localhost:3000/empresa/equipo" }); await vi.advanceTimersByTimeAsync(0); });
+      expect(auth.assign).not.toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toHaveTextContent("Correo o contraseña incorrectos.");
+    });
+
+    it("does not let a late settle navigate while a newer attempt is still pending", async () => {
+      vi.useFakeTimers();
+      let settleFirst!: (value: unknown) => void;
+      auth.signIn.mockReturnValueOnce(new Promise((done) => { settleFirst = done; }));
+      auth.getSession.mockResolvedValue({ user: { name: "Laura" }, expires: "2099-01-01T00:00:00.000Z" });
+      renderForm({ callbackUrl: "/empresa/equipo" });
+      fill();
+      submit();
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      auth.signIn.mockReturnValueOnce(new Promise(() => {}));
+      fill();
+      submit();
+      await act(async () => { settleFirst({ ok: true, error: null, status: 200, url: "http://localhost:3000/empresa/equipo" }); await vi.advanceTimersByTimeAsync(0); });
+      expect(auth.assign).not.toHaveBeenCalled();
+    });
+
     it("does not re-check for a request that answered in time", async () => {
       auth.signIn.mockResolvedValue({ ok: false, error: "unavailable", status: 401, url: null });
       renderForm();
@@ -269,6 +307,8 @@ describe("error mapping and copy", () => {
     submit();
     await waitFor(() => expect(auth.assign).toHaveBeenCalledExactlyOnceWith("/candidato/verificar"));
     expect(window.sessionStorage.getItem(PENDING_EMAIL_KEY)).toBe("Ximena@Correo.com");
+    // The verify screen resends a code on arrival only for this handoff.
+    expect(window.sessionStorage.getItem(PENDING_ORIGIN_KEY)).toBe("sign-in");
     expect(JSON.stringify({ ...window.sessionStorage })).not.toContain(PASSWORD);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -311,6 +351,40 @@ describe("error mapping and copy", () => {
     submit();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await act(async () => resolve({ ok: true, error: null, status: 200, url: "http://localhost:3000/empresa/dashboard" }));
+  });
+});
+
+describe("notice after «Verifica tu correo»", () => {
+  it("opens with «Tu correo quedó verificado. Ingresa para continuar.», the email filled in and the focus on the password", async () => {
+    window.sessionStorage.setItem(VERIFIED_EMAIL_KEY, "ximena@correo.com");
+    renderForm({ audience: "candidate", callbackUrl: "/candidato/ingresar" });
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Tu correo quedó verificado. Ingresa para continuar.");
+    expect(screen.getByLabelText("Correo")).toHaveValue("ximena@correo.com");
+    await waitFor(() => expect(screen.getByLabelText("Contraseña")).toHaveFocus());
+    // Shown once: the carried email is consumed.
+    expect(window.sessionStorage.getItem(VERIFIED_EMAIL_KEY)).toBeNull();
+  });
+
+  it("shows nothing without a verified handoff, and the notice gives way to the next attempt", async () => {
+    renderForm({ audience: "candidate", callbackUrl: "/candidato/ingresar" });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    cleanup();
+    window.sessionStorage.setItem(VERIFIED_EMAIL_KEY, "ximena@correo.com");
+    auth.signIn.mockResolvedValue({ ok: false, error: "invalid_credentials", status: 401, url: null });
+    renderForm({ audience: "candidate", callbackUrl: "/candidato/ingresar" });
+    await screen.findByRole("status");
+    fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: PASSWORD } });
+    submit();
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Correo o contraseña incorrectos."));
+    expect(screen.queryByText(/quedó verificado/)).not.toBeInTheDocument();
+  });
+
+  it("lets a page notice (expired session) win over the verified notice", async () => {
+    window.sessionStorage.setItem(VERIFIED_EMAIL_KEY, "ximena@correo.com");
+    renderForm({ audience: "candidate", callbackUrl: "/candidato/ingresar", notice: "expired" });
+    await waitFor(() => expect(screen.getByLabelText("Correo")).toHaveValue("ximena@correo.com"));
+    expect(screen.getByRole("status")).toHaveTextContent("Tu sesión venció. Vuelve a ingresar.");
   });
 });
 

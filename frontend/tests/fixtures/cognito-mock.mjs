@@ -252,11 +252,14 @@ export function createCognitoMock(options = {}) {
       if (findUser(username)) fail("UsernameExistsException", "An account with the given email already exists.");
       const attributes = Array.isArray(body.UserAttributes) ? body.UserAttributes : [];
       const name = attributes.find((attribute) => attribute?.Name === "name")?.Value;
+      // The real pool requires the `name` attribute (L20); Cognito answers this exact schema error.
+      if (typeof name !== "string" || name.trim() === "")
+        fail("InvalidParameterException", "Attributes did not conform to the schema: name: The attribute is required");
       const user = {
         sub: randomUUID(),
         email: username,
         password: body.Password,
-        name: typeof name === "string" ? name : undefined,
+        name,
         confirmed: false,
         emailVerified: false,
         codes: {},

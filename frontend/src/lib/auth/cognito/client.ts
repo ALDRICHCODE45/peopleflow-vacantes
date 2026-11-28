@@ -3,17 +3,15 @@ import type { CognitoClientConfig } from "./config";
 import { mapCognitoError, type CognitoClientOperation, type CognitoFailureReason } from "./errors";
 import { computeSecretHash } from "./secret-hash";
 import { callCognito, type CognitoOperation } from "./transport";
+import { PASSWORD_REQUIREMENTS } from "../password-policy";
 
 export type { CognitoFailureReason } from "./errors";
 
 /**
- * Our password requirements, stated instead of echoing Cognito's policy
- * message. They must match the user pool's password policy (Cognito default:
- * 8+ characters with lowercase, uppercase, number and symbol); the screens
- * render them from these ids.
+ * Our password requirements (one list shared with the screens, see
+ * ../password-policy.ts); re-exported for the client's `invalid_password` answer.
  */
-export const PASSWORD_REQUIREMENTS = ["min_length_8", "lowercase", "uppercase", "number", "symbol"] as const;
-export type PasswordRequirement = (typeof PASSWORD_REQUIREMENTS)[number];
+export { PASSWORD_REQUIREMENTS, type PasswordRequirement } from "../password-policy";
 
 export type CognitoFailure =
   | { ok: false; reason: Exclude<CognitoFailureReason, "invalid_password"> }

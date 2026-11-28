@@ -4,7 +4,7 @@ import * as React from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
 import { getSession, signIn } from "next-auth/react";
-import { CircleAlertIcon, EyeIcon, EyeOffIcon, HourglassIcon, InfoIcon, WifiOffIcon } from "lucide-react";
+import { CircleAlertIcon, CircleCheckIcon, EyeIcon, EyeOffIcon, HourglassIcon, InfoIcon, WifiOffIcon } from "lucide-react";
 import type { SocialProvider, SocialProviderId } from "@/lib/auth/social";
 
 import { Button } from "../../ui/button";
@@ -15,7 +15,7 @@ import styles from "../login-screen.module.css";
 import { ALERT_COPY, FIELD_COPY, MISSING_EMAIL, MISSING_PASSWORD, PROVIDER_LABEL, type SignInAlertKind } from "./copy";
 import { navigateTo } from "./navigate";
 import { classifySignInResult } from "./outcome";
-import { forgetPendingEmail, rememberPendingEmail } from "./pending-email";
+import { forgetPendingEmail, rememberPendingEmail, takeVerifiedEmail } from "./pending-email";
 import { ProviderIcon } from "./provider-icons";
 import { AUTH_PATHS, type SignInAudience } from "./routes";
 
@@ -46,8 +46,8 @@ const TIMED_OUT = Symbol("timed-out");
 
 const FOCUS_RING = "rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 const FIELD_CLASS = "h-12 w-full rounded-2xl border border-border bg-background px-4 text-[15px] text-foreground placeholder:text-muted-foreground/70 read-only:text-muted-foreground md:text-[15px]";
-const TONE_CLASS = { danger: styles.alertDanger, review: styles.alertReview, info: styles.alertInfo } as const;
-const TONE_ICON = { danger: CircleAlertIcon, review: HourglassIcon, info: InfoIcon } as const;
+const TONE_CLASS = { danger: styles.alertDanger, review: styles.alertReview, info: styles.alertInfo, success: styles.alertSuccess } as const;
+const TONE_ICON = { danger: CircleAlertIcon, review: HourglassIcon, info: InfoIcon, success: CircleCheckIcon } as const;
 
 type FieldErrors = { email?: boolean; password?: boolean };
 type FocusTarget = "alert" | "email" | "password";
@@ -67,10 +67,13 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
   const [pending, setPending] = React.useState<"password" | "social" | null>(null);
   const [result, setResult] = React.useState<SignInAlertKind | null>(null);
   const [noticeDismissed, setNoticeDismissed] = React.useState(false);
+  const [verified, setVerified] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
   const [focusRequest, setFocusRequest] = React.useState<{ target: FocusTarget; n: number } | null>(null);
   const lock = React.useRef(false);
   const mounted = React.useRef(true);
+  // Only the latest attempt may navigate after a late settle (L21).
+  const attempts = React.useRef(0);
   const refs = {
     alert: React.useRef<HTMLDivElement>(null),
     email: React.useRef<HTMLInputElement>(null),
@@ -91,11 +94,20 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
   }, []);
 
   React.useEffect(() => {
+    // Back from «Verifica tu correo»: the email is filled in, the password is next.
+    const verifiedEmail = takeVerifiedEmail();
+    if (verifiedEmail === null) return;
+    setEmail(verifiedEmail);
+    setVerified(true);
+    requestFocus("password");
+  }, []);
+
+  React.useEffect(() => {
     // e-social: back on «Ingresar» with the focus on the password.
     if (notice === "email_in_use") requestFocus("password");
   }, [notice]);
 
-  const alertKind: SignInAlertKind | null = result ?? (noticeDismissed ? null : notice);
+  const alertKind: SignInAlertKind | null = result ?? (noticeDismissed ? null : notice ?? (verified ? "verified" : null));
   const alert = alertKind ? ALERT_COPY[alertKind] : null;
   const credentialsRejected = result === "invalid_credentials";
   const alertCitedByFields = result === "invalid_credentials" || result === "too_many_attempts";
@@ -109,11 +121,13 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
     return parts.length > 0 ? parts.join(" ") : undefined;
   }
 
-  function startAttempt(kind: "password" | "social") {
+  function startAttempt(kind: "password" | "social"): number {
+    attempts.current += 1;
     lock.current = true;
     setPending(kind);
     setResult(null);
     setNoticeDismissed(true);
+    return attempts.current;
   }
 
   function endAttempt(kind: SignInAlertKind, focus: FocusTarget | null) {
@@ -139,7 +153,7 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
     forgetPendingEmail();
     // The password never stays visible into the next screen.
     setShowPassword(false);
-    startAttempt("password");
+    const attempt = startAttempt("password");
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     let answer: Awaited<ReturnType<typeof signIn>> | typeof TIMED_OUT;
@@ -163,7 +177,7 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
         .catch(() => undefined)
         .then(() => getSession())
         .then((session) => {
-          if (mounted.current && session && !session.error) navigateTo(callbackUrl);
+          if (mounted.current && attempt === attempts.current && session && !session.error) navigateTo(callbackUrl);
         })
         .catch(() => {});
       return;
@@ -175,7 +189,7 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
         return navigateTo(callbackUrl);
       case "not_confirmed":
         // Only reachable with the right password (credentials.ts), so it reveals nothing new.
-        rememberPendingEmail(typedEmail);
+        rememberPendingEmail(typedEmail, "sign-in");
         // Committed before the browser leaves, so no password is held past here.
         flushSync(() => setPassword(""));
         return navigateTo(paths.verify);
@@ -212,7 +226,7 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
         <div
           ref={refs.alert}
           id={ids.alert}
-          role={alert.tone === "info" ? "status" : "alert"}
+          role={alert.tone === "info" || alert.tone === "success" ? "status" : "alert"}
           tabIndex={-1}
           className={`${styles.alert} ${styles.alert} ${TONE_CLASS[alert.tone]} mb-5 flex items-start gap-2.5 rounded-xl px-3.5 py-3 text-foreground`}
         >

@@ -137,7 +137,8 @@ client that forgets to normalize the email (`trim().toLowerCase()`, done by `cre
   `REFRESH_TOKEN_AUTH` (hash of the **sub**, as real Cognito) → new access/ID tokens, no new refresh token. Other flows →
   `InvalidParameterException`.
 - `SignUp` (policy: 8+ chars, lower, upper, number, symbol → else `InvalidPasswordException`; duplicate →
-  `UsernameExistsException`), `ConfirmSignUp`, `ResendConfirmationCode`, `ForgotPassword`, `ConfirmForgotPassword`.
+  `UsernameExistsException`; the `name` attribute is required, as in the real pool (L20) → else
+  `InvalidParameterException` «Attributes did not conform to the schema: name: The attribute is required»), `ConfirmSignUp`, `ResendConfirmationCode`, `ForgotPassword`, `ConfirmForgotPassword`.
   Codes are 6 random digits; 5 wrong attempts → `TooManyFailedAttemptsException` until a new code. Unknown users get a
   delivery answer on resend/forgot and `CodeMismatchException` on confirm.
 - `GetUser` (contract §GetUser stub): body exactly `{"AccessToken": "<token>"}`; verifies the RS256 signature, `iss`,

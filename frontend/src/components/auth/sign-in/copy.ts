@@ -6,7 +6,7 @@ export const FIELD_COPY: Record<SignInAudience, { emailLabel: string; emailPlace
   candidate: { emailLabel: "Correo", emailPlaceholder: "tu@correo.com" },
 };
 
-export type AlertTone = "danger" | "review" | "info";
+export type AlertTone = "danger" | "review" | "info" | "success";
 
 export type SignInAlertKind =
   | "invalid_credentials"
@@ -15,7 +15,8 @@ export type SignInAlertKind =
   | "social_failed"
   | "expired"
   | "callback"
-  | "email_in_use";
+  | "email_in_use"
+  | "verified";
 
 export type SignInAlertCopy = { tone: AlertTone; title: string; body?: string; resetLink?: string };
 
@@ -34,6 +35,8 @@ export const ALERT_COPY: Record<SignInAlertKind, SignInAlertCopy> = {
   callback: { tone: "danger", title: "No pudimos completar el acceso. Inténtalo de nuevo." },
   // L5 agreed copy for a social sign-in whose email already has a password account.
   email_in_use: { tone: "info", title: "Ese correo ya tiene cuenta. Entra con tu contraseña." },
+  // A4.4: after «Verifica tu correo» (Cognito's confirmation does not sign in).
+  verified: { tone: "success", title: "Tu correo quedó verificado. Ingresa para continuar." },
 };
 
 export const MISSING_EMAIL = "Escribe tu correo.";

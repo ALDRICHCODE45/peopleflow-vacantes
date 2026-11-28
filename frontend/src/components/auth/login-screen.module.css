@@ -71,3 +71,4 @@
 .alertDanger { --pf-login-alert-tone: var(--status-danger); }
 .alertReview { --pf-login-alert-tone: var(--status-review); }
 .alertInfo { --pf-login-alert-tone: var(--status-info); }
+.alertSuccess { --pf-login-alert-tone: var(--status-success); }
