@@ -73,10 +73,11 @@ func TestCatalogEveryTypeHasAConstant(t *testing.T) {
 }
 
 // TestCatalogCompanyScope: every type is company-scoped except the candidate
-// account creation, which has no company (audit-log-v1 §1).
+// and employer account creations, which have no company (audit-log-v1 §1,
+// embedded-auth-v1 D4).
 func TestCatalogCompanyScope(t *testing.T) {
 	for _, spec := range Catalog() {
-		want := spec.Type != EventCandidateAccountCreated
+		want := spec.Type != EventCandidateAccountCreated && spec.Type != EventEmployerAccountCreated
 		if spec.CompanyScoped != want {
 			t.Errorf("%s: CompanyScoped want %v, got %v", spec.Type, want, spec.CompanyScoped)
 		}
@@ -100,6 +101,8 @@ func TestCatalogPreRegistersSlice2aTypes(t *testing.T) {
 		EventCompanyMemberAdded:               {CategoryMembers, []string{"member_user_id", "role"}},
 		EventCompanyMemberRoleChanged:         {CategoryMembers, []string{"from_role", "member_user_id", "to_role"}},
 		EventAuditLogExported:                 {CategoryAudit, []string{"filters", "row_count"}},
+		// embedded-auth-v1 D4: employer onboarding, no metadata keys.
+		EventEmployerAccountCreated: {CategoryMembers, nil},
 		// stakeholder-metrics-v2 §6: exports of audited metrics lists.
 		EventMetricsDetailExported: {CategorySensitiveRead, []string{"filters", "report", "row_count", "vacancy_id"}},
 	}

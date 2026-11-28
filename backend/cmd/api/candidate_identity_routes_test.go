@@ -71,7 +71,7 @@ func TestCandidateIdentityLegacyRoutesRoleGates(t *testing.T) {
 // §11.3: these private routes must exist and reject before any dependency runs.
 func TestCandidateIdentityRoutesRequireAuthentication(t *testing.T) {
 	r := newRouter(routerDeps{requireAuth: identityhttp.RequireAuth(identityRouteVerifier{}), requireRecruiter: routeRequireAuth, requireOwner: routeRequireAuth})
-	for _, tc := range []struct{ method, path string }{{"GET", "/v2/me"}, {"POST", "/v2/me/candidate-account"}, {"GET", "/me/profile/"}, {"PUT", "/me/profile/"}, {"GET", "/me/profile/languages/"}, {"PUT", "/me/profile/languages/"}, {"GET", "/me/applications"}, {"POST", "/jobs/not-an-id/applications"}} {
+	for _, tc := range []struct{ method, path string }{{"GET", "/v2/me"}, {"POST", "/v2/me/candidate-account"}, {"POST", "/v2/me/employer-account"}, {"GET", "/me/profile/"}, {"PUT", "/me/profile/"}, {"GET", "/me/profile/languages/"}, {"PUT", "/me/profile/languages/"}, {"GET", "/me/applications"}, {"POST", "/jobs/not-an-id/applications"}} {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{"full_name":"Ana Pérez"}`)))

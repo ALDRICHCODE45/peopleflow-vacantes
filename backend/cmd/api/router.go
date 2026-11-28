@@ -396,6 +396,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Use(identityhttp.NoStore, d.requireAuth)
 		r.Get("/v2/me", d.identityHandler.Me)
 		r.Post("/v2/me/candidate-account", d.identityHandler.CreateCandidateAccount)
+		r.Post("/v2/me/employer-account", d.identityHandler.CreateEmployerAccount) // embedded-auth-v1 D1
 		r.Post("/v2/me/session/start", d.sessionHandler.Start)
 		r.Post("/v2/me/session/end", d.sessionHandler.End)
 		r.Post("/v2/me/stakeholder-invitations/accept", d.stakeholderInvitationHandler.Accept)

@@ -10,18 +10,19 @@ import (
 )
 
 var (
-	ErrAccountExists        = errors.New("account already exists")
-	ErrInvalidCandidateName = errors.New("invalid candidate name")
-	ErrEmailNotVerified     = errors.New("email not verified")
-	ErrIdentityUnavailable  = errors.New("identity unavailable")
+	ErrAccountExists       = errors.New("account already exists")
+	ErrInvalidAccountName  = errors.New("invalid account name")
+	ErrEmailNotVerified    = errors.New("email not verified")
+	ErrIdentityUnavailable = errors.New("identity unavailable")
 )
 
-// CandidateAccountStore atomically creates a candidate and its audit event.
-// A concurrent same-subject insert returns the existing row without an audit.
-// It must never update an existing row or resolve identity by email.
-type CandidateAccountStore interface {
+// AccountStore atomically creates a candidate or employer (recruiter) account
+// and its audit event. A concurrent same-subject insert returns the existing
+// row (any role) with created=false and no audit. It must never update an
+// existing row or resolve identity by email.
+type AccountStore interface {
 	GetByCognitoSub(context.Context, string) (*entities.User, error)
-	CreateCandidate(context.Context, *entities.User) (*entities.User, bool, error)
+	CreateAccount(context.Context, *entities.User) (*entities.User, bool, error)
 }
 
 type VerifiedIdentity struct {
@@ -32,12 +33,14 @@ type UserInfoProvider interface {
 	Fetch(context.Context, string) (VerifiedIdentity, error)
 }
 
+// CandidateIdentity serves GET /v2/me and both self-service onboardings
+// (candidate and employer, embedded-auth-v1 D1): one flow, two target roles.
 type CandidateIdentity struct {
-	store    CandidateAccountStore
+	store    AccountStore
 	provider UserInfoProvider
 }
 
-func NewCandidateIdentity(store CandidateAccountStore, provider UserInfoProvider) *CandidateIdentity {
+func NewCandidateIdentity(store AccountStore, provider UserInfoProvider) *CandidateIdentity {
 	return &CandidateIdentity{store: store, provider: provider}
 }
 
@@ -49,24 +52,40 @@ func (s *CandidateIdentity) Me(ctx context.Context, subject string) (*entities.U
 	return u, err
 }
 
-func candidateResult(u *entities.User, created bool) (*entities.User, bool, error) {
-	if u.UserType != valueobjects.UserCandidate {
+// accountResult admits only an account of the target role; the other role is
+// ErrAccountExists (an account never changes role).
+func accountResult(u *entities.User, created bool, role valueobjects.UserType) (*entities.User, bool, error) {
+	if u.UserType != role {
 		return nil, false, ErrAccountExists
 	}
 	return u, created, nil
 }
 
+// Onboard creates the caller's candidate account (POST /v2/me/candidate-account).
 func (s *CandidateIdentity) Onboard(ctx context.Context, subject, accessToken, rawName string) (*entities.User, bool, error) {
+	return s.onboard(ctx, valueobjects.UserCandidate, subject, accessToken, rawName)
+}
+
+// OnboardEmployer creates the caller's employer (recruiter) account
+// (POST /v2/me/employer-account). No company or membership is created (D3).
+func (s *CandidateIdentity) OnboardEmployer(ctx context.Context, subject, accessToken, rawName string) (*entities.User, bool, error) {
+	return s.onboard(ctx, valueobjects.UserRecruiter, subject, accessToken, rawName)
+}
+
+// onboard runs the order of checks shared by both roles: name → live account
+// by subject (same role → retry, other role → exists; no provider call) →
+// provider → subject/verification → email → atomic insert.
+func (s *CandidateIdentity) onboard(ctx context.Context, role valueobjects.UserType, subject, accessToken, rawName string) (*entities.User, bool, error) {
 	name, err := valueobjects.NewFullName(rawName)
 	if err != nil || !utf8.ValidString(rawName) || utf8.RuneCountInString(name.Value()) < 2 || utf8.RuneCountInString(name.Value()) > 120 {
-		return nil, false, ErrInvalidCandidateName
+		return nil, false, ErrInvalidAccountName
 	}
 	existing, err := s.Me(ctx, subject)
 	if err != nil {
 		return nil, false, err
 	}
 	if existing != nil {
-		return candidateResult(existing, false)
+		return accountResult(existing, false, role)
 	}
 	if s.provider == nil {
 		return nil, false, ErrIdentityUnavailable
@@ -82,13 +101,13 @@ func (s *CandidateIdentity) Onboard(ctx context.Context, subject, accessToken, r
 	if err != nil {
 		return nil, false, ErrIdentityUnavailable
 	}
-	user, err := entities.NewUser(subject, email, name, valueobjects.UserCandidate)
+	user, err := entities.NewUser(subject, email, name, role)
 	if err != nil {
 		return nil, false, err
 	}
-	user, created, err := s.store.CreateCandidate(ctx, user)
+	user, created, err := s.store.CreateAccount(ctx, user)
 	if err != nil {
 		return nil, false, err
 	}
-	return candidateResult(user, created)
+	return accountResult(user, created, role)
 }

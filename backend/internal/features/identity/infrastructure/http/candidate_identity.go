@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -68,7 +69,21 @@ func (h *CandidateIdentityHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 	writeMe(w, http.StatusOK, user)
 }
+
+// CreateCandidateAccount serves POST /v2/me/candidate-account.
 func (h *CandidateIdentityHandler) CreateCandidateAccount(w http.ResponseWriter, r *http.Request) {
+	h.createAccount(w, r, func(s *usecases.CandidateIdentity) onboardFunc { return s.Onboard })
+}
+
+// CreateEmployerAccount serves POST /v2/me/employer-account: the candidate
+// flow with the recruiter role (embedded-auth-v1 D1).
+func (h *CandidateIdentityHandler) CreateEmployerAccount(w http.ResponseWriter, r *http.Request) {
+	h.createAccount(w, r, func(s *usecases.CandidateIdentity) onboardFunc { return s.OnboardEmployer })
+}
+
+type onboardFunc func(ctx context.Context, subject, accessToken, rawName string) (*entities.User, bool, error)
+
+func (h *CandidateIdentityHandler) createAccount(w http.ResponseWriter, r *http.Request, pick func(*usecases.CandidateIdentity) onboardFunc) {
 	w.Header().Set("Cache-Control", "no-store")
 	subject := security.ClaimsFromContext(r.Context()).Subject
 	if subject == "" {
@@ -90,11 +105,11 @@ func (h *CandidateIdentityHandler) CreateCandidateAccount(w http.ResponseWriter,
 		return
 	}
 	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-	user, created, err := h.service.Onboard(r.Context(), subject, token, name)
+	user, created, err := pick(h.service)(r.Context(), subject, token, name)
 	if err != nil {
 		code := httpjson.CodeInternalError
 		switch {
-		case errors.Is(err, usecases.ErrInvalidCandidateName):
+		case errors.Is(err, usecases.ErrInvalidAccountName):
 			code = httpjson.CodeValidationError
 		case errors.Is(err, usecases.ErrAccountExists):
 			code = httpjson.CodeAccountExists
