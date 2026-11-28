@@ -294,7 +294,13 @@ export function createCognitoMock(options = {}) {
       requireClient(body);
       const username = requireUsername(body);
       const user = findUser(username);
-      if (user) issueCode(user, "reset");
+      if (!user) return delivery(username);
+      // Real Cognito sends a reset code only to a verified email: an UNCONFIRMED
+      // sign-up (email_verified false) or an unverified account gets this error and
+      // no code (L14 advisory 2). The frontend client maps it to its silent ok.
+      if (!user.confirmed || !user.emailVerified)
+        fail("InvalidParameterException", "Cannot reset password for the user as there is no registered/verified email or phone_number");
+      issueCode(user, "reset");
       return delivery(username);
     },
 

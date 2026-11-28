@@ -140,7 +140,11 @@ client that forgets to normalize the email (`trim().toLowerCase()`, done by `cre
   `UsernameExistsException`; the `name` attribute is required, as in the real pool (L20) → else
   `InvalidParameterException` «Attributes did not conform to the schema: name: The attribute is required»), `ConfirmSignUp`, `ResendConfirmationCode`, `ForgotPassword`, `ConfirmForgotPassword`.
   Codes are 6 random digits; 5 wrong attempts → `TooManyFailedAttemptsException` until a new code. Unknown users get a
-  delivery answer on resend/forgot and `CodeMismatchException` on confirm.
+  delivery answer on resend/forgot and `CodeMismatchException` on confirm. `ForgotPassword` for an existing user without a
+  verified email — every UNCONFIRMED sign-up, or a user seeded with `confirmed: false` / `emailVerified: false` — answers
+  `InvalidParameterException` «Cannot reset password for the user as there is no registered/verified email or
+  phone_number» and issues **no** reset code, as real Cognito does (L14 advisory 2); the frontend client maps it to the
+  same silent ok an unknown email gets.
 - `GetUser` (contract §GetUser stub): body exactly `{"AccessToken": "<token>"}`; verifies the RS256 signature, `iss`,
   `token_use=access` and `exp`; `200` success (`email_verified` `"true"`), `200` unverified (`"false"` for users seeded
   with `emailVerified: false`), `NotAuthorizedException` for an invalid, tampered, expired or orphaned token.

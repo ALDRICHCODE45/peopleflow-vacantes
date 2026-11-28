@@ -4,6 +4,8 @@ import { once } from "node:events";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createCognitoClient, type CognitoClient } from "./client";
 import { COGNITO_IDP_ENDPOINT_KEY, resolveCognitoEndpoint } from "./config";
+import { createForgotPasswordOperations } from "../forgot-password/operations";
+import { createAuthAttemptLimiter } from "../rate-limit";
 
 // The real client against tests/fixtures/cognito-mock.mjs (defaults: peopleflow-e2e / peopleflow-e2e-secret).
 let server: ChildProcess;
@@ -86,6 +88,31 @@ describe("Cognito client ↔ mock Cognito", () => {
     expect(await client.forgotPassword("ghost@empresa.mx")).toEqual({ ok: true });
     expect(await client.confirmSignUp("ghost@empresa.mx", "123456")).toEqual({ ok: false, reason: "code_mismatch" });
     expect(await client.confirmForgotPassword("ghost@empresa.mx", "123456", PASSWORD)).toEqual({
+      ok: false,
+      reason: "code_mismatch",
+    });
+  });
+
+  it("forgot password on an unconfirmed account: no code, the same silent ok as an unknown email (L14 advisory 2)", async () => {
+    const signals: [string, string | null][] = [];
+    const observed = createCognitoClient({
+      endpoint: resolveCognitoEndpoint("https://e2e.peopleflow.test/identity", { NODE_ENV: "test", [COGNITO_IDP_ENDPOINT_KEY]: origin }),
+      clientId: "peopleflow-e2e",
+      clientSecret: "peopleflow-e2e-secret",
+      onServiceError: (operation, name) => signals.push([operation, name]),
+    });
+    // The server action path end to end: validation → limiter → real client → mock Cognito.
+    const operations = createForgotPasswordOperations({ cognito: () => observed, limiter: createAuthAttemptLimiter() });
+    await observed.signUp("laura@empresa.mx", PASSWORD, "Laura");
+    const unconfirmed = await operations.forgotPassword({ email: " Laura@Empresa.mx " }, "203.0.113.7");
+    const unknown = await operations.forgotPassword({ email: "ghost@empresa.mx" }, "203.0.113.7");
+    expect(unconfirmed).toEqual({ ok: true });
+    expect(unconfirmed).toEqual(unknown);
+    expect((await codes("laura@empresa.mx")).reset).toBeNull();
+    // The operator learns why no code went out (value-free), the person does not.
+    expect(signals).toEqual([["forgotPassword", "InvalidParameterException"]]);
+    // Without a code, a guess is just a wrong code.
+    expect(await operations.confirmForgotPassword({ email: "laura@empresa.mx", code: "123456", newPassword: "N3w-secret-pass!" }, "203.0.113.7")).toEqual({
       ok: false,
       reason: "code_mismatch",
     });

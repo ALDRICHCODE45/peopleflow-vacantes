@@ -275,6 +275,31 @@ describe("forgot password", () => {
     expect((await signIn("laura@empresa.mx", "N3w-secret-pass!")).status).toBe(200);
     expectError(await confirmForgot("laura@empresa.mx", String(reset), "An0ther-pass!!"), "CodeMismatchException");
   });
+
+  // L14 advisory (2): like real Cognito, an account without a verified email
+  // (every UNCONFIRMED sign-up) gets no reset code; the client maps this answer
+  // to the same silent ok an unknown email gets.
+  test("issues no reset code to an unconfirmed user (InvalidParameterException, as real Cognito for an unverified email)", async () => {
+    await signUp("laura@empresa.mx");
+    const result = await forgot("laura@empresa.mx");
+    expectError(result, "InvalidParameterException");
+    expect(result.json.message).toMatch(/no registered\/verified email/);
+    expect((await codes("laura@empresa.mx")).reset).toBeNull();
+    // Its confirmation code is untouched: the sign-up can still be verified.
+    const { confirmation } = await codes("laura@empresa.mx");
+    expect(confirmation).toMatch(/^\d{6}$/);
+    expectError(await confirmForgot("laura@empresa.mx", String(confirmation), "N3w-secret-pass!"), "CodeMismatchException");
+    expect((await confirm("laura@empresa.mx", String(confirmation))).status).toBe(200);
+    expect((await signIn("laura@empresa.mx")).status).toBe(200);
+  });
+
+  test("issues no reset code to a confirmed user whose email is not verified", async () => {
+    await seed({ email: "laura@empresa.mx", password: PASSWORD, emailVerified: false });
+    expectError(await forgot("laura@empresa.mx"), "InvalidParameterException");
+    expect((await codes("laura@empresa.mx")).reset).toBeNull();
+    expectError(await confirmForgot("laura@empresa.mx", "123456", "N3w-secret-pass!"), "CodeMismatchException");
+    expect((await signIn("laura@empresa.mx")).status).toBe(200);
+  });
 });
 
 describe("GetUser (contract stub shapes)", () => {
