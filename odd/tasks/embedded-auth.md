@@ -32,7 +32,7 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 | A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | fe5f4832, cac98023 |
 | A4.5 | S1, S4 | Company sign-up: Tu cuenta → Verifica tu correo → Tu empresa (employer-account + POST /companies) | f0ee0c63, 3eb0d88e |
 | A4.6 | S1 | ¿Olvidaste tu contraseña? request → code + new password → done | e598bef3, d816cb7b |
-| A4.7 | S1–S4 | E2e on the mock Cognito + PEM backend; retire inert-shell assertions; docs | |
+| A4.7 | S1–S4 | E2e on the mock Cognito + PEM backend; retire inert-shell assertions; docs | 03b2e0fd, a647f4df |
 
 ## Log
 
@@ -286,3 +286,16 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   positive and negative paths covered). Non-blocking, folded into A4.7: validate the stored email in
   takeSignInHandoff (defense in depth); Cognito LimitExceeded on ForgotPassword could hint that an account exists
   (map to ok or accept). A4.6 done.
+- **L31** (2026-11-28) A4.7 committed: 03b2e0fd unit follow-ups (handoff emails validated, lost-reset hint «Si ya
+  cambiaste tu contraseña, ingresa con la nueva.», cwd-proof action tests, audit catalog EmployerAccountCreated → 76,
+  real-responses fixture text) and a647f4df e2e (Playwright starts mock Cognito :4599, fixture API :4010 with an
+  embedded-auth accounts handler that trusts only mock tokens via GetUser, and `next dev` :3100 with NODE_ENV=test;
+  tests/e2e/embedded-auth.spec.ts 7/7 — candidate and employer full flows, generic sign-in error, unconfirmed →
+  verify with auto-resend, forgot password, logout, rate limit; no password/code in URLs; FloatingLines present;
+  login-acceptance rewritten for the real form 16/16; login.spec 8/8; a11y 10/10; fixture-loader alias fix revives
+  jobs-server.test, whose 9 careers-site draft failures are unrelated). Unit 1713 pass. Native review approved
+  (lineage review-8ed242f2982cbd93). Advisory follow-ups (test hygiene): reused :3100 server could point at the real
+  pool and spend its rate budget (verify the reused server or disable reuse for this spec); process.chdir in action
+  tests breaks under the threads pool; embedded-auth fixture shadows GET /industries; oversized fixture body hangs;
+  rate-limit loop asserts a stale alert. Not covered: an e2e run against the PEM-mode Go backend (the fixture API
+  stands in). Remaining: local test with the real Cognito pool, merge decision, session handoff.
