@@ -82,6 +82,26 @@ describe("«Crea tu perfil» fields (artboard 01 · Crear cuenta, candidato)", (
     render(<SignUpForm audience="candidate" />);
     expect(screen.getByRole("checkbox", { name: "Acepto los Términos y el Aviso de privacidad." })).not.toBeChecked();
   });
+
+  it("links the provisional legal pages on their own line («Léelos aquí»), cited by the checkbox, with 44 px targets", () => {
+    render(<SignUpForm audience="candidate" />);
+    const checkbox = screen.getByRole("checkbox", { name: "Acepto los Términos y el Aviso de privacidad." });
+    const terms = screen.getByRole("link", { name: "Términos" });
+    const privacy = screen.getByRole("link", { name: "Aviso de privacidad" });
+    expect(terms).toHaveAttribute("href", "/terminos");
+    expect(privacy).toHaveAttribute("href", "/aviso-de-privacidad");
+    for (const link of [terms, privacy]) {
+      expect(link.className).toContain("min-h-11");
+      // Outside the consent label: a tap on a link never toggles the checkbox.
+      expect(link.closest("label")).toBeNull();
+    }
+    const line = terms.closest("p")!;
+    expect(line).toHaveTextContent("Léelos aquí: Términos · Aviso de privacidad");
+    expect(line).toContainElement(privacy);
+    expect(checkbox.getAttribute("aria-describedby")?.split(" ")).toContain(line.id);
+    fireEvent.click(terms);
+    expect(checkbox).not.toBeChecked();
+  });
 });
 
 describe("local validation", () => {
@@ -120,7 +140,7 @@ describe("submit → «Verifica tu correo»", () => {
     fill({ email: " Ximena.Ruiz@Gmail.com " });
     submit();
     await waitFor(() => expect(deps.assign).toHaveBeenCalledExactlyOnceWith("/candidato/verificar"));
-    expect(deps.signUp).toHaveBeenCalledExactlyOnceWith({ name: "Ximena Ruiz", email: "Ximena.Ruiz@Gmail.com", password: PASSWORD });
+    expect(deps.signUp).toHaveBeenCalledExactlyOnceWith({ name: "Ximena Ruiz", email: "Ximena.Ruiz@Gmail.com", password: PASSWORD, terms: true });
     expect(window.sessionStorage.getItem(PENDING_EMAIL_KEY)).toBe("Ximena.Ruiz@Gmail.com");
     expect(window.sessionStorage.getItem(PENDING_ORIGIN_KEY)).toBe("sign-up");
     // Never in the URL, never the password in storage.

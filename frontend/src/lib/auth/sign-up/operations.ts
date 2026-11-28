@@ -55,6 +55,9 @@ export function createSignUpOperations({ cognito, limiter }: SignUpOperationsDep
       if (name === null) fields.push("name");
       if (email === null) fields.push("email");
       if (password === undefined || password.length > MAX_PASSWORD_LENGTH || !meetsPasswordPolicy(password)) fields.push("password");
+      // The consent is enforced here too, not only by the screen's checkbox.
+      const consented = typeof input === "object" && input !== null && (input as Record<string, unknown>).terms === true;
+      if (!consented) fields.push("terms");
       if (name === null || email === null || password === undefined || fields.length > 0) return { ok: false, reason: "invalid_input", fields };
       if (!admitted("signUp", ip, email)) return TOO_MANY;
       try {

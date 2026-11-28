@@ -24,29 +24,44 @@ const leaks = (value: unknown) => JSON.stringify(value).match(/Altavista#2026|48
 
 describe("sign-up input validation (no Cognito call when invalid)", () => {
   it.each<[string, unknown, string[]]>([
-    ["a non-object", "x", ["name", "email", "password"]],
-    ["missing fields", {}, ["name", "email", "password"]],
-    ["non-string fields", { name: 1, email: [], password: null }, ["name", "email", "password"]],
-    ["a one-character name", { name: " X ", email: "x@correo.com", password: PASSWORD }, ["name"]],
-    ["a 121-character name", { name: "a".repeat(121), email: "x@correo.com", password: PASSWORD }, ["name"]],
-    ["a control character in the name", { name: "Ana\u0007", email: "x@correo.com", password: PASSWORD }, ["name"]],
-    ["an email without a domain", { name: "Ximena Ruiz", email: "ximena@", password: PASSWORD }, ["email"]],
-    ["an email with spaces", { name: "Ximena Ruiz", email: "xi mena@correo.com", password: PASSWORD }, ["email"]],
-    ["an email over 254 characters", { name: "Ximena Ruiz", email: `${"a".repeat(245)}@correo.com`, password: PASSWORD }, ["email"]],
-    ["a weak password", { name: "Ximena Ruiz", email: "x@correo.com", password: "altavista2026" }, ["password"]],
-    ["a password over 256 characters", { name: "Ximena Ruiz", email: "x@correo.com", password: `Aa1#${"x".repeat(253)}` }, ["password"]],
+    ["a non-object", "x", ["name", "email", "password", "terms"]],
+    ["missing fields", {}, ["name", "email", "password", "terms"]],
+    ["non-string fields", { name: 1, email: [], password: null, terms: "true" }, ["name", "email", "password", "terms"]],
+    ["a one-character name", { name: " X ", email: "x@correo.com", password: PASSWORD, terms: true }, ["name"]],
+    ["a 121-character name", { name: "a".repeat(121), email: "x@correo.com", password: PASSWORD, terms: true }, ["name"]],
+    ["a control character in the name", { name: "Ana\u0007", email: "x@correo.com", password: PASSWORD, terms: true }, ["name"]],
+    ["an email without a domain", { name: "Ximena Ruiz", email: "ximena@", password: PASSWORD, terms: true }, ["email"]],
+    ["an email with spaces", { name: "Ximena Ruiz", email: "xi mena@correo.com", password: PASSWORD, terms: true }, ["email"]],
+    ["an email over 254 characters", { name: "Ximena Ruiz", email: `${"a".repeat(245)}@correo.com`, password: PASSWORD, terms: true }, ["email"]],
+    ["a weak password", { name: "Ximena Ruiz", email: "x@correo.com", password: "altavista2026", terms: true }, ["password"]],
+    ["a password over 256 characters", { name: "Ximena Ruiz", email: "x@correo.com", password: `Aa1#${"x".repeat(253)}`, terms: true }, ["password"]],
   ])("refuses %s", async (_label, input, fields) => {
     expect(await ctx.operations.signUp(input, "203.0.113.7")).toEqual({ ok: false, reason: "invalid_input", fields });
     expect(ctx.client.signUp).not.toHaveBeenCalled();
   });
 
+  it.each<[string, unknown]>([
+    ["missing", undefined],
+    ["false", false],
+    ["the string \"true\"", "true"],
+    ["1", 1],
+    ["an object", { accepted: true }],
+  ])("refuses a sign-up whose terms consent is %s, before the limiter and Cognito", async (_label, terms) => {
+    const attempt = vi.fn().mockReturnValue({ ok: true });
+    const { operations, client } = setup({ attempt });
+    const input = { name: "Ximena Ruiz", email: "x@correo.com", password: PASSWORD, ...(terms === undefined ? {} : { terms }) };
+    expect(await operations.signUp(input, "203.0.113.7")).toEqual({ ok: false, reason: "invalid_input", fields: ["terms"] });
+    expect(attempt).not.toHaveBeenCalled();
+    expect(client.signUp).not.toHaveBeenCalled();
+  });
+
   it("sends the trimmed email, the password as typed and the normalized name (Cognito requires name, L20)", async () => {
-    expect(await ctx.operations.signUp({ name: "  Ximena   Ruiz ", email: " Ximena.Ruiz@Correo.com ", password: PASSWORD }, null)).toEqual({ ok: true, confirmed: false });
+    expect(await ctx.operations.signUp({ name: "  Ximena   Ruiz ", email: " Ximena.Ruiz@Correo.com ", password: PASSWORD, terms: true }, null)).toEqual({ ok: true, confirmed: false });
     expect(ctx.client.signUp).toHaveBeenCalledExactlyOnceWith("Ximena.Ruiz@Correo.com", PASSWORD, "Ximena Ruiz");
   });
 
   it("ignores extra fields", async () => {
-    await ctx.operations.signUp({ name: "Ximena Ruiz", email: "x@correo.com", password: PASSWORD, role: "recruiter" }, null);
+    await ctx.operations.signUp({ name: "Ximena Ruiz", email: "x@correo.com", password: PASSWORD, terms: true, role: "recruiter" }, null);
     expect(ctx.client.signUp).toHaveBeenCalledExactlyOnceWith("x@correo.com", PASSWORD, "Ximena Ruiz");
   });
 });
@@ -76,7 +91,7 @@ describe("rate limiting per IP and per normalized email, before Cognito", () => 
   it("passes the operation, the client address and the email to the shared limiter", async () => {
     const attempt = vi.fn().mockReturnValue({ ok: true });
     const { operations } = setup({ attempt });
-    await operations.signUp({ name: "Ximena Ruiz", email: "X@Correo.com", password: PASSWORD }, "203.0.113.7");
+    await operations.signUp({ name: "Ximena Ruiz", email: "X@Correo.com", password: PASSWORD, terms: true }, "203.0.113.7");
     await operations.confirmSignUp({ email: "x@correo.com", code: CODE }, "203.0.113.7");
     await operations.resendCode({ email: "x@correo.com" }, null);
     expect(attempt.mock.calls).toEqual([
@@ -90,7 +105,7 @@ describe("rate limiting per IP and per normalized email, before Cognito", () => 
   it("does not spend budget on invalid input", async () => {
     const attempt = vi.fn().mockReturnValue({ ok: true });
     const { operations } = setup({ attempt });
-    await operations.signUp({ name: "", email: "x@correo.com", password: PASSWORD }, "203.0.113.7");
+    await operations.signUp({ name: "", email: "x@correo.com", password: PASSWORD, terms: true }, "203.0.113.7");
     expect(attempt).not.toHaveBeenCalled();
   });
 
@@ -104,9 +119,9 @@ describe("rate limiting per IP and per normalized email, before Cognito", () => 
 
   it("answers too_many_attempts without calling Cognito once the per-IP budget is spent", async () => {
     for (let index = 0; index < 10; index += 1) {
-      await ctx.operations.signUp({ name: "Ximena Ruiz", email: `x${index}@correo.com`, password: PASSWORD }, "203.0.113.7");
+      await ctx.operations.signUp({ name: "Ximena Ruiz", email: `x${index}@correo.com`, password: PASSWORD, terms: true }, "203.0.113.7");
     }
-    expect(await ctx.operations.signUp({ name: "Ximena Ruiz", email: "new@correo.com", password: PASSWORD }, "203.0.113.7")).toEqual({ ok: false, reason: "too_many_attempts" });
+    expect(await ctx.operations.signUp({ name: "Ximena Ruiz", email: "new@correo.com", password: PASSWORD, terms: true }, "203.0.113.7")).toEqual({ ok: false, reason: "too_many_attempts" });
     expect(ctx.client.signUp).toHaveBeenCalledTimes(10);
   });
 
@@ -119,7 +134,7 @@ describe("rate limiting per IP and per normalized email, before Cognito", () => 
 });
 
 describe("outcome mapping to closed reasons", () => {
-  const signUpInput = { name: "Ximena Ruiz", email: "x@correo.com", password: PASSWORD };
+  const signUpInput = { name: "Ximena Ruiz", email: "x@correo.com", password: PASSWORD, terms: true };
 
   it.each<[unknown, unknown]>([
     [{ ok: true, confirmed: true }, { ok: true, confirmed: true }],

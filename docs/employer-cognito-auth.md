@@ -298,8 +298,9 @@ only when its `Origin` matches the host (no `serverActions.allowedOrigins` is
 configured), so only same-origin pages can call them. Each action validates
 again on the server: email trimmed, ≤ 254 characters, plausible shape; name
 2–120 code points without control characters (the candidate-account rule);
-password against `PASSWORD_REQUIREMENTS` (≤ 256); code exactly six ASCII
-digits. Invalid input never reaches the limiter or Cognito. Valid input is
+password against `PASSWORD_REQUIREMENTS` (≤ 256); the terms consent as the
+literal `terms: true` (the checkbox is not trusted alone); code exactly six
+ASCII digits. Invalid input never reaches the limiter or Cognito. Valid input is
 counted per client address (`clientIpFrom`, the same derivation as the route
 guard; skipped when none can be derived) and per normalized email with the
 `signUp` / `confirmSignUp` / `resendCode` budgets above. Over budget, the
@@ -317,6 +318,13 @@ SignUp always sends the `name` attribute: the real pool requires email and name 
 says no more than «Ese correo no se puede usar para crear un perfil. Si ya tienes
 perfil con ese correo, ingresa o restablece tu contraseña.», with links to sign in
 and to recover.
+
+**Legal pages (L23).** The consent line links «Léelos aquí: Términos · Aviso de
+privacidad» to `/terminos` and `/aviso-de-privacidad` on their own line, outside the
+checkbox label, with 44 px targets. Both pages are provisional: public, noindex, a
+banner «Texto provisional: el texto legal definitivo se publicará antes del
+lanzamiento.», and section headings only, with no clause text, until the real texts
+replace them before launch.
 
 **Handoff.** After a successful sign-up, the email (never the password) goes to
 `sessionStorage` with origin `sign-up`, the password is cleared and the browser

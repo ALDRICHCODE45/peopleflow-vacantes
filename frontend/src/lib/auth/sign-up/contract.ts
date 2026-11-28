@@ -30,7 +30,8 @@ export function displayName(value: string): string | null {
   return validName(name) ? name : null;
 }
 
-export type SignUpField = "name" | "email" | "password";
+/** `terms`: the consent to the Términos and Aviso de privacidad, required as the literal `true`. */
+export type SignUpField = "name" | "email" | "password" | "terms";
 
 export type SignUpActionResult =
   | { ok: true; confirmed: boolean }

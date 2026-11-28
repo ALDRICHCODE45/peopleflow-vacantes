@@ -29,10 +29,15 @@ describe("sign-up server actions", () => {
   });
 
   it("calls the shared Cognito client through validation", async () => {
-    expect(await signUpAction({ name: "Ximena Ruiz", email: "a@correo.com", password: PASSWORD })).toEqual({ ok: true, confirmed: false });
+    expect(await signUpAction({ name: "Ximena Ruiz", email: "a@correo.com", password: PASSWORD, terms: true })).toEqual({ ok: true, confirmed: false });
     expect(await confirmSignUpAction({ email: "a@correo.com", code: "482913" })).toEqual({ ok: true });
     expect(await resendCodeAction({ email: "a@correo.com" })).toEqual({ ok: true });
     expect(deps.client.signUp).toHaveBeenCalledExactlyOnceWith("a@correo.com", PASSWORD, "Ximena Ruiz");
+  });
+
+  it("refuses a sign-up without the terms consent, without calling Cognito", async () => {
+    expect(await signUpAction({ name: "Ximena Ruiz", email: "t@correo.com", password: PASSWORD })).toEqual({ ok: false, reason: "invalid_input", fields: ["terms"] });
+    expect(deps.client.signUp).not.toHaveBeenCalled();
   });
 
   it("limits per client address derived like the route guard (right-most X-Forwarded-For hop)", async () => {
@@ -57,7 +62,7 @@ describe("sign-up server actions", () => {
   it("returns only closed results: no password, code or Cognito detail", async () => {
     deps.client.signUp.mockResolvedValue({ ok: false, reason: "invalid_password", requirements: ["min_length_8"] });
     const results = [
-      await signUpAction({ name: "Ximena Ruiz", email: "r@correo.com", password: PASSWORD }),
+      await signUpAction({ name: "Ximena Ruiz", email: "r@correo.com", password: PASSWORD, terms: true }),
       await confirmSignUpAction({ email: "r@correo.com", code: "000000" }),
     ];
     expect(results[0]).toEqual({ ok: false, reason: "invalid_password" });

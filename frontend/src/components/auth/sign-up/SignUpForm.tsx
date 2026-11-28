@@ -17,12 +17,12 @@ import styles from "../login-screen.module.css";
 import { navigateTo } from "../sign-in/navigate";
 import { rememberPendingEmail, rememberVerifiedEmail } from "../sign-in/pending-email";
 import { AUTH_PATHS, type SignInAudience } from "../sign-in/routes";
-import { FIELD_ERRORS, SIGN_UP_ALERTS, SIGN_UP_FIELD_COPY, TERMS_LABEL, type SignUpAlertKind } from "./copy";
+import { FIELD_ERRORS, LEGAL_COPY, SIGN_UP_ALERTS, SIGN_UP_FIELD_COPY, TERMS_LABEL, type SignUpAlertKind } from "./copy";
 import { PasswordRequirements } from "./PasswordRequirements";
 
 const FIELD_CLASS = "h-12 w-full rounded-2xl border border-border bg-background px-4 text-[15px] text-foreground placeholder:text-muted-foreground/70 read-only:text-muted-foreground md:text-[15px]";
 
-type FieldName = SignUpField | "terms";
+type FieldName = SignUpField;
 type FieldErrors = Partial<Record<FieldName, string>>;
 type FocusTarget = FieldName | "alert";
 
@@ -48,7 +48,7 @@ export function SignUpForm({ audience }: { audience: SignInAudience }) {
   const idBase = `${audience}-sign-up`;
   const ids = {
     name: `${idBase}-name`, email: `${idBase}-email`, password: `${idBase}-password`, terms: `${idBase}-terms`,
-    requirements: `${idBase}-requirements`, alert: `${idBase}-alert`,
+    requirements: `${idBase}-requirements`, alert: `${idBase}-alert`, legal: `${idBase}-legal`,
     error: (field: FieldName) => `${idBase}-${field}-error`,
   };
 
@@ -116,7 +116,7 @@ export function SignUpForm({ audience }: { audience: SignInAudience }) {
     const typedEmail = email.trim();
     let result: SignUpActionResult;
     try {
-      result = await signUpAction({ name: displayName(name), email: typedEmail, password });
+      result = await signUpAction({ name: displayName(name), email: typedEmail, password, terms });
     } catch {
       result = { ok: false, reason: "unavailable" };
     }
@@ -144,7 +144,7 @@ export function SignUpForm({ audience }: { audience: SignInAudience }) {
       case "invalid_input": {
         lock.current = false;
         setPending(false);
-        const messages: Record<SignUpField, string> = { name: FIELD_ERRORS.nameLength, email: FIELD_ERRORS.email, password: FIELD_ERRORS.password };
+        const messages: Record<SignUpField, string> = { name: FIELD_ERRORS.nameLength, email: FIELD_ERRORS.email, password: FIELD_ERRORS.password, terms: FIELD_ERRORS.terms };
         return showFieldErrors(Object.fromEntries(result.fields.map((field) => [field, messages[field]])));
       }
       case "too_many_attempts":
@@ -250,7 +250,7 @@ export function SignUpForm({ audience }: { audience: SignInAudience }) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          {/* The label is the 44 px target; the legal pages do not exist yet, so no reading links (A4.4 risk). */}
+          {/* The label is the 44 px target; the reading links sit on their own line, outside it (artboard a11y fix). */}
           <label htmlFor={ids.terms} className="flex min-h-11 cursor-pointer items-center gap-3 text-[14px] text-foreground">
             <input
               ref={refs.terms as React.Ref<HTMLInputElement>}
@@ -262,11 +262,17 @@ export function SignUpForm({ audience }: { audience: SignInAudience }) {
               disabled={pending}
               aria-required="true"
               aria-invalid={invalid("terms")}
-              aria-describedby={describedBy("terms")}
+              aria-describedby={describedBy("terms", [ids.legal])}
               className={`size-[18px] shrink-0 accent-[var(--pf-login-cta-bg)] ${AUTH_FOCUS_RING}`}
             />
             <span>{TERMS_LABEL}</span>
           </label>
+          <p id={ids.legal} className="text-[13px] leading-[18px] text-muted-foreground">
+            {LEGAL_COPY.lead}{" "}
+            <Link href={LEGAL_COPY.termsHref} className={`${AUTH_LINK_CLASS} px-0.5`}>{LEGAL_COPY.terms}</Link>
+            <span aria-hidden="true">{" · "}</span>
+            <Link href={LEGAL_COPY.privacyHref} className={`${AUTH_LINK_CLASS} px-0.5`}>{LEGAL_COPY.privacy}</Link>
+          </p>
           {errors.terms && <ErrorText id={ids.error("terms")}>{errors.terms}</ErrorText>}
         </div>
 

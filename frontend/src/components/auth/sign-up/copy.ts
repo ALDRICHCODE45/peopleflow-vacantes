@@ -31,6 +31,15 @@ export const FIELD_ERRORS = {
 
 export const TERMS_LABEL = "Acepto los Términos y el Aviso de privacidad.";
 
+/** Artboard «Léelos aquí: Términos · Aviso de privacidad»; provisional pages until launch (L23). */
+export const LEGAL_COPY = {
+  lead: "Léelos aquí:",
+  terms: "Términos",
+  termsHref: "/terminos",
+  privacy: "Aviso de privacidad",
+  privacyHref: "/aviso-de-privacidad",
+} as const;
+
 export type SignUpAlertKind = "email_taken" | "too_many_attempts" | "network";
 
 export const SIGN_UP_ALERTS: Record<SignUpAlertKind, { tone: AlertTone; title: string; body?: string }> = {
