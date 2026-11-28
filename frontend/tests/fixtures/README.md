@@ -119,15 +119,18 @@ fixture with a real browser session. They never validate or mint tokens.
 `cognito mock listening on <port>`). In-memory, test-only mock of the Cognito user pools API (awsJson1_1: `POST /`,
 `Content-Type: application/x-amz-json-1.1`, `X-Amz-Target: AWSCognitoIdentityProviderService.<Op>`, no
 `Authorization` header — anything else is `400 SerializationException`). It backs the frontend Cognito client
-(`src/lib/auth/cognito/`, via `COGNITO_IDP_ENDPOINT`, accepted only with `NODE_ENV=test` or
-`PEOPLEFLOW_LOCAL_PREVIEW=true` and a loopback origin) and the backend's GetUser provider
+(`src/lib/auth/cognito/`, via `COGNITO_IDP_ENDPOINT`, never accepted when `NODE_ENV=production` — not even with
+`PEOPLEFLOW_LOCAL_PREVIEW=true` — otherwise only with `NODE_ENV=test` or `PEOPLEFLOW_LOCAL_PREVIEW=true` and a loopback
+origin; so the Next side of the e2e runs with `NODE_ENV=test`) and the backend's GetUser provider
 (`IDENTITY_COGNITO_ENDPOINT`). It never logs passwords, codes or tokens.
 
 Defaults (env overrides): client id `peopleflow-e2e` (`COGNITO_MOCK_CLIENT_ID`), client secret `peopleflow-e2e-secret`
 (`COGNITO_MOCK_CLIENT_SECRET`), issuer `https://e2e.peopleflow.test/identity` (`COGNITO_MOCK_ISSUER`), audience
 `peopleflow-e2e` (`COGNITO_MOCK_AUDIENCE`) — the backend contract's §e2e values.
 
-Operations (PreventUserExistenceErrors=ENABLED behavior; SECRET_HASH verified on every call except GetUser):
+Operations (PreventUserExistenceErrors=ENABLED behavior; SECRET_HASH verified on every call except GetUser).
+Usernames are matched **exactly** (no trimming or case folding, unlike real Cognito's case-insensitive pools) so a
+client that forgets to normalize the email (`trim().toLowerCase()`, done by `createCognitoClient`) fails here:
 
 - `InitiateAuth` `USER_PASSWORD_AUTH` (hash of the username) → tokens; unknown user and wrong password give the same
   `NotAuthorizedException`; correct password on an unconfirmed user → `UserNotConfirmedException`.

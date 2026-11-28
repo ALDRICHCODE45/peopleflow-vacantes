@@ -66,6 +66,15 @@ describe("Cognito client ↔ mock Cognito", () => {
     });
   });
 
+  it("normalizes the email before the (case-sensitive) mock sees it", async () => {
+    expect(await client.signUp(" Ana@X.mx ", PASSWORD, "Ana")).toEqual({ ok: true, confirmed: false });
+    expect(await client.signUp("ana@x.mx", PASSWORD, "Ana")).toEqual({ ok: false, reason: "email_taken" });
+    const { confirmation } = await codes("ana@x.mx");
+    expect(await codes("Ana@X.mx")).toEqual({ confirmation: null, reset: null });
+    expect(await client.confirmSignUp("ANA@x.MX", String(confirmation))).toEqual({ ok: true });
+    expect(await client.signIn("  ana@X.MX", PASSWORD)).toMatchObject({ ok: true, kind: "tokens" });
+  });
+
   it("hides whether an account exists on sign-in, resend, forgot and confirm", async () => {
     await client.signUp("laura@empresa.mx", PASSWORD, "Laura");
     expect(await client.signIn("ghost@empresa.mx", PASSWORD)).toEqual({ ok: false, reason: "invalid_credentials" });

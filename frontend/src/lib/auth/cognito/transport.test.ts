@@ -75,6 +75,17 @@ describe("callCognito responses", () => {
     await expect(callCognito(ENDPOINT, "SignUp", {})).resolves.toEqual({ ok: false, kind: "unavailable" });
   });
 
+  it("keeps the sanitized error name of a 5xx for the operator signal, still unavailable", async () => {
+    fetchMock.mockResolvedValue(
+      json(500, { __type: "InternalErrorException", message: "detail" }, { "x-amzn-errortype": "InternalErrorException:http://x/" }),
+    );
+    await expect(callCognito(ENDPOINT, "SignUp", {})).resolves.toEqual({
+      ok: false,
+      kind: "unavailable",
+      errorName: "InternalErrorException",
+    });
+  });
+
   it("collapses a network error or refused redirect to unavailable", async () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed: redirect mode is set to error"));
     await expect(callCognito(ENDPOINT, "SignUp", {})).resolves.toEqual({ ok: false, kind: "unavailable" });

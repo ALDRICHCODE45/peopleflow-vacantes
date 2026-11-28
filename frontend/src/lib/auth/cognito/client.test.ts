@@ -342,3 +342,118 @@ describe("no secret material leaks", () => {
     }
   });
 });
+
+describe("username normalization", () => {
+  const RAW = " Ana@X.mx ";
+  const NORMALIZED = "ana@x.mx";
+
+  it.each([
+    ["signIn", (c: CognitoClient, e: string) => c.signIn(e, PASSWORD), AUTH_RESULT],
+    ["signUp", (c: CognitoClient, e: string) => c.signUp(e, PASSWORD, "Ana"), { UserConfirmed: false }],
+    ["confirmSignUp", (c: CognitoClient, e: string) => c.confirmSignUp(e, CODE), {}],
+    ["resendCode", (c: CognitoClient, e: string) => c.resendCode(e), {}],
+    ["forgotPassword", (c: CognitoClient, e: string) => c.forgotPassword(e), {}],
+    ["confirmForgotPassword", (c: CognitoClient, e: string) => c.confirmForgotPassword(e, CODE, PASSWORD), {}],
+  ] as const)("%s sends identical payloads for a padded mixed-case email and its normalized form", async (_op, call, ok) => {
+    fetchMock.mockImplementation(async () => reply(200, ok));
+    await call(client, RAW);
+    const raw = lastRequest().body;
+    await call(client, NORMALIZED);
+    const normalized = lastRequest().body;
+    expect(raw).toEqual(normalized);
+    const serialized = JSON.stringify(raw);
+    expect(serialized).toContain(NORMALIZED);
+    expect(serialized).not.toContain("Ana@X.mx");
+    expect(serialized).toContain(JSON.stringify(computeSecretHash(NORMALIZED, CLIENT_ID, CLIENT_SECRET)));
+  });
+
+  it("signUp uses the normalized email for the email attribute too", async () => {
+    fetchMock.mockResolvedValue(reply(200, { UserConfirmed: false }));
+    await client.signUp(RAW, PASSWORD, "Ana");
+    expect(lastRequest().body.UserAttributes).toEqual([
+      { Name: "email", Value: NORMALIZED },
+      { Name: "name", Value: "Ana" },
+    ]);
+  });
+
+  it("refresh hashes the sub verbatim (no normalization)", async () => {
+    fetchMock.mockResolvedValue(reply(200, AUTH_RESULT));
+    await client.refresh("refresh-token-value", "Sub-With-Case");
+    expect((lastRequest().body.AuthParameters as Record<string, unknown>).SECRET_HASH).toBe(
+      computeSecretHash("Sub-With-Case", CLIENT_ID, CLIENT_SECRET),
+    );
+  });
+});
+
+describe("onServiceError operator signal", () => {
+  const signal = vi.fn();
+  beforeEach(() => {
+    signal.mockReset();
+    client = createCognitoClient({
+      endpoint: ENDPOINT,
+      clientId: CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
+      now: () => NOW,
+      onServiceError: signal,
+    });
+  });
+
+  it.each([
+    ["resendCode", resendCode, "UserNotFoundException"],
+    ["forgotPassword", forgotPassword, "InvalidParameterException"],
+  ] as const)("%s reports the silent success with the error name", async (op, call, name) => {
+    fetchMock.mockResolvedValue(cognitoError(name));
+    await expect(call(client)).resolves.toEqual({ ok: true });
+    expect(signal).toHaveBeenCalledExactlyOnceWith(op, name);
+  });
+
+  it("reports an unmapped Cognito error that became unavailable", async () => {
+    fetchMock.mockResolvedValue(cognitoError("ResourceNotFoundException"));
+    await client.signIn(EMAIL, PASSWORD);
+    expect(signal).toHaveBeenCalledExactlyOnceWith("signIn", "ResourceNotFoundException");
+  });
+
+  it("reports a 5xx with its error name and a network failure / malformed success without one", async () => {
+    fetchMock.mockResolvedValueOnce(cognitoError("InternalErrorException"));
+    await client.signUp(EMAIL, PASSWORD, "Laura");
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    await client.confirmSignUp(EMAIL, CODE);
+    fetchMock.mockResolvedValueOnce(reply(200, {}));
+    await client.refresh("refresh-token-value", SUB);
+    expect(signal.mock.calls).toEqual([
+      ["signUp", "InternalErrorException"],
+      ["confirmSignUp", null],
+      ["refresh", null],
+    ]);
+  });
+
+  it("is not called for successes or mapped user-facing failures", async () => {
+    fetchMock.mockResolvedValueOnce(reply(200, AUTH_RESULT));
+    await client.signIn(EMAIL, PASSWORD);
+    fetchMock.mockResolvedValueOnce(cognitoError("NotAuthorizedException"));
+    await client.signIn(EMAIL, PASSWORD);
+    fetchMock.mockResolvedValueOnce(cognitoError("CodeMismatchException"));
+    await client.confirmSignUp(EMAIL, CODE);
+    fetchMock.mockResolvedValueOnce(cognitoError("UsernameExistsException"));
+    await client.signUp(EMAIL, PASSWORD, "Laura");
+    expect(signal).not.toHaveBeenCalled();
+  });
+
+  it("never receives user data, and a throwing callback does not change the result", async () => {
+    signal.mockImplementation(() => {
+      throw new Error("observer broke");
+    });
+    const forbidden = [EMAIL, PASSWORD, CODE, "refresh-token-value", SUB, CLIENT_SECRET, "Cognito says something revealing"];
+    fetchMock.mockResolvedValueOnce(cognitoError("UserNotFoundException"));
+    await expect(client.forgotPassword(EMAIL)).resolves.toEqual({ ok: true });
+    fetchMock.mockResolvedValueOnce(cognitoError("InternalErrorException"));
+    await expect(client.confirmForgotPassword(EMAIL, CODE, PASSWORD)).resolves.toEqual({ ok: false, reason: "unavailable" });
+    fetchMock.mockResolvedValueOnce(cognitoError("InternalErrorException"));
+    await expect(client.refresh("refresh-token-value", SUB)).resolves.toEqual({ ok: false, reason: "unavailable" });
+    expect(signal).toHaveBeenCalledTimes(3);
+    for (const args of signal.mock.calls) {
+      expect(args).toHaveLength(2);
+      for (const value of forbidden) expect(JSON.stringify(args)).not.toContain(value);
+    }
+  });
+});

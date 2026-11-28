@@ -171,6 +171,13 @@ describe("sign-up and confirmation", () => {
 });
 
 describe("sign-in, tokens and refresh", () => {
+  test("usernames are exact (no case folding or trimming), so the client must normalize", async () => {
+    await seed({ email: "laura@empresa.mx", password: PASSWORD });
+    expectError(await signIn("Laura@empresa.mx"), "NotAuthorizedException");
+    expectError(await signIn(" laura@empresa.mx"), "NotAuthorizedException");
+    expect((await signIn("laura@empresa.mx")).status).toBe(200);
+  });
+
   test("wrong password and unknown user get the same NotAuthorizedException", async () => {
     await seed({ email: "laura@empresa.mx", password: PASSWORD });
     const wrong = await signIn("laura@empresa.mx", "Wrong-pass-123!");

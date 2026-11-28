@@ -19,7 +19,7 @@ export type CognitoOperation =
 export type CognitoTransportResult =
   | { ok: true; body: Record<string, unknown> }
   | { ok: false; kind: "service_error"; errorName: string }
-  | { ok: false; kind: "unavailable" };
+  | { ok: false; kind: "unavailable"; errorName?: string };
 
 const UNAVAILABLE = { ok: false, kind: "unavailable" } as const;
 const ERROR_NAME = /^[A-Za-z][A-Za-z0-9]{0,99}$/;
@@ -102,7 +102,9 @@ export async function callCognito(
     }
     if (response.status < 400 || response.status >= 500) {
       void response.body?.cancel().catch(() => {});
-      return UNAVAILABLE;
+      // A 5xx may name itself in the header; kept only for the operator signal (never the body).
+      const name = response.status >= 500 ? sanitizeErrorName(response.headers.get("x-amzn-errortype")) : undefined;
+      return name === undefined ? UNAVAILABLE : { ok: false, kind: "unavailable", errorName: name };
     }
 
     let errorName = sanitizeErrorName(response.headers.get("x-amzn-errortype"));

@@ -67,6 +67,9 @@ const TABLE: Record<CognitoClientOperation, Record<string, Mapped>> = {
     NotAuthorizedException: "invalid_credentials",
     UserNotFoundException: "invalid_credentials",
     PasswordResetRequiredException: "invalid_credentials",
+    // Only reached after a correct password when the app client has
+    // PreventUserExistenceErrors=ENABLED (L9/L10, checklist 2c); a wrong password
+    // on an unconfirmed account is NotAuthorizedException, so this leaks nothing.
     UserNotConfirmedException: "not_confirmed",
   },
   refresh: {

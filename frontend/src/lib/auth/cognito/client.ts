@@ -53,7 +53,22 @@ export type CognitoClientOptions = CognitoClientConfig & {
   /** Defaults to the shared API timeout (DEFAULT_API_TIMEOUT_MS). */
   timeoutMs?: number;
   now?: () => number;
+  /**
+   * Value-free operator signal, called when an outcome is a silent success
+   * (resend/forgot answering an account-state error) or `unavailable`. It gets
+   * only the operation and the sanitized Cognito error name (`null` for a
+   * network failure, timeout, unnamed status or malformed answer) — never an
+   * email, password, code, token or Cognito message. Errors it throws are ignored.
+   */
+  onServiceError?: (operation: CognitoClientOperation, errorName: string | null) => void;
 };
+
+export type { CognitoClientOperation } from "./errors";
+
+/** One canonical username for every operation and its SECRET_HASH. */
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
 
 const MFA_CHALLENGES = new Set(["SMS_MFA", "SOFTWARE_TOKEN_MFA", "EMAIL_OTP", "MFA_SETUP", "SELECT_MFA_TYPE"]);
 const MAX_EXPIRES_IN_SECONDS = 24 * 60 * 60;
@@ -79,8 +94,20 @@ function isObject(value: unknown): value is Record<string, unknown> {
  * echoed passwords, codes or tokens, nothing logged.
  */
 export function createCognitoClient(options: CognitoClientOptions): CognitoClient {
-  const { endpoint, clientId, clientSecret, timeoutMs, now = Date.now } = options;
+  const { endpoint, clientId, clientSecret, timeoutMs, now = Date.now, onServiceError } = options;
   const hash = (username: string) => computeSecretHash(username, clientId, clientSecret);
+
+  function report(operation: CognitoClientOperation, errorName: string | null): void {
+    try {
+      onServiceError?.(operation, errorName);
+    } catch {
+      // An observer must never change the auth outcome.
+    }
+  }
+  function unavailable(operation: CognitoClientOperation, errorName: string | null = null) {
+    report(operation, errorName);
+    return UNAVAILABLE;
+  }
 
   type Outcome = { ok: true; body: Record<string, unknown> } | CognitoFailure | { ok: true; silent: true };
 
@@ -91,9 +118,13 @@ export function createCognitoClient(options: CognitoClientOptions): CognitoClien
   ): Promise<Outcome> {
     const result = await callCognito(endpoint, target, payload, { timeoutMs });
     if (result.ok) return result;
-    if (result.kind === "unavailable") return UNAVAILABLE;
+    if (result.kind === "unavailable") return unavailable(operation, result.errorName ?? null);
     const mapped = mapCognitoError(operation, result.errorName);
-    return mapped === "ok" ? { ok: true, silent: true } : failure(mapped);
+    if (mapped === "ok") {
+      report(operation, result.errorName);
+      return { ok: true, silent: true };
+    }
+    return mapped === "unavailable" ? unavailable(operation, result.errorName) : failure(mapped);
   }
 
   function parseTokens(body: Record<string, unknown>, fallbackRefreshToken?: string): CognitoTokens | undefined {
@@ -123,14 +154,15 @@ export function createCognitoClient(options: CognitoClientOptions): CognitoClien
   }
 
   return {
-    async signIn(email, password) {
+    async signIn(rawEmail, password) {
+      const email = normalizeEmail(rawEmail);
       const outcome = await call("signIn", "InitiateAuth", {
         AuthFlow: "USER_PASSWORD_AUTH",
         ClientId: clientId,
         AuthParameters: { USERNAME: email, PASSWORD: password, SECRET_HASH: hash(email) },
       });
       if (!outcome.ok) return outcome;
-      if (!("body" in outcome)) return UNAVAILABLE;
+      if (!("body" in outcome)) return unavailable("signIn");
       const tokens = parseTokens(outcome.body);
       if (tokens) return { ok: true, kind: "tokens", tokens };
       const challenge = outcome.body.ChallengeName;
@@ -142,7 +174,7 @@ export function createCognitoClient(options: CognitoClientOptions): CognitoClien
             challenge === "NEW_PASSWORD_REQUIRED" ? "new_password_required" : MFA_CHALLENGES.has(challenge) ? "mfa" : "unsupported",
         };
       }
-      return UNAVAILABLE;
+      return unavailable("signIn");
     },
 
     async refresh(refreshToken, sub) {
@@ -152,12 +184,13 @@ export function createCognitoClient(options: CognitoClientOptions): CognitoClien
         AuthParameters: { REFRESH_TOKEN: refreshToken, SECRET_HASH: hash(sub) },
       });
       if (!outcome.ok) return outcome;
-      if (!("body" in outcome)) return UNAVAILABLE;
+      if (!("body" in outcome)) return unavailable("refresh");
       const tokens = parseTokens(outcome.body, refreshToken);
-      return tokens ? { ok: true, tokens } : UNAVAILABLE;
+      return tokens ? { ok: true, tokens } : unavailable("refresh");
     },
 
-    async signUp(email, password, name) {
+    async signUp(rawEmail, password, name) {
+      const email = normalizeEmail(rawEmail);
       const outcome = await call("signUp", "SignUp", {
         ClientId: clientId,
         SecretHash: hash(email),
@@ -169,12 +202,13 @@ export function createCognitoClient(options: CognitoClientOptions): CognitoClien
         ],
       });
       if (!outcome.ok) return outcome;
-      if (!("body" in outcome)) return UNAVAILABLE;
+      if (!("body" in outcome)) return unavailable("signUp");
       const confirmed = outcome.body.UserConfirmed;
-      return typeof confirmed === "boolean" ? { ok: true, confirmed } : UNAVAILABLE;
+      return typeof confirmed === "boolean" ? { ok: true, confirmed } : unavailable("signUp");
     },
 
-    confirmSignUp(email, code) {
+    confirmSignUp(rawEmail, code) {
+      const email = normalizeEmail(rawEmail);
       return okOnly("confirmSignUp", "ConfirmSignUp", {
         ClientId: clientId,
         SecretHash: hash(email),
@@ -183,7 +217,8 @@ export function createCognitoClient(options: CognitoClientOptions): CognitoClien
       });
     },
 
-    resendCode(email) {
+    resendCode(rawEmail) {
+      const email = normalizeEmail(rawEmail);
       return okOnly("resendCode", "ResendConfirmationCode", {
         ClientId: clientId,
         SecretHash: hash(email),
@@ -191,7 +226,8 @@ export function createCognitoClient(options: CognitoClientOptions): CognitoClien
       });
     },
 
-    forgotPassword(email) {
+    forgotPassword(rawEmail) {
+      const email = normalizeEmail(rawEmail);
       return okOnly("forgotPassword", "ForgotPassword", {
         ClientId: clientId,
         SecretHash: hash(email),
@@ -199,7 +235,8 @@ export function createCognitoClient(options: CognitoClientOptions): CognitoClien
       });
     },
 
-    confirmForgotPassword(email, code, newPassword) {
+    confirmForgotPassword(rawEmail, code, newPassword) {
+      const email = normalizeEmail(rawEmail);
       return okOnly("confirmForgotPassword", "ConfirmForgotPassword", {
         ClientId: clientId,
         SecretHash: hash(email),

@@ -117,14 +117,15 @@ export function createCognitoMock(options = {}) {
   const publicKeyPem = publicKey.export({ type: "spki", format: "pem" });
   const now = config.now ?? (() => Date.now());
 
-  let users = new Map(); // lower(email) → user
+  let users = new Map(); // exact username → user
   let refreshTokens = new Map(); // token → sub
   let faults = new Map(); // operation → error name (one-shot)
 
   const secretHash = (username) =>
     createHmac("sha256", config.clientSecret).update(String(username) + config.clientId).digest("base64");
   const userBySub = (sub) => [...users.values()].find((user) => user.sub === sub);
-  const findUser = (username) => (typeof username === "string" ? users.get(username.trim().toLowerCase()) : undefined);
+  // Exact usernames: no trimming or case folding, so a client that forgets to normalize fails loudly.
+  const findUser = (username) => (typeof username === "string" ? users.get(username) : undefined);
 
   function sign(payload) {
     const header = { alg: "RS256", typ: "JWT", kid: "e2e" };
@@ -253,14 +254,14 @@ export function createCognitoMock(options = {}) {
       const name = attributes.find((attribute) => attribute?.Name === "name")?.Value;
       const user = {
         sub: randomUUID(),
-        email: username.trim(),
+        email: username,
         password: body.Password,
         name: typeof name === "string" ? name : undefined,
         confirmed: false,
         emailVerified: false,
         codes: {},
       };
-      users.set(user.email.toLowerCase(), user);
+      users.set(user.email, user);
       issueCode(user, "confirmation");
       return { UserConfirmed: false, UserSub: user.sub, ...delivery(user.email) };
     },
@@ -372,7 +373,7 @@ export function createCognitoMock(options = {}) {
       if (findUser(body.email)) return sendControl(response, 409, { error: "user exists" });
       const user = {
         sub: typeof body.sub === "string" && body.sub !== "" ? body.sub : randomUUID(),
-        email: body.email.trim(),
+        email: body.email,
         password: body.password,
         name: typeof body.name === "string" ? body.name : undefined,
         confirmed: body.confirmed !== false,
@@ -380,7 +381,7 @@ export function createCognitoMock(options = {}) {
         codes: {},
       };
       if (userBySub(user.sub)) return sendControl(response, 409, { error: "sub exists" });
-      users.set(user.email.toLowerCase(), user);
+      users.set(user.email, user);
       return sendControl(response, 201, { sub: user.sub });
     }
     if (path === "/expire-code") {

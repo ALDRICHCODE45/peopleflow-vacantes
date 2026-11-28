@@ -4,8 +4,9 @@ import { AUTH_ENV_KEYS, validateAuthEnv, type AuthEnvSource } from "../env";
 /**
  * Loopback-only override of the Cognito IdP endpoint for the local preview and
  * tests (mock Cognito). Mirrors the backend's IDENTITY_COGNITO_ENDPOINT rule
- * (docs/contracts/embedded-auth-v1.md D8, §Configuration): refused outside
- * test mode / PEOPLEFLOW_LOCAL_PREVIEW=true, loopback host only, bare origin.
+ * (docs/contracts/embedded-auth-v1.md D8, §Configuration): refused when
+ * NODE_ENV=production (even with PEOPLEFLOW_LOCAL_PREVIEW=true), otherwise only
+ * in test mode or with PEOPLEFLOW_LOCAL_PREVIEW=true; loopback host, bare origin.
  */
 export const COGNITO_IDP_ENDPOINT_KEY = "COGNITO_IDP_ENDPOINT";
 
@@ -38,13 +39,15 @@ function overrideAllowed(env: AuthEnvSource): boolean {
   if (preview !== undefined && preview !== "true" && preview !== "false")
     fail("PEOPLEFLOW_LOCAL_PREVIEW", "must be true or false when provided");
   const nodeEnv = typeof env.NODE_ENV === "string" ? env.NODE_ENV.trim() : "";
+  // Never in a production build, even a local preview one: the IdP endpoint receives passwords.
+  if (nodeEnv === "production") return false;
   return nodeEnv === "test" || preview === "true";
 }
 
 function parseOverride(raw: string, env: AuthEnvSource): string {
   const key = COGNITO_IDP_ENDPOINT_KEY;
   if (!overrideAllowed(env))
-    fail(key, "is only allowed in test mode or with PEOPLEFLOW_LOCAL_PREVIEW=true");
+    fail(key, "is only allowed outside production, in test mode or with PEOPLEFLOW_LOCAL_PREVIEW=true");
   const value = raw.trim();
   let url: URL;
   try {

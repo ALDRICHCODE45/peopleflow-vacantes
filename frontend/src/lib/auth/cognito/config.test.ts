@@ -39,7 +39,7 @@ describe("resolveCognitoEndpoint (regional endpoint from the issuer)", () => {
 describe(`resolveCognitoEndpoint (${COGNITO_IDP_ENDPOINT_KEY} override)`, () => {
   it.each([
     ["NODE_ENV=test", { NODE_ENV: "test" }],
-    ["PEOPLEFLOW_LOCAL_PREVIEW=true", { NODE_ENV: "production", PEOPLEFLOW_LOCAL_PREVIEW: "true" }],
+    ["PEOPLEFLOW_LOCAL_PREVIEW=true outside production", { NODE_ENV: "development", PEOPLEFLOW_LOCAL_PREVIEW: "true" }],
   ])("accepts a loopback endpoint with %s", (_label, mode) => {
     for (const [raw, expected] of [
       ["http://127.0.0.1:4599", "http://127.0.0.1:4599/"],
@@ -66,6 +66,8 @@ describe(`resolveCognitoEndpoint (${COGNITO_IDP_ENDPOINT_KEY} override)`, () => 
     ["development", { NODE_ENV: "development" }],
     ["unset NODE_ENV", {}],
     ["production with local preview false", { NODE_ENV: "production", PEOPLEFLOW_LOCAL_PREVIEW: "false" }],
+    ["production even with local preview true", { NODE_ENV: "production", PEOPLEFLOW_LOCAL_PREVIEW: "true" }],
+    ["production (padded) even with local preview true", { NODE_ENV: " production ", PEOPLEFLOW_LOCAL_PREVIEW: "true" }],
   ])("refuses the override in %s", (_label, mode) => {
     const env = { ...mode, [COGNITO_IDP_ENDPOINT_KEY]: "http://127.0.0.1:4599" };
     expect(() => resolveCognitoEndpoint(ISSUER, env)).toThrowError(new RegExp(`^${COGNITO_IDP_ENDPOINT_KEY}: `));
