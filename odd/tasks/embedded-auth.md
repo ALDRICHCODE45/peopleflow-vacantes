@@ -185,3 +185,14 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   (4e26564e, not pushed): independent verify without blockers; build, 136 packages, 30 identity integration tests,
   go vet, sqlc diff clean. IDENTITY_PROVIDER unset keeps today's behaviour. The user received the Cognito console
   checklist from the backend session.
+- **L18** (2026-11-28) A4.3 committed 12833dc7: SignInForm inside LoginScreen for /empresa/login and /candidato/login
+  (FloatingLines.tsx and the visual panel untouched), signIn("password", {redirect:false}) with artboard copy per code,
+  social buttons by server flags (employer Google/Microsoft/LinkedIn, candidate Google/LinkedIn), not_confirmed hands
+  the email to the verify screen via sessionStorage; «Ingresar con Cognito» and the hosted sign-up rewrite removed
+  without a rollback flag (revert is the rollback; ships only after ALLOW_USER_PASSWORD_AUTH); rate limiting per IP
+  and per hashed email on the password callback (429 before Cognito; in-memory per instance, AWS phase needs a shared
+  store/WAF and a pinned trusted proxy hop); lazy social flags; POST-only allowlist; RefreshThrottled signal. User
+  decision: «Mantener sesión iniciada» — «Sin casilla (recomendado)». Known: /registro, /recuperar, /verificar links
+  404 until A4.4–A4.6 (no publication before then); tests/e2e/login-acceptance.spec.ts breaks (A4.7); nothing sets
+  ?error=email_in_use yet (identity onboarding redirect, A4.4/A4.5); the verify screen must resend on arrival.
+  Independent verify running.
