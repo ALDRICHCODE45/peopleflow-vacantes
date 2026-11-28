@@ -161,3 +161,15 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   get no signal → in A4.2 the transport classifies that exact Cognito message (never returned or logged) as a
   configuration failure: outcome unavailable + onServiceError; (2) R3 the mock lets an unconfirmed user get a reset
   code → in A4.6 the mock answers UserNotConfirmedException so the existence-hiding branch runs end to end.
+- **L15** (2026-11-27) A4.2 committed 45833b2d: NextAuth credentials provider «password» (tokens handed to jwt under a
+  non-enumerable symbol; authorize returns only id/name/email; sub from the access token shape for refresh only;
+  codes invalid_credentials / not_confirmed / too_many_attempts / unavailable; challenges → unavailable); cookie keys
+  as OAuth plus authKind; refresh dispatch — password via REFRESH_TOKEN_AUTH with the sub, OAuth and legacy cookies
+  stay on /oauth2/token (scopes kept; social usernames are not the sub); logout by kind through a 120 s HttpOnly hint
+  cookie (password → audience login, others → Cognito /logout); GlobalSignOut not used (signs out every device;
+  RevokeToken is a follow-up); OAuth scope adds aws.cognito.signin.user.admin; AUTH_SOCIAL_{GOOGLE,MICROSOFT,LINKEDIN}
+  flags with optional *_IDP names; the sign-in route accepts no params or exactly one enabled identity_provider (400
+  otherwise); secret-hash NotAuthorized → unavailable + SecretHashMismatch; operator line «[auth] cognito_service_error
+  operation=… name=…». 750 scoped tests, 5638 related tests pass. Console checklist: confirm the pool uses email as
+  the sign-in attribute with username = sub (refresh SECRET_HASH depends on it). Independent verify running.
+
