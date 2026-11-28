@@ -264,3 +264,9 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   Product question for the user: persona física RFC (13) is refused by the backend. Independent verify running.
 - **L27** (2026-11-28) User decision: RFC — «Solo morales por ahora (recomendado)»; personas físicas (RFC 13) revisited
   with the partners' company-verification decision (frontend-backlog).
+- **L28** (2026-11-28) A4.5 independent verify: no blockers (token server-only, validation before writes, account →
+  company order, idempotent double submit, guard keeps invitations/candidates/stakeholders/existing employers, no
+  self-redirect — the step lives outside the guard's layout, no ping-pong after «created» because navigation is a
+  full reload, website limited to http(s)). Non-blocking: a role-null account with a pending invitation that opens
+  /empresa/dashboard is sent to create a company (design choice; the step copy could mention the invitation link).
+  A4.5 done.
