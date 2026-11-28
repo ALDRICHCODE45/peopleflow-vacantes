@@ -14,13 +14,48 @@ export type AuthRouteGuardConfig = {
   socialProviders: readonly SocialProvider[];
 };
 
-const SIGN_OUT_PATH = "/api/auth/signout";
-const COGNITO_SIGN_IN_PATH = "/api/auth/signin/cognito";
+const AUTH_PREFIX = "/api/auth/";
+
+type AuthRoute = { action?: string; provider?: string } | "undecodable";
+
+/**
+ * NextAuth acts on the first two `[...nextauth]` segments only (action,
+ * provider) and ignores the rest, so the guard matches on decoded, lower-cased
+ * segments: `/signin/cognito/x`, `/signin/cognito/` and `/signin/%63ognito` are
+ * all the Cognito sign-in. A segment that cannot be decoded is refused.
+ */
+function routeFromPath(pathname: string): AuthRoute {
+  if (!pathname.startsWith(AUTH_PREFIX)) return {};
+  const segments: string[] = [];
+  for (const raw of pathname.slice(AUTH_PREFIX.length).split("/")) {
+    if (raw === "") continue;
+    try {
+      segments.push(decodeURIComponent(raw).toLowerCase());
+    } catch {
+      return "undecodable";
+    }
+  }
+  return { action: segments[0], provider: segments[1] };
+}
+
+/** The segments Next resolved for NextAuth itself; unreadable params count as none. */
+async function routeFromContext(context: RouteContext): Promise<{ action?: string; provider?: string }> {
+  try {
+    const segments = (await context.params)?.nextauth;
+    if (!Array.isArray(segments)) return {};
+    const [action, provider] = segments.map((segment) => (typeof segment === "string" ? segment.toLowerCase() : ""));
+    return { action, provider };
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Wraps the NextAuth route handler with two narrow, server-side rules:
  *
- * 1. Sign-in with the Cognito OAuth provider admits at most one query param,
+ * 1. Sign-in with the Cognito OAuth provider (matched on the decoded route
+ *    segments from the URL and from Next's params, extra segments ignored as
+ *    NextAuth ignores them) admits at most one query param,
  *    `identity_provider`, and only with an enabled provider name. NextAuth
  *    merges sign-in query params over the provider's authorization params, so
  *    without this a request could drop the L8 scope or pick a disabled IdP.
@@ -49,9 +84,14 @@ export function guardAuthRoute(handler: AuthRouteHandler, config: AuthRouteGuard
   }
 
   return async (request, context) => {
-    const { pathname, searchParams } = request.nextUrl;
+    const { searchParams } = request.nextUrl;
+    const fromPath = routeFromPath(request.nextUrl.pathname);
+    if (fromPath === "undecodable") return refuseSignIn();
+    const fromContext = await routeFromContext(context);
+    const is = (action: string, provider?: string) =>
+      [fromPath, fromContext].some((route) => route.action === action && (provider === undefined || route.provider === provider));
 
-    if (pathname === COGNITO_SIGN_IN_PATH) {
+    if (is("signin", "cognito")) {
       const keys = [...searchParams.keys()];
       if (keys.length > 0) {
         const values = searchParams.getAll(IDENTITY_PROVIDER_PARAM);
@@ -60,7 +100,7 @@ export function guardAuthRoute(handler: AuthRouteHandler, config: AuthRouteGuard
       return handler(request, context);
     }
 
-    if (pathname === SIGN_OUT_PATH && request.method === "POST") {
+    if (is("signout") && request.method === "POST") {
       const kind = await sessionKind(request);
       const response = await handler(request, context);
       // Appended raw so NextAuth's own Set-Cookie headers (session chunks, CSRF) stay byte-identical.

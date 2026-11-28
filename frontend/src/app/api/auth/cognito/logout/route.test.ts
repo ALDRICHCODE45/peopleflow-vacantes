@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+const site = vi.hoisted(() => ({ url: "http://localhost:3000" }));
 vi.mock("@/lib/auth/env", async importOriginal => {
   const original = await importOriginal<typeof import("@/lib/auth/env")>();
-  return { ...original, validateAuthEnv: () => ({ siteUrl: "http://localhost:3000", domain: "https://cognito.example.test", clientId: "synthetic-client", employerLoginUrl: "http://localhost:3000/empresa/login" }) };
+  return { ...original, validateAuthEnv: () => ({ siteUrl: site.url, domain: "https://cognito.example.test", clientId: "synthetic-client", employerLoginUrl: `${site.url}/empresa/login` }) };
 });
 import { GET } from "./route";
-import { AUTH_COOKIE_NAMES, LOGOUT_KIND_COOKIE } from "@/lib/auth/logout";
+import { AUTH_COOKIE_NAMES, LOGOUT_KIND_COOKIE, SECURE_LOGOUT_KIND_COOKIE } from "@/lib/auth/logout";
+afterEach(() => { site.url = "http://localhost:3000"; });
 describe("federated logout destination allowlist", () => {
   it.each([
     ["?to=candidato", "/candidato/login"], ["", "/empresa/login"], ["?to=empresa", "/empresa/login"],
@@ -42,5 +44,30 @@ describe("logout per session kind", () => {
     const response = withHint("?to=candidato", value);
     expect(new URL(response.headers.get("location")!).origin).toBe("https://cognito.example.test");
     expect(response.cookies.get(LOGOUT_KIND_COOKIE)?.value).toBe("");
+  });
+});
+
+describe("logout hint cookie name per scheme", () => {
+  const logout = (cookie: string) =>
+    GET(new Request(`${site.url}/api/auth/cognito/logout?to=candidato`, { headers: { cookie } }));
+
+  it("on https accepts only the __Host- hint and clears it with valid __Host- attributes", () => {
+    site.url = "https://peopleflow.example";
+    const password = logout(`${SECURE_LOGOUT_KIND_COOKIE}=password`);
+    expect(password.headers.get("location")).toBe("https://peopleflow.example/candidato/login");
+    const cleared = password.headers.getSetCookie().find((c) => c.startsWith(`${SECURE_LOGOUT_KIND_COOKIE}=`));
+    expect(cleared).toBe(`${SECURE_LOGOUT_KIND_COOKIE}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=lax`);
+
+    const planted = logout(`${LOGOUT_KIND_COOKIE}=password`);
+    expect(new URL(planted.headers.get("location")!).origin).toBe("https://cognito.example.test");
+  });
+
+  it("on http (local dev) accepts only the plain hint", () => {
+    const password = logout(`${LOGOUT_KIND_COOKIE}=password`);
+    expect(password.headers.get("location")).toBe("http://localhost:3000/candidato/login");
+    expect(password.headers.getSetCookie()).toContain(`${LOGOUT_KIND_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=lax`);
+
+    const prefixed = logout(`${SECURE_LOGOUT_KIND_COOKIE}=password`);
+    expect(new URL(prefixed.headers.get("location")!).origin).toBe("https://cognito.example.test");
   });
 });

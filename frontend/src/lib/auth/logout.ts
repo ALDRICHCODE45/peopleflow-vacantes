@@ -47,20 +47,30 @@ export function buildLogoutDestination(config: AuthEnv, to: string | null | unde
  * not a secret and grants nothing: a forged value can only skip the Cognito
  * /logout hop for the forger's own browser, and a missing one falls back to
  * the hop (the safe direction).
+ *
+ * On https the name is `__Host-` prefixed (Secure, Path=/, no Domain), so a
+ * sibling subdomain cannot plant it; the plain name exists only for http
+ * loopback development (NEXTAUTH_URL http is refused for public hosts). Each
+ * side accepts only the name matching the configured scheme.
  */
 export const LOGOUT_KIND_COOKIE = "peopleflow.logout-kind";
-const LOGOUT_ROUTE_PATH = "/api/auth/cognito/logout";
+export const SECURE_LOGOUT_KIND_COOKIE = "__Host-peopleflow.logout-kind";
 const LOGOUT_KIND_MAX_AGE_SECONDS = 120;
+
+export function logoutKindCookieName(secure: boolean): string {
+  return secure ? SECURE_LOGOUT_KIND_COOKIE : LOGOUT_KIND_COOKIE;
+}
 
 export function logoutKindCookie(kind: SessionKind, secure: boolean) {
   const password = kind === "password";
   return {
-    name: LOGOUT_KIND_COOKIE,
+    name: logoutKindCookieName(secure),
     value: password ? "password" : "",
     options: {
       httpOnly: true,
       sameSite: "lax" as const,
-      path: LOGOUT_ROUTE_PATH,
+      // `__Host-` requires Path=/; the http name uses the same attributes.
+      path: "/",
       maxAge: password ? LOGOUT_KIND_MAX_AGE_SECONDS : 0,
       secure,
     },
@@ -79,13 +89,17 @@ export function serializeLogoutKindCookie(kind: SessionKind, secure: boolean): s
   ].join("; ");
 }
 
-/** `password` only for the exact hint; anything else keeps the Cognito hop. */
-export function readLogoutKind(cookieHeader: string | null): SessionKind {
+/**
+ * `password` only for the exact hint under the name matching the configured
+ * scheme; anything else keeps the Cognito hop.
+ */
+export function readLogoutKind(cookieHeader: string | null, secure: boolean): SessionKind {
   if (!cookieHeader) return "oauth";
+  const expected = logoutKindCookieName(secure);
   for (const pair of cookieHeader.split(";")) {
     const index = pair.indexOf("=");
     if (index === -1) continue;
-    if (pair.slice(0, index).trim() === LOGOUT_KIND_COOKIE && pair.slice(index + 1).trim() === "password") return "password";
+    if (pair.slice(0, index).trim() === expected && pair.slice(index + 1).trim() === "password") return "password";
   }
   return "oauth";
 }

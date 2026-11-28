@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { AuthEnv } from "./env";
 import {
   LOGOUT_KIND_COOKIE,
+  SECURE_LOGOUT_KIND_COOKIE,
   buildCognitoLogoutUrl,
   buildEmployerLoginUrl,
   buildLogoutDestination,
   cookieClearOptions,
   logoutKindCookie,
+  logoutKindCookieName,
   readLogoutKind,
+  serializeLogoutKindCookie,
 } from "./logout";
 
 const config: AuthEnv = {
@@ -79,21 +82,43 @@ describe("logout per session kind", () => {
     expect(new URL(buildLogoutDestination(config, undefined, "oauth")).origin).toBe(config.domain);
   });
 
-  it("reads the kind hint only from an exact `password` value; anything else keeps the Cognito hop", () => {
+  it("names the hint `__Host-` on https and keeps the plain name only for http (local dev)", () => {
     expect(LOGOUT_KIND_COOKIE).toBe("peopleflow.logout-kind");
-    expect(readLogoutKind("a=1; peopleflow.logout-kind=password; b=2")).toBe("password");
-    for (const header of [null, "", "peopleflow.logout-kind=oauth", "peopleflow.logout-kind=PASSWORD", "x-peopleflow.logout-kind=password", "peopleflow.logout-kind=password2"])
-      expect(readLogoutKind(header)).toBe("oauth");
+    expect(SECURE_LOGOUT_KIND_COOKIE).toBe("__Host-peopleflow.logout-kind");
+    expect(logoutKindCookieName(true)).toBe(SECURE_LOGOUT_KIND_COOKIE);
+    expect(logoutKindCookieName(false)).toBe(LOGOUT_KIND_COOKIE);
   });
 
-  it("scopes the hint cookie to the logout route, HttpOnly and short-lived; clears it for other kinds", () => {
-    expect(logoutKindCookie("password", false)).toEqual({
-      name: LOGOUT_KIND_COOKIE, value: "password",
-      options: { httpOnly: true, sameSite: "lax", path: "/api/auth/cognito/logout", maxAge: 120, secure: false },
+  it("reads the kind hint only from an exact `password` value under the plain name on http", () => {
+    expect(readLogoutKind("a=1; peopleflow.logout-kind=password; b=2", false)).toBe("password");
+    for (const header of [null, "", "peopleflow.logout-kind=oauth", "peopleflow.logout-kind=PASSWORD", "x-peopleflow.logout-kind=password", "peopleflow.logout-kind=password2", "__Host-peopleflow.logout-kind=password"])
+      expect(readLogoutKind(header, false)).toBe("oauth");
+  });
+
+  it("accepts only the `__Host-` name on https, so a sibling subdomain cannot plant the plain one", () => {
+    expect(readLogoutKind("__Host-peopleflow.logout-kind=password", true)).toBe("password");
+    for (const header of ["peopleflow.logout-kind=password", "__host-peopleflow.logout-kind=password", "__Host-peopleflow.logout-kind=oauth"])
+      expect(readLogoutKind(header, true)).toBe("oauth");
+  });
+
+  it("issues the https hint as a valid `__Host-` cookie (Secure, Path=/, no Domain), HttpOnly and short-lived", () => {
+    expect(logoutKindCookie("password", true)).toEqual({
+      name: SECURE_LOGOUT_KIND_COOKIE, value: "password",
+      options: { httpOnly: true, sameSite: "lax", path: "/", maxAge: 120, secure: true },
     });
     expect(logoutKindCookie("oauth", true)).toEqual({
-      name: LOGOUT_KIND_COOKIE, value: "",
-      options: { httpOnly: true, sameSite: "lax", path: "/api/auth/cognito/logout", maxAge: 0, secure: true },
+      name: SECURE_LOGOUT_KIND_COOKIE, value: "",
+      options: { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0, secure: true },
     });
+    expect(serializeLogoutKindCookie("password", true)).toBe("__Host-peopleflow.logout-kind=password; Path=/; Max-Age=120; Secure; HttpOnly; SameSite=lax");
+    expect(serializeLogoutKindCookie("password", true)).not.toMatch(/Domain=/i);
+  });
+
+  it("issues the http (local dev) hint under the plain name without Secure", () => {
+    expect(logoutKindCookie("password", false)).toEqual({
+      name: LOGOUT_KIND_COOKIE, value: "password",
+      options: { httpOnly: true, sameSite: "lax", path: "/", maxAge: 120, secure: false },
+    });
+    expect(serializeLogoutKindCookie("oauth", false)).toBe("peopleflow.logout-kind=; Path=/; Max-Age=0; HttpOnly; SameSite=lax");
   });
 });

@@ -182,9 +182,12 @@ do not show the two paths equivalent, so `refreshSessionTokens` dispatches on
 are shared; `authKind` survives refresh and expiry.
 
 **Logout.** NextAuth clears the session cookie before the logout route runs,
-so the route guard sets `peopleflow.logout-kind=password` on the sign-out
-response (HttpOnly, `SameSite=Lax`, `Path=/api/auth/cognito/logout`, 120 s;
-cleared for any other kind). The logout route reads it, clears it and sends a
+so the route guard sets a `password` hint on the sign-out response (HttpOnly,
+`SameSite=Lax`, `Path=/`, 120 s; cleared for any other kind). On https it is
+`__Host-peopleflow.logout-kind` (Secure, no Domain), so a sibling subdomain
+cannot plant it; the plain `peopleflow.logout-kind` exists only for http
+loopback development. The logout route accepts only the name matching the
+scheme of the validated `NEXTAUTH_URL`, reads it, clears it and sends a
 password session straight to `/empresa/login` or `/candidato/login`. The hint
 grants nothing: a forged value only skips the Cognito hop for that browser, and
 a missing one falls back to the hop. `GlobalSignOut` is deliberately not called:
@@ -196,7 +199,11 @@ just this session; per-session revocation (`RevokeToken`) is a follow-up.
 allow that scope). A social button calls
 `signIn("cognito", { callbackUrl }, { identity_provider: <name> })` with a name
 from `getSocialProviders()`; Cognito forwards straight to the provider. The
-route guard admits on `POST /api/auth/signin/cognito` either no query params
+route guard matches the Cognito sign-in on the decoded, lower-cased route
+segments, from both the URL and Next's `nextauth` params. NextAuth reads only
+the first two segments, so `/signin/cognito/x`, `/signin/cognito/` and
+`/signin/%63ognito` count as the same route; a segment that cannot be decoded
+is refused. On that route it admits either no query params
 (hosted page, until A4.3) or exactly one `identity_provider` naming an enabled
 provider; anything else (disabled provider, `scope`/`redirect_uri` overrides,
 repeated params) gets `400 { url: …/api/auth/error?error=OAuthSignin }`

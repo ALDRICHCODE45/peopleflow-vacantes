@@ -2,7 +2,7 @@
 import { encode } from "next-auth/jwt";
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
-import { LOGOUT_KIND_COOKIE } from "./logout";
+import { LOGOUT_KIND_COOKIE, SECURE_LOGOUT_KIND_COOKIE } from "./logout";
 import { guardAuthRoute } from "./route-guard";
 
 const SECRET = "fixture-secret-not-a-real-credential";
@@ -31,7 +31,7 @@ describe("sign-out kind hint", () => {
     const response = await guarded(new NextRequest(`${SITE}/api/auth/signout`, { method: "POST", headers: { cookie } }), ctx);
     expect(handler).toHaveBeenCalledTimes(1);
     const hint = setCookies(response).find((c) => c.startsWith(`${LOGOUT_KIND_COOKIE}=`));
-    expect(hint).toBe(`${LOGOUT_KIND_COOKIE}=password; Path=/api/auth/cognito/logout; Max-Age=120; HttpOnly; SameSite=lax`);
+    expect(hint).toBe(`${LOGOUT_KIND_COOKIE}=password; Path=/; Max-Age=120; HttpOnly; SameSite=lax`);
     expect(await response.json()).toEqual({ url: `${SITE}/api/auth/cognito/logout` });
     expect(setCookies(response).join(";")).not.toContain("fixture-private-access");
   });
@@ -42,7 +42,7 @@ describe("sign-out kind hint", () => {
   ])("clears the hint for %s", async (_label, token) => {
     const { guarded } = setup();
     const response = await guarded(new NextRequest(`${SITE}/api/auth/signout`, { method: "POST", headers: { cookie: await sessionCookie(token) } }), ctx);
-    expect(setCookies(response)).toContain(`${LOGOUT_KIND_COOKIE}=; Path=/api/auth/cognito/logout; Max-Age=0; HttpOnly; SameSite=lax`);
+    expect(setCookies(response)).toContain(`${LOGOUT_KIND_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=lax`);
   });
 
   it("clears the hint without a session or with an undecryptable one", async () => {
@@ -53,12 +53,13 @@ describe("sign-out kind hint", () => {
     }
   });
 
-  it("marks the hint Secure on an https site", async () => {
+  it("names the hint __Host- and marks it Secure on an https site", async () => {
     const handler = vi.fn(async () => new Response("{}", { status: 200 }));
     const guarded = guardAuthRoute(handler, { secret: SECRET, siteUrl: "https://peopleflow.example", socialProviders: [] });
     const cookie = `__Secure-next-auth.session-token=${await encode({ token: { authKind: "password" }, secret: SECRET })}`;
     const response = await guarded(new NextRequest("https://peopleflow.example/api/auth/signout", { method: "POST", headers: { cookie } }), ctx);
-    expect(setCookies(response).find((c) => c.startsWith(`${LOGOUT_KIND_COOKIE}=`))).toContain("password; Path=/api/auth/cognito/logout; Max-Age=120; Secure; HttpOnly; SameSite=lax");
+    expect(setCookies(response)).toContain(`${SECURE_LOGOUT_KIND_COOKIE}=password; Path=/; Max-Age=120; Secure; HttpOnly; SameSite=lax`);
+    expect(setCookies(response).some((c) => c.startsWith(`${LOGOUT_KIND_COOKIE}=`))).toBe(false);
   });
 
   it("keeps NextAuth's own Set-Cookie headers byte-identical next to the hint", async () => {
@@ -114,6 +115,52 @@ describe("social sign-in authorization params", () => {
     expect(handler).not.toHaveBeenCalled();
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ url: `${SITE}/api/auth/error?error=OAuthSignin` });
+  });
+
+  it.each([
+    ["an extra path segment", "/api/auth/signin/cognito/x?scope=openid&identity_provider=Other"],
+    ["several extra segments", "/api/auth/signin/cognito/a/b?scope=openid"],
+    ["a trailing slash", "/api/auth/signin/cognito/?identity_provider=LinkedIn"],
+    ["a percent-encoded provider", "/api/auth/signin/%63ognito?scope=openid"],
+    ["a percent-encoded action", "/api/auth/%73ignin/cognito?identity_provider=Other"],
+    ["an encoded provider with an extra segment", "/api/auth/signin/%63%6Fgnito/x?redirect_uri=https://evil.example"],
+    ["an upper-case provider", "/api/auth/signin/COGNITO?scope=openid"],
+  ])("refuses disallowed params on %s (NextAuth reads only the first two segments)", async (_label, path) => {
+    const { guarded, handler } = setup();
+    const response = await guarded(new NextRequest(`${SITE}${path}`, { method: "POST" }), ctx);
+    expect(handler).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+  });
+
+  it("guards on the nextauth route segments NextAuth itself reads, whatever the URL looks like", async () => {
+    const { guarded, handler } = setup();
+    const signinCtx = { params: Promise.resolve({ nextauth: ["signin", "cognito", "x"] }) };
+    const response = await guarded(new NextRequest(`${SITE}/api/auth/other?scope=openid`, { method: "POST" }), signinCtx);
+    expect(handler).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+  });
+
+  it("still admits an enabled provider through an extra segment or trailing slash", async () => {
+    const { guarded, handler } = setup();
+    await guarded(new NextRequest(`${SITE}/api/auth/signin/cognito/?identity_provider=Google`, { method: "POST" }), ctx);
+    await guarded(new NextRequest(`${SITE}/api/auth/signin/%63ognito/x?identity_provider=Google`, { method: "POST" }), ctx);
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses a sign-in path whose segments cannot be decoded", async () => {
+    const { guarded, handler } = setup();
+    const response = await guarded(new NextRequest(`${SITE}/api/auth/signin/%E0%A4%A?scope=openid`, { method: "POST" }), ctx);
+    expect(handler).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+  });
+
+  it("adds the sign-out hint on a trailing-slash or extra-segment sign-out too", async () => {
+    const { guarded } = setup();
+    const cookie = await sessionCookie({ sub: "s", authKind: "password" });
+    for (const path of ["/api/auth/signout/", "/api/auth/signout/x", "/api/auth/%73ignout"]) {
+      const response = await guarded(new NextRequest(`${SITE}${path}`, { method: "POST", headers: { cookie } }), ctx);
+      expect(setCookies(response)).toContain(`${LOGOUT_KIND_COOKIE}=password; Path=/; Max-Age=120; HttpOnly; SameSite=lax`);
+    }
   });
 
   it("refuses any identity_provider when every social flag is off", async () => {
