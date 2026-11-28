@@ -37,6 +37,7 @@ what time. Needed whatever the option:
 - [ ] «Continuar con Google / Microsoft / LinkedIn» straight to the provider, no Cognito hosted page.
 - [ ] Candidate self sign-up with email verification and profile completion.
 - [ ] Email footer postal address for `NOTIFICATIONS_EMAIL_POSTAL_ADDRESS` (none yet).
+- [ ] Real legal text for /terminos and /aviso-de-privacidad (provisional drafts ship with embedded auth, L23).
 - [ ] Pre-existing bug: `vacancy-checklist/compare/ui.tsx:57` links `/empresa/login?next=…`, which the login ignores.
 
 ## Product gaps
