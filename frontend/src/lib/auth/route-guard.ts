@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 import { serializeLogoutKindCookie } from "./logout";
@@ -97,28 +98,65 @@ async function readCapped(request: NextRequest, limit: number): Promise<string |
   return new TextDecoder().decode(bytes);
 }
 
+type CallbackFields = { email?: string; csrfToken?: string };
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 /**
- * The `email` field of a password-callback body, read from a bounded clone
- * (NextAuth reads the original) exactly as NextAuth parses it: form-encoded or
- * JSON, last value wins. The password is never read into a variable.
+ * The `email` and `csrfToken` fields of a password-callback body, read from a
+ * bounded clone (NextAuth reads the original) exactly as NextAuth parses it:
+ * form-encoded or JSON, last value wins. The password is never read into a
+ * variable.
  */
-async function submittedEmail(request: NextRequest): Promise<string | undefined | typeof OVERSIZED> {
+async function submittedFields(request: NextRequest): Promise<CallbackFields | typeof OVERSIZED> {
   try {
     const contentType = request.headers.get("content-type") ?? "";
     const text = await readCapped(request, MAX_PASSWORD_CALLBACK_BODY_BYTES);
     if (text === OVERSIZED) return OVERSIZED;
     if (contentType.includes("application/json")) {
       const body: unknown = JSON.parse(text);
-      const email = body && typeof body === "object" ? (body as { email?: unknown }).email : undefined;
-      return typeof email === "string" ? email : undefined;
+      if (!body || typeof body !== "object") return {};
+      const { email, csrfToken } = body as { email?: unknown; csrfToken?: unknown };
+      return { email: stringField(email), csrfToken: stringField(csrfToken) };
     }
     if (contentType.includes("application/x-www-form-urlencoded")) {
-      return new URLSearchParams(text).getAll("email").at(-1);
+      const params = new URLSearchParams(text);
+      return { email: params.getAll("email").at(-1), csrfToken: params.getAll("csrfToken").at(-1) };
     }
   } catch {
     // An unreadable body is limited by address only; NextAuth rejects it anyway.
   }
-  return undefined;
+  return {};
+}
+
+/** NextAuth v4's CSRF cookie name: `__Host-` exactly when it uses secure cookies (https NEXTAUTH_URL). */
+function csrfCookieName(secureCookie: boolean): string {
+  return `${secureCookie ? "__Host-" : ""}next-auth.csrf-token`;
+}
+
+/**
+ * NextAuth's double-submit check (core/lib/csrf-token.js), done here so the
+ * per-email budget is only spent by requests NextAuth would accept: the cookie
+ * is `token|sha256(token + secret)` and the body's csrfToken equals `token`.
+ * An attacker without the victim's browser cannot produce a pair, so an email
+ * can no longer be locked out for free; NextAuth still makes the final call.
+ */
+function hasValidCsrfPair(request: NextRequest, secret: string, secureCookie: boolean, bodyToken: string | undefined): boolean {
+  const cookie = request.cookies.get(csrfCookieName(secureCookie))?.value;
+  if (!cookie || !bodyToken) return false;
+  const separator = cookie.indexOf("|");
+  if (separator <= 0) return false;
+  const token = cookie.slice(0, separator);
+  const hash = cookie.slice(separator + 1);
+  const expected = createHash("sha256").update(`${token}${secret}`).digest("hex");
+  const same = (a: string, b: string) => {
+    const left = Buffer.from(a);
+    const right = Buffer.from(b);
+    return left.length === right.length && timingSafeEqual(left, right);
+  };
+  return same(hash, expected) && same(bodyToken, token);
 }
 
 /**
@@ -134,7 +172,8 @@ async function submittedEmail(request: NextRequest): Promise<string | undefined 
  *    redirects to the sign-in page), so it passes through unchanged. The bare
  *    POST (no params) stays open: the candidate apply wizard still uses it
  *    (src/features/candidate-applications/wizard.tsx) until A4.7.
- * 2. POST to the password callback is rate limited per client address and per
+ * 2. POST to the password callback is rate limited per client address (when
+ *    one can be derived) and, only with a valid NextAuth CSRF pair, per
  *    submitted email before NextAuth (and so Cognito) runs; over the limit it
  *    answers NextAuth's own `{ url }` shape with `error=too_many_attempts`.
  *    A body over MAX_PASSWORD_CALLBACK_BODY_BYTES (declared or actual; the
@@ -196,16 +235,19 @@ export function guardAuthRoute(handler: AuthRouteHandler, config: AuthRouteGuard
     }
 
     if (rateLimiter && is("callback", PASSWORD_PROVIDER) && request.method === "POST") {
-      const ip = clientIpFrom(request.headers);
-      const email = await submittedEmail(request);
-      if (email === OVERSIZED) {
+      const address = clientIpFrom(request.headers);
+      const ip = address === null ? {} : { ip: address };
+      const fields = await submittedFields(request);
+      if (fields === OVERSIZED) {
         // Refused rather than passed on: padding a body past the cap would
         // otherwise skip the per-email limit. The address is still counted.
-        const verdict = rateLimiter.attempt("signIn", { ip });
+        const verdict = rateLimiter.attempt("signIn", ip);
         if (!verdict.ok) return tooManyAttempts(verdict.retryAfterMs);
         return NextResponse.json({ url: new URL("/api/auth/error?error=invalid_request", config.siteUrl).toString() }, { status: 413 });
       }
-      const verdict = rateLimiter.attempt("signIn", { ip, email });
+      // Without a valid CSRF pair only the address is counted; NextAuth rejects the request.
+      const email = hasValidCsrfPair(request, config.secret, secureCookie, fields.csrfToken) && fields.email !== undefined ? { email: fields.email } : {};
+      const verdict = rateLimiter.attempt("signIn", { ...ip, ...email });
       if (!verdict.ok) return tooManyAttempts(verdict.retryAfterMs);
       return handler(request, context);
     }

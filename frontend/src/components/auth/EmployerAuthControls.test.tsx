@@ -14,7 +14,7 @@ const auth = vi.hoisted(() => ({
 vi.mock("next-auth/react", () => ({
   SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useSession: () => auth.session,
-  signIn: auth.signIn, signOut: auth.signOut,
+  signIn: auth.signIn, signOut: auth.signOut, getSession: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => auth.query }));
 vi.mock("./sign-in/navigate", () => ({ navigateTo: auth.navigate }));
@@ -137,6 +137,28 @@ describe("employer session and logout", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Tu sesión venció. Vuelve a ingresar.");
     expect(screen.getByLabelText("Contraseña")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ingresar" })).toBeInTheDocument();
+  });
+
+  it("keeps «Cerrar sesión» next to the form when the session expired, clearing it through the same logout", async () => {
+    auth.session = { status: "authenticated", data: { error: "RefreshAccessTokenError" } };
+    render(<EmployerAuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledWith({ callbackUrl: "/api/auth/cognito/logout" }));
+    expect(auth.signIn).not.toHaveBeenCalled();
+  });
+
+  it("offers no «Cerrar sesión» without any session", () => {
+    render(<EmployerAuthControls />);
+    expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
+  });
+
+  it("reports a logout failure from the expired state without its detail", async () => {
+    auth.session = { status: "authenticated", data: { error: "RefreshAccessTokenError" } };
+    auth.signOut.mockRejectedValue(new Error("private-refresh-token"));
+    render(<EmployerAuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No pudimos cerrar la sesión. Inténtalo de nuevo."));
+    expect(screen.queryByText(/private-refresh-token/)).not.toBeInTheDocument();
   });
 
   it("reports logout failure and never claims successful logout", async () => {

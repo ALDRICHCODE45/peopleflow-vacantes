@@ -3,7 +3,7 @@
 import * as React from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { CircleAlertIcon, EyeIcon, EyeOffIcon, HourglassIcon, InfoIcon, WifiOffIcon } from "lucide-react";
 import type { SocialProvider, SocialProviderId } from "@/lib/auth/social";
 
@@ -70,6 +70,7 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
   const [focusRequest, setFocusRequest] = React.useState<{ target: FocusTarget; n: number } | null>(null);
   const lock = React.useRef(false);
+  const mounted = React.useRef(true);
   const refs = {
     alert: React.useRef<HTMLDivElement>(null),
     email: React.useRef<HTMLInputElement>(null),
@@ -83,6 +84,11 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
     // refs are stable; only a new request moves focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusRequest]);
+
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   React.useEffect(() => {
     // e-social: back on «Ingresar» with the focus on the password.
@@ -137,9 +143,10 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     let answer: Awaited<ReturnType<typeof signIn>> | typeof TIMED_OUT;
+    const request = signIn("password", { redirect: false, email: typedEmail, password, callbackUrl });
     try {
       answer = await Promise.race([
-        signIn("password", { redirect: false, email: typedEmail, password, callbackUrl }),
+        request,
         new Promise<typeof TIMED_OUT>((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), SIGN_IN_TIMEOUT_MS); }),
       ]);
     } catch {
@@ -147,7 +154,20 @@ export function SignInForm({ audience, callbackUrl, socialProviders, notice = nu
     } finally {
       clearTimeout(timer);
     }
-    if (answer === TIMED_OUT) return endAttempt("network", "alert");
+    if (answer === TIMED_OUT) {
+      endAttempt("network", "alert");
+      // The request may still succeed after the timeout and set the session
+      // cookie. Once it settles (either way), the session decides: a live one
+      // continues to the destination instead of leaving the network error.
+      void request
+        .catch(() => undefined)
+        .then(() => getSession())
+        .then((session) => {
+          if (mounted.current && session && !session.error) navigateTo(callbackUrl);
+        })
+        .catch(() => {});
+      return;
+    }
 
     switch (classifySignInResult(answer)) {
       case "success":

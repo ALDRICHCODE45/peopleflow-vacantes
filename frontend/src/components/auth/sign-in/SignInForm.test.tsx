@@ -3,8 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const auth = vi.hoisted(() => ({ signIn: vi.fn(), assign: vi.fn() }));
-vi.mock("next-auth/react", () => ({ signIn: auth.signIn }));
+const auth = vi.hoisted(() => ({ signIn: vi.fn(), getSession: vi.fn(), assign: vi.fn() }));
+vi.mock("next-auth/react", () => ({ signIn: auth.signIn, getSession: auth.getSession }));
 vi.mock("./navigate", () => ({ navigateTo: auth.assign }));
 
 import { SignInForm, type SignInFormProps } from "./SignInForm";
@@ -29,6 +29,7 @@ const submit = () => fireEvent.click(screen.getByRole("button", { name: "Ingresa
 beforeEach(() => {
   auth.signIn.mockReset().mockResolvedValue({ ok: true, error: null, status: 200, url: "http://localhost:3000/empresa/dashboard" });
   auth.assign.mockReset();
+  auth.getSession.mockReset().mockResolvedValue(null);
   window.sessionStorage.clear();
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -204,6 +205,61 @@ describe("error mapping and copy", () => {
     expect(screen.getByRole("button", { name: "Ingresar" })).not.toHaveAttribute("aria-disabled");
     await act(async () => resolve({ ok: true, error: null, status: 200, url: "http://localhost:3000/empresa/dashboard" }));
     expect(auth.assign).not.toHaveBeenCalled();
+  });
+
+  describe("a sign-in that completes after the 10 s timeout", () => {
+    async function timeOutThenSettle(settle: (resolve: (value: unknown) => void, reject: (reason: unknown) => void) => void) {
+      vi.useFakeTimers();
+      let resolve!: (value: unknown) => void;
+      let reject!: (reason: unknown) => void;
+      auth.signIn.mockReturnValue(new Promise((done, fail) => { resolve = done; reject = fail; }));
+      renderForm({ callbackUrl: "/empresa/equipo" });
+      fill();
+      submit();
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(screen.getByRole("alert")).toHaveTextContent("No pudimos conectarnos.");
+      expect(auth.getSession).not.toHaveBeenCalled();
+      await act(async () => { settle(resolve, reject); await vi.advanceTimersByTimeAsync(0); });
+    }
+
+    it("re-checks the session once the request settles and continues to the destination if it is live", async () => {
+      auth.getSession.mockResolvedValue({ user: { name: "Laura" }, expires: "2099-01-01T00:00:00.000Z" });
+      await timeOutThenSettle((resolve) => resolve({ ok: true, error: null, status: 200, url: "http://localhost:3000/empresa/equipo" }));
+      expect(auth.getSession).toHaveBeenCalledTimes(1);
+      expect(auth.assign).toHaveBeenCalledExactlyOnceWith("/empresa/equipo");
+    });
+
+    it("re-checks even when the late request failed (the cookie decides, not the answer)", async () => {
+      auth.getSession.mockResolvedValue({ user: {}, expires: "2099-01-01T00:00:00.000Z" });
+      await timeOutThenSettle((_resolve, reject) => reject(new Error("socket hang up")));
+      expect(auth.assign).toHaveBeenCalledExactlyOnceWith("/empresa/equipo");
+    });
+
+    it.each([
+      ["no session", null],
+      ["an expired session", { error: "RefreshAccessTokenError", expires: "2099-01-01T00:00:00.000Z" }],
+    ])("stays on «No pudimos conectarnos.» with %s", async (_label, session) => {
+      auth.getSession.mockResolvedValue(session);
+      await timeOutThenSettle((resolve) => resolve({ ok: false, error: "invalid_credentials", status: 401, url: null }));
+      expect(auth.getSession).toHaveBeenCalledTimes(1);
+      expect(auth.assign).not.toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toHaveTextContent("No pudimos conectarnos.");
+    });
+
+    it("stays put when the session check itself fails", async () => {
+      auth.getSession.mockRejectedValue(new Error("offline"));
+      await timeOutThenSettle((resolve) => resolve(undefined));
+      expect(auth.assign).not.toHaveBeenCalled();
+    });
+
+    it("does not re-check for a request that answered in time", async () => {
+      auth.signIn.mockResolvedValue({ ok: false, error: "unavailable", status: 401, url: null });
+      renderForm();
+      fill();
+      submit();
+      await waitFor(() => screen.getByRole("alert"));
+      expect(auth.getSession).not.toHaveBeenCalled();
+    });
   });
 
   it("sends an unconfirmed account to the verify-code screen, carrying the email in session storage, never in the URL", async () => {

@@ -73,7 +73,7 @@ describe("getSocialProviders (server helper for the screens)", () => {
 describe("resolveSocialProviders (lazy, never throws)", () => {
   it("returns the enabled providers when the config is valid, without logging", () => {
     const log = vi.fn();
-    expect(resolveSocialProviders({ AUTH_SOCIAL_LINKEDIN: "on" }, log)).toEqual([{ id: "linkedin", identityProvider: "LinkedIn" }]);
+    expect(resolveSocialProviders({ AUTH_SOCIAL_LINKEDIN: "on" }, log, new Set())).toEqual([{ id: "linkedin", identityProvider: "LinkedIn" }]);
     expect(log).not.toHaveBeenCalled();
   });
 
@@ -83,13 +83,30 @@ describe("resolveSocialProviders (lazy, never throws)", () => {
     [{ AUTH_SOCIAL_GOOGLE: "on", AUTH_SOCIAL_LINKEDIN: "on", AUTH_SOCIAL_LINKEDIN_IDP: "Google" }, "AUTH_SOCIAL_LINKEDIN_IDP"],
   ])("disables every social provider on an invalid value and leaves one operator line naming only the key: %j", (env, key) => {
     const log = vi.fn();
-    expect(resolveSocialProviders(env, log)).toEqual([]);
+    expect(resolveSocialProviders(env, log, new Set())).toEqual([]);
     expect(log).toHaveBeenCalledExactlyOnceWith(`${SOCIAL_CONFIG_ERROR_PREFIX} key=${key}`);
     const line = String(log.mock.calls[0]?.[0]);
     for (const value of Object.values(env)) if (value !== "on") expect(line).not.toContain(value);
   });
 
   it("never lets a throwing log sink escape", () => {
-    expect(resolveSocialProviders({ AUTH_SOCIAL_GOOGLE: "1" }, () => { throw new Error("sink down"); })).toEqual([]);
+    expect(resolveSocialProviders({ AUTH_SOCIAL_GOOGLE: "1" }, () => { throw new Error("sink down"); }, new Set())).toEqual([]);
+  });
+
+  it("logs an invalid key once per process, not once per request, and each distinct key once", () => {
+    const log = vi.fn();
+    const seen = new Set<string>();
+    for (let i = 0; i < 5; i++) expect(resolveSocialProviders({ AUTH_SOCIAL_GOOGLE: "yes" }, log, seen)).toEqual([]);
+    expect(log).toHaveBeenCalledExactlyOnceWith(`${SOCIAL_CONFIG_ERROR_PREFIX} key=AUTH_SOCIAL_GOOGLE`);
+    resolveSocialProviders({ AUTH_SOCIAL_MICROSOFT: "1" }, log, seen);
+    resolveSocialProviders({ AUTH_SOCIAL_MICROSOFT: "1" }, log, seen);
+    expect(log).toHaveBeenCalledTimes(2);
+  });
+
+  it("dedupes through a process-wide set by default", () => {
+    const log = vi.fn();
+    resolveSocialProviders({ AUTH_SOCIAL_LINKEDIN_IDP: "x", AUTH_SOCIAL_LINKEDIN: "maybe" }, log);
+    resolveSocialProviders({ AUTH_SOCIAL_LINKEDIN: "maybe" }, log);
+    expect(log).toHaveBeenCalledTimes(1);
   });
 });

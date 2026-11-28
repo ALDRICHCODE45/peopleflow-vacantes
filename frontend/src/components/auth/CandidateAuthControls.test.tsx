@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const auth = vi.hoisted(() => ({ fetch: vi.fn(), navigate: vi.fn(), notify: vi.fn(), signIn: vi.fn(), signOut: vi.fn(), session: { status: "unauthenticated", data: null } as { status: string; data: { error?: string } | null }, query: new URLSearchParams() }));
-vi.mock("next-auth/react", () => ({ SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>, useSession: () => auth.session, signIn: auth.signIn, signOut: auth.signOut }));
+vi.mock("next-auth/react", () => ({ SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>, useSession: () => auth.session, signIn: auth.signIn, signOut: auth.signOut, getSession: vi.fn() }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => auth.query }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: auth.notify }));
 vi.mock("./sign-in/navigate", () => ({ navigateTo: auth.navigate }));
@@ -99,6 +99,17 @@ it("reports a logout failure without disclosing its detail", async () => {
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("No pudimos cerrar la sesión. Inténtalo de nuevo."));
   expect(auth.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "error", title: "No pudimos cerrar la sesión", reference: expect.any(Object) }));
   expect(screen.queryByText("secret")).toBeNull();
+});
+it("keeps «Cerrar sesión» next to the form when the session expired", async () => {
+  auth.session = { status: "authenticated", data: { error: "RefreshAccessTokenError" } };
+  render(<CandidateAuthControls />);
+  expect(screen.getByLabelText("Contraseña")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+  await waitFor(() => expect(auth.signOut).toHaveBeenCalledWith({ callbackUrl: "/api/auth/cognito/logout?to=candidato" }));
+});
+it("offers no «Cerrar sesión» without any session", () => {
+  render(<CandidateAuthControls />);
+  expect(screen.queryByRole("button", { name: "Cerrar sesión" })).toBeNull();
 });
 it("ignores a stale callback error once signed in", () => {
   auth.session = { status: "authenticated", data: {} };

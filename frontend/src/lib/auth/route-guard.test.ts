@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { encode } from "next-auth/jwt";
 import { NextRequest } from "next/server";
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { LOGOUT_KIND_COOKIE, SECURE_LOGOUT_KIND_COOKIE } from "./logout";
 import { MAX_PASSWORD_CALLBACK_BODY_BYTES, guardAuthRoute } from "./route-guard";
@@ -224,15 +225,26 @@ describe("lazy social flags", () => {
 });
 
 describe("password callback rate limiting", () => {
-  function passwordPost(body: Record<string, string>, ip = "198.51.100.1", contentType = "application/x-www-form-urlencoded") {
+  // NextAuth's double-submit pair: cookie `token|sha256(token + secret)`, body csrfToken === token.
+  const CSRF_TOKEN = "fixture-csrf-token";
+  const csrfCookie = (token = CSRF_TOKEN, secret = SECRET, name = "next-auth.csrf-token") =>
+    `${name}=${encodeURIComponent(`${token}|${createHash("sha256").update(`${token}${secret}`).digest("hex")}`)}`;
+
+  function passwordPost(
+    body: Record<string, string>,
+    ip: string | null = "198.51.100.1",
+    contentType = "application/x-www-form-urlencoded",
+    cookie: string | null = csrfCookie(),
+  ) {
+    const fields = cookie && body.csrfToken === undefined ? { ...body, csrfToken: CSRF_TOKEN } : body;
     return new NextRequest(`${SITE}/api/auth/callback/password`, {
       method: "POST",
-      headers: { "content-type": contentType, "x-forwarded-for": ip },
-      body: contentType.includes("json") ? JSON.stringify(body) : new URLSearchParams(body).toString(),
+      headers: { "content-type": contentType, ...(ip ? { "x-forwarded-for": ip } : {}), ...(cookie ? { cookie } : {}) },
+      body: contentType.includes("json") ? JSON.stringify(fields) : new URLSearchParams(fields).toString(),
     });
   }
 
-  type Attempt = (operation: string, keys: { ip: string; email?: string }) => { ok: true } | { ok: false; retryAfterMs: number };
+  type Attempt = (operation: string, keys: { ip?: string; email?: string }) => { ok: true } | { ok: false; retryAfterMs: number };
   function setupLimited(attempt = vi.fn<Attempt>(() => ({ ok: true }))) {
     const handler = vi.fn(async (request: NextRequest) => {
       // NextAuth reads the body itself: the guard must leave it readable.
@@ -245,7 +257,7 @@ describe("password callback rate limiting", () => {
 
   it("checks the client address and the submitted email before NextAuth runs, and leaves the body readable", async () => {
     const { guarded, handler, attempt } = setupLimited();
-    const response = await guarded(passwordPost({ email: "Laura@Empresa.mx", password: "fixture-password", csrfToken: "c", json: "true" }), ctx);
+    const response = await guarded(passwordPost({ email: "Laura@Empresa.mx", password: "fixture-password", json: "true" }), ctx);
     expect(attempt).toHaveBeenCalledExactlyOnceWith("signIn", { ip: "198.51.100.1", email: "Laura@Empresa.mx" });
     expect(handler).toHaveBeenCalledTimes(1);
     expect(await response.json()).toMatchObject({ email: "Laura@Empresa.mx" });
@@ -256,6 +268,55 @@ describe("password callback rate limiting", () => {
     const { guarded, attempt } = setupLimited();
     await guarded(passwordPost({ email: "a@x.mx", password: "p" }, "198.51.100.2", "application/json"), ctx);
     expect(attempt).toHaveBeenCalledWith("signIn", { ip: "198.51.100.2", email: "a@x.mx" });
+  });
+
+  it.each([
+    ["no CSRF cookie", { cookie: null, body: { csrfToken: CSRF_TOKEN } }],
+    ["a cookie signed with another secret", { cookie: csrfCookie(CSRF_TOKEN, "other-secret"), body: {} }],
+    ["a cookie without hash", { cookie: `next-auth.csrf-token=${CSRF_TOKEN}`, body: { csrfToken: CSRF_TOKEN } }],
+    ["a body token that differs from the cookie", { cookie: csrfCookie(), body: { csrfToken: "other-token" } }],
+    ["no body token", { cookie: csrfCookie(), body: { csrfToken: "" } }],
+    ["the __Host- cookie on an http site", { cookie: csrfCookie(CSRF_TOKEN, SECRET, "__Host-next-auth.csrf-token"), body: { csrfToken: CSRF_TOKEN } }],
+  ])("counts only the address, never the email, for %s, and lets NextAuth reject it", async (_label, { cookie, body }) => {
+    const { guarded, handler, attempt } = setupLimited();
+    await guarded(passwordPost({ email: "victim@empresa.mx", password: "p", ...body }, "198.51.100.7", "application/x-www-form-urlencoded", cookie), ctx);
+    expect(attempt).toHaveBeenCalledExactlyOnceWith("signIn", { ip: "198.51.100.7" });
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts the __Host- CSRF cookie (and only it) on an https site", async () => {
+    const attempt = vi.fn<Attempt>(() => ({ ok: true }));
+    const handler = vi.fn(async () => new Response("{}", { status: 200 }));
+    const site = "https://peopleflow.example";
+    const guarded = guardAuthRoute(handler, { secret: SECRET, siteUrl: site, socialProviders: [], rateLimiter: { attempt } });
+    const post = (cookie: string) => new NextRequest(`${site}/api/auth/callback/password`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "x-forwarded-for": "198.51.100.8", cookie },
+      body: new URLSearchParams({ email: "a@x.mx", password: "p", csrfToken: CSRF_TOKEN }).toString(),
+    });
+    await guarded(post(csrfCookie(CSRF_TOKEN, SECRET, "__Host-next-auth.csrf-token")), ctx);
+    await guarded(post(csrfCookie()), ctx);
+    expect(attempt.mock.calls).toEqual([
+      ["signIn", { ip: "198.51.100.8", email: "a@x.mx" }],
+      ["signIn", { ip: "198.51.100.8" }],
+    ]);
+  });
+
+  it("cannot lock a victim's email out without a valid CSRF pair (real limiter)", async () => {
+    const { createAuthAttemptLimiter, AUTH_RATE_LIMITS } = await import("./rate-limit");
+    const handler = vi.fn(async () => new Response("{}", { status: 200 }));
+    const guarded = guardAuthRoute(handler, { secret: SECRET, siteUrl: SITE, socialProviders: [], rateLimiter: createAuthAttemptLimiter({ now: () => 0 }) });
+    const { limit } = AUTH_RATE_LIMITS.signIn.perEmail;
+    for (let i = 0; i < limit * 3; i++) await guarded(passwordPost({ email: "victim@x.mx", password: "p" }, `198.51.100.${i}`, undefined, null), ctx);
+    const owner = await guarded(passwordPost({ email: "victim@x.mx", password: "p" }, "203.0.113.9"), ctx);
+    expect(owner.status).toBe(200);
+  });
+
+  it("skips the per-IP key when no client address can be derived, keeping the per-email one", async () => {
+    const { guarded, attempt } = setupLimited();
+    await guarded(passwordPost({ email: "a@x.mx", password: "p" }, null), ctx);
+    expect(attempt).toHaveBeenCalledExactlyOnceWith("signIn", { email: "a@x.mx" });
+    expect(Object.keys(attempt.mock.calls[0]![1])).toEqual(["email"]);
   });
 
   it("answers too_many_attempts over the limit without reaching NextAuth (so never Cognito)", async () => {
@@ -331,7 +392,7 @@ describe("password callback rate limiting", () => {
 
   it("admits a body right at the cap", async () => {
     const { guarded, handler } = setupLimited();
-    const base = new URLSearchParams({ email: "a@x.mx", password: "p", pad: "" }).toString();
+    const base = new URLSearchParams({ email: "a@x.mx", password: "p", pad: "", csrfToken: CSRF_TOKEN }).toString();
     const pad = "x".repeat(MAX_PASSWORD_CALLBACK_BODY_BYTES - base.length);
     const response = await guarded(passwordPost({ email: "a@x.mx", password: "p", pad }), ctx);
     expect(response.status).toBe(200);

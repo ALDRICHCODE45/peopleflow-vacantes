@@ -52,14 +52,27 @@ export function createFixedWindowLimiter({ limit, windowMs, maxKeys = DEFAULT_MA
     return entry;
   }
 
-  function makeRoom(at: number) {
-    if (windows.size < maxKeys) return;
+  /**
+   * Frees one slot for a new key: expired windows first, then the oldest key
+   * still under its limit. A key over its limit is never evicted before its
+   * window ends (that would reset a lockout). When every tracked key is over
+   * its limit there is no room: returns the time until the first one expires,
+   * and the new key is refused for that long (fail closed, existing keys keep
+   * their state).
+   */
+  function makeRoom(at: number): number | undefined {
+    if (windows.size < maxKeys) return undefined;
     for (const [key, entry] of windows) if (entry.resetAt <= at) windows.delete(key);
-    while (windows.size >= maxKeys) {
-      const oldest = windows.keys().next().value;
-      if (oldest === undefined) break;
-      windows.delete(oldest);
+    if (windows.size < maxKeys) return undefined;
+    for (const [key, entry] of windows) {
+      if (entry.count < limit) {
+        windows.delete(key);
+        return undefined;
+      }
     }
+    let firstReset = Infinity;
+    for (const entry of windows.values()) firstReset = Math.min(firstReset, entry.resetAt);
+    return firstReset - at;
   }
 
   function check(key: string): RateLimitResult {
@@ -78,7 +91,8 @@ export function createFixedWindowLimiter({ limit, windowMs, maxKeys = DEFAULT_MA
       const entry = current(key, at);
       if (entry) entry.count += 1;
       else {
-        makeRoom(at);
+        const full = makeRoom(at);
+        if (full !== undefined) return { ok: false, retryAfterMs: full };
         windows.set(key, { count: 1, resetAt: at + windowMs });
       }
       return { ok: true };
@@ -97,17 +111,19 @@ const IP_SHAPE = /^[0-9A-Fa-f:.]{2,45}$/;
 /**
  * The client address as the nearest proxy saw it: the right-most
  * X-Forwarded-For entry (appended by the proxy in front of Next), else
- * X-Real-IP, else `unknown`. Behind exactly one trusted proxy this cannot be
+ * X-Real-IP, else `null` (no usable address: the caller skips the per-IP
+ * limit rather than sharing one bucket among every such request; the per-email
+ * limit still applies). Behind exactly one trusted proxy this cannot be
  * forged by the client. Exposed directly, the header is client-controlled and
  * the per-IP limit can be dodged (the per-email limit still holds); the AWS
  * phase must fix the trusted hop count for its load balancer.
  */
-export function clientIpFrom(headers: Headers): string {
+export function clientIpFrom(headers: Headers): string | null {
   const forwarded = headers.get("x-forwarded-for");
   const candidate = forwarded
     ? forwarded.split(",").map((part) => part.trim()).filter(Boolean).at(-1)
     : headers.get("x-real-ip")?.trim();
-  return candidate && IP_SHAPE.test(candidate) ? candidate : "unknown";
+  return candidate && IP_SHAPE.test(candidate) ? candidate : null;
 }
 
 /** The operations an embedded-auth route performs; the same names the Cognito client uses (no refresh). */
@@ -132,7 +148,8 @@ export const AUTH_RATE_LIMITS: Record<AuthAttemptOperation, AuthRatePolicy> = {
   confirmForgotPassword: { perIp: { limit: 30, windowMs: 15 * MINUTE }, perEmail: { limit: 10, windowMs: 15 * MINUTE } },
 };
 
-export type AuthAttemptKeys = { ip: string; email?: string };
+/** Either key may be absent: an unknown address, or (password callback) no valid CSRF pair for the email. */
+export type AuthAttemptKeys = { ip?: string; email?: string };
 
 export type AuthAttemptLimiter = {
   /** Counts the attempt on both keys only when both have budget. */
@@ -163,11 +180,14 @@ export function createAuthAttemptLimiter({
     attempt(operation, { ip, email }) {
       const pair = forOperation(operation);
       const emailKey = typeof email === "string" && email.trim() !== "" ? emailRateKey(email) : undefined;
-      const verdicts = [pair.ip.check(ip), ...(emailKey ? [pair.email.check(emailKey)] : [])];
+      const ipKey = typeof ip === "string" && ip !== "" ? ip : undefined;
+      const verdicts = [...(ipKey ? [pair.ip.check(ipKey)] : []), ...(emailKey ? [pair.email.check(emailKey)] : [])];
       const refused = verdicts.filter((verdict): verdict is { ok: false; retryAfterMs: number } => !verdict.ok);
       if (refused.length > 0) return { ok: false, retryAfterMs: Math.max(...refused.map((verdict) => verdict.retryAfterMs)) };
-      pair.ip.hit(ip);
-      if (emailKey) pair.email.hit(emailKey);
+      // A full table refuses a new key on hit (makeRoom): that refusal stands.
+      const hits = [...(ipKey ? [pair.ip.hit(ipKey)] : []), ...(emailKey ? [pair.email.hit(emailKey)] : [])];
+      const full = hits.filter((verdict): verdict is { ok: false; retryAfterMs: number } => !verdict.ok);
+      if (full.length > 0) return { ok: false, retryAfterMs: Math.max(...full.map((verdict) => verdict.retryAfterMs)) };
       return { ok: true };
     },
   };

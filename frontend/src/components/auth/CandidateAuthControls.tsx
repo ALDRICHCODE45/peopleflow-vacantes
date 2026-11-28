@@ -43,13 +43,20 @@ function CandidateSignIn({ socialProviders }: { socialProviders: readonly Social
     } finally { lock.current = false; setPending(false); }
   }
 
+  const logoutControls = <>
+    <Button type="button" variant="outline" className="h-12 w-full text-[15px]" aria-describedby={logoutError ? statusId : undefined} disabled={pending} onClick={() => void logout()}>{pending && <Spinner aria-hidden="true" />}Cerrar sesión</Button>
+    <ActionStatusSlot>{logoutError && <ActionStatus id={statusId} tone="error" text={logoutError} />}</ActionStatusSlot>
+  </>;
   if (!authenticated) {
-    return <SignInForm audience="candidate" callbackUrl={callbackUrl} socialProviders={socialProviders} notice={signInNotice(expired, params)} disabled={status === "loading"} />;
+    return <>
+      <SignInForm audience="candidate" callbackUrl={callbackUrl} socialProviders={socialProviders} notice={signInNotice(expired, params)} disabled={status === "loading"} />
+      {/* An expired session still holds a cookie: let the person clear it (baseline behavior). */}
+      {expired && <div className="mt-3 flex flex-col gap-3" aria-busy={pending}>{logoutControls}</div>}
+    </>;
   }
   return <div className="mt-8 flex flex-col gap-5" aria-busy={pending}>
     <Button nativeButton={false} role="link" render={<Link href={callbackUrl} />} className="h-12 w-full text-[15px] font-semibold">Ir a mi cuenta</Button>
-    <Button type="button" variant="outline" className="h-12 w-full text-[15px]" aria-describedby={logoutError ? statusId : undefined} disabled={pending} onClick={() => void logout()}>{pending && <Spinner aria-hidden="true" />}Cerrar sesión</Button>
-    <ActionStatusSlot>{logoutError && <ActionStatus id={statusId} tone="error" text={logoutError} />}</ActionStatusSlot>
+    {logoutControls}
   </div>;
 }
 

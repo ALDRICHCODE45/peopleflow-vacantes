@@ -48,7 +48,7 @@ Social sign-in flags (names only; unset or `off` hides the button):
 
 | Variable | Rules |
 | --- | --- |
-| `AUTH_SOCIAL_GOOGLE`, `AUTH_SOCIAL_MICROSOFT`, `AUTH_SOCIAL_LINKEDIN` | `on` or `off`. Read per request; any other value (or a bad `*_IDP` below) turns every social provider off and logs `[auth] social_config_invalid key=<KEY>` (never the value). Password sign-in and the rest of `/api/auth/*` keep working. |
+| `AUTH_SOCIAL_GOOGLE`, `AUTH_SOCIAL_MICROSOFT`, `AUTH_SOCIAL_LINKEDIN` | `on` or `off`. Read per request; any other value (or a bad `*_IDP` below) turns every social provider off and logs `[auth] social_config_invalid key=<KEY>` once per key per process (never the value). Password sign-in and the rest of `/api/auth/*` keep working. |
 | `AUTH_SOCIAL_GOOGLE_IDP`, `AUTH_SOCIAL_MICROSOFT_IDP`, `AUTH_SOCIAL_LINKEDIN_IDP` | Optional Cognito identity provider name (`[A-Za-z0-9._-]{1,32}`); defaults `Google`, `Microsoft`, `LinkedIn`. Two providers may not share a name. |
 
 Derived values (never request-controlled):
@@ -173,7 +173,7 @@ artboard 01):
 | `invalid_credentials` | Wrong email/password, unknown user, `PasswordResetRequiredException`, malformed or oversized input (email > 254, password > 256) → «Correo o contraseña incorrectos.» (both fields marked, password cleared, focus on the summary) |
 | `not_confirmed` | Correct password on an unconfirmed account → the verify-code route (`/empresa/verificar`, `/candidato/verificar`, A4.4), email carried in `sessionStorage` (`peopleflow.auth.pendingEmail`), never in the URL; the password is cleared before leaving, and each new attempt drops any earlier carried email |
 | `too_many_attempts` | Cognito throttling, or our rate limit (below) → «Demasiados intentos.» with a link to reset the password |
-| `unavailable` | Cognito unreachable or misconfigured (incl. hash mismatch), a challenge with no screen yet (`NEW_PASSWORD_REQUIRED`, MFA), a malformed access token → «No pudimos conectarnos.» (also on a thrown request or after 10 s), what was typed stays |
+| `unavailable` | Cognito unreachable or misconfigured (incl. hash mismatch), a challenge with no screen yet (`NEW_PASSWORD_REQUIRED`, MFA), a malformed access token → «No pudimos conectarnos.» (also on a thrown request or after 10 s), what was typed stays. After a timeout, once the request settles the screen calls `getSession()` and continues to the destination if a live session exists |
 
 **Screens (A4.3).** `/empresa/login` and `/candidato/login` render
 `LoginScreen` (FloatingLines panel unchanged) with `EmployerAuthControls` /
@@ -189,7 +189,7 @@ callbackUrl })`, then a full navigation to the callback: employers to the safe
 Those routes do not exist yet: the links 404 until their slices land. «Ingresar
 con Cognito» and the candidate hosted sign-up rewrite are gone, with no
 rollback flag (`signup-url.ts` is now unused). An expired session shows «Tu
-sesión venció. Vuelve a ingresar.»; any `?error=` shows the generic callback
+sesión venció. Vuelve a ingresar.» with the form and «Cerrar sesión» below it; any `?error=` shows the generic callback
 failure, except `?error=email_in_use`, which shows the L5 notice «Ese correo ya
 tiene cuenta. Entra con tu contraseña.» (nothing sets it yet: the social
 onboarding redirect is a follow-up).
@@ -197,7 +197,14 @@ onboarding redirect is a follow-up).
 **Rate limiting.** The route guard counts every POST to the password callback
 per client address and per normalized email (SHA-256 of trim+lowercase; the
 raw email is never stored or logged, the password never read) before NextAuth
-runs; over either limit it answers `429 { url: …/api/auth/error?error=too_many_attempts }`
+runs. The email is counted only when the request carries a valid NextAuth CSRF
+pair (cookie `next-auth.csrf-token`, or `__Host-next-auth.csrf-token` on https,
+holding `token|sha256(token + NEXTAUTH_SECRET)`, and the body `csrfToken`
+equal to `token`, compared in constant time), so nobody can lock another
+person's email out without that person's browser; requests without a valid
+pair spend only the address budget and reach NextAuth, which rejects them.
+When no client address can be derived, the per-IP limit is skipped (no shared
+«unknown» bucket) and the per-email limit still applies; over either limit it answers `429 { url: …/api/auth/error?error=too_many_attempts }`
 with `Retry-After`, without calling Cognito. The email is read from a clone
 of the body capped at 8 KiB (`MAX_PASSWORD_CALLBACK_BODY_BYTES`; a real body is
 under 1 KiB): a larger declared `Content-Length` or more actual bytes stops the
@@ -210,7 +217,11 @@ confirm and confirm-forgot 30/IP and 10/email per 15 min; resend and forgot
 10/IP and 3/email per 15 min. The A4.4–A4.6 routes call
 `createAuthAttemptLimiter().attempt(<operation>, { ip, email })` the same way.
 The client address is the right-most `X-Forwarded-For` entry (else
-`X-Real-IP`). Limits: counters are in memory per instance (N instances give N×
+`X-Real-IP`). The counter table holds at most 10 000 keys per limiter: expired
+windows go first, then the oldest key still under its limit; a key over its
+limit is never evicted before its window ends. If every tracked key is over its
+limit, a new key is refused until the first window expires (fail closed;
+existing keys keep their state). Limits: counters are in memory per instance (N instances give N×
 the budget; a restart resets them) and, without a trusted proxy in front, the
 header is client-controlled, so only the per-email limit holds. The AWS phase
 must move counters to a shared store or WAF rules and pin the trusted hop.

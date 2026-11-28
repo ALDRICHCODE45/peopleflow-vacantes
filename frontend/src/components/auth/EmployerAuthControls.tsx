@@ -45,15 +45,31 @@ function EmployerSignIn({ socialProviders }: { socialProviders: readonly SocialP
     }
   }
 
+  const logoutButton = (
+    <Button type="button" variant="outline" onClick={logout} disabled={pending}
+      className="h-12 w-full text-[15px]">
+      Cerrar sesión
+    </Button>
+  );
+
   if (!authenticated) {
     return (
-      <SignInForm
-        audience="employer"
-        callbackUrl={employerReturnPath(params.get("callbackUrl"))}
-        socialProviders={socialProviders}
-        notice={signInNotice(expired, params)}
-        disabled={status === "loading"}
-      />
+      <>
+        <SignInForm
+          audience="employer"
+          callbackUrl={employerReturnPath(params.get("callbackUrl"))}
+          socialProviders={socialProviders}
+          notice={signInNotice(expired, params)}
+          disabled={status === "loading"}
+        />
+        {/* An expired session still holds a cookie: let the person clear it (baseline behavior). */}
+        {expired && (
+          <div className="mt-3 flex flex-col gap-3" aria-busy={pending}>
+            {logoutError && <p role="alert" className="text-sm text-destructive">{logoutError}</p>}
+            {logoutButton}
+          </div>
+        )}
+      </>
     );
   }
 
@@ -66,10 +82,7 @@ function EmployerSignIn({ socialProviders }: { socialProviders: readonly SocialP
         className="h-12 w-full text-[15px] font-semibold">
         Ir a mi panel
       </Button>
-      <Button type="button" variant="outline" onClick={logout} disabled={pending}
-        className="h-12 w-full text-[15px]">
-        Cerrar sesión
-      </Button>
+      {logoutButton}
     </div>
   );
 }

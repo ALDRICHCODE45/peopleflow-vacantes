@@ -86,25 +86,35 @@ function keyOf(error: unknown): string {
   return SOCIAL_KEYS.includes(key) ? key : "unknown";
 }
 
+/** Keys already reported by this process. */
+const LOGGED_KEYS = new Set<string>();
+
 /**
  * Lazy, non-throwing resolution (L16 R3/R4) for the sign-in screens and the
  * auth route guard, called per request: an invalid AUTH_SOCIAL_* value turns
  * every social provider off (no buttons, identity_provider sign-ins refused)
- * and leaves one operator line, while password sign-in and every other
+ * and leaves one operator line per invalid key per process, while password sign-in and every other
  * /api/auth/* route keep working.
  */
 export function resolveSocialProviders(
   env: AuthEnvSource = process.env,
   log: (line: string) => void = (line) => console.warn(line),
+  logged: Set<string> = LOGGED_KEYS,
 ): SocialProvider[] {
   try {
     return socialProvidersFromEnv(env);
   } catch (error) {
-    try {
-      log(`${SOCIAL_CONFIG_ERROR_PREFIX} key=${keyOf(error)}`);
-    } catch {
-      // Logging must never alter authentication.
+    // Once per key per process: resolution runs on every login render and social sign-in.
+    const key = keyOf(error);
+    if (!logged.has(key)) {
+      logged.add(key);
+      try {
+        log(`${SOCIAL_CONFIG_ERROR_PREFIX} key=${key}`);
+      } catch {
+        // Logging must never alter authentication.
+      }
     }
     return [];
   }
 }
+

@@ -30,19 +30,45 @@ describe("fixed-window limiter", () => {
     expect(limiter.check("a")).toEqual({ ok: false, retryAfterMs: 1_000 });
   });
 
-  it("keeps memory bounded: expired keys are pruned first, then the oldest key is evicted", () => {
+  it("keeps memory bounded: expired keys are pruned first, then the oldest under-limit key is evicted", () => {
     let now = 0;
-    const limiter = createFixedWindowLimiter({ limit: 1, windowMs: 1_000, maxKeys: 2, now: () => now });
+    const limiter = createFixedWindowLimiter({ limit: 2, windowMs: 1_000, maxKeys: 2, now: () => now });
     limiter.hit("a");
     limiter.hit("b");
     expect(limiter.size()).toBe(2);
     limiter.hit("c");
     expect(limiter.size()).toBe(2);
-    // "a" (oldest) was evicted: it starts a fresh window.
+    // "a" (oldest, under its limit) was evicted: it starts a fresh window.
+    limiter.hit("a");
     expect(limiter.hit("a").ok).toBe(true);
     now = 5_000;
     limiter.hit("d");
     expect(limiter.size()).toBe(1);
+  });
+
+  it("never evicts a key that is over its limit before its window expires", () => {
+    let now = 0;
+    const limiter = createFixedWindowLimiter({ limit: 1, windowMs: 1_000, maxKeys: 2, now: () => now });
+    limiter.hit("blocked"); // at its limit
+    limiter.hit("free");
+    limiter.hit("free"); // refused, still at limit
+    now = 100;
+    // Both tracked keys are over the limit: the newcomer is refused, not admitted by evicting one.
+    expect(limiter.hit("newcomer")).toEqual({ ok: false, retryAfterMs: 900 });
+    expect(limiter.size()).toBe(2);
+    expect(limiter.hit("blocked")).toEqual({ ok: false, retryAfterMs: 900 });
+    // Once a window expires there is room again.
+    now = 1_000;
+    expect(limiter.hit("newcomer").ok).toBe(true);
+  });
+
+  it("evicts an under-limit key rather than an older over-limit one", () => {
+    const limiter = createFixedWindowLimiter({ limit: 2, windowMs: 1_000, maxKeys: 2, now: () => 0 });
+    limiter.hit("blocked");
+    limiter.hit("blocked"); // over (at) limit, oldest
+    limiter.hit("free"); // under limit
+    expect(limiter.hit("newcomer").ok).toBe(true);
+    expect(limiter.hit("blocked").ok).toBe(false);
   });
 });
 
@@ -59,8 +85,9 @@ describe("rate-limit keys", () => {
     [{ "x-forwarded-for": "198.51.100.7" }, "198.51.100.7"],
     [{ "x-forwarded-for": "2001:db8::1" }, "2001:db8::1"],
     [{ "x-real-ip": "198.51.100.8" }, "198.51.100.8"],
-    [{}, "unknown"],
-    [{ "x-forwarded-for": "not an ip<script>" }, "unknown"],
+    [{}, null],
+    [{ "x-forwarded-for": "not an ip<script>" }, null],
+    [{ "x-forwarded-for": " , " }, null],
   ])("takes the client address the nearest proxy saw: %j", (headers, ip) => {
     expect(clientIpFrom(new Headers(headers))).toBe(ip);
   });
@@ -100,6 +127,16 @@ describe("auth attempt limiter (password callback and the A4.4–A4.6 routes)", 
     for (let i = 0; i < 50; i++) limiter.attempt("signIn", { ip: "203.0.113.5", email: "a@x.mx" });
     // The blocked email did not burn 203.0.113.5's own budget.
     expect(limiter.attempt("signIn", { ip: "203.0.113.5", email: "b@x.mx" }).ok).toBe(true);
+  });
+
+  it("skips the per-IP budget when the address is unknown (no shared bucket), keeping the per-email one", () => {
+    const limiter = createAuthAttemptLimiter({ now: () => 0 });
+    const { limit: ipLimit } = AUTH_RATE_LIMITS.signIn.perIp;
+    for (let i = 0; i < ipLimit + 5; i++) expect(limiter.attempt("signIn", { email: `u${i}@x.mx` }).ok).toBe(true);
+    const { limit: emailLimit } = AUTH_RATE_LIMITS.signIn.perEmail;
+    for (let i = 0; i < emailLimit; i++) limiter.attempt("signIn", { email: "same@x.mx" });
+    expect(limiter.attempt("signIn", { email: "same@x.mx" }).ok).toBe(false);
+    expect(limiter.attempt("signIn", {}).ok).toBe(true);
   });
 
   it("keeps each operation's budget separate", () => {
