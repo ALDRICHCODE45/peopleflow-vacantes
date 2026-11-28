@@ -247,3 +247,6 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   (lens_context_budget_exceeded, no authority created); recorded as nativeReviewOutcome=unavailable. Lesson applied
   to A4.5–A4.7: smaller work units (backend-of-the-screen and screen as separate commits) so each fits the native
   review.
+- **L25** (2026-11-28) User: once everything current is finished (A4.5–A4.7 and the local test with real Cognito), both
+  sessions (frontend and backend) close before AWS; the AWS work starts in new sessions. Before closing, each session
+  leaves its full state in Engram and its feature documents. Communicated to the backend session.
