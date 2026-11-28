@@ -54,4 +54,6 @@ Cognito hosted UI with an embedded login (frontend feature `odd/tasks/embedded-a
     PeopleFlow», body «Tu código de verificación es {####}.».
   - Choice-based sign-in options: passwordless inactive, available choice Password (untouched).
   - Hosted UI / login pages, callback and sign-out URLs: untouched (rollback path).
-  - Pending in this session: confirm the sign-in identifier (email vs username).
+  - Sign-in identifier: **Email** (Cognito user pool sign-in options) ✓. MFA: none. Device tracking: don't remember.
+  - Checklist complete for the real pool; next: frontend sends `name` in SignUp, then a local test of the embedded login
+    with real accounts using IDENTITY_PROVIDER=cognito_getuser + IDENTITY_COGNITO_REGION=us-east-1 on the backend.
