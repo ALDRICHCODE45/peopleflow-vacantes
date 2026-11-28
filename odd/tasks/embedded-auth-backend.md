@@ -38,3 +38,20 @@ Cognito hosted UI with an embedded login (frontend feature `odd/tasks/embedded-a
   only via transportClass; loopback check also accepts ::ffff:127.x; GetUser uses the default transport (HTTP(S)_PROXY);
   soft-deleted subs can onboard again (pre-existing). Frontend fixture with the old message and any audit-type-count pin are
   frontend follow-ups. Pending human decision: merge to main.
+- **L8** 2026-11-27, Cognito console session with the user (real pool, step by step; the user made every change, agents
+  touched nothing in AWS). Pool «User pool - shqlba», region us-east-1 (N. Virginia); one app client `peopleflow-web-dev`
+  (confidential: has a client secret → the Next server computes SECRET_HASH).
+  - Authentication flows before: Choice-based sign-in (ALLOW_USER_AUTH), SRP (ALLOW_USER_SRP_AUTH), «Get user tokens from
+    existing authenticated sessions» (ALLOW_REFRESH_TOKEN_AUTH). **Added by the user: ALLOW_USER_PASSWORD_AUTH** (saved).
+  - Prevent user existence errors: already enabled. Token revocation: enabled.
+  - Token expiration: auth flow session 3 min, access 60 min, ID 60 min, **refresh 5 days (kept, user decision)**.
+  - OAuth scopes before: email, openid, profile. **Added by the user: aws.cognito.signin.user.admin** (saved; permanent, Q4).
+  - Self-service sign-up: enabled. Cognito-assisted verification: yes, email. Keep original attribute value while an
+    update is pending: disabled.
+  - **Required attributes: email AND name** → the frontend must send `name` in SignUp.
+  - Verification message: code (`{####}`), English text «Your verification code» / «Your verification code is {####}.»
+    **Deferred (user): translate to Spanish with SES in the AWS phase** — suggested subject «Tu código de verificación de
+    PeopleFlow», body «Tu código de verificación es {####}.».
+  - Choice-based sign-in options: passwordless inactive, available choice Password (untouched).
+  - Hosted UI / login pages, callback and sign-out URLs: untouched (rollback path).
+  - Pending in this session: confirm the sign-in identifier (email vs username).
