@@ -26,7 +26,7 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
 | A2 | S1, S3, S4 | Screen design directions on the canvas (`design/embedded-auth/`): sign in, sign up (candidate / company), code, forgot password, social buttons, errors | |
 | A3 | S1–S4 | Technical design + backend needs (with the backend session) + AWS console checklist for the user (AWS stays untouched by agents) | |
 | A4 | S1–S4 | Implementation of design 01 · Panel dividido, test-first, behind the existing session model | |
-| A4.1 | S1, S2 | Server-only Cognito client (SECRET_HASH; InitiateAuth, SignUp, ConfirmSignUp, Resend, ForgotPassword, ConfirmForgotPassword) + mock Cognito fixture | |
+| A4.1 | S1, S2 | Server-only Cognito client (SECRET_HASH; InitiateAuth, SignUp, ConfirmSignUp, Resend, ForgotPassword, ConfirmForgotPassword) + mock Cognito fixture | c62f757d, 09c14ac9 |
 | A4.2 | S1–S3 | NextAuth CredentialsProvider into the same JWT cookie; refresh via REFRESH_TOKEN_AUTH; logout per session kind; OAuth scope + identity_provider with per-provider flags | |
 | A4.3 | S1, S3 | Ingresar screens (employer, candidate) on LoginScreen, FloatingLines kept as is; generic errors; rate limiting | |
 | A4.4 | S1 | Candidate sign-up + Verifica tu correo + candidate-account onboarding | |
@@ -153,3 +153,11 @@ All authentication happens inside PeopleFlow with its own UI; the Cognito hosted
   PASSWORD_REQUIREMENTS (8+, lower, upper, number, symbol) and that usernames are case-insensitive. Pre-existing break
   noted for the backlog: tests/fixtures/jobs-server.test.ts fails in beforeAll (jobs-server.mjs cannot resolve
   '@/features/candidate/model').
+- **L14** (2026-11-27) A4.1 done: c62f757d + verify fixes 09c14ac9 (email trim+lowercase everywhere, mock matches
+  usernames exactly, onServiceError hook, override refused under NODE_ENV=production; e2e Next must run with
+  NODE_ENV=test). Native review approved and acknowledged (lineage review-0021833ce73c8116; lenses risk, resilience,
+  reliability). Advisory follow-ups: (1) R3/R4 a wrong or rotated client secret makes Cognito answer
+  NotAuthorizedException «Unable to verify secret hash», mapped to invalid_credentials / code_mismatch, so operators
+  get no signal → in A4.2 the transport classifies that exact Cognito message (never returned or logged) as a
+  configuration failure: outcome unavailable + onServiceError; (2) R3 the mock lets an unconfirmed user get a reset
+  code → in A4.6 the mock answers UserNotConfirmedException so the existence-hiding branch runs end to end.
